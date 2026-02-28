@@ -60,7 +60,7 @@ ROOM_DISPLAY = {
     "Floor1_Large":   "Ground Floor Left",
     "Floor1_Small":   "Ground Floor Right",
     "Floor2_Large":   "Second Floor",
-    "Floor2_Small":   "Second Floor (S)",
+    "Floor2_Small":   "Second Floor Right",
     "Attic":          "Attic",
     "Attic_Large":    "Attic",
     "Basement":       "Basement",
@@ -529,14 +529,15 @@ def find_save_files() -> list[str]:
 
 # ── Qt table model ────────────────────────────────────────────────────────────
 
-COLUMNS   = ["Name", "♀/♂", "Room", "Status"] + STAT_NAMES + ["Abilities", "Mutations"]
+COLUMNS   = ["Name", "♀/♂", "Room", "Status"] + STAT_NAMES + ["Sum", "Abilities", "Mutations"]
 COL_NAME  = 0
 COL_GEN   = 1
 COL_ROOM  = 2
 COL_STAT  = 3
 STAT_COLS = list(range(4, 11))   # STR … LCK  (indices 4–10)
-COL_ABIL  = 11
-COL_MUTS  = 12
+COL_SUM   = 11
+COL_ABIL  = 12
+COL_MUTS  = 13
 
 # Fixed pixel widths for narrow columns
 _W_STATUS = 62
@@ -585,6 +586,8 @@ class CatTableModel(QAbstractTableModel):
             if col == COL_STAT: return STATUS_ABBREV.get(cat.status, cat.status)
             if col in STAT_COLS:
                 return str(cat.base_stats[STAT_NAMES[col - 4]])
+            if col == COL_SUM:
+                return str(sum(cat.base_stats.values()))
             if col == COL_MUTS:
                 return ", ".join(cat.mutations)
             if col == COL_ABIL:
@@ -593,6 +596,8 @@ class CatTableModel(QAbstractTableModel):
         elif role == Qt.UserRole:
             if col in STAT_COLS:
                 return cat.base_stats[STAT_NAMES[col - 4]]
+            if col == COL_SUM:
+                return sum(cat.base_stats.values())
             return self.data(index, Qt.DisplayRole)
 
         elif role == Qt.BackgroundRole:
@@ -648,7 +653,7 @@ class CatTableModel(QAbstractTableModel):
                 return "\n".join(cat.abilities)
 
         elif role == Qt.TextAlignmentRole:
-            if col in STAT_COLS or col in (COL_GEN, COL_STAT):
+            if col in STAT_COLS or col in (COL_GEN, COL_STAT, COL_SUM):
                 return Qt.AlignCenter
 
         return None
@@ -1245,14 +1250,16 @@ class MainWindow(QMainWindow):
         hh = self._table.horizontalHeader()
         # Default: resize to contents
         hh.setSectionResizeMode(QHeaderView.ResizeToContents)
-        # Abilities: stretch to fill remaining space
-        # Mutations: interactive (user-resizable), reasonable default width
-        hh.setSectionResizeMode(COL_ABIL, QHeaderView.Stretch)
+        # Name stretches to fill spare space
+        hh.setSectionResizeMode(COL_NAME, QHeaderView.Stretch)
+        # Abilities and mutations: interactive (user-resizable)
+        hh.setSectionResizeMode(COL_ABIL, QHeaderView.Interactive)
+        self._table.setColumnWidth(COL_ABIL, 180)
         hh.setSectionResizeMode(COL_MUTS, QHeaderView.Interactive)
         self._table.setColumnWidth(COL_MUTS, 155)
         # Narrow fixed columns
-        for col, width in [(COL_GEN, _W_GEN), (COL_STAT, _W_STATUS)] + \
-                          [(c, _W_STAT) for c in STAT_COLS]:
+        for col, width in [(COL_GEN, _W_GEN), (COL_STAT, _W_STATUS),
+                           (COL_SUM, 38)] + [(c, _W_STAT) for c in STAT_COLS]:
             hh.setSectionResizeMode(col, QHeaderView.Fixed)
             self._table.setColumnWidth(col, width)
 
