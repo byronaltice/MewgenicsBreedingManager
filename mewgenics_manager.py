@@ -647,7 +647,7 @@ def find_save_files() -> list[str]:
 
 # ── Qt table model ────────────────────────────────────────────────────────────
 
-COLUMNS   = ["Name", "♀/♂", "Room", "Status"] + STAT_NAMES + ["Sum", "Abilities", "Mutations"]
+COLUMNS   = ["Name", "♀/♂", "Room", "Status"] + STAT_NAMES + ["Sum", "Abilities", "Mutations", "Source"]
 COL_NAME  = 0
 COL_GEN   = 1
 COL_ROOM  = 2
@@ -656,6 +656,7 @@ STAT_COLS = list(range(4, 11))   # STR … LCK  (indices 4–10)
 COL_SUM   = 11
 COL_ABIL  = 12
 COL_MUTS  = 13
+COL_SRC   = 14
 
 # Fixed pixel widths for narrow columns
 _W_STATUS = 62
@@ -710,6 +711,12 @@ class CatTableModel(QAbstractTableModel):
                 return ", ".join(cat.mutations)
             if col == COL_ABIL:
                 return ", ".join(cat.abilities)
+            if col == COL_SRC:
+                pa, pb = cat.parent_a, cat.parent_b
+                if pa is None and pb is None:
+                    return "Stray"
+                parts = [p.name for p in (pa, pb) if p is not None]
+                return " × ".join(parts)
 
         elif role == Qt.UserRole:
             if col in STAT_COLS:
@@ -1546,9 +1553,12 @@ class MainWindow(QMainWindow):
         hh.setSectionResizeMode(COL_ABIL, QHeaderView.Interactive)
         self._table.setColumnWidth(COL_ABIL, 180)
 
-        # Mutations: Stretch — absorbs all remaining space so blank area
-        # falls at the right edge inside the Mutations column, not elsewhere.
-        hh.setSectionResizeMode(COL_MUTS, QHeaderView.Stretch)
+        # Mutations: interactive
+        hh.setSectionResizeMode(COL_MUTS, QHeaderView.Interactive)
+        self._table.setColumnWidth(COL_MUTS, 155)
+
+        # Source: Stretch — rightmost column absorbs blank space
+        hh.setSectionResizeMode(COL_SRC, QHeaderView.Stretch)
 
         self._table.setStyleSheet("""
             QTableView {
