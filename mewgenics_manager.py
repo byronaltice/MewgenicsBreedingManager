@@ -553,27 +553,30 @@ def _get_adventure_keys(conn) -> set:
     return keys
 
 
-def _parse_pedigree(conn) -> tuple[dict, dict]:
+def _parse_pedigree(conn) -> dict:
     """
     Parse the pedigree blob from the files table.
     Each 32-byte entry: u64 cat_key, u64 parent_a_key, u64 parent_b_key, u64 extra.
     0xFFFFFFFFFFFFFFFF means null/unknown for parent fields.
-    Returns (ped_map, children_map):
-        ped_map:      db_key -> (parent_a_key | None, parent_b_key | None)
-        children_map: db_key -> [child_db_keys]
+
+    Returns ped_map: db_key -> (parent_a_db_key | None, parent_b_db_key | None).
+
+    NOTE: children are NOT derived from this map because the pedigree blob
+    appears to store more than just direct parent-child pairs (possibly full
+    lineage chains), which causes circular references when used for children.
+    Children are instead computed bottom-up from resolved parent fields.
     """
     try:
         row = conn.execute("SELECT data FROM files WHERE key='pedigree'").fetchone()
         if not row:
-            return {}, {}
+            return {}
         data = row[0]
     except Exception:
-        return {}, {}
+        return {}
 
     NULL = 0xFFFF_FFFF_FFFF_FFFF
     MAX_KEY = 1_000_000   # anything larger is a legacy UID or garbage
     ped_map: dict = {}
-    children_map: dict = {}
 
     # Entries start at offset 8 (after a single u64 header), stride 32
     for pos in range(8, len(data) - 31, 32):
@@ -583,11 +586,8 @@ def _parse_pedigree(conn) -> tuple[dict, dict]:
         pa = int(pa_k) if pa_k != NULL and 0 < pa_k <= MAX_KEY else None
         pb = int(pb_k) if pb_k != NULL and 0 < pb_k <= MAX_KEY else None
         ped_map[int(cat_k)] = (pa, pb)
-        for parent_key in (pa, pb):
-            if parent_key is not None:
-                children_map.setdefault(parent_key, []).append(int(cat_k))
 
-    return ped_map, children_map
+    return ped_map
 
 
 def parse_save(path: str) -> tuple[list, list]:
@@ -595,7 +595,7 @@ def parse_save(path: str) -> tuple[list, list]:
     house = _get_house_info(conn)
     adv   = _get_adventure_keys(conn)
     rows  = conn.execute("SELECT key, data FROM cats").fetchall()
-    ped_map, children_map = _parse_pedigree(conn)
+    ped_map = _parse_pedigree(conn)
     conn.close()
 
     cats, errors = [], []
@@ -605,37 +605,33 @@ def parse_save(path: str) -> tuple[list, list]:
         except Exception as e:
             errors.append((key, str(e)))
 
-    # Fast lookups
     key_to_cat: dict = {c.db_key: c for c in cats}
-    uid_map:    dict = {c._uid_int: c for c in cats}
-    uid_set = frozenset(uid_map.keys()) - {0}
 
     for cat in cats:
-        # ── Primary: pedigree db_key lookup (most reliable) ──────────────
+        # Pedigree db_key lookup — only assigns a parent if that cat is still
+        # present in the save.  If the real parents are gone (dead/sold), we
+        # leave parent_a/parent_b as None rather than falling back to an
+        # unreliable blob-UID scan that picks up wrong living cats.
         pa: Optional[Cat] = None
         pb: Optional[Cat] = None
         if cat.db_key in ped_map:
             pa_k, pb_k = ped_map[cat.db_key]
             pa = key_to_cat.get(pa_k)
             pb = key_to_cat.get(pb_k)
-
-        # ── Fallback: blob UID scan (for founder/pre-pedigree cats) ──────
-        if pa is None and pb is None:
-            pa_u = uid_map.get(cat._parent_uid_a) if cat._parent_uid_a else None
-            pb_u = uid_map.get(cat._parent_uid_b) if cat._parent_uid_b else None
-            if pa_u is None and pb_u is None and uid_set and hasattr(cat, '_raw'):
-                sa, sb = _scan_blob_for_parent_uids(cat._raw, uid_set, cat._uid_int)
-                pa_u = uid_map.get(sa) if sa else None
-                pb_u = uid_map.get(sb) if sb else None
-            pa, pb = pa_u, pb_u
-
+            # Sanity: a cat cannot be its own parent
+            if pa is cat: pa = None
+            if pb is cat: pb = None
         cat.parent_a = pa
         cat.parent_b = pb
 
-    # Assign children lists from pedigree
+    # Build children bottom-up from the now-resolved parent fields.
+    # This avoids the circular-reference problem in the pedigree blob.
     for cat in cats:
-        cat.children = [key_to_cat[k] for k in children_map.get(cat.db_key, [])
-                        if k in key_to_cat]
+        cat.children = []
+    for cat in cats:
+        for parent in (cat.parent_a, cat.parent_b):
+            if parent is not None and cat not in parent.children:
+                parent.children.append(cat)
 
     return cats, errors
 
