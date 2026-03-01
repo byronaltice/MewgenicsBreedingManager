@@ -1530,20 +1530,29 @@ class MainWindow(QMainWindow):
         self._table.setWordWrap(False)
 
         hh = self._table.horizontalHeader()
-        # Default: resize to contents
-        hh.setSectionResizeMode(QHeaderView.ResizeToContents)
-        # Name stretches to fill spare space
-        hh.setSectionResizeMode(COL_NAME, QHeaderView.Stretch)
-        # Abilities and mutations: interactive (user-resizable)
-        hh.setSectionResizeMode(COL_ABIL, QHeaderView.Interactive)
-        self._table.setColumnWidth(COL_ABIL, 180)
-        hh.setSectionResizeMode(COL_MUTS, QHeaderView.Interactive)
-        self._table.setColumnWidth(COL_MUTS, 155)
-        # Narrow fixed columns
+        hh.setStretchLastSection(False)  # we control stretch manually
+
+        # Name: interactive so the user can resize it; not Stretch so it
+        # doesn't eat the blank space that should sit at the right edge.
+        hh.setSectionResizeMode(COL_NAME, QHeaderView.Interactive)
+        self._table.setColumnWidth(COL_NAME, 130)
+
+        # Room: size to content so it adapts to room name length
+        hh.setSectionResizeMode(COL_ROOM, QHeaderView.ResizeToContents)
+
+        # Narrow fixed columns (gender, status, stats, sum)
         for col, width in [(COL_GEN, _W_GEN), (COL_STAT, _W_STATUS),
                            (COL_SUM, 38)] + [(c, _W_STAT) for c in STAT_COLS]:
             hh.setSectionResizeMode(col, QHeaderView.Fixed)
             self._table.setColumnWidth(col, width)
+
+        # Abilities: interactive — user drags to taste
+        hh.setSectionResizeMode(COL_ABIL, QHeaderView.Interactive)
+        self._table.setColumnWidth(COL_ABIL, 180)
+
+        # Mutations: Stretch — absorbs all remaining space so blank area
+        # falls at the right edge inside the Mutations column, not elsewhere.
+        hh.setSectionResizeMode(COL_MUTS, QHeaderView.Stretch)
 
         self._table.setStyleSheet("""
             QTableView {
