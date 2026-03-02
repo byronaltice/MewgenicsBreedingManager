@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
     QTableView, QPushButton, QLabel, QFileDialog, QHeaderView,
     QAbstractItemView, QSplitter, QFrame, QDialog, QGridLayout, QSizePolicy,
     QLineEdit, QListWidget, QListWidgetItem, QScrollArea, QToolButton,
-    QTableWidget, QTableWidgetItem, QStyledItemDelegate,
+    QTableWidget, QTableWidgetItem, QStyledItemDelegate, QStyle, QStyleOptionViewItem,
 )
 from PySide6.QtCore import (
     Qt, QAbstractTableModel, QModelIndex, QSortFilterProxyModel,
@@ -34,10 +34,34 @@ from PySide6.QtGui import QColor, QBrush, QAction, QPalette, QFont, QKeySequence
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 _JUNK_STRINGS = frozenset({"none", "null", "", "defaultmove", "default_move"})
+_ACCESSIBILITY_MIN_FONT_PX = 12
+_ACCESSIBILITY_MIN_FONT_PT = 10.0
+_FONT_SIZE_RE = re.compile(r"(font-size\s*:\s*)(\d+)(px)")
 
 def _valid_str(s) -> bool:
     """Reject None, empty, and game filler strings like 'none' or 'defaultmove'."""
     return bool(s) and s.strip().lower() not in _JUNK_STRINGS
+
+def _with_min_font_px(stylesheet: str, min_px: int = _ACCESSIBILITY_MIN_FONT_PX) -> str:
+    """Clamp stylesheet font-size declarations to an accessible minimum."""
+    if not stylesheet or "font-size" not in stylesheet:
+        return stylesheet
+    return _FONT_SIZE_RE.sub(
+        lambda m: f"{m.group(1)}{max(min_px, int(m.group(2)))}{m.group(3)}",
+        stylesheet,
+    )
+
+def _enforce_min_font_in_widget_tree(root: Optional[QWidget], min_px: int = _ACCESSIBILITY_MIN_FONT_PX):
+    """Apply minimum stylesheet font size to a widget and all descendants."""
+    if root is None:
+        return
+    widgets = [root] + root.findChildren(QWidget)
+    for widget in widgets:
+        style = widget.styleSheet()
+        if style and "font-size" in style:
+            adjusted = _with_min_font_px(style, min_px=min_px)
+            if adjusted != style:
+                widget.setStyleSheet(adjusted)
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -1358,6 +1382,7 @@ class CatDetailPanel(QWidget):
             self._build_single(cats[0])
         else:
             self._build_pair(cats[0], cats[1])
+        _enforce_min_font_in_widget_tree(self)
 
     # ── Single cat ─────────────────────────────────────────────────────────
 
@@ -1809,6 +1834,7 @@ class LineageDialog(QDialog):
         close_btn = QPushButton("Close")
         close_btn.clicked.connect(self.accept)
         outer.addWidget(close_btn, alignment=Qt.AlignRight)
+        _enforce_min_font_in_widget_tree(self)
 
 
 class FamilyTreeBrowserView(QWidget):
@@ -1870,6 +1896,7 @@ class FamilyTreeBrowserView(QWidget):
 
         self._search.textChanged.connect(self._refresh_list)
         self._list.currentItemChanged.connect(self._on_current_item_changed)
+        _enforce_min_font_in_widget_tree(self)
 
     def set_cats(self, cats: list[Cat]):
         selected_key = None
@@ -2099,18 +2126,47 @@ class FamilyTreeBrowserView(QWidget):
             root.addWidget(QLabel("No known lineage data for this cat yet.", styleSheet="color:#666; font-size:12px;"))
 
         root.addStretch()
+        _enforce_min_font_in_widget_tree(self._tree_content)
 
 
 class SafeBreedingView(QWidget):
     """Dedicated view for ranking alive breeding candidates."""
     class _ColumnPaddingDelegate(QStyledItemDelegate):
-        def __init__(self, extra_width: int, parent=None):
+        def __init__(self, extra_width: int, left_padding: int = 0, parent=None):
             super().__init__(parent)
             self._extra_width = extra_width
+            self._left_padding = left_padding
 
         def sizeHint(self, option, index):
             s = super().sizeHint(option, index)
             return QSize(s.width() + self._extra_width, s.height())
+
+        def paint(self, painter, option, index):
+            if self._left_padding <= 0:
+                return super().paint(painter, option, index)
+
+            opt = QStyleOptionViewItem(option)
+            self.initStyleOption(opt, index)
+            style = opt.widget.style() if opt.widget is not None else QApplication.style()
+
+            text = opt.text
+            opt.text = ""
+            style.drawControl(QStyle.CE_ItemViewItem, opt, painter, opt.widget)
+
+            text_rect = style.subElementRect(QStyle.SE_ItemViewItemText, opt, opt.widget).adjusted(
+                self._left_padding, 0, 0, 0
+            )
+            if opt.textElideMode != Qt.ElideNone:
+                text = opt.fontMetrics.elidedText(text, opt.textElideMode, text_rect.width())
+
+            painter.save()
+            if opt.state & QStyle.State_Selected:
+                painter.setPen(opt.palette.color(QPalette.HighlightedText))
+            else:
+                painter.setPen(opt.palette.color(QPalette.Text))
+            painter.setFont(opt.font)
+            painter.drawText(text_rect, Qt.AlignVCenter | Qt.AlignLeft, text)
+            painter.restore()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -2161,13 +2217,14 @@ class SafeBreedingView(QWidget):
         self._table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self._table.setSortingEnabled(False)
         self._table.horizontalHeader().setStretchLastSection(False)
-        self._table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self._table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
         self._table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Fixed)
         self._table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Fixed)
         self._table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        self._table.setItemDelegateForColumn(0, SafeBreedingView._ColumnPaddingDelegate(24, 8, self._table))
         self._table.setColumnWidth(1, 80)
         self._table.setColumnWidth(2, 110)
-        self._table.setItemDelegateForColumn(3, SafeBreedingView._ColumnPaddingDelegate(24, self._table))
+        self._table.setItemDelegateForColumn(3, SafeBreedingView._ColumnPaddingDelegate(24, 0, self._table))
 
         rv.addWidget(self._title)
         rv.addWidget(self._summary)
@@ -2177,6 +2234,7 @@ class SafeBreedingView(QWidget):
         self._search.textChanged.connect(self._refresh_list)
         self._list.currentItemChanged.connect(self._on_current_item_changed)
         self._table.cellClicked.connect(self._on_table_row_clicked)
+        _enforce_min_font_in_widget_tree(self)
 
     def set_cats(self, cats: list[Cat]):
         selected_key = None
@@ -2446,6 +2504,7 @@ class MainWindow(QMainWindow):
         hs.setStretchFactor(0, 0)
         hs.setStretchFactor(1, 1)
         hs.setSizes([190, 1250])
+        _enforce_min_font_in_widget_tree(central)
 
     # ── Sidebar ────────────────────────────────────────────────────────────
 
@@ -2912,9 +2971,9 @@ class MainWindow(QMainWindow):
         font = QFont(self._base_font)
         base_pt = self._base_font.pointSizeF()
         if base_pt > 0:
-            font.setPointSizeF(max(7.0, base_pt * (self._zoom_percent / 100.0)))
+            font.setPointSizeF(max(_ACCESSIBILITY_MIN_FONT_PT, base_pt * (self._zoom_percent / 100.0)))
         elif self._base_font.pixelSize() > 0:
-            font.setPixelSize(max(9, self._scaled(self._base_font.pixelSize())))
+            font.setPixelSize(max(_ACCESSIBILITY_MIN_FONT_PX, self._scaled(self._base_font.pixelSize())))
         app.setFont(font)
 
         if hasattr(self, "_sidebar"):
@@ -2927,6 +2986,7 @@ class MainWindow(QMainWindow):
             for col, width in self._base_col_widths.items():
                 self._table.setColumnWidth(col, self._scaled(width))
             self._table.verticalHeader().setDefaultSectionSize(self._scaled(24))
+        _enforce_min_font_in_widget_tree(self)
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
