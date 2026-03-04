@@ -534,6 +534,7 @@ class Cat:
     parent_a: Optional['Cat'] = None
     parent_b: Optional['Cat'] = None
     generation: int = 0   # generation depth: 0=stray, 1=child of strays, etc.
+    is_blacklisted: bool = False  # exclude from breeding calculations
 
     def __init__(self, blob: bytes, cat_key: int, house_info: dict, adventure_keys: set):
         uncomp_size = struct.unpack('<I', blob[:4])[0]
@@ -1086,6 +1087,36 @@ def find_save_files() -> list[str]:
     return saves
 
 
+def _blacklist_path(save_path: str) -> str:
+    """Return path for blacklist file associated with save."""
+    return save_path + ".blacklist"
+
+
+def _save_blacklist(save_path: str, cats: list[Cat]):
+    """Save blacklisted cat unique IDs to file."""
+    blacklist_file = _blacklist_path(save_path)
+    blacklisted_uids = [c.unique_id for c in cats if c.is_blacklisted]
+    try:
+        with open(blacklist_file, 'w') as f:
+            f.write('\n'.join(blacklisted_uids))
+    except Exception:
+        pass
+
+
+def _load_blacklist(save_path: str, cats: list[Cat]):
+    """Load blacklist and mark cats accordingly."""
+    blacklist_file = _blacklist_path(save_path)
+    if not os.path.exists(blacklist_file):
+        return
+    try:
+        with open(blacklist_file, 'r') as f:
+            blacklisted_uids = set(line.strip() for line in f if line.strip())
+        for cat in cats:
+            cat.is_blacklisted = cat.unique_id in blacklisted_uids
+    except Exception:
+        pass
+
+
 # ── Qt table model ────────────────────────────────────────────────────────────
 
 COLUMNS   = ["Name", "♀/♂", "Room", "Status"] + STAT_NAMES + ["Sum", "Abilities", "Mutations", "Risk%", "Gen", "Source", "Inbr"]
@@ -1472,6 +1503,25 @@ class CatDetailPanel(QWidget):
                 "QPushButton:hover { background:#131328; }")
             tree_btn.clicked.connect(lambda: LineageDialog(cat, self, navigate_fn=_navigate).exec())
             id_col.addWidget(tree_btn)
+
+        # Blacklist toggle button
+        blacklist_btn = QPushButton("✓ Include in Breeding" if not cat.is_blacklisted else "✗ Exclude from Breeding")
+        blacklist_btn.setStyleSheet(
+            "QPushButton { color:#888; background:transparent; border:1px solid #252545;"
+            " padding:3px 8px; border-radius:4px; font-size:10px; }"
+            "QPushButton:hover { background:#131328; color:#ddd; }")
+        def _toggle_blacklist():
+            cat.is_blacklisted = not cat.is_blacklisted
+            blacklist_btn.setText("✓ Include in Breeding" if not cat.is_blacklisted else "✗ Exclude from Breeding")
+            mw = self.window()
+            if hasattr(mw, '_current_save') and mw._current_save:
+                _save_blacklist(mw._current_save, mw._cats)
+            if hasattr(mw, '_safe_breeding_view') and mw._safe_breeding_view is not None:
+                mw._safe_breeding_view.set_cats(mw._cats)
+            if hasattr(mw, '_room_optimizer_view') and mw._room_optimizer_view is not None:
+                mw._room_optimizer_view.set_cats(mw._cats)
+        blacklist_btn.clicked.connect(_toggle_blacklist)
+        id_col.addWidget(blacklist_btn)
         id_col.addStretch()
         root.addLayout(id_col)
 
@@ -2266,7 +2316,7 @@ class SafeBreedingView(QWidget):
         if cur is not None:
             selected_key = int(cur.data(Qt.UserRole))
         self._cats = cats
-        self._alive = sorted([c for c in cats if c.status != "Gone"], key=lambda c: (c.name or "").lower())
+        self._alive = sorted([c for c in cats if c.status != "Gone" and not c.is_blacklisted], key=lambda c: (c.name or "").lower())
         self._by_key = {c.db_key: c for c in self._alive}
         self._refresh_list()
         if selected_key is not None and selected_key in self._by_key:
@@ -2515,7 +2565,9 @@ class RoomOptimizerView(QWidget):
 
     def set_cats(self, cats: list[Cat], excluded_keys: set[int] = None):
         self._cats = cats
-        self._excluded_keys = excluded_keys or set()
+        # Combine explicit excluded_keys with blacklisted cats
+        blacklisted_keys = {c.db_key for c in cats if c.is_blacklisted}
+        self._excluded_keys = (excluded_keys or set()) | blacklisted_keys
         alive_count = len([c for c in cats if c.status != 'Gone'])
         excluded_count = len([c for c in cats if c.status != 'Gone' and c.db_key in self._excluded_keys])
         if excluded_count > 0:
@@ -3442,6 +3494,7 @@ class MainWindow(QMainWindow):
 
         try:
             cats, errors = parse_save(path)
+            _load_blacklist(path, cats)
             self._cats = cats
             self._source_model.load(cats)
             self._rebuild_room_buttons(cats)
