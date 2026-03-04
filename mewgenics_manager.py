@@ -27,7 +27,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import (
     Qt, QAbstractTableModel, QModelIndex, QSortFilterProxyModel,
-    QFileSystemWatcher, QItemSelectionModel, QSize,
+    QFileSystemWatcher, QItemSelectionModel, QSize, Signal,
 )
 from PySide6.QtGui import QColor, QBrush, QAction, QPalette, QFont, QKeySequence, QFontMetrics
 
@@ -1119,19 +1119,20 @@ def _load_blacklist(save_path: str, cats: list[Cat]):
 
 # ── Qt table model ────────────────────────────────────────────────────────────
 
-COLUMNS   = ["Name", "♀/♂", "Room", "Status"] + STAT_NAMES + ["Sum", "Abilities", "Mutations", "Risk%", "Gen", "Source", "Inbr"]
+COLUMNS   = ["Name", "♀/♂", "Room", "Status", "BL"] + STAT_NAMES + ["Sum", "Abilities", "Mutations", "Risk%", "Gen", "Source", "Inbr"]
 COL_NAME  = 0
 COL_GEN   = 1
 COL_ROOM  = 2
 COL_STAT  = 3
-STAT_COLS = list(range(4, 11))   # STR … LCK  (indices 4–10)
-COL_SUM   = 11
-COL_ABIL  = 12
-COL_MUTS  = 13
-COL_REL   = 14
-COL_AGE   = 15   # generation depth
-COL_SRC   = 16
-COL_INB   = 17
+COL_BL    = 4
+STAT_COLS = list(range(5, 12))   # STR … LCK
+COL_SUM   = 12
+COL_ABIL  = 13
+COL_MUTS  = 14
+COL_REL   = 15
+COL_AGE   = 16   # generation depth
+COL_SRC   = 17
+COL_INB   = 18
 
 # Fixed pixel widths for narrow columns
 _W_STATUS = 62
@@ -1144,6 +1145,8 @@ _ZOOM_STEP = 10
 
 
 class CatTableModel(QAbstractTableModel):
+    blacklistChanged = Signal()
+
     def __init__(self):
         super().__init__()
         self._cats: list[Cat] = []
@@ -1208,8 +1211,9 @@ class CatTableModel(QAbstractTableModel):
             if col == COL_GEN:  return cat.gender_display
             if col == COL_ROOM: return cat.room_display
             if col == COL_STAT: return STATUS_ABBREV.get(cat.status, cat.status)
+            if col == COL_BL:   return "X" if cat.is_blacklisted else ""
             if col in STAT_COLS:
-                return str(cat.base_stats[STAT_NAMES[col - 4]])
+                return str(cat.base_stats[STAT_NAMES[col - STAT_COLS[0]]])
             if col == COL_SUM:
                 return str(sum(cat.base_stats.values()))
             if col == COL_MUTS:
@@ -1237,7 +1241,7 @@ class CatTableModel(QAbstractTableModel):
 
         elif role == Qt.UserRole:
             if col in STAT_COLS:
-                return cat.base_stats[STAT_NAMES[col - 4]]
+                return cat.base_stats[STAT_NAMES[col - STAT_COLS[0]]]
             if col == COL_SUM:
                 return sum(cat.base_stats.values())
             if col == COL_REL:
@@ -1256,7 +1260,7 @@ class CatTableModel(QAbstractTableModel):
             if compat == 'risky' and not self._show_lineage:
                 compat = 'ok'
             if col in STAT_COLS:
-                base_c = STAT_COLORS.get(cat.base_stats[STAT_NAMES[col - 4]], QColor(100, 100, 115))
+                base_c = STAT_COLORS.get(cat.base_stats[STAT_NAMES[col - STAT_COLS[0]]], QColor(100, 100, 115))
                 if compat == 'incompatible':
                     return QBrush(QColor(base_c.red() // 4, base_c.green() // 4, base_c.blue() // 4))
                 if compat == 'risky':
@@ -1299,23 +1303,50 @@ class CatTableModel(QAbstractTableModel):
 
         elif role == Qt.ToolTipRole:
             if col in STAT_COLS:
-                n = STAT_NAMES[col - 4]
+                n = STAT_NAMES[col - STAT_COLS[0]]
                 b = cat.base_stats[n]
                 t = cat.total_stats[n]
                 extra = f"  (+{t - b})" if t != b else ""
                 return f"{n}  base: {b}{extra}  |  total: {t}"
             if col == COL_ROOM:
                 return cat.room
+            if col == COL_BL:
+                return "Excluded from breeding calculations" if cat.is_blacklisted else "Included in breeding calculations"
             if col == COL_MUTS and cat.mutations:
                 return "\n".join(cat.mutations)
             if col == COL_ABIL and cat.abilities:
                 return "\n".join(cat.abilities)
 
+        elif role == Qt.CheckStateRole and col == COL_BL:
+            return Qt.Checked if cat.is_blacklisted else Qt.Unchecked
+
         elif role == Qt.TextAlignmentRole:
-            if col in STAT_COLS or col in (COL_GEN, COL_STAT, COL_SUM, COL_REL, COL_AGE):
+            if col in STAT_COLS or col in (COL_GEN, COL_STAT, COL_BL, COL_SUM, COL_REL, COL_AGE):
                 return Qt.AlignCenter
 
         return None
+
+    def flags(self, index):
+        if not index.isValid():
+            return Qt.NoItemFlags
+        base = Qt.ItemIsSelectable | Qt.ItemIsEnabled
+        if index.column() == COL_BL:
+            return base | Qt.ItemIsUserCheckable
+        return base
+
+    def setData(self, index, value, role=Qt.EditRole):
+        if not index.isValid():
+            return False
+        if index.column() != COL_BL or role != Qt.CheckStateRole:
+            return False
+        cat = self._cats[index.row()]
+        new_state = (value == Qt.Checked)
+        if cat.is_blacklisted == new_state:
+            return False
+        cat.is_blacklisted = new_state
+        self.dataChanged.emit(index, index, [Qt.DisplayRole, Qt.CheckStateRole, Qt.ToolTipRole])
+        self.blacklistChanged.emit()
+        return True
 
     def cat_at(self, row: int) -> Optional[Cat]:
         return self._cats[row] if 0 <= row < len(self._cats) else None
@@ -1514,12 +1545,14 @@ class CatDetailPanel(QWidget):
             cat.is_blacklisted = not cat.is_blacklisted
             blacklist_btn.setText("✓ Include in Breeding" if not cat.is_blacklisted else "✗ Exclude from Breeding")
             mw = self.window()
-            if hasattr(mw, '_current_save') and mw._current_save:
-                _save_blacklist(mw._current_save, mw._cats)
-            if hasattr(mw, '_safe_breeding_view') and mw._safe_breeding_view is not None:
-                mw._safe_breeding_view.set_cats(mw._cats)
-            if hasattr(mw, '_room_optimizer_view') and mw._room_optimizer_view is not None:
-                mw._room_optimizer_view.set_cats(mw._cats)
+            if hasattr(mw, "_source_model") and mw._source_model is not None:
+                for row in range(mw._source_model.rowCount()):
+                    if mw._source_model.cat_at(row) is cat:
+                        idx = mw._source_model.index(row, COL_BL)
+                        mw._source_model.dataChanged.emit(idx, idx, [Qt.DisplayRole, Qt.CheckStateRole, Qt.ToolTipRole])
+                        break
+            if hasattr(mw, "_on_blacklist_changed"):
+                mw._on_blacklist_changed()
         blacklist_btn.clicked.connect(_toggle_blacklist)
         id_col.addWidget(blacklist_btn)
         id_col.addStretch()
@@ -2512,6 +2545,11 @@ class RoomOptimizerView(QWidget):
         controls.addStretch()
         root.addLayout(controls)
 
+        self._blacklist_lbl = QLabel("")
+        self._blacklist_lbl.setWordWrap(True)
+        self._blacklist_lbl.setStyleSheet("color:#8d8da8; font-size:11px;")
+        root.addWidget(self._blacklist_lbl)
+
         # Splitter to hold table and details pane
         self._splitter = QSplitter(Qt.Vertical)
         self._splitter.setStyleSheet("QSplitter::handle:vertical { background:#1e1e38; }")
@@ -2574,11 +2612,17 @@ class RoomOptimizerView(QWidget):
             self._summary.setText(f"{alive_count} alive cats available ({excluded_count} excluded from breeding)")
         else:
             self._summary.setText(f"{alive_count} alive cats available")
+        blacklisted_names = [f"{c.name} ({c.gender_display})" for c in cats if c.status != "Gone" and c.is_blacklisted]
+        if blacklisted_names:
+            self._blacklist_lbl.setText("Blacklisted: " + ", ".join(blacklisted_names))
+        else:
+            self._blacklist_lbl.setText("Blacklisted: none")
 
     def _calculate_optimal_distribution(self):
         """Calculate and display optimal room distribution."""
         excluded_keys = getattr(self, "_excluded_keys", set())
         alive_cats = [c for c in self._cats if c.status != "Gone" and c.db_key not in excluded_keys]
+        excluded_cats = [c for c in self._cats if c.status != "Gone" and c.db_key in excluded_keys]
 
         # Get minimum stats filter
         min_stats = 0
@@ -2746,7 +2790,7 @@ class RoomOptimizerView(QWidget):
                             'sum_range': (sum_lo, sum_hi),
                         })
 
-            if not room_pairs:
+            if not room_pairs and room != fallback_room:
                 continue
 
             total_pairs += len(room_pairs)
@@ -2813,6 +2857,7 @@ class RoomOptimizerView(QWidget):
                 "total_pairs": len(room_pairs),
                 "avg_stats": avg_room_stats,
                 "avg_risk": avg_risk,
+                "excluded_cats": [],
                 "pairs": [
                     {
                         "cat_a": f"{p['cat_a'].name} ({p['cat_a'].gender_display})",
@@ -2833,6 +2878,38 @@ class RoomOptimizerView(QWidget):
             self._table.setItem(row_idx, 4, risk_item)
             self._table.setItem(row_idx, 5, details_item)
 
+            row_idx += 1
+
+        # Dedicated excluded list row
+        if excluded_cats:
+            excluded_names = [f"{c.name} ({c.gender_display})" for c in excluded_cats]
+            self._table.insertRow(row_idx)
+
+            excluded_room_item = QTableWidgetItem("Excluded")
+            excluded_room_item.setTextAlignment(Qt.AlignCenter)
+            excluded_room_item.setForeground(QBrush(QColor(170, 120, 120)))
+            excluded_room_item.setData(Qt.UserRole, {
+                "room": "Excluded",
+                "cats": excluded_names,
+                "total_pairs": 0,
+                "avg_stats": 0.0,
+                "avg_risk": 0.0,
+                "excluded_cats": excluded_names,
+                "pairs": [],
+            })
+
+            excluded_cats_item = QTableWidgetItem(", ".join(excluded_names))
+            dash_item_2 = QTableWidgetItem("—"); dash_item_2.setTextAlignment(Qt.AlignCenter)
+            dash_item_3 = QTableWidgetItem("—"); dash_item_3.setTextAlignment(Qt.AlignCenter)
+            dash_item_4 = QTableWidgetItem("—"); dash_item_4.setTextAlignment(Qt.AlignCenter)
+            excluded_details_item = QTableWidgetItem("Excluded from optimizer breeding calculations")
+
+            self._table.setItem(row_idx, 0, excluded_room_item)
+            self._table.setItem(row_idx, 1, excluded_cats_item)
+            self._table.setItem(row_idx, 2, dash_item_2)
+            self._table.setItem(row_idx, 3, dash_item_3)
+            self._table.setItem(row_idx, 4, dash_item_4)
+            self._table.setItem(row_idx, 5, excluded_details_item)
             row_idx += 1
 
         # Calculate stats
@@ -2908,11 +2985,14 @@ class RoomOptimizerDetailPanel(QWidget):
         avg_stats = float(data.get("avg_stats", 0))
         avg_risk = float(data.get("avg_risk", 0))
         pairs = data.get("pairs", [])
+        excluded_cats = data.get("excluded_cats", [])
 
         self._summary.setText(
             f"{room}  |  Cats: {', '.join(cats)}  |  "
             f"Pairs: {total_pairs}  |  Avg offspring stats: {avg_stats:.1f}  |  Avg inbred risk: {avg_risk:.0f}%"
         )
+        if excluded_cats:
+            self._summary.setText(self._summary.text() + f"  |  Excluded: {', '.join(excluded_cats)}")
 
         self._pairs_table.setRowCount(len(pairs))
         for i, pair in enumerate(pairs, 1):
@@ -2995,6 +3075,7 @@ class MainWindow(QMainWindow):
             COL_NAME: 130,
             COL_GEN: _W_GEN,
             COL_STAT: _W_STATUS,
+            COL_BL: 34,
             COL_SUM: 38,
             COL_ABIL: 180,
             COL_MUTS: 155,
@@ -3236,6 +3317,7 @@ class MainWindow(QMainWindow):
 
         # Table
         self._source_model = CatTableModel()
+        self._source_model.blacklistChanged.connect(self._on_blacklist_changed)
         self._proxy_model  = RoomFilterModel()
         self._proxy_model.setSourceModel(self._source_model)
         self._proxy_model.modelReset.connect(self._update_count)
@@ -3264,7 +3346,7 @@ class MainWindow(QMainWindow):
         hh.setSectionResizeMode(COL_ROOM, QHeaderView.ResizeToContents)
 
         # Narrow fixed columns (gender, status, stats, sum)
-        for col, width in [(COL_GEN, _W_GEN), (COL_STAT, _W_STATUS),
+        for col, width in [(COL_GEN, _W_GEN), (COL_STAT, _W_STATUS), (COL_BL, 34),
                            (COL_SUM, 38)] + [(c, _W_STAT) for c in STAT_COLS]:
             hh.setSectionResizeMode(col, QHeaderView.Fixed)
             self._table.setColumnWidth(col, width)
@@ -3316,6 +3398,7 @@ class MainWindow(QMainWindow):
         """)
 
         self._table.selectionModel().selectionChanged.connect(self._on_selection)
+        self._table.clicked.connect(self._on_table_clicked)
         self._search.textChanged.connect(self._proxy_model.set_name_filter)
         self._search.textChanged.connect(self._update_count)
         vs.addWidget(self._table)
@@ -3362,6 +3445,17 @@ class MainWindow(QMainWindow):
             self._tree_view.select_cat(focus)
         if self._safe_breeding_view is not None and self._safe_breeding_view.isVisible() and focus is not None:
             self._safe_breeding_view.select_cat(focus)
+
+    def _on_table_clicked(self, proxy_index: QModelIndex):
+        if not proxy_index.isValid() or proxy_index.column() != COL_BL:
+            return
+        src_index = self._proxy_model.mapToSource(proxy_index)
+        if not src_index.isValid():
+            return
+        current = self._source_model.data(src_index, Qt.CheckStateRole)
+        next_state = Qt.Unchecked if current == Qt.Checked else Qt.Checked
+        if self._source_model.setData(src_index, next_state, Qt.CheckStateRole):
+            self._on_selection()
 
     # ── Filtering ──────────────────────────────────────────────────────────
 
@@ -3483,6 +3577,14 @@ class MainWindow(QMainWindow):
         gone   = sum(1 for c in self._cats if c.status == "Gone")
         self._summary_lbl.setText(
             f"House: {placed}  |  Away: {adv}  |  Gone: {gone}")
+
+    def _on_blacklist_changed(self):
+        if self._current_save:
+            _save_blacklist(self._current_save, self._cats)
+        if self._safe_breeding_view is not None:
+            self._safe_breeding_view.set_cats(self._cats)
+        if self._room_optimizer_view is not None:
+            self._room_optimizer_view.set_cats(self._cats)
 
     # ── Loading ────────────────────────────────────────────────────────────
 
