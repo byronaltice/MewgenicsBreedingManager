@@ -9,22 +9,22 @@ Reads your save file live and gives you a clear view of every cat's stats, room,
 ## Screenshots
 
 ### Single Cat View
-![Single Cat View](Single%20Cat%20View.png)
+![Single Cat View](Sceenshots/Single%20Cat%20View.png)
 
 The main roster table showing all alive cats with color-coded base stats (red → grey → green), abilities, mutations, and a **Risk%** column indicating inbreeding risk relative to the selected cat. Clicking any row opens the detail panel at the bottom, showing the cat's abilities, lineage (parents and grandparents), and room assignment.
 
 ### Breeding Comparison View
-![Breeding Cats View](Breeding%20Cats%20View.png)
+![Breeding Cats View](Sceenshots/Breeding%20Cats%20View.png)
 
 Ctrl+click two compatible cats to enter breeding comparison mode. The detail panel shows each cat's stats side-by-side and calculates the **offspring stat ranges** (min–max per stat and total sum range). Both cats' abilities are listed so you can plan which traits will carry forward.
 
 ### Family Tree View
-![Family Tree View](Family%20Tree%20View.png)
+![Family Tree View](Sceenshots/Family%20Tree%20View.png)
 
 Select a cat from the list and switch to **Family Tree View** in the sidebar to see a visual generational tree: the selected cat at the top (SELF), their children in the row below, and grandchildren below that. Each box shows the cat's name, gender, and current room or Gone status. Click any box to jump to that cat.
 
 ### Safe Breeding View
-![Safe Breeding](Safe%20Breeding.png)
+![Safe Breeding](Sceenshots/Safe%20Breeding.png)
 
 The **Safe Breeding** panel ranks all viable alive partners for the selected cat by ascending inbreeding risk. Columns show **Risk%** (normalized Wright's Coefficient of Inbreeding), **Shared Ancestors** count, and a plain-language label — *Not Inbred*, *Slightly Inbred*, *Moderately Inbred*, etc. — so you can immediately pick the safest pairing.
 
