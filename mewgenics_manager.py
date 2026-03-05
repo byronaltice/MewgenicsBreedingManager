@@ -11,8 +11,6 @@ import sys
 import re
 import struct
 import sqlite3
-import csv
-import json
 import lz4.block
 import os
 from pathlib import Path
@@ -26,16 +24,12 @@ from PySide6.QtWidgets import (
     QAbstractItemView, QSplitter, QFrame, QDialog, QGridLayout, QSizePolicy,
     QLineEdit, QListWidget, QListWidgetItem, QScrollArea, QToolButton,
     QTableWidget, QTableWidgetItem, QStyledItemDelegate, QStyle, QStyleOptionViewItem,
-    QComboBox,
 )
 from PySide6.QtCore import (
     Qt, QAbstractTableModel, QModelIndex, QSortFilterProxyModel,
-    QFileSystemWatcher, QItemSelectionModel, QSize, Signal, QRegularExpression,
+    QFileSystemWatcher, QItemSelectionModel, QSize, Signal,
 )
-from PySide6.QtGui import (
-    QColor, QBrush, QAction, QPalette, QFont, QKeySequence, QFontMetrics,
-    QDoubleValidator, QRegularExpressionValidator,
-)
+from PySide6.QtGui import QColor, QBrush, QAction, QPalette, QFont, QKeySequence, QFontMetrics
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -585,17 +579,13 @@ class Cat:
 
         r.skip(12)
         raw_gender = r.str()
-        self.gender_token = (raw_gender or "").strip().lower()
         # Authoritative sex enum near the name block:
         #   0 = male, 1 = female, 2 = undefined/both (ditto-like)
         sex_code = raw[_name_end + 8] if (_name_end + 9) <= len(raw) else None
-        gender_from_code = {0: "male", 1: "female", 2: "?"}.get(sex_code)
-        if gender_from_code:
-            self.gender = gender_from_code
-            self.gender_source = "sex_code"
-        else:
-            self.gender = _normalize_gender(raw_gender)
-            self.gender_source = "token_fallback"
+        self.gender = {0: "male", 1: "female", 2: "?"}.get(
+            sex_code,
+            _normalize_gender(raw_gender),
+        )
         r.f64()
 
         self.stat_base = [r.u32() for _ in range(7)]
@@ -606,19 +596,11 @@ class Cat:
         self.total_stats = {n: self.stat_base[i] + self.stat_mod[i] + self.stat_sec[i]
                             for i, n in enumerate(STAT_NAMES)}
 
-        # Personality stats (age, aggression, libido, inbredness).
+        # Personality stats (aggression, libido, inbredness).
         # Exact offsets not yet documented; filled in by parse_save if found.
-        self.age         = None
         self.aggression  = None   # None = unknown
         self.libido      = None
         self.inbredness  = None
-
-        # Parsed baseline values (before any manual calibration overrides).
-        self.parsed_gender = self.gender
-        self.parsed_age = self.age
-        self.parsed_aggression = self.aggression
-        self.parsed_libido = self.libido
-        self.parsed_inbredness = self.inbredness
 
         # Relationship scaffolds — resolved by parse_save after all cats loaded.
         self._lover_uids: list[int] = []
@@ -1108,303 +1090,6 @@ def find_save_files() -> list[str]:
 def _blacklist_path(save_path: str) -> str:
     """Return path for blacklist file associated with save."""
     return save_path + ".blacklist"
-
-
-def _gender_overrides_path(save_path: str) -> str:
-    """Return CSV path for manual gender overrides associated with save."""
-    return save_path + ".gender_overrides.csv"
-
-
-def _calibration_path(save_path: str) -> str:
-    """Return JSON path for manual calibration data associated with save."""
-    return save_path + ".calibration.json"
-
-
-def _normalize_override_gender(value: Optional[str]) -> str:
-    g = (value or "").strip().lower()
-    if g in ("male", "m") or g.startswith("male"):
-        return "male"
-    if g in ("female", "f") or g.startswith("female"):
-        return "female"
-    if g in ("?", "unknown") or g.startswith("spidercat"):
-        return "?"
-    return ""
-
-
-def _load_gender_overrides(save_path: str, cats: list[Cat]) -> tuple[int, int]:
-    """
-    Apply manual gender overrides from sidecar CSV.
-    CSV columns (header required):
-      - gender (required)
-      - unique_id (preferred key, e.g. 0x1234abcd...)
-      - name (fallback key when unique_id missing)
-    Returns (applied, rows_read).
-    """
-    path = _gender_overrides_path(save_path)
-    if not os.path.exists(path):
-        return 0, 0
-
-    by_uid: dict[str, Cat] = {str(c.unique_id).strip().lower(): c for c in cats if c.unique_id}
-    by_name: dict[str, list[Cat]] = {}
-    for c in cats:
-        key = (c.name or "").strip().lower()
-        if key:
-            by_name.setdefault(key, []).append(c)
-
-    applied = 0
-    rows_read = 0
-    try:
-        with open(path, "r", newline="", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-            if not reader.fieldnames:
-                return 0, 0
-
-            for row in reader:
-                rows_read += 1
-                g = _normalize_override_gender(row.get("gender"))
-                if not g:
-                    continue
-
-                uid = (row.get("unique_id") or "").strip().lower()
-                name = (row.get("name") or "").strip().lower()
-
-                target: Optional[Cat] = None
-                if uid and uid in by_uid:
-                    target = by_uid[uid]
-                elif name:
-                    matches = by_name.get(name, [])
-                    if len(matches) == 1:
-                        target = matches[0]
-
-                if target is None:
-                    continue
-
-                if target.gender != g:
-                    target.gender = g
-                applied += 1
-    except Exception:
-        return 0, 0
-
-    return applied, rows_read
-
-
-def _safe_float(v):
-    try:
-        return float(v)
-    except Exception:
-        return None
-
-
-_CALIBRATION_TRAIT_OPTIONS = {
-    "aggression": ("average", "high", "low"),
-    "libido": ("average", "high", "low"),
-    "inbredness": ("not", "slightly", "moderately"),
-}
-
-_CALIBRATION_TRAIT_NUMERIC = {
-    "aggression": {"low": 0.0, "average": 0.5, "high": 1.0},
-    "libido": {"low": 0.0, "average": 0.5, "high": 1.0},
-    "inbredness": {"not": 0.0, "slightly": 0.5, "moderately": 1.0},
-}
-
-
-def _normalize_trait_override(field: str, value) -> str:
-    options = _CALIBRATION_TRAIT_OPTIONS.get(field)
-    if not options:
-        return ""
-    txt = str(value or "").strip().lower()
-    if not txt:
-        return ""
-    if txt in options:
-        return txt
-    if field in ("aggression", "libido"):
-        aliases = {"avg": "average", "medium": "average", "med": "average", "mid": "average"}
-        mapped = aliases.get(txt, "")
-        if mapped:
-            return mapped
-    if field == "inbredness":
-        aliases = {"none": "not", "no": "not", "medium": "slightly", "med": "slightly"}
-        mapped = aliases.get(txt, "")
-        if mapped:
-            return mapped
-    return ""
-
-
-def _trait_numeric_override(field: str, value):
-    label = _normalize_trait_override(field, value)
-    if label:
-        return _CALIBRATION_TRAIT_NUMERIC[field][label]
-    n = _safe_float(value)
-    if n is None:
-        return None
-    if field in ("aggression", "libido"):
-        if n <= 0.3333:
-            label = "low"
-        elif n <= 0.6667:
-            label = "average"
-        else:
-            label = "high"
-    elif field == "inbredness":
-        if n <= 0.3333:
-            label = "not"
-        elif n <= 0.6667:
-            label = "slightly"
-        else:
-            label = "moderately"
-    else:
-        return None
-    return _CALIBRATION_TRAIT_NUMERIC[field][label]
-
-
-def _trait_label_from_value(field: str, value) -> str:
-    label = _normalize_trait_override(field, value)
-    if label:
-        return label
-    n = _safe_float(value)
-    if n is None:
-        return ""
-    if field in ("aggression", "libido"):
-        if n <= 0.3333:
-            return "low"
-        if n <= 0.6667:
-            return "average"
-        return "high"
-    if field == "inbredness":
-        if n <= 0.3333:
-            return "not"
-        if n <= 0.6667:
-            return "slightly"
-        return "moderately"
-    return ""
-
-
-def _load_calibration_data(save_path: str) -> dict:
-    path = _calibration_path(save_path)
-    if not os.path.exists(path):
-        return {"version": 1, "overrides": {}, "gender_token_map": {}}
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        if not isinstance(data, dict):
-            return {"version": 1, "overrides": {}, "gender_token_map": {}}
-        data.setdefault("version", 1)
-        data.setdefault("overrides", {})
-        data.setdefault("gender_token_map", {})
-        if not isinstance(data["overrides"], dict):
-            data["overrides"] = {}
-        if not isinstance(data["gender_token_map"], dict):
-            data["gender_token_map"] = {}
-        return data
-    except Exception:
-        return {"version": 1, "overrides": {}, "gender_token_map": {}}
-
-
-def _save_calibration_data(save_path: str, data: dict) -> bool:
-    path = _calibration_path(save_path)
-    try:
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=True)
-        return True
-    except Exception:
-        return False
-
-
-def _learn_gender_token_map(cats: list[Cat], overrides: dict) -> dict[str, str]:
-    counts: dict[str, dict[str, int]] = {}
-    for cat in cats:
-        if getattr(cat, "gender_source", "") != "token_fallback":
-            continue
-        token = (getattr(cat, "gender_token", "") or "").strip().lower()
-        uid = (cat.unique_id or "").strip().lower()
-        if not token or not uid:
-            continue
-        ov = overrides.get(uid)
-        if not isinstance(ov, dict):
-            continue
-        g = _normalize_override_gender(ov.get("gender"))
-        if not g:
-            continue
-        bucket = counts.setdefault(token, {})
-        bucket[g] = bucket.get(g, 0) + 1
-
-    out: dict[str, str] = {}
-    for token, bucket in counts.items():
-        total = sum(bucket.values())
-        if total <= 0:
-            continue
-        top_gender, top_count = max(bucket.items(), key=lambda kv: kv[1])
-        # Keep mapping when strong majority or single clear sample.
-        if top_count / total >= 0.80:
-            out[token] = top_gender
-    return out
-
-
-def _apply_calibration_data(data: dict, cats: list[Cat]) -> tuple[int, int, int]:
-    """
-    Apply calibration payload to cats in memory.
-    Returns (explicit_rows_applied, token_rows_applied, override_rows_present).
-    """
-    overrides = data.get("overrides", {}) if isinstance(data, dict) else {}
-    token_map = data.get("gender_token_map", {}) if isinstance(data, dict) else {}
-    if not isinstance(overrides, dict):
-        overrides = {}
-    if not isinstance(token_map, dict):
-        token_map = {}
-
-    # Normalize token map values.
-    norm_token_map: dict[str, str] = {}
-    for k, v in token_map.items():
-        token = str(k).strip().lower()
-        g = _normalize_override_gender(v)
-        if token and g:
-            norm_token_map[token] = g
-
-    token_rows_applied = 0
-    for cat in cats:
-        if getattr(cat, "status", "") == "Gone":
-            continue
-        if getattr(cat, "gender_source", "") != "token_fallback":
-            continue
-        token = (getattr(cat, "gender_token", "") or "").strip().lower()
-        mapped = norm_token_map.get(token, "")
-        if mapped and cat.gender != mapped:
-            cat.gender = mapped
-            token_rows_applied += 1
-
-    explicit_rows_applied = 0
-    for cat in cats:
-        if getattr(cat, "status", "") == "Gone":
-            continue
-        uid = (cat.unique_id or "").strip().lower()
-        ov = overrides.get(uid)
-        if not isinstance(ov, dict):
-            continue
-
-        touched = False
-        g = _normalize_override_gender(ov.get("gender"))
-        if g:
-            if cat.gender != g:
-                cat.gender = g
-            touched = True
-
-        for field in ("age", "aggression", "libido", "inbredness"):
-            if field == "age":
-                val = _safe_float(ov.get(field))
-            else:
-                val = _trait_numeric_override(field, ov.get(field))
-            if val is not None:
-                setattr(cat, field, val)
-                touched = True
-
-        if touched:
-            explicit_rows_applied += 1
-
-    return explicit_rows_applied, token_rows_applied, len(overrides)
-
-
-def _apply_calibration(save_path: str, cats: list[Cat]) -> tuple[int, int, int]:
-    data = _load_calibration_data(save_path)
-    return _apply_calibration_data(data, cats)
 
 
 def _save_blacklist(save_path: str, cats: list[Cat]):
@@ -2825,7 +2510,7 @@ class RoomOptimizerView(QWidget):
         controls = QHBoxLayout()
         controls.setSpacing(8)
 
-        self._min_stats_label = QLabel("Min total stats:")
+        self._min_stats_label = QLabel("Min base stats:")
         self._min_stats_label.setStyleSheet("color:#888; font-size:11px;")
         controls.addWidget(self._min_stats_label)
 
@@ -2852,6 +2537,19 @@ class RoomOptimizerView(QWidget):
             " border-radius:4px; padding:4px 8px; }"
         )
         controls.addWidget(self._max_risk_input)
+
+        controls.addSpacing(16)
+
+        self._minimize_variance_checkbox = QPushButton("Minimize Variance")
+        self._minimize_variance_checkbox.setCheckable(True)
+        self._minimize_variance_checkbox.setChecked(False)
+        self._minimize_variance_checkbox.setStyleSheet(
+            "QPushButton { background:#1a1a32; color:#aaa; border:1px solid #2a2a4a; "
+            "border-radius:4px; padding:6px 12px; font-size:11px; }"
+            "QPushButton:checked { background:#2a4a5a; color:#ddd; border:1px solid #4a6a7a; }"
+            "QPushButton:hover { background:#252545; color:#ddd; }"
+        )
+        controls.addWidget(self._minimize_variance_checkbox)
 
         self._optimize_btn = QPushButton("Calculate Optimal Distribution")
         self._optimize_btn.clicked.connect(self._calculate_optimal_distribution)
@@ -2955,9 +2653,12 @@ class RoomOptimizerView(QWidget):
         except ValueError:
             pass
 
+        # Get minimize variance option
+        minimize_variance = self._minimize_variance_checkbox.isChecked()
+
         # Filter cats by minimum stats
         if min_stats > 0:
-            alive_cats = [c for c in alive_cats if sum(c.total_stats.values()) >= min_stats]
+            alive_cats = [c for c in alive_cats if sum(c.base_stats.values()) >= min_stats]
 
         if len(alive_cats) < 2:
             self._table.setRowCount(0)
@@ -2969,10 +2670,10 @@ class RoomOptimizerView(QWidget):
         females = [c for c in alive_cats if c.gender == "female"]
         unknown = [c for c in alive_cats if c.gender == "?"]
 
-        # Sort by total stats (best first)
-        males.sort(key=lambda c: sum(c.total_stats.values()), reverse=True)
-        females.sort(key=lambda c: sum(c.total_stats.values()), reverse=True)
-        unknown.sort(key=lambda c: sum(c.total_stats.values()), reverse=True)
+        # Sort by base stats (best first)
+        males.sort(key=lambda c: sum(c.base_stats.values()), reverse=True)
+        females.sort(key=lambda c: sum(c.base_stats.values()), reverse=True)
+        unknown.sort(key=lambda c: sum(c.base_stats.values()), reverse=True)
 
         # Priority rooms + fallback
         priority_rooms = ["Priority 1", "Priority 2", "Priority 3", "Priority 4"]
@@ -2995,13 +2696,24 @@ class RoomOptimizerView(QWidget):
                 if risk > max_risk:
                     continue
 
-                avg_stats = (sum(cat_a.total_stats.values()) + sum(cat_b.total_stats.values())) / 2
-                quality = avg_stats * (1.0 - risk / 200.0)
+                # Use base stats for breeding calculations (offspring inherit base stats)
+                avg_base_stats = (sum(cat_a.base_stats.values()) + sum(cat_b.base_stats.values())) / 2
+
+                # Calculate variance penalty if minimize_variance is enabled
+                variance_penalty = 0.0
+                if minimize_variance:
+                    # Penalize pairs with large stat gaps (prefer 7+7 over 4+7)
+                    for stat in STAT_NAMES:
+                        gap = abs(cat_a.base_stats[stat] - cat_b.base_stats[stat])
+                        if gap > 2:
+                            variance_penalty += gap * 2.0
+
+                quality = avg_base_stats * (1.0 - risk / 200.0) - variance_penalty
                 pairs_with_scores.append({
                     'cat_a': cat_a,
                     'cat_b': cat_b,
                     'risk': risk,
-                    'avg_stats': avg_stats,
+                    'avg_stats': avg_base_stats,
                     'quality': quality
                 })
 
@@ -3086,7 +2798,8 @@ class RoomOptimizerView(QWidget):
                     ok, _ = can_breed(cat_a, cat_b)
                     if ok:
                         risk = risk_percent(cat_a, cat_b)
-                        avg_stats = (sum(cat_a.total_stats.values()) + sum(cat_b.total_stats.values())) / 2
+                        # Use base stats for offspring predictions
+                        avg_base_stats = (sum(cat_a.base_stats.values()) + sum(cat_b.base_stats.values())) / 2
                         stat_ranges = {
                             stat: (
                                 min(cat_a.base_stats[stat], cat_b.base_stats[stat]),
@@ -3100,7 +2813,7 @@ class RoomOptimizerView(QWidget):
                             'cat_a': cat_a,
                             'cat_b': cat_b,
                             'risk': risk,
-                            'avg_stats': avg_stats,
+                            'avg_stats': avg_base_stats,
                             'stat_ranges': stat_ranges,
                             'sum_range': (sum_lo, sum_hi),
                         })
@@ -3349,348 +3062,6 @@ class RoomOptimizerDetailPanel(QWidget):
 
 # ── Sidebar helpers ───────────────────────────────────────────────────────────
 
-
-class CalibrationView(QWidget):
-    """
-    In-app calibration editor for parser-sensitive fields.
-    Edits are saved to <save>.calibration.json and applied to app logic.
-    """
-    calibrationChanged = Signal()
-
-    COL_NAME = 0
-    COL_STATUS = 1
-    COL_TOKEN = 2
-    COL_PARSED_G = 3
-    COL_OVR_G = 4
-    COL_PARSED_AGE = 5
-    COL_OVR_AGE = 6
-    COL_PARSED_AGG = 7
-    COL_OVR_AGG = 8
-    COL_PARSED_LIB = 9
-    COL_OVR_LIB = 10
-    COL_PARSED_INB = 11
-    COL_OVR_INB = 12
-
-    class _AgeNumericDelegate(QStyledItemDelegate):
-        def createEditor(self, parent, option, index):
-            editor = QLineEdit(parent)
-            # Allow blank (no override) or a non-negative number with up to 3 decimals.
-            validator = QRegularExpressionValidator(
-                QRegularExpression(r"^$|^\d+(?:\.\d{0,3})?$"),
-                editor,
-            )
-            editor.setValidator(validator)
-            return editor
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setStyleSheet(
-            "QWidget { background:#0a0a18; }"
-            "QLabel { color:#bbb; }"
-            "QPushButton { background:#1a1a32; color:#aaa; border:1px solid #2a2a4a; "
-            "border-radius:4px; padding:6px 10px; font-size:11px; }"
-            "QPushButton:hover { background:#252545; color:#ddd; }"
-            "QComboBox { background:#1a1a32; color:#ddd; border:1px solid #2a2a4a; padding:2px 6px; }"
-            "QComboBox QAbstractItemView { background:#101023; color:#ddd; selection-background-color:#252545; }"
-            "QTableWidget { background:#101023; color:#ddd; border:1px solid #26264a; }"
-            "QHeaderView::section { background:#151532; color:#7d8bb0; border:none; padding:4px; font-weight:bold; }"
-        )
-        self._save_path: Optional[str] = None
-        self._cats: list[Cat] = []
-        self._row_cat: list[Cat] = []
-
-        root = QVBoxLayout(self)
-        root.setContentsMargins(12, 12, 12, 12)
-        root.setSpacing(10)
-
-        title = QLabel("Calibration")
-        title.setStyleSheet("color:#ddd; font-size:18px; font-weight:bold;")
-        root.addWidget(title)
-
-        desc = QLabel(
-            "Edit override values for alive cats. Blank = keep parser value. "
-            "Save applies overrides immediately and stores parser hints."
-        )
-        desc.setWordWrap(True)
-        desc.setStyleSheet("color:#8d8da8; font-size:11px;")
-        root.addWidget(desc)
-
-        actions = QHBoxLayout()
-        self._save_btn = QPushButton("Save Calibration")
-        self._reload_btn = QPushButton("Reload From File")
-        self._export_btn = QPushButton("Export Calibration")
-        self._import_btn = QPushButton("Import Calibration")
-        self._status = QLabel("")
-        self._status.setStyleSheet("color:#8d8da8; font-size:11px;")
-        actions.addWidget(self._save_btn)
-        actions.addWidget(self._reload_btn)
-        actions.addWidget(self._export_btn)
-        actions.addWidget(self._import_btn)
-        actions.addStretch()
-        actions.addWidget(self._status)
-        root.addLayout(actions)
-
-        self._table = QTableWidget(0, 13)
-        self._table.setHorizontalHeaderLabels([
-            "Name", "Status", "Voice", "Parsed G", "Override G",
-            "Parsed Age", "Override Age",
-            "Parsed Agg", "Override Agg",
-            "Parsed Libido", "Override Libido",
-            "Parsed Inbr", "Override Inbr",
-        ])
-        self._table.verticalHeader().setVisible(False)
-        self._table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self._table.setSelectionMode(QAbstractItemView.SingleSelection)
-        self._table.setEditTriggers(
-            QAbstractItemView.DoubleClicked
-            | QAbstractItemView.EditKeyPressed
-            | QAbstractItemView.AnyKeyPressed
-        )
-        self._table.setItemDelegateForColumn(self.COL_OVR_AGE, self._AgeNumericDelegate(self._table))
-        hh = self._table.horizontalHeader()
-        hh.setSectionResizeMode(self.COL_NAME, QHeaderView.ResizeToContents)
-        hh.setSectionResizeMode(self.COL_STATUS, QHeaderView.ResizeToContents)
-        hh.setSectionResizeMode(self.COL_TOKEN, QHeaderView.ResizeToContents)
-        for col in (self.COL_PARSED_G, self.COL_OVR_G):
-            hh.setSectionResizeMode(col, QHeaderView.Fixed)
-            self._table.setColumnWidth(col, 84)
-        for col in (
-            self.COL_PARSED_AGE, self.COL_OVR_AGE,
-            self.COL_PARSED_AGG, self.COL_OVR_AGG,
-            self.COL_PARSED_LIB, self.COL_OVR_LIB,
-            self.COL_PARSED_INB, self.COL_OVR_INB,
-        ):
-            hh.setSectionResizeMode(col, QHeaderView.Fixed)
-            self._table.setColumnWidth(col, 94)
-        for col in (self.COL_OVR_AGG, self.COL_OVR_LIB, self.COL_OVR_INB):
-            self._table.setColumnWidth(col, 120)
-        root.addWidget(self._table, 1)
-
-        self._save_btn.clicked.connect(self._save_clicked)
-        self._reload_btn.clicked.connect(self._reload_clicked)
-        self._export_btn.clicked.connect(self._export_clicked)
-        self._import_btn.clicked.connect(self._import_clicked)
-        _enforce_min_font_in_widget_tree(self)
-
-    @staticmethod
-    def _fmt(v) -> str:
-        if v is None:
-            return ""
-        try:
-            return f"{float(v):.3f}".rstrip("0").rstrip(".")
-        except Exception:
-            return str(v)
-
-    @staticmethod
-    def _readonly_item(text: str) -> QTableWidgetItem:
-        it = QTableWidgetItem(text)
-        it.setFlags(it.flags() & ~Qt.ItemIsEditable)
-        return it
-
-    @staticmethod
-    def _editable_item(text: str) -> QTableWidgetItem:
-        return QTableWidgetItem(text)
-
-    @staticmethod
-    def _get_text_item(table: QTableWidget, row: int, col: int) -> str:
-        w = table.cellWidget(row, col)
-        if isinstance(w, QComboBox):
-            return w.currentText().strip()
-        it = table.item(row, col)
-        return (it.text().strip() if it is not None else "")
-
-    @staticmethod
-    def _gender_combo(value: str) -> QComboBox:
-        combo = QComboBox()
-        combo.addItems(["", "male", "female", "?"])
-        idx = combo.findText((value or "").strip().lower(), Qt.MatchFixedString)
-        combo.setCurrentIndex(idx if idx >= 0 else 0)
-        return combo
-
-    @staticmethod
-    def _trait_combo(options: tuple[str, ...], value: str) -> QComboBox:
-        combo = QComboBox()
-        combo.addItems([""] + list(options))
-        idx = combo.findText((value or "").strip().lower(), Qt.MatchFixedString)
-        combo.setCurrentIndex(idx if idx >= 0 else 0)
-        return combo
-
-    @staticmethod
-    def _get_optional_float(table: QTableWidget, row: int, col: int):
-        txt = CalibrationView._get_text_item(table, row, col)
-        if txt == "":
-            return None
-        try:
-            return float(txt)
-        except Exception:
-            return None
-
-    def set_context(self, save_path: str, cats: list[Cat]):
-        self._save_path = save_path
-        self._cats = sorted([c for c in cats if c.status != "Gone"], key=lambda c: (c.name or "").lower())
-        self._row_cat = []
-
-        data = _load_calibration_data(save_path)
-        overrides = data.get("overrides", {}) if isinstance(data, dict) else {}
-        if not isinstance(overrides, dict):
-            overrides = {}
-
-        self._table.setRowCount(len(self._cats))
-        for row, cat in enumerate(self._cats):
-            self._row_cat.append(cat)
-            uid = (cat.unique_id or "").strip().lower()
-            ov = overrides.get(uid) if isinstance(overrides.get(uid), dict) else {}
-
-            self._table.setItem(row, self.COL_NAME, self._readonly_item(cat.name or "?"))
-            self._table.setItem(row, self.COL_STATUS, self._readonly_item(cat.status))
-            self._table.setItem(row, self.COL_TOKEN, self._readonly_item(getattr(cat, "gender_token", "") or ""))
-            self._table.setItem(row, self.COL_PARSED_G, self._readonly_item((getattr(cat, "parsed_gender", cat.gender) or "?")))
-            self._table.setCellWidget(row, self.COL_OVR_G, self._gender_combo(str(ov.get("gender", "") or "")))
-
-            self._table.setItem(row, self.COL_PARSED_AGE, self._readonly_item(self._fmt(getattr(cat, "parsed_age", None))))
-            self._table.setItem(row, self.COL_OVR_AGE, self._editable_item(self._fmt(ov.get("age"))))
-            self._table.setItem(row, self.COL_PARSED_AGG, self._readonly_item(self._fmt(getattr(cat, "parsed_aggression", None))))
-            self._table.setCellWidget(
-                row,
-                self.COL_OVR_AGG,
-                self._trait_combo(_CALIBRATION_TRAIT_OPTIONS["aggression"], _trait_label_from_value("aggression", ov.get("aggression"))),
-            )
-            self._table.setItem(row, self.COL_PARSED_LIB, self._readonly_item(self._fmt(getattr(cat, "parsed_libido", None))))
-            self._table.setCellWidget(
-                row,
-                self.COL_OVR_LIB,
-                self._trait_combo(_CALIBRATION_TRAIT_OPTIONS["libido"], _trait_label_from_value("libido", ov.get("libido"))),
-            )
-            self._table.setItem(row, self.COL_PARSED_INB, self._readonly_item(self._fmt(getattr(cat, "parsed_inbredness", None))))
-            self._table.setCellWidget(
-                row,
-                self.COL_OVR_INB,
-                self._trait_combo(_CALIBRATION_TRAIT_OPTIONS["inbredness"], _trait_label_from_value("inbredness", ov.get("inbredness"))),
-            )
-
-        self._status.setText(f"{len(self._cats)} alive cats")
-
-    def _reload_clicked(self):
-        if not self._save_path:
-            self._status.setText("No save loaded")
-            return
-        self.set_context(self._save_path, self._cats)
-        self._status.setText("Reloaded calibration file")
-
-    def _collect_calibration_data(self) -> dict:
-        overrides: dict[str, dict] = {}
-        for row, cat in enumerate(self._row_cat):
-            uid = (cat.unique_id or "").strip().lower()
-            if not uid:
-                continue
-
-            g = _normalize_override_gender(self._get_text_item(self._table, row, self.COL_OVR_G))
-            age = self._get_optional_float(self._table, row, self.COL_OVR_AGE)
-            agg = _normalize_trait_override("aggression", self._get_text_item(self._table, row, self.COL_OVR_AGG))
-            lib = _normalize_trait_override("libido", self._get_text_item(self._table, row, self.COL_OVR_LIB))
-            inb = _normalize_trait_override("inbredness", self._get_text_item(self._table, row, self.COL_OVR_INB))
-
-            if g or age is not None or agg or lib or inb:
-                ov = {"name": cat.name}
-                if g:
-                    ov["gender"] = g
-                if age is not None:
-                    ov["age"] = age
-                if agg:
-                    ov["aggression"] = agg
-                if lib:
-                    ov["libido"] = lib
-                if inb:
-                    ov["inbredness"] = inb
-                overrides[uid] = ov
-
-        return {
-            "version": 1,
-            "overrides": overrides,
-            "gender_token_map": _learn_gender_token_map(self._cats, overrides),
-        }
-
-    def _save_clicked(self):
-        if not self._save_path:
-            self._status.setText("No save loaded")
-            return
-
-        data = self._collect_calibration_data()
-        overrides = data.get("overrides", {}) if isinstance(data, dict) else {}
-        if not _save_calibration_data(self._save_path, data):
-            self._status.setText("Failed to save calibration")
-            return
-
-        explicit, token_applied, _ = _apply_calibration_data(data, self._cats)
-        self._status.setText(
-            f"Saved. overrides={len(overrides)} applied={explicit} token-hints={len(data['gender_token_map'])}/{token_applied}"
-        )
-        self.calibrationChanged.emit()
-
-    def _export_clicked(self):
-        if not self._save_path:
-            self._status.setText("No save loaded")
-            return
-        default_path = _calibration_path(self._save_path)
-        path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Export Calibration",
-            default_path,
-            "Calibration JSON (*.json);;All Files (*)",
-        )
-        if not path:
-            return
-        data = self._collect_calibration_data()
-        try:
-            with open(path, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2, ensure_ascii=True)
-            self._status.setText(f"Exported calibration to {os.path.basename(path)}")
-        except Exception:
-            self._status.setText("Failed to export calibration")
-
-    def _import_clicked(self):
-        if not self._save_path:
-            self._status.setText("No save loaded")
-            return
-        start = os.path.dirname(_calibration_path(self._save_path))
-        path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Import Calibration",
-            start,
-            "Calibration JSON (*.json);;All Files (*)",
-        )
-        if not path:
-            return
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception:
-            self._status.setText("Failed to read calibration file")
-            return
-        if not isinstance(data, dict):
-            self._status.setText("Invalid calibration format")
-            return
-        overrides = data.get("overrides", {})
-        if not isinstance(overrides, dict):
-            overrides = {}
-        token_map = data.get("gender_token_map", {})
-        if not isinstance(token_map, dict):
-            token_map = {}
-        normalized = {
-            "version": int(data.get("version", 1) or 1),
-            "overrides": overrides,
-            "gender_token_map": token_map or _learn_gender_token_map(self._cats, overrides),
-        }
-        if not _save_calibration_data(self._save_path, normalized):
-            self._status.setText("Failed to import calibration")
-            return
-        explicit, token_applied, _ = _apply_calibration_data(normalized, self._cats)
-        self.set_context(self._save_path, self._cats)
-        self._status.setText(
-            f"Imported. applied={explicit} token={token_applied} from {os.path.basename(path)}"
-        )
-        self.calibrationChanged.emit()
-
 _SIDEBAR_BTN = """
 QPushButton {
     color:#ccc; background:transparent; border:none;
@@ -3723,7 +3094,6 @@ class MainWindow(QMainWindow):
         self._tree_view: Optional[FamilyTreeBrowserView] = None
         self._safe_breeding_view: Optional[SafeBreedingView] = None
         self._room_optimizer_view: Optional[RoomOptimizerView] = None
-        self._calibration_view: Optional[CalibrationView] = None
         self._zoom_percent: int = 100
         self._base_font: QFont = QApplication.instance().font()
         self._base_sidebar_width = 190
@@ -3872,9 +3242,6 @@ class MainWindow(QMainWindow):
         self._btn_room_optimizer = _sidebar_btn("Room Optimizer")
         self._btn_room_optimizer.clicked.connect(self._open_room_optimizer)
         vb.addWidget(self._btn_room_optimizer)
-        self._btn_calibration = _sidebar_btn("Calibration")
-        self._btn_calibration.clicked.connect(self._open_calibration_view)
-        vb.addWidget(self._btn_calibration)
 
         vb.addWidget(_hsep())
         vb.addWidget(sl("ROOMS"))
@@ -4081,10 +3448,6 @@ class MainWindow(QMainWindow):
         self._room_optimizer_view = RoomOptimizerView(self)
         self._room_optimizer_view.hide()
         vb.addWidget(self._room_optimizer_view, 1)
-        self._calibration_view = CalibrationView(self)
-        self._calibration_view.calibrationChanged.connect(self._on_calibration_changed)
-        self._calibration_view.hide()
-        vb.addWidget(self._calibration_view, 1)
 
         return w
 
@@ -4143,8 +3506,6 @@ class MainWindow(QMainWindow):
             self._safe_breeding_view.hide()
         if hasattr(self, "_room_optimizer_view") and self._room_optimizer_view is not None:
             self._room_optimizer_view.hide()
-        if hasattr(self, "_calibration_view") and self._calibration_view is not None:
-            self._calibration_view.hide()
         if hasattr(self, "_header"):
             self._header.show()
         if hasattr(self, "_table_view_container"):
@@ -4155,8 +3516,6 @@ class MainWindow(QMainWindow):
             self._btn_safe_breeding_view.setChecked(False)
         if hasattr(self, "_btn_room_optimizer"):
             self._btn_room_optimizer.setChecked(False)
-        if hasattr(self, "_btn_calibration"):
-            self._btn_calibration.setChecked(False)
 
     def _show_tree_view(self):
         if self._active_btn is not None:
@@ -4170,8 +3529,6 @@ class MainWindow(QMainWindow):
             self._safe_breeding_view.hide()
         if hasattr(self, "_room_optimizer_view") and self._room_optimizer_view is not None:
             self._room_optimizer_view.hide()
-        if hasattr(self, "_calibration_view") and self._calibration_view is not None:
-            self._calibration_view.hide()
         if self._tree_view is not None:
             self._tree_view.set_cats(self._cats)
             self._tree_view.show()
@@ -4181,8 +3538,6 @@ class MainWindow(QMainWindow):
             self._btn_safe_breeding_view.setChecked(False)
         if hasattr(self, "_btn_room_optimizer"):
             self._btn_room_optimizer.setChecked(False)
-        if hasattr(self, "_btn_calibration"):
-            self._btn_calibration.setChecked(False)
 
     def _show_safe_breeding_view(self):
         if self._active_btn is not None:
@@ -4196,8 +3551,6 @@ class MainWindow(QMainWindow):
             self._tree_view.hide()
         if hasattr(self, "_room_optimizer_view") and self._room_optimizer_view is not None:
             self._room_optimizer_view.hide()
-        if hasattr(self, "_calibration_view") and self._calibration_view is not None:
-            self._calibration_view.hide()
         if self._safe_breeding_view is not None:
             self._safe_breeding_view.set_cats(self._cats)
             self._safe_breeding_view.show()
@@ -4207,8 +3560,6 @@ class MainWindow(QMainWindow):
             self._btn_safe_breeding_view.setChecked(True)
         if hasattr(self, "_btn_room_optimizer"):
             self._btn_room_optimizer.setChecked(False)
-        if hasattr(self, "_btn_calibration"):
-            self._btn_calibration.setChecked(False)
 
     def _show_room_optimizer_view(self):
         if self._active_btn is not None:
@@ -4222,8 +3573,6 @@ class MainWindow(QMainWindow):
             self._tree_view.hide()
         if hasattr(self, "_safe_breeding_view") and self._safe_breeding_view is not None:
             self._safe_breeding_view.hide()
-        if hasattr(self, "_calibration_view") and self._calibration_view is not None:
-            self._calibration_view.hide()
         if self._room_optimizer_view is not None:
             self._room_optimizer_view.set_cats(self._cats)
             self._room_optimizer_view.show()
@@ -4233,35 +3582,6 @@ class MainWindow(QMainWindow):
             self._btn_safe_breeding_view.setChecked(False)
         if hasattr(self, "_btn_room_optimizer"):
             self._btn_room_optimizer.setChecked(True)
-        if hasattr(self, "_btn_calibration"):
-            self._btn_calibration.setChecked(False)
-
-    def _show_calibration_view(self):
-        if self._active_btn is not None:
-            self._active_btn.setChecked(False)
-        self._active_btn = None
-        if hasattr(self, "_header"):
-            self._header.hide()
-        if hasattr(self, "_table_view_container"):
-            self._table_view_container.hide()
-        if hasattr(self, "_tree_view") and self._tree_view is not None:
-            self._tree_view.hide()
-        if hasattr(self, "_safe_breeding_view") and self._safe_breeding_view is not None:
-            self._safe_breeding_view.hide()
-        if hasattr(self, "_room_optimizer_view") and self._room_optimizer_view is not None:
-            self._room_optimizer_view.hide()
-        if self._calibration_view is not None:
-            if self._current_save:
-                self._calibration_view.set_context(self._current_save, self._cats)
-            self._calibration_view.show()
-        if hasattr(self, "_btn_tree_view"):
-            self._btn_tree_view.setChecked(False)
-        if hasattr(self, "_btn_safe_breeding_view"):
-            self._btn_safe_breeding_view.setChecked(False)
-        if hasattr(self, "_btn_room_optimizer"):
-            self._btn_room_optimizer.setChecked(False)
-        if hasattr(self, "_btn_calibration"):
-            self._btn_calibration.setChecked(True)
 
     def _update_header(self, room_key):
         if room_key == "__all__":
@@ -4294,22 +3614,6 @@ class MainWindow(QMainWindow):
         if self._room_optimizer_view is not None:
             self._room_optimizer_view.set_cats(self._cats)
 
-    def _on_calibration_changed(self):
-        if not self._current_save:
-            return
-        cal_explicit, cal_token, cal_rows = _apply_calibration(self._current_save, self._cats)
-        self._source_model.load(self._cats)
-        if self._safe_breeding_view is not None:
-            self._safe_breeding_view.set_cats(self._cats)
-        if self._room_optimizer_view is not None:
-            self._room_optimizer_view.set_cats(self._cats)
-        if self._calibration_view is not None and self._calibration_view.isVisible():
-            self._calibration_view.set_context(self._current_save, self._cats)
-        self._update_count()
-        self.statusBar().showMessage(
-            f"Calibration applied ({cal_explicit} explicit, {cal_token} token from {cal_rows} rows)"
-        )
-
     # ── Loading ────────────────────────────────────────────────────────────
 
     def load_save(self, path: str):
@@ -4321,8 +3625,6 @@ class MainWindow(QMainWindow):
         try:
             cats, errors = parse_save(path)
             _load_blacklist(path, cats)
-            applied_overrides, override_rows = _load_gender_overrides(path, cats)
-            cal_explicit, cal_token, cal_rows = _apply_calibration(path, cats)
             self._cats = cats
             self._source_model.load(cats)
             self._rebuild_room_buttons(cats)
@@ -4340,10 +3642,6 @@ class MainWindow(QMainWindow):
                 self._tree_view.set_cats(cats)
             if self._safe_breeding_view is not None:
                 self._safe_breeding_view.set_cats(cats)
-            if self._room_optimizer_view is not None:
-                self._room_optimizer_view.set_cats(cats)
-            if self._calibration_view is not None:
-                self._calibration_view.set_context(path, cats)
 
             name = os.path.basename(path)
             self._save_lbl.setText(name)
@@ -4352,10 +3650,6 @@ class MainWindow(QMainWindow):
             msg = f"Loaded {len(cats)} cats from {name}"
             if errors:
                 msg += f"  ({len(errors)} parse errors)"
-            if applied_overrides:
-                msg += f"  ({applied_overrides}/{override_rows} gender overrides)"
-            if cal_rows:
-                msg += f"  (calibration: {cal_explicit} explicit, {cal_token} token)"
             self.statusBar().showMessage(msg)
         except Exception as e:
             import traceback
@@ -4409,9 +3703,6 @@ class MainWindow(QMainWindow):
 
     def _open_room_optimizer(self):
         self._show_room_optimizer_view()
-
-    def _open_calibration_view(self):
-        self._show_calibration_view()
 
     # ── UI zoom ───────────────────────────────────────────────────────────
 
