@@ -1153,6 +1153,11 @@ class CatTableModel(QAbstractTableModel):
         self._focus_cat: Optional[Cat] = None
         self._show_lineage: bool = False
         self._relation_cache: dict[int, float] = {}
+        self._compat_cache: dict[int, str] = {}
+        self._inbred_score_cache: dict[int, int] = {}
+        self._ancestor_ids_cache: dict[int, frozenset[int]] = {}
+        self._parent_ids_cache: dict[int, frozenset[int]] = {}
+        self._hater_ids_cache: dict[int, frozenset[int]] = {}
 
     def set_show_lineage(self, show: bool):
         self._show_lineage = show
@@ -1167,11 +1172,32 @@ class CatTableModel(QAbstractTableModel):
         self.beginResetModel()
         self._cats = cats
         self._relation_cache.clear()
+        self._compat_cache.clear()
+        self._ancestor_ids_cache = {
+            id(cat): frozenset(id(anc) for anc in get_all_ancestors(cat))
+            for cat in cats
+        }
+        self._parent_ids_cache = {
+            id(cat): frozenset(id(parent) for parent in get_parents(cat))
+            for cat in cats
+        }
+        self._hater_ids_cache = {
+            id(cat): frozenset(id(hater) for hater in getattr(cat, "haters", []))
+            for cat in cats
+        }
+        self._inbred_score_cache = {
+            id(cat): len(find_common_ancestors(cat.parent_a, cat.parent_b))
+            if cat.parent_a is not None and cat.parent_b is not None else 0
+            for cat in cats
+        }
         self.endResetModel()
 
     def set_focus_cat(self, cat: Optional[Cat]):
+        if cat is self._focus_cat:
+            return
         self._focus_cat = cat
         self._relation_cache.clear()
+        self._compat_cache.clear()
         if self._cats:
             self.dataChanged.emit(
                 self.index(0, 0),
@@ -1191,6 +1217,43 @@ class CatTableModel(QAbstractTableModel):
         pct = risk_percent(self._focus_cat, cat)
         self._relation_cache[key] = pct
         return pct
+
+    def _compat_for(self, cat: Cat) -> Optional[str]:
+        if self._focus_cat is None or cat is self._focus_cat:
+            return None
+        focus = self._focus_cat
+        key = id(cat)
+        cached = self._compat_cache.get(key)
+        if cached is not None:
+            return cached
+
+        ok, _ = can_breed(focus, cat)
+        if not ok:
+            compat = 'incompatible'
+        else:
+            focus_id = id(focus)
+            cat_id = id(cat)
+            focus_haters = self._hater_ids_cache.get(focus_id, frozenset())
+            cat_haters = self._hater_ids_cache.get(cat_id, frozenset())
+            focus_parents = self._parent_ids_cache.get(focus_id, frozenset())
+            cat_parents = self._parent_ids_cache.get(cat_id, frozenset())
+            focus_anc = self._ancestor_ids_cache.get(focus_id, frozenset())
+            cat_anc = self._ancestor_ids_cache.get(cat_id, frozenset())
+
+            if cat_id in focus_haters or focus_id in cat_haters:
+                compat = 'incompatible'
+            elif focus_id in cat_parents or cat_id in focus_parents:
+                compat = 'incompatible'
+            elif focus_anc & cat_anc:
+                compat = 'risky'
+            else:
+                compat = 'ok'
+
+        self._compat_cache[key] = compat
+        return compat
+
+    def _inbred_score_for(self, cat: Cat) -> int:
+        return self._inbred_score_cache.get(id(cat), 0)
 
     def rowCount(self, parent=QModelIndex()):    return len(self._cats)
     def columnCount(self, parent=QModelIndex()): return len(COLUMNS)
@@ -1236,7 +1299,7 @@ class CatTableModel(QAbstractTableModel):
             if col == COL_INB:
                 if cat.parent_a is None or cat.parent_b is None:
                     return "—"
-                score = len(find_common_ancestors(cat.parent_a, cat.parent_b))
+                score = self._inbred_score_for(cat)
                 return str(score) if score else "—"
 
         elif role == Qt.UserRole:
@@ -1251,11 +1314,7 @@ class CatTableModel(QAbstractTableModel):
             return self.data(index, Qt.DisplayRole)
 
         elif role == Qt.BackgroundRole:
-            compat = (
-                _compatibility(self._focus_cat, cat)
-                if self._focus_cat is not None and cat is not self._focus_cat
-                else None
-            )
+            compat = self._compat_for(cat)
             # Suppress risky highlight when lineage features are off
             if compat == 'risky' and not self._show_lineage:
                 compat = 'ok'
@@ -1275,7 +1334,7 @@ class CatTableModel(QAbstractTableModel):
                 return QBrush(sc)
             if col == COL_INB:
                 if cat.parent_a is not None and cat.parent_b is not None:
-                    score = len(find_common_ancestors(cat.parent_a, cat.parent_b))
+                    score = self._inbred_score_for(cat)
                     if score >= 3:
                         return QBrush(QColor(80, 20, 20))
                     if score >= 1:
@@ -1286,11 +1345,7 @@ class CatTableModel(QAbstractTableModel):
                 return QBrush(QColor(22, 18, 10))
 
         elif role == Qt.ForegroundRole:
-            compat = (
-                _compatibility(self._focus_cat, cat)
-                if self._focus_cat is not None and cat is not self._focus_cat
-                else None
-            )
+            compat = self._compat_for(cat)
             # Suppress risky highlight when lineage features are off
             if compat == 'risky' and not self._show_lineage:
                 compat = 'ok'
