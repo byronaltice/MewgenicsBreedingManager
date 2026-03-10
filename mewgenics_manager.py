@@ -542,6 +542,7 @@ class Cat:
     parent_b: Optional['Cat'] = None
     generation: int = 0   # generation depth: 0=stray, 1=child of strays, etc.
     is_blacklisted: bool = False  # exclude from breeding calculations
+    must_breed: bool = False  # prioritize in breeding optimization
 
     def __init__(self, blob: bytes, cat_key: int, house_info: dict, adventure_keys: set):
         uncomp_size = struct.unpack('<I', blob[:4])[0]
@@ -1131,6 +1132,11 @@ def _blacklist_path(save_path: str) -> str:
     return save_path + ".blacklist"
 
 
+def _must_breed_path(save_path: str) -> str:
+    """Return path for must-breed file associated with save."""
+    return save_path + ".mustbreed"
+
+
 def _gender_overrides_path(save_path: str) -> str:
     """Return CSV path for manual gender overrides associated with save."""
     return save_path + ".gender_overrides.csv"
@@ -1398,6 +1404,19 @@ def _apply_calibration_data(data: dict, cats: list[Cat]) -> tuple[int, int, int]
                 setattr(cat, field, val)
                 touched = True
 
+        # Apply base stats overrides
+        base_stats_override = ov.get("base_stats")
+        if isinstance(base_stats_override, dict):
+            for stat_name, stat_val in base_stats_override.items():
+                if stat_name in cat.base_stats:
+                    try:
+                        val = int(stat_val)
+                        if 0 <= val <= 20:
+                            cat.base_stats[stat_name] = val
+                            touched = True
+                    except (ValueError, TypeError):
+                        pass
+
         if touched:
             explicit_rows_applied += 1
 
@@ -1434,24 +1453,50 @@ def _load_blacklist(save_path: str, cats: list[Cat]):
         pass
 
 
+def _save_must_breed(save_path: str, cats: list[Cat]):
+    """Save must-breed cat unique IDs to file."""
+    must_breed_file = _must_breed_path(save_path)
+    must_breed_uids = [c.unique_id for c in cats if c.must_breed]
+    try:
+        with open(must_breed_file, 'w') as f:
+            f.write('\n'.join(must_breed_uids))
+    except Exception:
+        pass
+
+
+def _load_must_breed(save_path: str, cats: list[Cat]):
+    """Load must-breed list and mark cats accordingly."""
+    must_breed_file = _must_breed_path(save_path)
+    if not os.path.exists(must_breed_file):
+        return
+    try:
+        with open(must_breed_file, 'r') as f:
+            must_breed_uids = set(line.strip() for line in f if line.strip())
+        for cat in cats:
+            cat.must_breed = cat.unique_id in must_breed_uids
+    except Exception:
+        pass
+
+
 # ── Qt table model ────────────────────────────────────────────────────────────
 
-COLUMNS   = ["Name", "♀/♂", "Room", "Status", "BL"] + STAT_NAMES + ["Sum", "Abilities", "Mutations", "Risk%", "Gen", "Agg", "Lib", "Inbred", "Source", "Inbr"]
+COLUMNS   = ["Name", "♀/♂", "Room", "Status", "BL", "MB"] + STAT_NAMES + ["Sum", "Abilities", "Mutations", "Risk%", "Gen", "Agg", "Lib", "Inbred", "Source", "Inbr"]
 COL_NAME  = 0
 COL_GEN   = 1
 COL_ROOM  = 2
 COL_STAT  = 3
 COL_BL    = 4
-STAT_COLS = list(range(5, 12))   # STR … LCK
-COL_SUM   = 12
-COL_ABIL  = 13
-COL_MUTS  = 14
-COL_REL   = 15
-COL_AGE   = 16   # generation depth
-COL_AGG   = 17
-COL_LIB   = 18
-COL_INBRD = 19
-COL_SRC   = 20
+COL_MB    = 5
+STAT_COLS = list(range(6, 13))   # STR … LCK
+COL_SUM   = 13
+COL_ABIL  = 14
+COL_MUTS  = 15
+COL_REL   = 16
+COL_AGE   = 17   # generation depth
+COL_AGG   = 18
+COL_LIB   = 19
+COL_INBRD = 20
+COL_SRC   = 21
 COL_INB   = 21
 
 # Fixed pixel widths for narrow columns
@@ -1596,6 +1641,7 @@ class CatTableModel(QAbstractTableModel):
             if col == COL_ROOM: return cat.room_display
             if col == COL_STAT: return STATUS_ABBREV.get(cat.status, cat.status)
             if col == COL_BL:   return "X" if cat.is_blacklisted else ""
+            if col == COL_MB:   return "★" if cat.must_breed else ""
             if col in STAT_COLS:
                 return str(cat.base_stats[STAT_NAMES[col - STAT_COLS[0]]])
             if col == COL_SUM:
@@ -1703,6 +1749,8 @@ class CatTableModel(QAbstractTableModel):
                 return cat.room
             if col == COL_BL:
                 return "Excluded from breeding calculations" if cat.is_blacklisted else "Included in breeding calculations"
+            if col == COL_MB:
+                return "Must breed - prioritized in optimization" if cat.must_breed else "Normal breeding priority"
             if col == COL_MUTS and cat.mutations:
                 return "\n".join(cat.mutations)
             if col == COL_ABIL and cat.abilities:
@@ -1720,11 +1768,14 @@ class CatTableModel(QAbstractTableModel):
                     return "Inbredness: unknown"
                 return f"Inbredness: {cat.inbredness:.3f} ({_trait_label_from_value('inbredness', cat.inbredness)})"
 
-        elif role == Qt.CheckStateRole and col == COL_BL:
-            return Qt.Checked if cat.is_blacklisted else Qt.Unchecked
+        elif role == Qt.CheckStateRole:
+            if col == COL_BL:
+                return Qt.Checked if cat.is_blacklisted else Qt.Unchecked
+            if col == COL_MB:
+                return Qt.Checked if cat.must_breed else Qt.Unchecked
 
         elif role == Qt.TextAlignmentRole:
-            if col in STAT_COLS or col in (COL_GEN, COL_STAT, COL_BL, COL_SUM, COL_REL, COL_AGE, COL_AGG, COL_LIB, COL_INBRD):
+            if col in STAT_COLS or col in (COL_GEN, COL_STAT, COL_BL, COL_MB, COL_SUM, COL_REL, COL_AGE, COL_AGG, COL_LIB, COL_INBRD):
                 return Qt.AlignCenter
 
         return None
@@ -1733,20 +1784,28 @@ class CatTableModel(QAbstractTableModel):
         if not index.isValid():
             return Qt.NoItemFlags
         base = Qt.ItemIsSelectable | Qt.ItemIsEnabled
-        if index.column() == COL_BL:
+        if index.column() in (COL_BL, COL_MB):
             return base | Qt.ItemIsUserCheckable
         return base
 
     def setData(self, index, value, role=Qt.EditRole):
         if not index.isValid():
             return False
-        if index.column() != COL_BL or role != Qt.CheckStateRole:
+        col = index.column()
+        if col not in (COL_BL, COL_MB) or role != Qt.CheckStateRole:
             return False
         cat = self._cats[index.row()]
         new_state = (value == Qt.Checked)
-        if cat.is_blacklisted == new_state:
-            return False
-        cat.is_blacklisted = new_state
+
+        if col == COL_BL:
+            if cat.is_blacklisted == new_state:
+                return False
+            cat.is_blacklisted = new_state
+        elif col == COL_MB:
+            if cat.must_breed == new_state:
+                return False
+            cat.must_breed = new_state
+
         self.dataChanged.emit(index, index, [Qt.DisplayRole, Qt.CheckStateRole, Qt.ToolTipRole])
         self.blacklistChanged.emit()
         return True
@@ -1958,6 +2017,26 @@ class CatDetailPanel(QWidget):
                 mw._on_blacklist_changed()
         blacklist_btn.clicked.connect(_toggle_blacklist)
         id_col.addWidget(blacklist_btn)
+
+        # Must breed toggle button
+        must_breed_btn = QPushButton("★ Must Breed" if cat.must_breed else "☆ Normal Priority")
+        must_breed_btn.setStyleSheet(
+            "QPushButton { color:#888; background:transparent; border:1px solid #252545;"
+            " padding:3px 8px; border-radius:4px; font-size:10px; }"
+            "QPushButton:hover { background:#131328; color:#ddd; }")
+        def _toggle_must_breed():
+            cat.must_breed = not cat.must_breed
+            must_breed_btn.setText("★ Must Breed" if cat.must_breed else "☆ Normal Priority")
+            mw = self.window()
+            if hasattr(mw, "_source_model") and mw._source_model is not None:
+                for row in range(mw._source_model.rowCount()):
+                    if mw._source_model.cat_at(row) is cat:
+                        idx = mw._source_model.index(row, COL_MB)
+                        mw._source_model.dataChanged.emit(idx, idx, [Qt.DisplayRole, Qt.CheckStateRole, Qt.ToolTipRole])
+                        break
+        must_breed_btn.clicked.connect(_toggle_must_breed)
+        id_col.addWidget(must_breed_btn)
+
         id_col.addStretch()
         root.addLayout(id_col)
 
@@ -3295,7 +3374,29 @@ class RoomOptimizerView(QWidget):
                     if risk > max_risk:
                         continue
 
-                    avg_base_stats = (sum(cat_a.base_stats.values()) + sum(cat_b.base_stats.values())) / 2
+                    # Calculate expected offspring stats based on breeding mechanics
+                    # At 50 stimulation (typical): 60% chance of inheriting better stat
+                    stimulation = 50.0  # Assume typical breeding room stimulation
+                    better_stat_chance = (1.0 + 0.01 * stimulation) / (2.0 + 0.01 * stimulation)
+
+                    expected_stats_sum = 0.0
+                    for stat in STAT_NAMES:
+                        stat_a = cat_a.base_stats[stat]
+                        stat_b = cat_b.base_stats[stat]
+                        better_stat = max(stat_a, stat_b)
+                        worse_stat = min(stat_a, stat_b)
+                        # Expected value: better_stat with better_stat_chance, worse_stat otherwise
+                        expected_stat = better_stat * better_stat_chance + worse_stat * (1.0 - better_stat_chance)
+                        expected_stats_sum += expected_stat
+
+                    avg_base_stats = expected_stats_sum / len(STAT_NAMES)
+
+                    # Bonus for complementary stats (one parent high where the other is low)
+                    complementarity_bonus = 0.0
+                    for stat in STAT_NAMES:
+                        if max(cat_a.base_stats[stat], cat_b.base_stats[stat]) >= 8:
+                            # High stat available for inheritance
+                            complementarity_bonus += 0.5
 
                     variance_penalty = 0.0
                     if minimize_variance:
@@ -3304,16 +3405,24 @@ class RoomOptimizerView(QWidget):
                             if gap > 2:
                                 variance_penalty += gap * 2.0
 
-                    quality = avg_base_stats * (1.0 - risk / 200.0) - variance_penalty
+                    quality = (avg_base_stats + complementarity_bonus) * (1.0 - risk / 200.0) - variance_penalty
+
+                    # Boost quality for must-breed cats
+                    must_breed_bonus = 0
+                    if cat_a.must_breed or cat_b.must_breed:
+                        must_breed_bonus = 1000  # Ensures must-breed pairs sort first
+
                     pairs_with_scores.append({
                         'cat_a': cat_a,
                         'cat_b': cat_b,
                         'risk': risk,
                         'avg_stats': avg_base_stats,
-                        'quality': quality
+                        'quality': quality,
+                        'must_breed_bonus': must_breed_bonus
                     })
 
-            pairs_with_scores.sort(key=lambda p: p['quality'], reverse=True)
+            # Sort with must-breed pairs first, then by quality
+            pairs_with_scores.sort(key=lambda p: (p['must_breed_bonus'], p['quality']), reverse=True)
             assigned_cats = set()
             max_cats_per_priority_room = 6
 
@@ -3682,6 +3791,13 @@ class CalibrationView(QWidget):
     COL_OVR_LIB = 10
     COL_PARSED_INB = 11
     COL_OVR_INB = 12
+    COL_OVR_STR = 13
+    COL_OVR_DEX = 14
+    COL_OVR_CON = 15
+    COL_OVR_INT = 16
+    COL_OVR_SPD = 17
+    COL_OVR_CHA = 18
+    COL_OVR_LCK = 19
 
     class _AgeNumericDelegate(QStyledItemDelegate):
         def createEditor(self, parent, option, index):
@@ -3689,6 +3805,17 @@ class CalibrationView(QWidget):
             # Allow blank (no override) or a non-negative number with up to 3 decimals.
             validator = QRegularExpressionValidator(
                 QRegularExpression(r"^$|^\d+(?:\.\d{0,3})?$"),
+                editor,
+            )
+            editor.setValidator(validator)
+            return editor
+
+    class _StatDelegate(QStyledItemDelegate):
+        def createEditor(self, parent, option, index):
+            editor = QLineEdit(parent)
+            # Allow blank or integer 0-20
+            validator = QRegularExpressionValidator(
+                QRegularExpression(r"^$|^([0-9]|1[0-9]|20)$"),
                 editor,
             )
             editor.setValidator(validator)
@@ -3742,13 +3869,14 @@ class CalibrationView(QWidget):
         actions.addWidget(self._status)
         root.addLayout(actions)
 
-        self._table = QTableWidget(0, 13)
+        self._table = QTableWidget(0, 20)
         self._table.setHorizontalHeaderLabels([
             "Name", "Status", "Voice", "Parsed G", "Override G",
             "Parsed Age", "Override Age",
             "Parsed Agg", "Override Agg",
             "Parsed Libido", "Override Libido",
             "Parsed Inbr", "Override Inbr",
+            "STR", "DEX", "CON", "INT", "SPD", "CHA", "LCK",
         ])
         self._table.verticalHeader().setVisible(False)
         self._table.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -3759,6 +3887,9 @@ class CalibrationView(QWidget):
             | QAbstractItemView.AnyKeyPressed
         )
         self._table.setItemDelegateForColumn(self.COL_OVR_AGE, self._AgeNumericDelegate(self._table))
+        for stat_col in (self.COL_OVR_STR, self.COL_OVR_DEX, self.COL_OVR_CON,
+                         self.COL_OVR_INT, self.COL_OVR_SPD, self.COL_OVR_CHA, self.COL_OVR_LCK):
+            self._table.setItemDelegateForColumn(stat_col, self._StatDelegate(self._table))
         hh = self._table.horizontalHeader()
         hh.setSectionResizeMode(self.COL_NAME, QHeaderView.ResizeToContents)
         hh.setSectionResizeMode(self.COL_STATUS, QHeaderView.ResizeToContents)
@@ -3776,6 +3907,10 @@ class CalibrationView(QWidget):
             self._table.setColumnWidth(col, 94)
         for col in (self.COL_OVR_AGG, self.COL_OVR_LIB, self.COL_OVR_INB):
             self._table.setColumnWidth(col, 120)
+        for stat_col in (self.COL_OVR_STR, self.COL_OVR_DEX, self.COL_OVR_CON,
+                         self.COL_OVR_INT, self.COL_OVR_SPD, self.COL_OVR_CHA, self.COL_OVR_LCK):
+            hh.setSectionResizeMode(stat_col, QHeaderView.Fixed)
+            self._table.setColumnWidth(stat_col, 50)
         root.addWidget(self._table, 1)
 
         self._save_btn.clicked.connect(self._save_clicked)
@@ -3880,6 +4015,16 @@ class CalibrationView(QWidget):
                 self._trait_combo(_CALIBRATION_TRAIT_OPTIONS["inbredness"], _trait_label_from_value("inbredness", ov.get("inbredness"))),
             )
 
+            # Add base stats override columns
+            for i, stat_name in enumerate(STAT_NAMES):
+                stat_col = self.COL_OVR_STR + i
+                override_val = ov.get("base_stats", {}).get(stat_name, "")
+                current_val = cat.base_stats.get(stat_name, 0)
+                # Show current value in background, allow override
+                item = self._editable_item(str(override_val) if override_val != "" else "")
+                item.setToolTip(f"Current: {current_val}")
+                self._table.setItem(row, stat_col, item)
+
         self._status.setText(f"{len(self._cats)} alive cats")
 
     def _reload_clicked(self):
@@ -3902,7 +4047,20 @@ class CalibrationView(QWidget):
             lib = _normalize_trait_override("libido", self._get_text_item(self._table, row, self.COL_OVR_LIB))
             inb = _normalize_trait_override("inbredness", self._get_text_item(self._table, row, self.COL_OVR_INB))
 
-            if g or age is not None or agg or lib or inb:
+            # Collect base stats overrides
+            base_stats = {}
+            for i, stat_name in enumerate(STAT_NAMES):
+                stat_col = self.COL_OVR_STR + i
+                txt = self._get_text_item(self._table, row, stat_col).strip()
+                if txt:
+                    try:
+                        val = int(txt)
+                        if 0 <= val <= 20:
+                            base_stats[stat_name] = val
+                    except ValueError:
+                        pass
+
+            if g or age is not None or agg or lib or inb or base_stats:
                 ov = {"name": cat.name}
                 if g:
                     ov["gender"] = g
@@ -3914,6 +4072,8 @@ class CalibrationView(QWidget):
                     ov["libido"] = lib
                 if inb:
                     ov["inbredness"] = inb
+                if base_stats:
+                    ov["base_stats"] = base_stats
                 overrides[uid] = ov
 
         return {
@@ -4611,6 +4771,7 @@ class MainWindow(QMainWindow):
     def _on_blacklist_changed(self):
         if self._current_save:
             _save_blacklist(self._current_save, self._cats)
+            _save_must_breed(self._current_save, self._cats)
         if self._safe_breeding_view is not None:
             self._safe_breeding_view.set_cats(self._cats)
         if self._room_optimizer_view is not None:
@@ -4643,6 +4804,7 @@ class MainWindow(QMainWindow):
         try:
             cats, errors = parse_save(path)
             _load_blacklist(path, cats)
+            _load_must_breed(path, cats)
             applied_overrides, override_rows = _load_gender_overrides(path, cats)
             cal_explicit, cal_token, cal_rows = _apply_calibration(path, cats)
             self._cats = cats
