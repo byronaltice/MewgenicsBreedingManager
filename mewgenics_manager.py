@@ -720,6 +720,23 @@ def _ability_tip(name: str) -> str:
     return _ABILITY_DESC.get(key) or _ABILITY_LOOKUP.get(key, "")
 
 
+def _read_db_key_candidates(raw: bytes, self_key: int, offsets: tuple[int, ...], base_offset: int = 0) -> list[int]:
+    keys: list[int] = []
+    for off in offsets:
+        pos = base_offset + off
+        if pos < 0 or pos + 4 > len(raw):
+            continue
+        try:
+            value = struct.unpack_from('<I', raw, pos)[0]
+        except Exception:
+            continue
+        if value in (0, 0xFFFF_FFFF) or value == self_key:
+            continue
+        if value not in keys:
+            keys.append(value)
+    return keys
+
+
 def _abilities_tooltip(cat: "Cat") -> str:
     lines: list[str] = []
     for ability in cat.abilities:
@@ -734,6 +751,15 @@ def _abilities_tooltip(cat: "Cat") -> str:
 
 def _mutations_tooltip(cat: "Cat") -> str:
     return "\n\n".join(tip or text for text, tip in cat.mutation_chip_items)
+
+
+def _relations_summary(cat: "Cat") -> str:
+    parts: list[str] = []
+    if cat.lovers:
+        parts.append("L: " + ", ".join(other.name for other in cat.lovers))
+    if cat.haters:
+        parts.append("H: " + ", ".join(other.name for other in cat.haters))
+    return " | ".join(parts)
 
 
 def _ability_effect_lines(cat: "Cat") -> list[str]:
@@ -1163,9 +1189,10 @@ class Cat:
         self.parsed_libido = self.libido
         self.parsed_inbredness = self.inbredness
 
-        # Relationship scaffolds — resolved by parse_save after all cats loaded.
-        self._lover_uids: list[int] = []
-        self._hater_uids: list[int] = []
+        # Relationship slots: direct db_key references relative to the byte
+        # immediately after the optional post-name tag string.
+        self._lover_uids = _read_db_key_candidates(raw, self.db_key, (48,), base_offset=personality_anchor)
+        self._hater_uids = _read_db_key_candidates(raw, self.db_key, (72,), base_offset=personality_anchor)
         self.lovers:   list['Cat'] = []
         self.haters:   list['Cat'] = []
         self.children: list['Cat'] = []   # direct offspring; assigned by parse_save
@@ -1296,18 +1323,26 @@ class Cat:
 
 # ── Ancestry helpers ──────────────────────────────────────────────────────────
 
-def get_all_ancestors(cat: Optional[Cat], depth: int = 6, _seen: set = None) -> set:
+def get_all_ancestors(cat: Optional[Cat], depth: int = 6) -> set:
     """Return all ancestor Cat objects up to `depth` generations."""
-    if cat is None or depth == 0:
+    if cat is None or depth <= 0:
         return set()
-    if _seen is None:
-        _seen = set()
     ancestors: set[Cat] = set()
-    for parent in (cat.parent_a, cat.parent_b):
-        if parent is not None and id(parent) not in _seen:
-            _seen.add(id(parent))
+    seen: set[int] = {id(cat)}
+    stack: list[tuple[Cat, int]] = [(cat, 0)]
+    while stack:
+        node, dist = stack.pop()
+        if dist >= depth:
+            continue
+        for parent in (node.parent_a, node.parent_b):
+            if parent is None:
+                continue
+            pid = id(parent)
+            if pid in seen:
+                continue
+            seen.add(pid)
             ancestors.add(parent)
-            ancestors |= get_all_ancestors(parent, depth - 1, _seen)
+            stack.append((parent, dist + 1))
     return ancestors
 
 
@@ -1381,6 +1416,27 @@ def raw_coi(a: Optional['Cat'], b: Optional['Cat'], max_steps: int = 12) -> floa
             for path_b in pb[anc]:
                 # Valid full path cannot pass through the same cat twice
                 # (except the common ancestor itself).
+                overlap = (set_a & {id(x) for x in path_b}) - {id(anc)}
+                if overlap:
+                    continue
+                sb = len(path_b) - 1
+                coi += 0.5 ** (sa + sb + 1)
+    return coi
+
+
+def _raw_coi_from_paths(
+    pa: dict['Cat', list[tuple['Cat', ...]]],
+    pb: dict['Cat', list[tuple['Cat', ...]]],
+) -> float:
+    common = set(pa.keys()) & set(pb.keys())
+    if not common:
+        return 0.0
+    coi = 0.0
+    for anc in common:
+        for path_a in pa[anc]:
+            set_a = {id(x) for x in path_a}
+            sa = len(path_a) - 1
+            for path_b in pb[anc]:
                 overlap = (set_a & {id(x) for x in path_b}) - {id(anc)}
                 if overlap:
                     continue
@@ -1592,6 +1648,18 @@ def parse_save(path: str) -> tuple[list, list]:
             if pb is cat: pb = None
         cat.parent_a = pa
         cat.parent_b = pb
+
+        cat.lovers = []
+        for key in getattr(cat, "_lover_uids", []):
+            other = key_to_cat.get(key)
+            if other is not None and other is not cat and other not in cat.lovers:
+                cat.lovers.append(other)
+
+        cat.haters = []
+        for key in getattr(cat, "_hater_uids", []):
+            other = key_to_cat.get(key)
+            if other is not None and other is not cat and other not in cat.haters:
+                cat.haters.append(other)
 
     # Build children bottom-up from the now-resolved parent fields.
     # This avoids the circular-reference problem in the pedigree blob.
@@ -1998,7 +2066,7 @@ def _load_must_breed(save_path: str, cats: list[Cat]):
 
 # ── Qt table model ────────────────────────────────────────────────────────────
 
-COLUMNS   = ["Name", "♀/♂", "Room", "Status", "BL", "MB"] + STAT_NAMES + ["Sum", "Abilities", "Mutations", "Risk%", "Gen", "Agg", "Lib", "Inbred", "Source", "Inbr"]
+COLUMNS   = ["Name", "♀/♂", "Room", "Status", "BL", "MB"] + STAT_NAMES + ["Sum", "Abilities", "Mutations", "Relations", "Risk%", "Gen", "Agg", "Lib", "Inbred", "Source"]
 COL_NAME  = 0
 COL_GEN   = 1
 COL_ROOM  = 2
@@ -2009,18 +2077,19 @@ STAT_COLS = list(range(6, 13))   # STR … LCK
 COL_SUM   = 13
 COL_ABIL  = 14
 COL_MUTS  = 15
-COL_REL   = 16
-COL_AGE   = 17   # generation depth
-COL_AGG   = 18
-COL_LIB   = 19
-COL_INBRD = 20
-COL_SRC   = 21
-COL_INB   = 21
+COL_RELNS = 16
+COL_REL   = 17
+COL_AGE   = 18   # generation depth
+COL_AGG   = 19
+COL_LIB   = 20
+COL_INBRD = 21
+COL_SRC   = 22
 
 # Fixed pixel widths for narrow columns
 _W_STATUS = 62
 _W_STAT   = 34
 _W_GEN    = 28
+_W_RELNS  = 130
 _W_REL    = 68
 _W_TRAIT  = 70
 _ZOOM_MIN = 70
@@ -2169,6 +2238,8 @@ class CatTableModel(QAbstractTableModel):
             if col == COL_ABIL:
                 parts = list(cat.abilities) + [f"● {_mutation_display_name(p)}" for p in cat.passive_abilities]
                 return ", ".join(parts)
+            if col == COL_RELNS:
+                return _relations_summary(cat) or "—"
             if col == COL_REL:
                 if self._focus_cat is None:
                     return "—"
@@ -2191,12 +2262,6 @@ class CatTableModel(QAbstractTableModel):
                 def _pname(p):
                     return p.name if p.status != "Gone" else f"{p.name} (gone)"
                 return " × ".join(_pname(p) for p in (pa, pb) if p is not None)
-            if col == COL_INB:
-                if cat.parent_a is None or cat.parent_b is None:
-                    return "—"
-                score = self._inbred_score_for(cat)
-                return str(score) if score else "—"
-
         elif role == Qt.UserRole:
             if col in STAT_COLS:
                 return cat.base_stats[STAT_NAMES[col - STAT_COLS[0]]]
@@ -2233,13 +2298,6 @@ class CatTableModel(QAbstractTableModel):
                 if compat == 'risky':
                     return QBrush(QColor(sc.red() // 2, sc.green() // 2, sc.blue() // 2))
                 return QBrush(sc)
-            if col == COL_INB:
-                if cat.parent_a is not None and cat.parent_b is not None:
-                    score = self._inbred_score_for(cat)
-                    if score >= 3:
-                        return QBrush(QColor(80, 20, 20))
-                    if score >= 1:
-                        return QBrush(QColor(70, 55, 10))
             if compat == 'incompatible':
                 return QBrush(QColor(18, 12, 14))
             if compat == 'risky':
@@ -2274,6 +2332,13 @@ class CatTableModel(QAbstractTableModel):
                 return _mutations_tooltip(cat)
             if col == COL_ABIL and (cat.abilities or cat.passive_abilities):
                 return _abilities_tooltip(cat)
+            if col == COL_RELNS and (cat.lovers or cat.haters):
+                lines: list[str] = []
+                if cat.lovers:
+                    lines.append("Lovers: " + ", ".join(other.name for other in cat.lovers))
+                if cat.haters:
+                    lines.append("Haters: " + ", ".join(other.name for other in cat.haters))
+                return "\n".join(lines)
             if col == COL_AGG:
                 if cat.aggression is None:
                     return "Aggression: unknown"
@@ -2359,6 +2424,9 @@ class RoomFilterModel(QSortFilterProxyModel):
         terms.extend(cat.mutations)
         terms.extend(_mutation_display_name(m) for m in cat.mutations)
         terms.extend(text for text, _ in getattr(cat, "mutation_chip_items", []))
+        terms.extend(other.name for other in cat.lovers)
+        terms.extend(other.name for other in cat.haters)
+        terms.append(_relations_summary(cat))
 
         haystack = " ".join(
             str(term).lower()
@@ -3846,15 +3914,39 @@ class RoomOptimizerView(QWidget):
             self._summary.setText("Not enough cats to optimize")
             return
 
+        stat_sum = {cat.db_key: sum(cat.base_stats.values()) for cat in alive_cats}
+        ancestor_paths = {cat.db_key: _ancestor_paths(cat) for cat in alive_cats}
+        pair_eval_cache: dict[tuple[int, int], tuple[bool, str, float]] = {}
+
+        def _pair_key(cat_a: Cat, cat_b: Cat) -> tuple[int, int]:
+            a_key, b_key = cat_a.db_key, cat_b.db_key
+            return (a_key, b_key) if a_key < b_key else (b_key, a_key)
+
+        def _pair_eval(cat_a: Cat, cat_b: Cat) -> tuple[bool, str, float]:
+            key = _pair_key(cat_a, cat_b)
+            cached = pair_eval_cache.get(key)
+            if cached is not None:
+                return cached
+            ok, reason = can_breed(cat_a, cat_b)
+            if ok:
+                pa = ancestor_paths.get(cat_a.db_key) or {}
+                pb = ancestor_paths.get(cat_b.db_key) or {}
+                risk = max(0.0, min(100.0, (_raw_coi_from_paths(pa, pb) / 0.25) * 100.0))
+            else:
+                risk = 0.0
+            pair_eval_cache[key] = (ok, reason, risk)
+            return pair_eval_cache[key]
+
         # Separate males and females
         males = [c for c in alive_cats if c.gender == "male"]
         females = [c for c in alive_cats if c.gender == "female"]
         unknown = [c for c in alive_cats if c.gender == "?"]
 
         # Sort by base stats (best first)
-        males.sort(key=lambda c: sum(c.base_stats.values()), reverse=True)
-        females.sort(key=lambda c: sum(c.base_stats.values()), reverse=True)
-        unknown.sort(key=lambda c: sum(c.base_stats.values()), reverse=True)
+        males.sort(key=lambda c: stat_sum[c.db_key], reverse=True)
+        females.sort(key=lambda c: stat_sum[c.db_key], reverse=True)
+        unknown.sort(key=lambda c: stat_sum[c.db_key], reverse=True)
+        all_cats = males + females + unknown
 
         mode_family = self._mode_toggle_btn.isChecked()
 
@@ -3916,7 +4008,7 @@ class RoomOptimizerView(QWidget):
                                     if _family_group_id(existing_cat) == family_id:
                                         has_family_conflict = True
                                         break
-                                    if risk_percent(cat, existing_cat) > max_risk:
+                                    if _pair_eval(cat, existing_cat)[2] > max_risk:
                                         has_risk_conflict = True
                                         break
                                 if not has_family_conflict and not has_risk_conflict:
@@ -3933,7 +4025,7 @@ class RoomOptimizerView(QWidget):
                                 room_cats = _room_cats(room)
                                 if len(room_cats) >= max_cats_per_room:
                                     continue
-                                risks = [risk_percent(cat, existing_cat) for existing_cat in room_cats]
+                                risks = [_pair_eval(cat, existing_cat)[2] for existing_cat in room_cats]
                                 avg_risk = (sum(risks) / len(risks)) if risks else 0.0
                                 if avg_risk < best_avg_risk:
                                     best_avg_risk = avg_risk
@@ -3951,7 +4043,7 @@ class RoomOptimizerView(QWidget):
                         if len(room_cats) < max_cats_per_room:
                             has_risk_conflict = False
                             for existing_cat in room_cats:
-                                if risk_percent(cat, existing_cat) > max_risk:
+                                if _pair_eval(cat, existing_cat)[2] > max_risk:
                                     has_risk_conflict = True
                                     break
                             if not has_risk_conflict:
@@ -3968,7 +4060,7 @@ class RoomOptimizerView(QWidget):
                             room_cats = _room_cats(room)
                             if len(room_cats) >= max_cats_per_room:
                                 continue
-                            risks = [risk_percent(cat, existing_cat) for existing_cat in room_cats]
+                            risks = [_pair_eval(cat, existing_cat)[2] for existing_cat in room_cats]
                             avg_risk = (sum(risks) / len(risks)) if risks else 0.0
                             if avg_risk < best_avg_risk:
                                 best_avg_risk = avg_risk
@@ -3986,17 +4078,19 @@ class RoomOptimizerView(QWidget):
             all_rooms = priority_rooms + [fallback_room]
             room_assignments = {room: [] for room in all_rooms}
 
-            all_cats = males + females + unknown
             pairs_with_scores = []
 
-            for i, cat_a in enumerate(all_cats):
-                for cat_b in all_cats[i+1:]:
-                    ok, _ = can_breed(cat_a, cat_b)
-                    if not ok:
-                        continue
+            candidate_pairs: list[tuple[Cat, Cat]] = []
+            candidate_pairs.extend((cat_a, cat_b) for cat_a in males for cat_b in females)
+            candidate_pairs.extend((cat_a, cat_b) for cat_a in males for cat_b in unknown)
+            candidate_pairs.extend((cat_a, cat_b) for cat_a in females for cat_b in unknown)
+            for i, cat_a in enumerate(unknown):
+                for cat_b in unknown[i + 1:]:
+                    candidate_pairs.append((cat_a, cat_b))
 
-                    risk = risk_percent(cat_a, cat_b)
-                    if risk > max_risk:
+            for cat_a, cat_b in candidate_pairs:
+                    ok, _, risk = _pair_eval(cat_a, cat_b)
+                    if not ok or risk > max_risk:
                         continue
 
                     # Calculate expected offspring stats based on breeding mechanics
@@ -4065,13 +4159,13 @@ class RoomOptimizerView(QWidget):
 
                     can_place_both = True
                     for existing_cat in room_cats:
-                        ok_a, _ = can_breed(cat_a, existing_cat)
-                        if ok_a and risk_percent(cat_a, existing_cat) > max_risk:
+                        ok_a, _, risk_a = _pair_eval(cat_a, existing_cat)
+                        if ok_a and risk_a > max_risk:
                             can_place_both = False
                             break
 
-                        ok_b, _ = can_breed(cat_b, existing_cat)
-                        if ok_b and risk_percent(cat_b, existing_cat) > max_risk:
+                        ok_b, _, risk_b = _pair_eval(cat_b, existing_cat)
+                        if ok_b and risk_b > max_risk:
                             can_place_both = False
                             break
 
@@ -4093,8 +4187,8 @@ class RoomOptimizerView(QWidget):
 
                             compatible = True
                             for existing_cat in room_cats:
-                                ok, _ = can_breed(cat, existing_cat)
-                                if ok and risk_percent(cat, existing_cat) > max_risk:
+                                ok, _, risk = _pair_eval(cat, existing_cat)
+                                if ok and risk > max_risk:
                                     compatible = False
                                     break
                             if compatible:
@@ -4125,11 +4219,10 @@ class RoomOptimizerView(QWidget):
             room_pairs = []
             for i, cat_a in enumerate(cats_in_room):
                 for cat_b in cats_in_room[i+1:]:
-                    ok, _ = can_breed(cat_a, cat_b)
+                    ok, _, risk = _pair_eval(cat_a, cat_b)
                     if ok:
-                        risk = risk_percent(cat_a, cat_b)
                         # Use base stats for offspring predictions
-                        avg_base_stats = (sum(cat_a.base_stats.values()) + sum(cat_b.base_stats.values())) / 2
+                        avg_base_stats = (stat_sum[cat_a.db_key] + stat_sum[cat_b.db_key]) / 2
                         stat_ranges = {
                             stat: (
                                 min(cat_a.base_stats[stat], cat_b.base_stats[stat]),
@@ -4835,12 +4928,12 @@ class MainWindow(QMainWindow):
             COL_SUM: 38,
             COL_ABIL: 180,
             COL_MUTS: 155,
+            COL_RELNS: _W_RELNS,
             COL_REL: _W_REL,
             COL_AGE: 34,
             COL_AGG: _W_TRAIT,
             COL_LIB: _W_TRAIT,
             COL_INBRD: _W_TRAIT,
-            COL_INB: 38,
             **{c: _W_STAT for c in STAT_COLS},
         }
 
@@ -5255,6 +5348,10 @@ class MainWindow(QMainWindow):
         hh.setSectionResizeMode(COL_MUTS, QHeaderView.Interactive)
         self._table.setColumnWidth(COL_MUTS, self._base_col_widths[COL_MUTS])
 
+        # Relations: interactive
+        hh.setSectionResizeMode(COL_RELNS, QHeaderView.Interactive)
+        self._table.setColumnWidth(COL_RELNS, self._base_col_widths[COL_RELNS])
+
         # Generation depth: fixed narrow, hidden by default (behind lineage toggle)
         hh.setSectionResizeMode(COL_REL, QHeaderView.Fixed)
         self._table.setColumnWidth(COL_REL, self._base_col_widths[COL_REL])
@@ -5267,11 +5364,6 @@ class MainWindow(QMainWindow):
         # Source: Stretch — absorbs blank space, hidden by default (behind lineage toggle)
         hh.setSectionResizeMode(COL_SRC, QHeaderView.Stretch)
         self._table.setColumnHidden(COL_SRC, True)
-
-        # Inbreeding score: fixed narrow, hidden by default
-        hh.setSectionResizeMode(COL_INB, QHeaderView.Fixed)
-        self._table.setColumnWidth(COL_INB, self._base_col_widths[COL_INB])
-        self._table.setColumnHidden(COL_INB, True)
 
         self._table.setStyleSheet("""
             QTableView {
@@ -5601,7 +5693,7 @@ class MainWindow(QMainWindow):
 
     def _toggle_lineage(self, checked: bool):
         self._show_lineage = checked
-        for col in (COL_AGE, COL_SRC, COL_INB):
+        for col in (COL_AGE, COL_SRC):
             self._table.setColumnHidden(col, not checked)
         self._source_model.set_show_lineage(checked)
         self._detail.set_show_lineage(checked)
