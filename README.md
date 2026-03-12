@@ -15,13 +15,15 @@ It reads your save, shows the cats in a sortable live table, and adds planning v
 
 ---
 
-[Main Roster](#main-roster) | [Single-Cat Detail View](#single-cat-detail-view) | [Breeding Comparison](#breeding-comparison-view) | [Room Optimizer](#room-optimizer) | [Perfect 7 Planner](#perfect-7-planner) | [Family Tree](#family-tree-view) | [Safe Breeding](#safe-breeding-view) | [Breeding Partners](#breeding-partners-view) | [Exceptional Cats](#exceptional-cats-view) | [Donation Candidates](#donation-candidates-view) | [Calibration](#calibration-view)
+<p align="center">
+<a href="#main-roster">Main Roster</a> | <a href="#single-cat-detail-view">Single Cat View</a> | <a href="#breeding-comparison-view">Breeding Comparison</a> | <a href="#room-optimizer">Room Optimizer</a> | <a href="#perfect-7-planner">Perfect 7 Planner</a> | <a href="#family-tree-view">Family Tree</a> | <a href="#safe-breeding-view">Safe Breeding</a> | <a href="#breeding-partners-view">Breeding Partners</a> | <a href="#exceptional-cats-view">Exceptional Cats</a> | <a href="#donation-candidates-view">Donation Cats</a> | <a href="#calibration-view">Calibration</a>
+</p>
 
 ---
 
 ## Main Features
 
-### Main roster
+### Main Roster
 
 ![Home Screen](Sceenshots/Home%20Screen.png)
 
@@ -40,7 +42,7 @@ Current documented thresholds:
   - high aggression
   - must-breed and exceptional cats are excluded from donation marking
 
-### Single-cat detail view
+### Single Cat Detail View
 
 ![Single Cat View](Sceenshots/Single%20Cat%20View.png)
 
@@ -128,7 +130,7 @@ Stage 1 and Stage 3 show pair grids with:
 - expected values
 - breakpoint-oriented reasoning
 
-### Family Tree view
+### Family Tree View
 
 ![Family Tree View](Sceenshots/Family%20Tree%20View.png)
 
@@ -140,7 +142,7 @@ Shows:
 - parents / grandparents
 - children / grandchildren
 
-### Safe Breeding view
+### Safe Breeding View
 
 ![Safe Breeding](Sceenshots/Safe%20Breeding.png)
 
@@ -175,7 +177,7 @@ Threshold:
 
 - base stat sum `>= 40`
 
-### Donation Candidates view
+### Donation Candidates View
 
 ![Donation Candidates](Sceenshots/Donation%20Candidates.png)
 
@@ -188,7 +190,7 @@ Heuristic for donation marking:
 - high aggression
 - must-breed and exceptional cats are excluded from donation marking
 
-### Calibration view
+### Calibration View
 
 ![Calibration](Sceenshots/Calibration.png)
 
@@ -215,7 +217,7 @@ Supports:
 - export calibration JSON
 - import calibration JSON
 
-### Locations settings
+### Locations Settings
 
 `Settings -> Locations...` lets you inspect and change:
 
