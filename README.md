@@ -13,69 +13,17 @@ It reads your save, shows the cats in a sortable live table, and adds planning v
 - Loads ability and mutation descriptions from `resources.gpak` when available
 - Helps plan toward perfect 7-base-stat lines with staged pairing guidance
 
-## Screenshots
-
-### Home Screen
-![Home Screen](Sceenshots/Home%20Screen.png)
-
-### Single Cat View
-![Single Cat View](Sceenshots/Single%20Cat%20View.png)
-
-### Breeding Comparison View
-![Breeding Comparison View](Sceenshots/Breeding%20Cats%20View.png)
-
-### Safe Breeding View
-![Safe Breeding](Sceenshots/Safe%20Breeding.png)
-
-### Donation Candidates
-![Donation Candidates](Sceenshots/Donation%20Candidates.png)
-
-### Exceptional Cats
-![Exceptional Cats](Sceenshots/Exceptional%20Cats.png)
-
-### Breeding Partners
-![Breeding Partners](Sceenshots/Breeding%20Partners.png)
-
-### Family Tree View
-![Family Tree View](Sceenshots/Family%20Tree%20View.png)
-
-### Room Optimizer
-![Room Optimizer](Sceenshots/Room%20Optimizer.png)
-
-### Perfect 7 Planner
-![Perfect 7 Planner](Sceenshots/Perfect%207%20Planner.png)
-
 ## Main Features
 
 ### Main roster
 
-- Sortable table for all cats
-- Sidebar filters for:
-  - `All Cats`
-  - `Alive Cats`
-  - `Exceptional`
-  - `Donation Candidates`
-  - occupied rooms
-  - `On Adventure`
-  - `Gone`
-- Search by:
-  - cat name
-  - active abilities
-  - passive abilities
-  - mutations
-  - lovers / haters
-- Click `BL` and `MB` cells directly to toggle:
-  - breeding blacklist
-  - must-breed priority
+![Home Screen](Sceenshots/Home%20Screen.png)
 
-### Table highlights
-
-- Base stats are color-coded from weak to strong
+- Sortable and searchable table for your cats
+- Click `BL` and `MB` cells directly to toggle breeding blacklist and must-breed priority
 - `Risk%` can show inbreeding risk relative to the selected cat
-- `Agg`, `Lib`, and `Inbred` trait cells are color-coded
-- `Name` / `Sum` show breeder badges:
-  - `[EXC]` exceptional breeder
-  - `[DON]` donation candidate
+- `[EXC]` exceptional breeder
+- `[DON]` donation candidate
 
 Current documented thresholds:
 
@@ -88,6 +36,8 @@ Current documented thresholds:
 
 ### Single-cat detail view
 
+![Single Cat View](Sceenshots/Single%20Cat%20View.png)
+
 - Base / mod / total stat grid
 - Ability chips with inline effect descriptions
 - Mutation chips with inline effect descriptions
@@ -96,7 +46,9 @@ Current documented thresholds:
 - Lovers / haters
 - Include-in-breeding and must-breed controls
 
-### Breeding pair view
+### Breeding Comparison View
+
+![Breeding Comparison View](Sceenshots/Breeding%20Cats%20View.png)
 
 Select two compatible cats to open pair mode.
 
@@ -114,28 +66,9 @@ It shows:
   - stalled stats
 - appearance preview from parsed visual/body data
 
-### Safe Breeding view
-
-Ranks valid partners for the selected cat by breeding safety.
-
-Shows:
-
-- partner
-- inbreeding risk
-- shared ancestors
-- plain-language inbreeding labels
-
-### Breeding Partners view
-
-Dedicated view for mutual-lover pairs.
-
-Useful for:
-
-- seeing who is bonded
-- spotting room mismatches
-- keeping breeding partners together
-
 ### Room Optimizer
+
+![Room Optimizer](Sceenshots/Room%20Optimizer.png)
 
 Optimizer for room placement and pair-quality planning.
 
@@ -158,6 +91,8 @@ Current behavior includes:
 - shows per-room pair breakdowns with projected offspring ranges
 
 ### Perfect 7 Planner
+
+![Perfect 7 Planner](Sceenshots/Perfect%207%20Planner.png)
 
 Dedicated long-term planner for building perfect cats.
 
@@ -189,6 +124,8 @@ Stage 1 and Stage 3 show pair grids with:
 
 ### Family Tree view
 
+![Family Tree View](Sceenshots/Family%20Tree%20View.png)
+
 Visual lineage browser for a selected cat.
 
 Shows:
@@ -197,7 +134,57 @@ Shows:
 - parents / grandparents
 - children / grandchildren
 
+### Safe Breeding view
+
+![Safe Breeding](Sceenshots/Safe%20Breeding.png)
+
+Ranks valid partners for the selected cat by breeding safety.
+
+Shows:
+
+- partner
+- inbreeding risk
+- shared ancestors
+- plain-language inbreeding labels
+
+### Breeding Partners View
+
+![Breeding Partners](Sceenshots/Breeding%20Partners.png)
+
+Dedicated view for mutual-lover pairs.
+
+Useful for:
+
+- seeing who is bonded
+- spotting room mismatches
+- keeping breeding partners together
+
+### Exceptional Cats view
+
+![Exceptional Cats](Sceenshots/Exceptional%20Cats.png)
+
+Sidebar filter for viewing cats marked as exceptional breeders.
+
+Threshold:
+
+- base stat sum `>= 40`
+
+### Donation Candidates view
+
+![Donation Candidates](Sceenshots/Donation%20Candidates.png)
+
+Sidebar filter for viewing cats marked as donation candidates.
+
+Heuristic for donation marking:
+
+- base stat sum `<= 34`, and/or
+- top base stat `<= 6`, and/or
+- high aggression
+- must-breed and exceptional cats are excluded from donation marking
+
 ### Calibration view
+
+![Calibration](Sceenshots/Calibration.png)
 
 Per-save parser override editor for alive cats.
 
