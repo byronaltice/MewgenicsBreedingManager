@@ -3909,6 +3909,20 @@ class RoomOptimizerView(QWidget):
         )
         controls.addWidget(self._minimize_variance_checkbox)
 
+        self._avoid_lovers_checkbox = QPushButton("Avoid Lovers")
+        self._avoid_lovers_checkbox.setCheckable(True)
+        self._avoid_lovers_checkbox.setChecked(False)
+        self._avoid_lovers_checkbox.setToolTip(
+            "If enabled, cats that already have lovers will not be paired with other cats."
+        )
+        self._avoid_lovers_checkbox.setStyleSheet(
+            "QPushButton { background:#1a1a32; color:#aaa; border:1px solid #2a2a4a; "
+            "border-radius:4px; padding:6px 12px; font-size:11px; }"
+            "QPushButton:checked { background:#5a3a2a; color:#ddd; border:1px solid #8a5a4a; }"
+            "QPushButton:hover { background:#252545; color:#ddd; }"
+        )
+        controls.addWidget(self._avoid_lovers_checkbox)
+
         self._optimize_btn = QPushButton("Calculate Optimal Distribution")
         self._optimize_btn.clicked.connect(self._calculate_optimal_distribution)
         controls.addWidget(self._optimize_btn)
@@ -4026,6 +4040,7 @@ class RoomOptimizerView(QWidget):
 
         # Get minimize variance option
         minimize_variance = self._minimize_variance_checkbox.isChecked()
+        avoid_lovers = self._avoid_lovers_checkbox.isChecked()
 
         # Filter cats by minimum stats
         if min_stats > 0:
@@ -4062,8 +4077,21 @@ class RoomOptimizerView(QWidget):
             lovers_b = lover_key_map.get(cat_b.db_key, set())
             return cat_b.db_key in lovers_a and cat_a.db_key in lovers_b
 
+        def _is_lover_conflict(cat_a: Cat, cat_b: Cat) -> bool:
+            if not avoid_lovers:
+                return False
+            lovers_a = lover_key_map.get(cat_a.db_key, set())
+            lovers_b = lover_key_map.get(cat_b.db_key, set())
+            if lovers_a and cat_b.db_key not in lovers_a:
+                return True
+            if lovers_b and cat_a.db_key not in lovers_b:
+                return True
+            return False
+
         def _room_conflict(cat_a: Cat, cat_b: Cat) -> bool:
             if _is_hater_conflict(cat_a, cat_b):
+                return True
+            if _is_lover_conflict(cat_a, cat_b):
                 return True
             ok, _, risk = _pair_eval(cat_a, cat_b)
             return ok and risk > max_risk
@@ -4077,6 +4105,9 @@ class RoomOptimizerView(QWidget):
             if ok and _is_hater_conflict(cat_a, cat_b):
                 ok = False
                 reason = "These cats hate each other"
+            if ok and _is_lover_conflict(cat_a, cat_b):
+                ok = False
+                reason = "One or both cats already have a lover"
             if ok:
                 pa = ancestor_paths.get(cat_a.db_key) or {}
                 pb = ancestor_paths.get(cat_b.db_key) or {}
@@ -4114,6 +4145,8 @@ class RoomOptimizerView(QWidget):
                 return room_data["males"] + room_data["females"] + room_data["unknown"]
 
             def _preferred_rooms(cat: Cat) -> list[str]:
+                if avoid_lovers:
+                    return list(all_rooms)
                 lover_rooms: list[str] = []
                 for room in all_rooms:
                     if any(_is_mutual_lover_pair(cat, existing_cat) for existing_cat in _room_cats(room)):
@@ -4184,7 +4217,9 @@ class RoomOptimizerView(QWidget):
                                     if not _is_hater_conflict(cat, existing_cat)
                                 ]
                                 avg_risk = (sum(risks) / len(risks)) if risks else 0.0
-                                lover_bonus = sum(1 for existing_cat in room_cats if _is_mutual_lover_pair(cat, existing_cat)) * 1000.0
+                                lover_bonus = 0.0 if avoid_lovers else sum(
+                                    1 for existing_cat in room_cats if _is_mutual_lover_pair(cat, existing_cat)
+                                ) * 1000.0
                                 score = lover_bonus - avg_risk
                                 if score > best_score:
                                     best_score = score
@@ -4222,7 +4257,9 @@ class RoomOptimizerView(QWidget):
                                 if not _is_hater_conflict(cat, existing_cat)
                             ]
                             avg_risk = (sum(risks) / len(risks)) if risks else 0.0
-                            lover_bonus = sum(1 for existing_cat in room_cats if _is_mutual_lover_pair(cat, existing_cat)) * 1000.0
+                            lover_bonus = 0.0 if avoid_lovers else sum(
+                                1 for existing_cat in room_cats if _is_mutual_lover_pair(cat, existing_cat)
+                            ) * 1000.0
                             score = lover_bonus - avg_risk
                             if score > best_score:
                                 best_score = score
@@ -4293,7 +4330,7 @@ class RoomOptimizerView(QWidget):
                     if cat_a.must_breed or cat_b.must_breed:
                         must_breed_bonus = 1000  # Ensures must-breed pairs sort first
 
-                    lover_bonus = 500.0 if _is_mutual_lover_pair(cat_a, cat_b) else 0.0
+                    lover_bonus = 0.0 if avoid_lovers else (500.0 if _is_mutual_lover_pair(cat_a, cat_b) else 0.0)
 
                     pairs_with_scores.append({
                         'cat_a': cat_a,
@@ -4349,7 +4386,9 @@ class RoomOptimizerView(QWidget):
                         preferred_rooms = sorted(
                             priority_rooms,
                             key=lambda room: (
-                                not any(_is_mutual_lover_pair(cat, existing_cat) for existing_cat in room_assignments[room]),
+                                avoid_lovers or not any(
+                                    _is_mutual_lover_pair(cat, existing_cat) for existing_cat in room_assignments[room]
+                                ),
                                 len(room_assignments[room]),
                             ),
                         )
