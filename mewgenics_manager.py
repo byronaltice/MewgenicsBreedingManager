@@ -28,7 +28,7 @@ from PySide6.QtWidgets import (
     QAbstractItemView, QSplitter, QFrame, QDialog, QGridLayout, QSizePolicy,
     QLineEdit, QListWidget, QListWidgetItem, QScrollArea, QToolButton,
     QTableWidget, QTableWidgetItem, QStyledItemDelegate, QStyle, QStyleOptionViewItem,
-    QComboBox, QMessageBox,
+    QComboBox, QMessageBox, QSpinBox,
 )
 from PySide6.QtCore import (
     Qt, QAbstractTableModel, QModelIndex, QSortFilterProxyModel,
@@ -1114,6 +1114,42 @@ def _appearance_preview_text(a_names: list[str], b_names: list[str]) -> str:
     if set(a_names) == set(b_names):
         return f"Likely {a_text}"
     return f"Probabilistic: {a_text} or {b_text}"
+
+
+def _stimulation_inheritance_weight(stimulation: float) -> float:
+    stim = max(0.0, min(100.0, float(stimulation)))
+    return (1.0 + 0.01 * stim) / (2.0 + 0.01 * stim)
+
+
+def _inheritance_candidates(
+    a_items: list[str],
+    b_items: list[str],
+    stimulation: float,
+    display_fn=None,
+) -> tuple[list[tuple[str, str]], float, float]:
+    share_a = _stimulation_inheritance_weight(stimulation)
+    share_b = 1.0 - share_a
+    odds: dict[str, float] = {}
+    tips: dict[str, list[str]] = {}
+
+    def _add(items: list[str], share: float, source_name: str):
+        if not items:
+            return
+        per_item = share / len(items)
+        for raw in items:
+            key = str(raw)
+            odds[key] = odds.get(key, 0.0) + per_item
+            tips.setdefault(key, []).append(f"{source_name}: {per_item * 100:.0f}%")
+
+    _add(a_items, share_a, "Parent A")
+    _add(b_items, share_b, "Parent B")
+
+    ordered = sorted(odds.items(), key=lambda kv: (-kv[1], (display_fn(kv[0]) if display_fn else kv[0]).lower()))
+    chips: list[tuple[str, str]] = []
+    for key, prob in ordered:
+        label = display_fn(key) if display_fn else key
+        chips.append((f"{label} {prob * 100:.0f}%", "\n".join(tips.get(key, []))))
+    return chips, share_a, share_b
 
 
 # ── Cat ───────────────────────────────────────────────────────────────────────
@@ -2631,6 +2667,8 @@ class CatDetailPanel(QWidget):
         self.setStyleSheet(_PANEL_BG)
         self.setFixedHeight(0)
         self._show_lineage: bool = False
+        self._pair_stimulation: int = int(_load_app_config().get("pair_stimulation", 50) or 50)
+        self._current_cats: list[Cat] = []
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(14, 10, 14, 10)
@@ -2649,6 +2687,7 @@ class CatDetailPanel(QWidget):
         self._show_lineage = show
 
     def show_cats(self, cats: list[Cat]):
+        self._current_cats = list(cats)
         self._content = QWidget()
         self._scroll.setWidget(self._content)
 
@@ -2938,6 +2977,26 @@ class CatDetailPanel(QWidget):
                 hdr.addWidget(x)
 
         hdr.addStretch()
+        stim_lbl = QLabel("Stimulation")
+        stim_lbl.setStyleSheet(_META_STYLE)
+        hdr.addWidget(stim_lbl)
+        stim_box = QSpinBox()
+        stim_box.setRange(0, 100)
+        stim_box.setValue(max(0, min(100, int(self._pair_stimulation))))
+        stim_box.setFixedWidth(64)
+        stim_box.setStyleSheet(
+            "QSpinBox { background:#0d0d1c; color:#ccc; border:1px solid #2a2a4a;"
+            " border-radius:4px; padding:2px 6px; font-size:11px; }"
+        )
+        def _set_pair_stimulation(value: int):
+            self._pair_stimulation = int(value)
+            data = _load_app_config()
+            data["pair_stimulation"] = self._pair_stimulation
+            _save_app_config(data)
+            if len(self._current_cats) >= 2:
+                self.show_cats(self._current_cats[:2])
+        stim_box.valueChanged.connect(_set_pair_stimulation)
+        hdr.addWidget(stim_box)
         if not ok:
             hdr.addWidget(QLabel(f"⚠  {reason}", styleSheet=_WARN_STYLE))
 
@@ -3124,6 +3183,46 @@ class CatDetailPanel(QWidget):
             mid.addLayout(mu_col)
 
         root.addLayout(mid)
+
+        stim = float(self._pair_stimulation)
+        active_candidates, share_a, share_b = _inheritance_candidates(
+            list(a.abilities),
+            list(b.abilities),
+            stim,
+        )
+        passive_candidates, _, _ = _inheritance_candidates(
+            list(a.passive_abilities),
+            list(b.passive_abilities),
+            stim,
+            display_fn=_mutation_display_name,
+        )
+
+        inh = QVBoxLayout()
+        inh.setSpacing(6)
+        inh.addWidget(_sec("INHERITANCE"))
+        inh_note = QLabel(
+            f"Estimated at stimulation {int(stim)}. Parent source weighting: "
+            f"{a.name} {share_a * 100:.0f}% / {b.name} {share_b * 100:.0f}%."
+        )
+        inh_note.setStyleSheet(_META_STYLE)
+        inh_note.setWordWrap(True)
+        inh.addWidget(inh_note)
+
+        active_label = QLabel("Active spell candidates", styleSheet="color:#555; font-size:10px;")
+        inh.addWidget(active_label)
+        if active_candidates:
+            inh.addWidget(_wrapped_chip_block(active_candidates, max_per_row=5))
+        else:
+            inh.addWidget(QLabel("No active ability candidates.", styleSheet=_META_STYLE))
+
+        passive_label = QLabel("Passive candidates", styleSheet="color:#555; font-size:10px;")
+        inh.addWidget(passive_label)
+        if passive_candidates:
+            inh.addWidget(_wrapped_chip_block(passive_candidates, max_per_row=4))
+        else:
+            inh.addWidget(QLabel("No passive candidates.", styleSheet=_META_STYLE))
+
+        root.addLayout(inh)
 
         # ── Appearance preview + lineage ───────────────────────────────────
         bot = QHBoxLayout()
