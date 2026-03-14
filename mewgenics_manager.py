@@ -5517,7 +5517,14 @@ class RoomOptimizerWorker(QThread):
             room_assignments = {room: _room_cats(room) for room in all_rooms}
 
         else:
-            priority_rooms = ["Priority 1", "Priority 2", "Priority 3", "Priority 4"]
+            # Determine number of priority rooms from actual rooms in the save.
+            # Reserve one room as fallback (non-breeding overflow), rest are priority.
+            actual_rooms = set()
+            for c in alive_cats:
+                if c.room and c.room != "Adventure" and c.status == "In House":
+                    actual_rooms.add(c.room)
+            n_priority = max(len(actual_rooms) - 1, 1)
+            priority_rooms = [f"Priority {i+1}" for i in range(n_priority)]
             fallback_room = "Fallback"
             all_rooms = priority_rooms + [fallback_room]
             room_assignments = {room: [] for room in all_rooms}
@@ -5670,6 +5677,19 @@ class RoomOptimizerWorker(QThread):
         })
 
 
+class _SortByUserRoleItem(QTableWidgetItem):
+    """QTableWidgetItem that sorts by UserRole data instead of display text."""
+    def __lt__(self, other):
+        a = self.data(Qt.UserRole)
+        b = other.data(Qt.UserRole) if isinstance(other, QTableWidgetItem) else None
+        if a is not None and b is not None:
+            try:
+                return a < b
+            except TypeError:
+                pass
+        return super().__lt__(other)
+
+
 class RoomOptimizerCatLocator(QWidget):
     """Shows all cats with their current location vs assigned room, sorted by room priority."""
 
@@ -5749,7 +5769,7 @@ class RoomOptimizerCatLocator(QWidget):
 
             current_item = QTableWidgetItem(info["current_room"])
 
-            assigned_item = QTableWidgetItem(info["assigned_room"])
+            assigned_item = _SortByUserRoleItem(info["assigned_room"])
             # Store room_order so sorting this column keeps room priority order
             assigned_item.setData(Qt.UserRole, info.get("room_order", 999))
 

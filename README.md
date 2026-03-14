@@ -16,7 +16,7 @@ It reads your save, shows the cats in a sortable live table, and adds planning v
 ---
 
 <p align="center">
-<a href="#main-roster">Main Roster</a> | <a href="#single-cat-detail-view">Single Cat View</a> | <a href="#breeding-comparison-view">Breeding Comparison</a> | <a href="#room-optimizer">Room Optimizer</a> | <a href="#perfect-7-planner">Perfect 7 Planner</a> | <a href="#family-tree-view">Family Tree</a> | <a href="#safe-breeding-view">Safe Breeding</a> | <a href="#breeding-partners-view">Breeding Partners</a> | <a href="#exceptional-cats-view">Exceptional Cats</a> | <a href="#donation-candidates-view">Donation Cats</a> | <a href="#calibration-view">Calibration</a>
+<a href="#main-roster">Main Roster</a> | <a href="#single-cat-detail-view">Single Cat View</a> | <a href="#breeding-comparison-view">Breeding Comparison</a> | <a href="#room-optimizer">Room Optimizer</a> | <a href="#perfect-7-planner">Perfect 7 Planner</a> | <a href="#mutation--disorder-breeding-planner">Mutation & Disorder Planner</a> | <a href="#family-tree-view">Family Tree</a> | <a href="#safe-breeding-view">Safe Breeding</a> | <a href="#breeding-partners-view">Breeding Partners</a> | <a href="#exceptional-cats-view">Exceptional Cats</a> | <a href="#donation-candidates-view">Donation Cats</a> | <a href="#calibration-view">Calibration</a>
 </p>
 
 ---
@@ -216,6 +216,29 @@ Supports:
 - reload
 - export calibration JSON
 - import calibration JSON
+
+### Mutation & Disorder Breeding Planner
+
+![Mutation & Disorder Breeding Planner](Sceenshots/Mutation%20and%20Disorder%20Breeding%20Planner.png)
+
+Dedicated view for planning breeding around specific mutations, disorders, and passives.
+
+Features:
+
+- **Target Trait dropdown** with search filtering — select a mutation, passive/disorder, or ability to plan for
+- Shows all carriers of the selected trait with name, gender, age, and room
+- Explains inheritance mechanics for the trait type (mutations, passives/disorders, abilities each inherit differently)
+- Recommends breeding pairs prioritizing carrier x carrier matches, with inbreeding warnings
+- **Pair comparison mode** — Ctrl+click two cats to see full breeding outcome analysis:
+  - disorder inheritance odds (15% flat per parent, ~27.75% if both carry it)
+  - birth defect risk based on inbreeding coefficient
+  - visual mutation inheritance per body part with stimulation weighting
+  - passive and spell inheritance odds
+  - stat inheritance comparison with better-stat weighting
+  - lineage info with grandparent passives
+- Room filter and stimulation slider adjust all displayed odds
+
+Note: the save data does not distinguish passives from disorders — all `passive_abilities` entries are shown together. Refer to in-game knowledge to identify which are disorders.
 
 ### Locations Settings
 
