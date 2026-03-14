@@ -499,6 +499,27 @@ def _save_root_dir() -> str:
     return _saved_save_dir() or APPDATA_SAVE_DIR
 
 
+def _saved_default_save() -> Optional[str]:
+    """Get the default save file path, if one is configured."""
+    data = _load_app_config()
+    value = data.get("default_save", "")
+    if isinstance(value, str):
+        value = value.strip()
+        if value and os.path.exists(value):
+            return value
+    return None
+
+
+def _set_default_save(path: Optional[str]):
+    """Set or clear the default save file path."""
+    data = _load_app_config()
+    if path:
+        data["default_save"] = path
+    else:
+        data.pop("default_save", None)
+    _save_app_config(data)
+
+
 def _candidate_gpak_paths() -> list[str]:
     candidates: list[str] = []
 
@@ -7617,9 +7638,11 @@ class MainWindow(QMainWindow):
         self._watcher = QFileSystemWatcher(self)
         self._watcher.fileChanged.connect(self._on_file_changed)
 
-        if initial_save:
+        # Use initial_save if provided, otherwise try default save, otherwise defer to user selection
+        save_to_load = initial_save or _saved_default_save()
+        if save_to_load:
             # Defer load_save to after the window is shown so the UI appears instantly
-            QTimer.singleShot(0, lambda: self.load_save(initial_save))
+            QTimer.singleShot(0, lambda: self.load_save(save_to_load))
 
     # ── Menu ──────────────────────────────────────────────────────────────
 
@@ -7631,6 +7654,18 @@ class MainWindow(QMainWindow):
         oa.setShortcut("Ctrl+O")
         oa.triggered.connect(self._open_file)
         fm.addAction(oa)
+
+        self._set_default_save_action = QAction("Set Current as Default Save", self)
+        self._set_default_save_action.triggered.connect(self._set_current_as_default)
+        self._set_default_save_action.setEnabled(False)
+        fm.addAction(self._set_default_save_action)
+
+        self._clear_default_save_action = QAction("Clear Default Save", self)
+        self._clear_default_save_action.triggered.connect(self._clear_default_save)
+        self._clear_default_save_action.setEnabled(False)
+        fm.addAction(self._clear_default_save_action)
+
+        fm.addSeparator()
 
         ra = QAction("Reload", self)
         ra.setShortcut("F5")
@@ -8952,10 +8987,36 @@ class MainWindow(QMainWindow):
 
             # Start background breeding cache computation
             self._start_breeding_cache(cats)
+
+            # Update default save menu items
+            self._update_default_save_menu()
         except Exception as e:
             import traceback
             print(traceback.format_exc())
             self.statusBar().showMessage(f"Error loading save: {e}")
+
+    def _update_default_save_menu(self):
+        """Update the enabled state of default save menu items."""
+        has_save = self._current_save is not None
+        default_save = _saved_default_save()
+        is_current_default = has_save and default_save == self._current_save
+
+        self._set_default_save_action.setEnabled(has_save and not is_current_default)
+        self._clear_default_save_action.setEnabled(has_save and is_current_default)
+
+    def _set_current_as_default(self):
+        """Set the current save file as the default."""
+        if self._current_save:
+            _set_default_save(self._current_save)
+            name = os.path.basename(self._current_save)
+            self.statusBar().showMessage(f"Default save set to: {name}")
+            self._update_default_save_menu()
+
+    def _clear_default_save(self):
+        """Clear the default save setting."""
+        _set_default_save(None)
+        self.statusBar().showMessage("Default save cleared")
+        self._update_default_save_menu()
 
     def _toggle_lineage(self, checked: bool):
         self._show_lineage = checked
@@ -9241,15 +9302,19 @@ def main():
         )
         _ensure_gpak_path_interactive()
 
-    # Show save selector before opening main window
-    saves = find_save_files()
-    initial_save: Optional[str] = None
-    if saves:
-        dlg = SaveSelectorDialog(saves)
-        if dlg.exec() == QDialog.Accepted:
-            initial_save = dlg.selected_path
-        else:
-            return 0  # User cancelled
+    # Check for default save first
+    default_save = _saved_default_save()
+    initial_save: Optional[str] = default_save
+
+    # Only show save selector if no default save is set
+    if not default_save:
+        saves = find_save_files()
+        if saves:
+            dlg = SaveSelectorDialog(saves)
+            if dlg.exec() == QDialog.Accepted:
+                initial_save = dlg.selected_path
+            else:
+                return 0  # User cancelled
 
     win = MainWindow(initial_save=initial_save)
     win.show()
