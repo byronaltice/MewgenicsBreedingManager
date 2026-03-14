@@ -6930,6 +6930,14 @@ def _sidebar_btn(label: str) -> QPushButton:
     return btn
 
 
+# ── Breed Priority (see breed_priority.py) ───────────────────────────────────
+from breed_priority import (
+    BreedPriorityView,
+    compute_breed_priority_score,  # noqa: F401 — available for external use
+    SPLITTER_H_STYLE,
+    SPLITTER_V_STYLE,
+)
+
 # ── Main window ───────────────────────────────────────────────────────────────
 
 class MainWindow(QMainWindow):
@@ -6953,6 +6961,7 @@ class MainWindow(QMainWindow):
         self._room_optimizer_view: Optional[RoomOptimizerView] = None
         self._perfect_planner_view: Optional[PerfectCatPlannerView] = None
         self._calibration_view: Optional[CalibrationView] = None
+        self._breed_priority_view: Optional[BreedPriorityView] = None
         self._zoom_percent: int = 100
         self._base_font: QFont = QApplication.instance().font()
         self._base_sidebar_width = 190
@@ -7260,6 +7269,9 @@ class MainWindow(QMainWindow):
         self._btn_calibration = _sidebar_btn("Calibration")
         self._btn_calibration.clicked.connect(self._open_calibration_view)
         vb.addWidget(self._btn_calibration)
+        self._btn_breed_priority = _sidebar_btn("Breed Priority")
+        self._btn_breed_priority.clicked.connect(self._open_breed_priority_view)
+        vb.addWidget(self._btn_breed_priority)
 
         vb.addWidget(_hsep())
         vb.addWidget(sl("ROOMS"))
@@ -7517,6 +7529,19 @@ class MainWindow(QMainWindow):
         self._calibration_view.calibrationChanged.connect(self._on_calibration_changed)
         self._calibration_view.hide()
         vb.addWidget(self._calibration_view, 1)
+
+        _ratings_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "breed_priority.json"
+        )
+        self._breed_priority_view = BreedPriorityView(
+            _ratings_path,
+            stat_names=STAT_NAMES,
+            room_display=ROOM_DISPLAY,
+            mutation_display_name=_mutation_display_name,
+            ability_tip=_ability_tip,
+        )
+        self._breed_priority_view.hide()
+        vb.addWidget(self._breed_priority_view, 1)
 
         return w
 
@@ -7784,6 +7809,8 @@ class MainWindow(QMainWindow):
             self._perfect_planner_view.hide()
         if hasattr(self, "_calibration_view") and self._calibration_view is not None:
             self._calibration_view.hide()
+        if hasattr(self, "_breed_priority_view") and self._breed_priority_view is not None:
+            self._breed_priority_view.hide()
         if hasattr(self, "_header"):
             self._header.show()
         if hasattr(self, "_table_view_container"):
@@ -7800,6 +7827,8 @@ class MainWindow(QMainWindow):
             self._btn_perfect_planner.setChecked(False)
         if hasattr(self, "_btn_calibration"):
             self._btn_calibration.setChecked(False)
+        if hasattr(self, "_btn_breed_priority"):
+            self._btn_breed_priority.setChecked(False)
 
     def _show_tree_view(self):
         if self._active_btn is not None:
@@ -7819,6 +7848,8 @@ class MainWindow(QMainWindow):
             self._perfect_planner_view.hide()
         if hasattr(self, "_calibration_view") and self._calibration_view is not None:
             self._calibration_view.hide()
+        if hasattr(self, "_breed_priority_view") and self._breed_priority_view is not None:
+            self._breed_priority_view.hide()
         if self._tree_view is not None:
             self._tree_view.set_cats(self._cats)
             self._tree_view.show()
@@ -7834,6 +7865,8 @@ class MainWindow(QMainWindow):
             self._btn_perfect_planner.setChecked(False)
         if hasattr(self, "_btn_calibration"):
             self._btn_calibration.setChecked(False)
+        if hasattr(self, "_btn_breed_priority"):
+            self._btn_breed_priority.setChecked(False)
 
     def _show_safe_breeding_view(self):
         if self._active_btn is not None:
@@ -7853,6 +7886,8 @@ class MainWindow(QMainWindow):
             self._perfect_planner_view.hide()
         if hasattr(self, "_calibration_view") and self._calibration_view is not None:
             self._calibration_view.hide()
+        if hasattr(self, "_breed_priority_view") and self._breed_priority_view is not None:
+            self._breed_priority_view.hide()
         if self._safe_breeding_view is not None:
             self._safe_breeding_view.set_cats(self._cats)
             self._safe_breeding_view.show()
@@ -7868,6 +7903,8 @@ class MainWindow(QMainWindow):
             self._btn_perfect_planner.setChecked(False)
         if hasattr(self, "_btn_calibration"):
             self._btn_calibration.setChecked(False)
+        if hasattr(self, "_btn_breed_priority"):
+            self._btn_breed_priority.setChecked(False)
 
     def _show_breeding_partners_view(self):
         if self._active_btn is not None:
@@ -7885,6 +7922,8 @@ class MainWindow(QMainWindow):
             self._room_optimizer_view.hide()
         if hasattr(self, "_calibration_view") and self._calibration_view is not None:
             self._calibration_view.hide()
+        if hasattr(self, "_breed_priority_view") and self._breed_priority_view is not None:
+            self._breed_priority_view.hide()
         if self._breeding_partners_view is not None:
             self._breeding_partners_view.set_cats(self._cats)
             self._breeding_partners_view.show()
@@ -7898,6 +7937,8 @@ class MainWindow(QMainWindow):
             self._btn_room_optimizer.setChecked(False)
         if hasattr(self, "_btn_calibration"):
             self._btn_calibration.setChecked(False)
+        if hasattr(self, "_btn_breed_priority"):
+            self._btn_breed_priority.setChecked(False)
 
     def _show_room_optimizer_view(self):
         if self._active_btn is not None:
@@ -7915,6 +7956,8 @@ class MainWindow(QMainWindow):
             self._breeding_partners_view.hide()
         if hasattr(self, "_calibration_view") and self._calibration_view is not None:
             self._calibration_view.hide()
+        if hasattr(self, "_breed_priority_view") and self._breed_priority_view is not None:
+            self._breed_priority_view.hide()
         if hasattr(self, "_perfect_planner_view") and self._perfect_planner_view is not None:
             self._perfect_planner_view.hide()
         if self._room_optimizer_view is not None:
@@ -7966,6 +8009,8 @@ class MainWindow(QMainWindow):
             self._btn_perfect_planner.setChecked(True)
         if hasattr(self, "_btn_calibration"):
             self._btn_calibration.setChecked(False)
+        if hasattr(self, "_btn_breed_priority"):
+            self._btn_breed_priority.setChecked(False)
 
     def _show_calibration_view(self):
         if self._active_btn is not None:
@@ -7983,6 +8028,8 @@ class MainWindow(QMainWindow):
             self._breeding_partners_view.hide()
         if hasattr(self, "_room_optimizer_view") and self._room_optimizer_view is not None:
             self._room_optimizer_view.hide()
+        if hasattr(self, "_breed_priority_view") and self._breed_priority_view is not None:
+            self._breed_priority_view.hide()
         if hasattr(self, "_perfect_planner_view") and self._perfect_planner_view is not None:
             self._perfect_planner_view.hide()
         if self._calibration_view is not None:
@@ -8001,6 +8048,42 @@ class MainWindow(QMainWindow):
             self._btn_perfect_planner.setChecked(False)
         if hasattr(self, "_btn_calibration"):
             self._btn_calibration.setChecked(True)
+        if hasattr(self, "_btn_breed_priority"):
+            self._btn_breed_priority.setChecked(False)
+
+    def _show_breed_priority_view(self):
+        if self._active_btn is not None:
+            self._active_btn.setChecked(False)
+        self._active_btn = None
+        if hasattr(self, "_header"):
+            self._header.hide()
+        if hasattr(self, "_table_view_container"):
+            self._table_view_container.hide()
+        if hasattr(self, "_tree_view") and self._tree_view is not None:
+            self._tree_view.hide()
+        if hasattr(self, "_safe_breeding_view") and self._safe_breeding_view is not None:
+            self._safe_breeding_view.hide()
+        if hasattr(self, "_breeding_partners_view") and self._breeding_partners_view is not None:
+            self._breeding_partners_view.hide()
+        if hasattr(self, "_room_optimizer_view") and self._room_optimizer_view is not None:
+            self._room_optimizer_view.hide()
+        if hasattr(self, "_calibration_view") and self._calibration_view is not None:
+            self._calibration_view.hide()
+        if self._breed_priority_view is not None:
+            self._breed_priority_view.set_cats(self._cats)
+            self._breed_priority_view.show()
+        if hasattr(self, "_btn_tree_view"):
+            self._btn_tree_view.setChecked(False)
+        if hasattr(self, "_btn_safe_breeding_view"):
+            self._btn_safe_breeding_view.setChecked(False)
+        if hasattr(self, "_btn_breeding_partners_view"):
+            self._btn_breeding_partners_view.setChecked(False)
+        if hasattr(self, "_btn_room_optimizer"):
+            self._btn_room_optimizer.setChecked(False)
+        if hasattr(self, "_btn_calibration"):
+            self._btn_calibration.setChecked(False)
+        if hasattr(self, "_btn_breed_priority"):
+            self._btn_breed_priority.setChecked(True)
 
     def _update_header(self, room_key):
         if room_key == "__all__":
@@ -8110,6 +8193,8 @@ class MainWindow(QMainWindow):
                 self._perfect_planner_view.set_cats(cats)
             if self._calibration_view is not None:
                 self._calibration_view.set_context(path, cats)
+            if self._breed_priority_view is not None:
+                self._breed_priority_view.set_cats(cats)
 
             name = os.path.basename(path)
             self._save_lbl.setText(name)
@@ -8184,6 +8269,9 @@ class MainWindow(QMainWindow):
 
     def _open_calibration_view(self):
         self._show_calibration_view()
+
+    def _open_breed_priority_view(self):
+        self._show_breed_priority_view()
 
     # ── UI zoom ───────────────────────────────────────────────────────────
 
