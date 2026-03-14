@@ -1324,7 +1324,7 @@ class Cat:
     must_breed: bool = False  # prioritize in breeding optimization
     passive_abilities: list[str]
 
-    def __init__(self, blob: bytes, cat_key: int, house_info: dict, adventure_keys: set):
+    def __init__(self, blob: bytes, cat_key: int, house_info: dict, adventure_keys: set, current_day: Optional[int] = None):
         uncomp_size = struct.unpack('<I', blob[:4])[0]
         raw = lz4.block.decompress(blob[4:], uncompressed_size=uncomp_size)
         r   = BinaryReader(raw)
@@ -1402,8 +1402,8 @@ class Cat:
                             for i, n in enumerate(STAT_NAMES)}
 
         # Personality stats (age, aggression, libido, inbredness).
-        # These three traits are doubles anchored after the unknown post-name string.
-        # age offset remains unknown and is left unset.
+        # Libido and inbredness are doubles anchored after the post-name tag string.
+        # Age is stored as creation_day at offset (blob_len - 103), then calculated as (current_day - creation_day).
         self.age         = None
         self.aggression  = None   # None = unknown
         self.libido      = None
@@ -1535,6 +1535,26 @@ class Cat:
 
         self.mutations = visual_display_names
         self.mutation_chip_items = visual_items
+
+        # Extract age from creation_day stored near the end of the blob (around blob_len - 103).
+        # Search a small window around the typical offset to handle varying blob structures.
+        if current_day is not None:
+            try:
+                # Try positions from blob_len-100 to blob_len-110, preferring closer to -103
+                for offset_from_end in [103, 102, 104, 101, 105, 100, 106, 107, 108, 109, 110]:
+                    pos = len(raw) - offset_from_end
+                    if pos + 4 > len(raw) or pos < 0:
+                        continue
+                    creation_day = struct.unpack_from('<I', raw, pos)[0]
+                    # Valid creation_day should be between 0 and current_day
+                    if 0 <= creation_day <= current_day:
+                        age = current_day - creation_day
+                        # Accept if age is reasonable (0-100)
+                        if 0 <= age <= 100:
+                            self.age = age
+                            break
+            except Exception:
+                pass
 
         # Legacy token fallback is already handled above when sex_code is unavailable.
 
@@ -2283,12 +2303,14 @@ def parse_save(path: str) -> tuple[list, list]:
     adv   = _get_adventure_keys(conn)
     rows  = conn.execute("SELECT key, data FROM cats").fetchall()
     ped_map = _parse_pedigree(conn)
+    current_day_row = conn.execute("SELECT data FROM properties WHERE key='current_day'").fetchone()
+    current_day = current_day_row[0] if current_day_row else None
     conn.close()
 
     cats, errors = [], []
     for key, blob in rows:
         try:
-            cats.append(Cat(blob, key, house, adv))
+            cats.append(Cat(blob, key, house, adv, current_day))
         except Exception as e:
             errors.append((key, str(e)))
 
@@ -2746,24 +2768,25 @@ def _load_must_breed(save_path: str, cats: list[Cat]):
 
 # ── Qt table model ────────────────────────────────────────────────────────────
 
-COLUMNS   = ["Name", "♀/♂", "Room", "Status", "BL", "MB"] + STAT_NAMES + ["Sum", "Abilities", "Mutations", "Relations", "Risk%", "Gen", "Agg", "Lib", "Inbred", "Source"]
+COLUMNS   = ["Name", "Age", "♀/♂", "Room", "Status", "BL", "MB"] + STAT_NAMES + ["Sum", "Abilities", "Mutations", "Relations", "Risk%", "Gen", "Agg", "Lib", "Inbred", "Source"]
 COL_NAME  = 0
-COL_GEN   = 1
-COL_ROOM  = 2
-COL_STAT  = 3
-COL_BL    = 4
-COL_MB    = 5
-STAT_COLS = list(range(6, 13))   # STR … LCK
-COL_SUM   = 13
-COL_ABIL  = 14
-COL_MUTS  = 15
-COL_RELNS = 16
-COL_REL   = 17
-COL_AGE   = 18   # generation depth
-COL_AGG   = 19
-COL_LIB   = 20
-COL_INBRD = 21
-COL_SRC   = 22
+COL_AGE   = 1
+COL_GEN   = 2
+COL_ROOM  = 3
+COL_STAT  = 4
+COL_BL    = 5
+COL_MB    = 6
+STAT_COLS = list(range(7, 14))   # STR … LCK
+COL_SUM   = 14
+COL_ABIL  = 15
+COL_MUTS  = 16
+COL_RELNS = 17
+COL_REL   = 18
+COL_GEN_DEPTH = 19   # generation depth
+COL_AGG   = 20
+COL_LIB   = 21
+COL_INBRD = 22
+COL_SRC   = 23
 
 # Fixed pixel widths for narrow columns
 _W_STATUS = 62
@@ -2943,6 +2966,7 @@ class CatTableModel(QAbstractTableModel):
                 if is_donation:
                     return f"[DON] {cat.name}"
                 return cat.name
+            if col == COL_AGE:  return str(cat.age) if cat.age is not None else "—"
             if col == COL_GEN:  return cat.gender_display
             if col == COL_ROOM: return cat.room_display
             if col == COL_STAT: return STATUS_ABBREV.get(cat.status, cat.status)
@@ -2963,7 +2987,7 @@ class CatTableModel(QAbstractTableModel):
                 if self._focus_cat is None:
                     return "—"
                 return f"{int(round(self._relation_for(cat)))}%"
-            if col == COL_AGE:
+            if col == COL_GEN_DEPTH:
                 return str(cat.generation)
             if col == COL_AGG:
                 label = _trait_label_from_value("aggression", cat.aggression)
@@ -2991,6 +3015,8 @@ class CatTableModel(QAbstractTableModel):
             if col == COL_REL:
                 return self._relation_for(cat) if self._focus_cat is not None else -1.0
             if col == COL_AGE:
+                return cat.age if cat.age is not None else -1
+            if col == COL_GEN_DEPTH:
                 return cat.generation
             if col == COL_AGG:
                 return cat.aggression if cat.aggression is not None else -1.0
@@ -3118,7 +3144,7 @@ class CatTableModel(QAbstractTableModel):
                 return Qt.Checked if cat.must_breed else Qt.Unchecked
 
         elif role == Qt.TextAlignmentRole:
-            if col in STAT_COLS or col in (COL_GEN, COL_STAT, COL_BL, COL_MB, COL_SUM, COL_REL, COL_AGE, COL_AGG, COL_LIB, COL_INBRD):
+            if col in STAT_COLS or col in (COL_GEN, COL_STAT, COL_AGE, COL_BL, COL_MB, COL_SUM, COL_REL, COL_GEN_DEPTH, COL_AGG, COL_LIB, COL_INBRD):
                 return Qt.AlignCenter
 
         return None
