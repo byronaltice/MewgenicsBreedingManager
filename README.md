@@ -130,17 +130,28 @@ Stage 1 and Stage 3 show pair grids with:
 - expected values
 - breakpoint-oriented reasoning
 
-### Family Tree View
+### Mutation & Disorder Breeding Planner
 
-![Family Tree View](Sceenshots/Family%20Tree%20View.png)
+![Mutation & Disorder Breeding Planner](Sceenshots/Mutation%20and%20Disorder%20Breeding%20Planner.png)
 
-Visual lineage browser for a selected cat.
+Dedicated view for planning breeding around specific mutations, disorders, and passives.
 
-Shows:
+Features:
 
-- self
-- parents / grandparents
-- children / grandchildren
+- **Target Trait dropdown** with search filtering — select a mutation, passive/disorder, or ability to plan for
+- Shows all carriers of the selected trait with name, gender, age, and room
+- Explains inheritance mechanics for the trait type (mutations, passives/disorders, abilities each inherit differently)
+- Recommends breeding pairs prioritizing carrier x carrier matches, with inbreeding warnings
+- **Pair comparison mode** — Ctrl+click two cats to see full breeding outcome analysis:
+  - disorder inheritance odds (15% flat per parent, ~27.75% if both carry it)
+  - birth defect risk based on inbreeding coefficient
+  - visual mutation inheritance per body part with stimulation weighting
+  - passive and spell inheritance odds
+  - stat inheritance comparison with better-stat weighting
+  - lineage info with grandparent passives
+- Room filter and stimulation slider adjust all displayed odds
+
+Note: the save data does not distinguish passives from disorders — all `passive_abilities` entries are shown together. Refer to in-game knowledge to identify which are disorders.
 
 ### Safe Breeding View
 
@@ -166,6 +177,18 @@ Useful for:
 - seeing who is bonded
 - spotting room mismatches
 - keeping breeding partners together
+
+### Family Tree View
+
+![Family Tree View](Sceenshots/Family%20Tree%20View.png)
+
+Visual lineage browser for a selected cat.
+
+Shows:
+
+- self
+- parents / grandparents
+- children / grandchildren
 
 ### Exceptional Cats view
 
@@ -216,29 +239,6 @@ Supports:
 - reload
 - export calibration JSON
 - import calibration JSON
-
-### Mutation & Disorder Breeding Planner
-
-![Mutation & Disorder Breeding Planner](Sceenshots/Mutation%20and%20Disorder%20Breeding%20Planner.png)
-
-Dedicated view for planning breeding around specific mutations, disorders, and passives.
-
-Features:
-
-- **Target Trait dropdown** with search filtering — select a mutation, passive/disorder, or ability to plan for
-- Shows all carriers of the selected trait with name, gender, age, and room
-- Explains inheritance mechanics for the trait type (mutations, passives/disorders, abilities each inherit differently)
-- Recommends breeding pairs prioritizing carrier x carrier matches, with inbreeding warnings
-- **Pair comparison mode** — Ctrl+click two cats to see full breeding outcome analysis:
-  - disorder inheritance odds (15% flat per parent, ~27.75% if both carry it)
-  - birth defect risk based on inbreeding coefficient
-  - visual mutation inheritance per body part with stimulation weighting
-  - passive and spell inheritance odds
-  - stat inheritance comparison with better-stat weighting
-  - lineage info with grandparent passives
-- Room filter and stimulation slider adjust all displayed odds
-
-Note: the save data does not distinguish passives from disorders — all `passive_abilities` entries are shown together. Refer to in-game knowledge to identify which are disorders.
 
 ### Locations Settings
 
