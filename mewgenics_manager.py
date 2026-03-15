@@ -153,6 +153,14 @@ ROOM_DISPLAY = {
     "Attic":          "Attic",
 }
 
+ROOM_COLORS = {
+    "Floor1_Large":   QColor(60, 100, 180),    # blue
+    "Floor1_Small":   QColor(100, 140, 200),   # light blue
+    "Floor2_Large":   QColor(180, 100, 60),    # orange
+    "Floor2_Small":   QColor(200, 140, 100),   # light orange
+    "Attic":          QColor(120, 100, 180),   # purple
+}
+
 EXCEPTIONAL_SUM_THRESHOLD = 40
 DONATION_SUM_THRESHOLD = 34
 DONATION_MAX_TOP_STAT = 6
@@ -4632,7 +4640,7 @@ class SafeBreedingView(QWidget):
         if cur is not None:
             selected_key = int(cur.data(Qt.UserRole))
         self._cats = cats
-        self._alive = sorted([c for c in cats if c.status != "Gone" and not c.is_blacklisted], key=lambda c: (c.name or "").lower())
+        self._alive = sorted([c for c in cats if c.status != "Gone"], key=lambda c: (c.name or "").lower())
         self._by_key = {c.db_key: c for c in self._alive}
         self._refresh_list()
         if selected_key is not None and selected_key in self._by_key:
@@ -4670,8 +4678,17 @@ class SafeBreedingView(QWidget):
         for cat in self._alive:
             if query and query not in cat.name.lower():
                 continue
-            item = QListWidgetItem(f"{cat.name}  ({cat.gender_display})")
+            text = f"{cat.name}  ({cat.gender_display})"
+            if cat.is_blacklisted:
+                text += "  [BLOCKED]"
+            if cat.must_breed:
+                text += "  [MUST]"
+            item = QListWidgetItem(text)
             item.setData(Qt.UserRole, cat.db_key)
+            if cat.is_blacklisted:
+                item.setForeground(QBrush(QColor(170, 100, 100)))
+            if cat.must_breed:
+                item.setForeground(QBrush(QColor(98, 194, 135)))
             self._list.addItem(item)
         if self._list.count() == 0:
             self._render_for(None)
@@ -4937,9 +4954,11 @@ class RoomOptimizerView(QWidget):
         self._title.setStyleSheet("color:#ddd; font-size:18px; font-weight:bold;")
         self._summary = QLabel("")
         self._summary.setStyleSheet("color:#666; font-size:11px;")
+        self._summary.setWordWrap(True)
+        self._summary.setMaximumHeight(50)
+        self._summary.setAlignment(Qt.AlignRight | Qt.AlignTop)
         header.addWidget(self._title)
-        header.addStretch()
-        header.addWidget(self._summary)
+        header.addWidget(self._summary, 1)  # stretch=1 to fill space
         root.addLayout(header)
 
         # Controls
@@ -5794,13 +5813,16 @@ class RoomOptimizerCatLocator(QWidget):
         self._table.setSortingEnabled(True)
         self._table.setAlternatingRowColors(True)
         hh = self._table.horizontalHeader()
-        hh.setSectionResizeMode(self.COL_CAT, QHeaderView.Stretch)
+        hh.setSectionResizeMode(self.COL_CAT, QHeaderView.Fixed)
         hh.setSectionResizeMode(self.COL_AGE, QHeaderView.Fixed)
-        hh.setSectionResizeMode(self.COL_CURRENT, QHeaderView.ResizeToContents)
-        hh.setSectionResizeMode(self.COL_MOVE_TO, QHeaderView.ResizeToContents)
+        hh.setSectionResizeMode(self.COL_CURRENT, QHeaderView.Fixed)
+        hh.setSectionResizeMode(self.COL_MOVE_TO, QHeaderView.Fixed)
         hh.setSectionResizeMode(self.COL_ACTION, QHeaderView.Fixed)
-        self._table.setColumnWidth(self.COL_AGE, 70)
-        self._table.setColumnWidth(self.COL_ACTION, 90)
+        self._table.setColumnWidth(self.COL_CAT, 220)
+        self._table.setColumnWidth(self.COL_AGE, 45)
+        self._table.setColumnWidth(self.COL_CURRENT, 140)
+        self._table.setColumnWidth(self.COL_MOVE_TO, 140)
+        self._table.setColumnWidth(self.COL_ACTION, 65)
         self._table.setStyleSheet("""
             QTableWidget {
                 background:#0d0d1c; alternate-background-color:#131326;
@@ -5848,18 +5870,33 @@ class RoomOptimizerCatLocator(QWidget):
             # Store room_order so sorting this column keeps room priority order
             assigned_item.setData(Qt.UserRole, info.get("room_order", 999))
 
+            # Color row background by current room
+            current_room_display = info["current_room"]
+            row_bg = QColor(40, 34, 16)  # default brown
+            for room_key, room_display in ROOM_DISPLAY.items():
+                if room_display == current_room_display and room_key in ROOM_COLORS:
+                    room_color = ROOM_COLORS[room_key]
+                    row_bg = QColor(
+                        max(20, room_color.red() // 3),
+                        max(20, room_color.green() // 3),
+                        max(20, room_color.blue() // 3)
+                    )
+                    break
+            for it in (name_item, age_item, current_item, assigned_item):
+                it.setBackground(QBrush(row_bg))
+
             needs_move = info.get("needs_move", False)
             if needs_move:
                 moves_needed += 1
                 action_item = QTableWidgetItem("MOVE")
                 action_item.setTextAlignment(Qt.AlignCenter)
                 action_item.setForeground(QBrush(QColor(216, 181, 106)))
-                for it in (name_item, age_item, current_item, assigned_item):
-                    it.setBackground(QBrush(QColor(40, 34, 16)))
+                action_item.setBackground(QBrush(row_bg))
             else:
                 action_item = QTableWidgetItem("OK")
                 action_item.setTextAlignment(Qt.AlignCenter)
                 action_item.setForeground(QBrush(QColor(98, 194, 135)))
+                action_item.setBackground(QBrush(row_bg))
 
             self._table.setItem(row, self.COL_CAT, name_item)
             self._table.setItem(row, self.COL_AGE, age_item)
@@ -5906,15 +5943,16 @@ class RoomOptimizerDetailPanel(QWidget):
         self._pairs_table.setWordWrap(False)
         self._pairs_table.setAlternatingRowColors(True)
         hh = self._pairs_table.horizontalHeader()
-        hh.setSectionResizeMode(0, QHeaderView.Stretch)
+        hh.setSectionResizeMode(0, QHeaderView.Fixed)
         for col in range(1, 12):
             hh.setSectionResizeMode(col, QHeaderView.Fixed)
+        self._pairs_table.setColumnWidth(0, 240)
         for col in range(1, 8):
-            self._pairs_table.setColumnWidth(col, 50)
-        self._pairs_table.setColumnWidth(8, 70)
-        self._pairs_table.setColumnWidth(9, 70)
-        self._pairs_table.setColumnWidth(10, 100)
-        self._pairs_table.setColumnWidth(11, 70)
+            self._pairs_table.setColumnWidth(col, 40)
+        self._pairs_table.setColumnWidth(8, 60)
+        self._pairs_table.setColumnWidth(9, 50)
+        self._pairs_table.setColumnWidth(10, 75)
+        self._pairs_table.setColumnWidth(11, 50)
         self._pairs_table.setStyleSheet("""
             QTableWidget {
                 background:#0d0d1c; alternate-background-color:#131326;
@@ -6033,14 +6071,18 @@ class RoomOptimizerDetailPanel(QWidget):
 
         cats_text = _compact_names(cats)
         self._summary.setText(
-            f"{room}  |  Cats: {cats_text}  |  "
-            f"Pairs: {total_pairs}  |  Avg offspring stats: {avg_stats:.1f}  |  Avg inbred risk: {avg_risk:.0f}%"
+            f"{room}  |  {total_pairs} pairs  |  Avg: {avg_stats:.1f}  |  Risk: {avg_risk:.0f}%"
         )
         self._summary.setToolTip("Cats: " + ", ".join(cats) if cats else "")
 
         self._pairs_table.setRowCount(len(pairs))
         for i, pair in enumerate(pairs, 1):
             pair_item = QTableWidgetItem(f"{pair['cat_a']} x {pair['cat_b']}")
+            # Color by room (extract room from pair's assigned_room info if available)
+            for room_key, room_display in ROOM_DISPLAY.items():
+                if room_display == room and room_key in ROOM_COLORS:
+                    pair_item.setForeground(QBrush(ROOM_COLORS[room_key]))
+                    break
             sum_lo, sum_hi = pair.get("sum_range", (0, 0))
             sum_item = QTableWidgetItem(f"{sum_lo}-{sum_hi}")
             sum_item.setToolTip(f"Possible offspring stat sum range: {sum_lo} to {sum_hi}")
@@ -9267,12 +9309,9 @@ class MainWindow(QMainWindow):
         self._count_lbl.setStyleSheet("color:#555; font-size:12px; padding-left:8px;")
         self._summary_lbl = QLabel("")
         self._summary_lbl.setStyleSheet("color:#4a7a9a; font-size:11px;")
-        self._bulk_actions_layout = QHBoxLayout()
-        self._bulk_actions_layout.setContentsMargins(0, 0, 0, 0)
-        self._bulk_actions_layout.setSpacing(8)
         self._bulk_blacklist_btn = QPushButton()
-        self._bulk_blacklist_btn.hide()
         self._bulk_blacklist_btn.setCheckable(True)
+        self._bulk_blacklist_btn.setMinimumWidth(130)
         self._bulk_blacklist_btn.setStyleSheet(
             "QPushButton { background:#5a2d22; color:#f1dfda; border:1px solid #8b4c3e;"
             " border-radius:4px; padding:4px 10px; font-size:11px; font-weight:bold; }"
@@ -9283,8 +9322,8 @@ class MainWindow(QMainWindow):
         self._set_bulk_toggle_label(self._bulk_blacklist_btn, "Breeding Block", False)
         self._bulk_blacklist_btn.clicked.connect(self._toggle_blacklist_filtered_cats)
         self._bulk_must_breed_btn = QPushButton()
-        self._bulk_must_breed_btn.hide()
         self._bulk_must_breed_btn.setCheckable(True)
+        self._bulk_must_breed_btn.setMinimumWidth(110)
         self._bulk_must_breed_btn.setStyleSheet(
             "QPushButton { background:#3b355f; color:#ece8fb; border:1px solid #5d58a0;"
             " border-radius:4px; padding:4px 10px; font-size:11px; font-weight:bold; }"
@@ -9294,6 +9333,10 @@ class MainWindow(QMainWindow):
         )
         self._set_bulk_toggle_label(self._bulk_must_breed_btn, "Must Breed", False)
         self._bulk_must_breed_btn.clicked.connect(self._toggle_must_breed_filtered_cats)
+        bulk_container = QWidget()
+        self._bulk_actions_layout = QHBoxLayout(bulk_container)
+        self._bulk_actions_layout.setContentsMargins(0, 0, 0, 0)
+        self._bulk_actions_layout.setSpacing(8)
         self._bulk_actions_layout.addWidget(self._bulk_must_breed_btn)
         self._bulk_actions_layout.addWidget(self._bulk_blacklist_btn)
         self._search = QLineEdit()
@@ -9307,7 +9350,7 @@ class MainWindow(QMainWindow):
         hb.addWidget(self._header_lbl)
         hb.addWidget(self._count_lbl)
         hb.addStretch()
-        hb.addLayout(self._bulk_actions_layout)
+        hb.addWidget(bulk_container)
         hb.addSpacing(10)
         hb.addWidget(self._search)
         hb.addSpacing(12)
@@ -9539,15 +9582,27 @@ class MainWindow(QMainWindow):
                 cats.append(cat)
         return cats
 
+    def _selected_cats(self) -> list[Cat]:
+        cats: list[Cat] = []
+        for idx in self._table.selectionModel().selectedRows():
+            src_idx = self._proxy_model.mapToSource(idx)
+            if not src_idx.isValid():
+                continue
+            cat = self._source_model.cat_at(src_idx.row())
+            if cat is not None:
+                cats.append(cat)
+        return cats
+
     def _refresh_bulk_view_buttons(self, room_key=None):
         if room_key is None and self._active_btn is not None:
             for key, btn in self._room_btns.items():
                 if btn is self._active_btn:
                     room_key = key
                     break
-        visible = room_key in ("__donation__", "__exceptional__")
+        visible = room_key in (None, "__donation__", "__exceptional__")
         donation_view = room_key == "__donation__"
         exceptional_view = room_key == "__exceptional__"
+        alive_view = room_key is None
         if hasattr(self, "_bulk_actions_layout"):
             while self._bulk_actions_layout.count():
                 item = self._bulk_actions_layout.takeAt(0)
@@ -9565,9 +9620,24 @@ class MainWindow(QMainWindow):
             self._bulk_must_breed_btn.setVisible(visible)
         if not visible:
             return
+        if alive_view:
+            self._bulk_blacklist_btn.blockSignals(True)
+            self._bulk_blacklist_btn.setCheckable(False)
+            self._bulk_blacklist_btn.setText("Toggle Breeding Block")
+            self._bulk_blacklist_btn.setEnabled(True)
+            self._bulk_blacklist_btn.setToolTip("Toggle breeding block on selected cats")
+            self._bulk_blacklist_btn.blockSignals(False)
+            self._bulk_must_breed_btn.blockSignals(True)
+            self._bulk_must_breed_btn.setCheckable(False)
+            self._bulk_must_breed_btn.setText("Toggle Must Breed")
+            self._bulk_must_breed_btn.setEnabled(True)
+            self._bulk_must_breed_btn.setToolTip("Toggle must breed on selected cats")
+            self._bulk_must_breed_btn.blockSignals(False)
+            return
         cats = self._visible_filtered_cats()
         all_blocked = bool(cats) and all(cat.is_blacklisted for cat in cats)
         all_must_breed = bool(cats) and all(cat.must_breed for cat in cats)
+        self._bulk_blacklist_btn.setCheckable(True)
         self._bulk_blacklist_btn.blockSignals(True)
         if exceptional_view:
             any_blocked = any(cat.is_blacklisted for cat in cats)
@@ -9583,6 +9653,7 @@ class MainWindow(QMainWindow):
             self._set_bulk_toggle_label(self._bulk_blacklist_btn, "Breeding Block", all_blocked)
             self._bulk_blacklist_btn.setToolTip("")
         self._bulk_blacklist_btn.blockSignals(False)
+        self._bulk_must_breed_btn.setCheckable(True)
         self._bulk_must_breed_btn.blockSignals(True)
         if donation_view:
             any_must_breed = any(cat.must_breed for cat in cats)
@@ -9606,7 +9677,22 @@ class MainWindow(QMainWindow):
                 if btn is self._active_btn:
                     room_key = key
                     break
+        alive_view = room_key is None
         exceptional_view = room_key == "__exceptional__"
+        if alive_view:
+            cats = self._selected_cats()
+            if not cats:
+                self.statusBar().showMessage("Select cats first, then click Toggle Breeding Block")
+                return
+            changed = 0
+            for cat in cats:
+                cat.is_blacklisted = not cat.is_blacklisted
+                if cat.is_blacklisted:
+                    cat.must_breed = False
+                changed += 1
+            self._emit_bulk_toggle_refresh()
+            self.statusBar().showMessage(f"Toggled breeding block for {changed} selected cats")
+            return
         target_state = False if exceptional_view else self._bulk_blacklist_btn.isChecked()
         changed = 0
         for cat in self._visible_filtered_cats():
@@ -9634,7 +9720,22 @@ class MainWindow(QMainWindow):
                 if btn is self._active_btn:
                     room_key = key
                     break
+        alive_view = room_key is None
         donation_view = room_key == "__donation__"
+        if alive_view:
+            cats = self._selected_cats()
+            if not cats:
+                self.statusBar().showMessage("Select cats first, then click Toggle Must Breed")
+                return
+            changed = 0
+            for cat in cats:
+                cat.must_breed = not cat.must_breed
+                if cat.must_breed:
+                    cat.is_blacklisted = False
+                changed += 1
+            self._emit_bulk_toggle_refresh()
+            self.statusBar().showMessage(f"Toggled must breed for {changed} selected cats")
+            return
         target_state = False if donation_view else self._bulk_must_breed_btn.isChecked()
         changed = 0
         for cat in self._visible_filtered_cats():
