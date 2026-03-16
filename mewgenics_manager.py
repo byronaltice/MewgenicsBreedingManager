@@ -1507,43 +1507,33 @@ class Cat:
             # Active abilities: items[1-5] (skip DefaultMove at [0])
             self.abilities = [x for x in run_items[1:6] if _valid_str(x)]
 
-            # Passive mutations: item[10] then 3 tail tier-entries
-            # For cats that haven't adventured yet, the run may be shorter
-            # (< 11 items), so also harvest any valid items from run_items[10:]
+            # Passive1 is in run_items[10] (if the run is long enough)
             passives: list[str] = []
             for ri in run_items[10:]:
                 if _valid_str(ri):
                     passives.append(ri)
 
-            # After run items, try reading tier-prefixed tail entries
-            # (passive1 tier, then up to 3 more: Passive2, Disorder1, Disorder2)
+            # After run: [u32 tier][string][u32 tier][string]...
+            # Passive1 tier, then Passive2, Disorder1, Disorder2 each with tier.
+            # Skip Passive1's tier first, then read 3 more string+tier pairs.
             try:
                 r.u32()   # passive1 tier — discard
             except Exception:
                 pass
 
-            consecutive_misses = 0
-            for _ in range(3):   # Passive2, Disorder1, Disorder2
-                saved = r.pos
-                item = r.str()
-                if item is None or not _IDENT_RE.match(item) or not _valid_str(item):
-                    r.seek(saved)
-                    consecutive_misses += 1
-                    if consecutive_misses >= 2:
-                        break
-                    # Try skipping past a potential empty slot (u64 string header + u32 tier)
-                    try:
-                        r.skip(12)
-                    except Exception:
-                        break
-                    continue
-                consecutive_misses = 0
-                if item not in passives:  # avoid duplicates from run_items
-                    passives.append(item)
+            for _ in range(3):
                 try:
-                    r.u32()   # tier — discard
+                    item = r.str()
                 except Exception:
-                    pass
+                    break
+                if item is not None and _IDENT_RE.match(item) and _valid_str(item):
+                    if item not in passives:
+                        passives.append(item)
+                # Skip tier regardless of whether string was valid/junk
+                try:
+                    r.u32()
+                except Exception:
+                    break
 
             self.passive_abilities = passives
             self.equipment = []   # equipment parsing requires separate byte-marker logic
