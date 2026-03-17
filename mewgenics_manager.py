@@ -1592,7 +1592,7 @@ class Cat:
                 pass
 
         self.parsed_age = self.age
-        self.sexuality: Optional[str] = None  # bi / gay / straight — set via calibration
+        self.sexuality: str = "straight"  # bi / gay / straight — defaults to straight
 
         # Legacy token fallback is already handled above when sex_code is unavailable.
 
@@ -1856,7 +1856,10 @@ def _build_ancestor_contribs_batch(
                 contribs[anc] = contribs.get(anc, 0.0) + new_prob
 
         memo[id(cat)] = contribs
-        result[cat.db_key] = contribs
+        # Exclude self from result — COI computation should not count a cat as
+        # its own ancestor (matches the old _ancestor_paths behaviour).  The
+        # memo keeps self so children correctly inherit the parent contribution.
+        result[cat.db_key] = {k: v for k, v in contribs.items() if k is not cat}
 
     return result
 
@@ -1936,8 +1939,8 @@ def can_breed(a: Cat, b: Cat) -> tuple[bool, str]:
     gb = (b.gender or "?").strip().lower()
 
     # Sexuality check — gay cats only pair with same gender, straight with opposite, bi with either.
-    sa = getattr(a, "sexuality", None) or ""
-    sb = getattr(b, "sexuality", None) or ""
+    sa = (getattr(a, "sexuality", None) or "straight").lower()
+    sb = (getattr(b, "sexuality", None) or "straight").lower()
     if ga != "?" and gb != "?":
         same_gender = ga == gb
         if sa == "gay" and not same_gender:
@@ -1995,9 +1998,12 @@ class BreedingCache:
 
     # ── disk persistence ──
 
+    _CACHE_VERSION = 2  # bump to invalidate stale disk caches
+
     def save_to_disk(self, save_path: str):
         """Persist pairwise results alongside the save file."""
         data = {
+            "version": self._CACHE_VERSION,
             "save_mtime": os.path.getmtime(save_path),
             "risk": {f"{a},{b}": v for (a, b), v in self.risk_pct.items()},
             "shared": {f"{a},{b}": list(v) for (a, b), v in self.shared_counts.items()},
@@ -2017,6 +2023,9 @@ class BreedingCache:
         try:
             with open(cp, "r") as f:
                 data = json.load(f)
+            if data.get("version") != BreedingCache._CACHE_VERSION:
+                print(f"[DEBUG] Disk cache version mismatch: {data.get('version')} != {BreedingCache._CACHE_VERSION}, recomputing")
+                return None  # old format, recompute
             if abs(data.get("save_mtime", 0) - os.path.getmtime(save_path)) > 0.5:
                 return None  # save file changed, cache is stale
             cache = BreedingCache()
@@ -2169,6 +2178,11 @@ class BreedingCacheWorker(QThread):
         self.phase1_ready.emit(cache)
 
         # ── Phase 2: pairwise risk + shared (skip same-sex, reuse unchanged) ──
+        # Use path-based COI (with overlap exclusion) for correct results in
+        # heavily inbred colonies.  The contribs-based formula overestimates
+        # because it doesn't exclude overlapping paths.
+        paths_batch = _build_ancestor_paths_batch(alive)
+
         pairs_to_compute = []
         for i in range(n):
             a = alive[i]
@@ -2192,9 +2206,9 @@ class BreedingCacheWorker(QThread):
             b = alive[j]
             pk = cache._pair_key(a.db_key, b.db_key)
 
-            ca = cache.ancestor_contribs.get(a.db_key, {})
-            cb = cache.ancestor_contribs.get(b.db_key, {})
-            raw = _coi_from_contribs(ca, cb)
+            pa = paths_batch.get(a.db_key, {})
+            pb = paths_batch.get(b.db_key, {})
+            raw = _raw_coi_from_paths(pa, pb)
             cache.risk_pct[pk] = max(0.0, min(100.0, (raw / 0.25) * 100.0))
 
             da = cache.ancestor_depths.get(a.db_key, {})
@@ -5475,14 +5489,6 @@ class RoomOptimizerWorker(QThread):
 
         stat_sum = {cat.db_key: sum(cat.base_stats.values()) for cat in alive_cats}
 
-        if cache is not None and cache.ready:
-            ancestor_contribs = None  # not needed — use cache.risk_pct directly
-        elif cache is not None and cache.ancestor_contribs:
-            # phase1 done but pairwise not yet — reuse computed contribs
-            ancestor_contribs = cache.ancestor_contribs
-        else:
-            ancestor_contribs = _build_ancestor_contribs_batch(alive_cats)
-
         pair_eval_cache: dict[tuple[int, int], tuple[bool, str, float]] = {}
         hater_key_map = {cat.db_key: {o.db_key for o in getattr(cat, "haters", [])} for cat in alive_cats}
         lover_key_map = {cat.db_key: {o.db_key for o in getattr(cat, "lovers", [])} for cat in alive_cats}
@@ -5530,9 +5536,7 @@ class RoomOptimizerWorker(QThread):
                 if cache is not None and cache.ready:
                     risk = cache.risk_pct.get(cache._pair_key(a.db_key, b.db_key), 0.0)
                 else:
-                    ca = (ancestor_contribs or {}).get(a.db_key) or {}
-                    cb = (ancestor_contribs or {}).get(b.db_key) or {}
-                    risk = max(0.0, min(100.0, (_coi_from_contribs(ca, cb) / 0.25) * 100.0))
+                    risk = risk_percent(a, b)
             else:
                 risk = 0.0
             pair_eval_cache[key] = (ok, reason, risk)
@@ -6694,10 +6698,6 @@ class PerfectCatPlannerView(QWidget):
 
         stat_sum = {cat.db_key: sum(cat.base_stats.values()) for cat in alive_cats}
         cache = self._cache
-        if cache is not None and cache.ancestor_contribs:
-            ancestor_contribs = cache.ancestor_contribs
-        else:
-            ancestor_contribs = _build_ancestor_contribs_batch(alive_cats)
         parent_key_map = {
             cat.db_key: {parent.db_key for parent in get_parents(cat)}
             for cat in alive_cats
@@ -6774,9 +6774,7 @@ class PerfectCatPlannerView(QWidget):
                 if cache is not None and cache.ready:
                     risk = cache.risk_pct.get(cache._pair_key(cat_a.db_key, cat_b.db_key), 0.0)
                 else:
-                    ca = ancestor_contribs.get(cat_a.db_key) or {}
-                    cb = ancestor_contribs.get(cat_b.db_key) or {}
-                    risk = max(0.0, min(100.0, (_coi_from_contribs(ca, cb) / 0.25) * 100.0))
+                    risk = risk_percent(cat_a, cat_b)
             else:
                 risk = 0.0
             pair_eval_cache[key] = (ok, reason, risk)
@@ -7339,22 +7337,23 @@ class CalibrationView(QWidget):
     COL_TOKEN_FIELDS = 3
     COL_PARSED_G = 4
     COL_OVR_G = 5
-    COL_OVR_SEXUALITY = 6
-    COL_PARSED_AGE = 7
-    COL_OVR_AGE = 8
-    COL_PARSED_AGG = 9
-    COL_OVR_AGG = 10
-    COL_PARSED_LIB = 11
-    COL_OVR_LIB = 12
-    COL_PARSED_INB = 13
-    COL_OVR_INB = 14
-    COL_OVR_STR = 15
-    COL_OVR_DEX = 16
-    COL_OVR_CON = 17
-    COL_OVR_INT = 18
-    COL_OVR_SPD = 19
-    COL_OVR_CHA = 20
-    COL_OVR_LCK = 21
+    COL_DEFAULT_SEXUALITY = 6
+    COL_OVR_SEXUALITY = 7
+    COL_PARSED_AGE = 8
+    COL_OVR_AGE = 9
+    COL_PARSED_AGG = 10
+    COL_OVR_AGG = 11
+    COL_PARSED_LIB = 12
+    COL_OVR_LIB = 13
+    COL_PARSED_INB = 14
+    COL_OVR_INB = 15
+    COL_OVR_STR = 16
+    COL_OVR_DEX = 17
+    COL_OVR_CON = 18
+    COL_OVR_INT = 19
+    COL_OVR_SPD = 20
+    COL_OVR_CHA = 21
+    COL_OVR_LCK = 22
 
     class _AgeNumericDelegate(QStyledItemDelegate):
         def createEditor(self, parent, option, index):
@@ -7422,14 +7421,38 @@ class CalibrationView(QWidget):
         actions.addWidget(self._reload_btn)
         actions.addWidget(self._export_btn)
         actions.addWidget(self._import_btn)
+        actions.addSpacing(16)
+
+        bulk_label = QLabel("Bulk Edit Selected:")
+        bulk_label.setStyleSheet("color:#888; font-size:11px;")
+        actions.addWidget(bulk_label)
+
+        self._bulk_sexuality_combo = QComboBox()
+        self._bulk_sexuality_combo.addItems(["Straight", "Gay", "Bi"])
+        self._bulk_sexuality_combo.setFixedWidth(100)
+        self._bulk_sexuality_combo.setStyleSheet(
+            "QComboBox { background:#1a1a32; color:#ddd; border:1px solid #2a2a4a; padding:2px 6px; }"
+            "QComboBox QAbstractItemView { background:#101023; color:#ddd; selection-background-color:#252545; }"
+        )
+        actions.addWidget(self._bulk_sexuality_combo)
+
+        self._bulk_apply_btn = QPushButton("Apply Sexuality")
+        self._bulk_apply_btn.setStyleSheet(
+            "QPushButton { background:#2a3a2a; color:#aaa; border:1px solid #3a5a3a; "
+            "border-radius:4px; padding:4px 10px; font-size:10px; }"
+            "QPushButton:hover { background:#3a4a3a; color:#ddd; }"
+        )
+        self._bulk_apply_btn.clicked.connect(self._on_bulk_apply_sexuality)
+        actions.addWidget(self._bulk_apply_btn)
+
         actions.addStretch()
         actions.addWidget(self._status)
         root.addLayout(actions)
 
-        self._table = QTableWidget(0, 22)
+        self._table = QTableWidget(0, 23)
         self._table.setHorizontalHeaderLabels([
             "Name", "Status", "Gender\nToken", "Pre-G\nU32s", "Parsed\nG", "Override\nG",
-            "Sexuality",
+            "Default\nSexuality", "Sexuality",
             "Parsed\nAge", "Override\nAge",
             "Parsed\nAgg", "Override\nAgg",
             "Parsed\nLibido", "Override\nLibido",
@@ -7438,7 +7461,7 @@ class CalibrationView(QWidget):
         ])
         self._table.verticalHeader().setVisible(False)
         self._table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self._table.setSelectionMode(QAbstractItemView.SingleSelection)
+        self._table.setSelectionMode(QAbstractItemView.MultiSelection)
         self._table.setEditTriggers(
             QAbstractItemView.DoubleClicked
             | QAbstractItemView.EditKeyPressed
@@ -7459,6 +7482,8 @@ class CalibrationView(QWidget):
         for col in (self.COL_PARSED_G, self.COL_OVR_G):
             hh.setSectionResizeMode(col, QHeaderView.Fixed)
             self._table.setColumnWidth(col, 68)
+        hh.setSectionResizeMode(self.COL_DEFAULT_SEXUALITY, QHeaderView.Fixed)
+        self._table.setColumnWidth(self.COL_DEFAULT_SEXUALITY, 80)
         hh.setSectionResizeMode(self.COL_OVR_SEXUALITY, QHeaderView.Fixed)
         self._table.setColumnWidth(self.COL_OVR_SEXUALITY, 80)
         for col in (
@@ -7573,6 +7598,7 @@ class CalibrationView(QWidget):
             self._table.setItem(row, self.COL_TOKEN_FIELDS, self._readonly_item(self._fmt_gender_token_fields(cat)))
             self._table.setItem(row, self.COL_PARSED_G, self._readonly_item((getattr(cat, "parsed_gender", cat.gender) or "?")))
             self._table.setCellWidget(row, self.COL_OVR_G, self._gender_combo(str(ov.get("gender", "") or "")))
+            self._table.setItem(row, self.COL_DEFAULT_SEXUALITY, self._readonly_item("straight"))
             self._table.setCellWidget(row, self.COL_OVR_SEXUALITY, self._sexuality_combo(str(ov.get("sexuality", "") or "")))
 
             self._table.setItem(row, self.COL_PARSED_AGE, self._readonly_item(self._fmt(getattr(cat, "parsed_age", None))))
@@ -7747,6 +7773,22 @@ class CalibrationView(QWidget):
             f"Imported. applied={explicit} token={token_applied} from {os.path.basename(path)}"
         )
         self.calibrationChanged.emit()
+
+    def _on_bulk_apply_sexuality(self):
+        """Apply sexuality to all selected rows."""
+        selected_rows = sorted(set(idx.row() for idx in self._table.selectedIndexes()))
+        if not selected_rows:
+            self._status.setText("Select rows to apply sexuality")
+            return
+
+        sexuality = self._bulk_sexuality_combo.currentText().lower()
+        for row in selected_rows:
+            widget = self._table.cellWidget(row, self.COL_OVR_SEXUALITY)
+            if isinstance(widget, QComboBox):
+                widget.setCurrentText(sexuality)
+
+        self._save_clicked()
+        self._status.setText(f"Applied {sexuality} to {len(selected_rows)} cat(s) and saved")
 
 _SIDEBAR_BTN = """
 QPushButton {
