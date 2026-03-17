@@ -1891,6 +1891,9 @@ def _coi_from_contribs(
     return coi * 0.5
 
 
+_KINSHIP_CYCLE = object()  # sentinel for cycle detection
+
+
 def _kinship(a: Optional['Cat'], b: Optional['Cat'],
              memo: dict[tuple[int, int], float]) -> float:
     """
@@ -1908,7 +1911,8 @@ def _kinship(a: Optional['Cat'], b: Optional['Cat'],
     key = (ia, ib) if ia <= ib else (ib, ia)
     cached = memo.get(key)
     if cached is not None:
-        return cached
+        return 0.0 if cached is _KINSHIP_CYCLE else cached
+    memo[key] = _KINSHIP_CYCLE  # mark in-progress to detect cycles
     if a is b:
         result = (1.0 + _kinship(a.parent_a, a.parent_b, memo)) / 2.0
     else:
