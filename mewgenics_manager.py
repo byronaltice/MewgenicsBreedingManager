@@ -1893,11 +1893,8 @@ def _coi_from_contribs(
 
 
 def risk_percent(a: Optional['Cat'], b: Optional['Cat']) -> float:
-    """
-    Normalize raw CoI to UI risk scale:
-      0.25 CoI => 100% risk, clamped to [0, 100].
-    """
-    return max(0.0, min(100.0, (raw_coi(a, b) / 0.25) * 100.0))
+    """Raw CoI as a percentage, clamped to [0, 100]."""
+    return max(0.0, min(100.0, raw_coi(a, b) * 100.0))
 
 
 def find_common_ancestors(a: Cat, b: Cat) -> list[Cat]:
@@ -1998,7 +1995,7 @@ class BreedingCache:
 
     # ── disk persistence ──
 
-    _CACHE_VERSION = 2  # bump to invalidate stale disk caches
+    _CACHE_VERSION = 3  # bump to invalidate stale disk caches
 
     def save_to_disk(self, save_path: str):
         """Persist pairwise results alongside the save file."""
@@ -2209,7 +2206,7 @@ class BreedingCacheWorker(QThread):
             pa = paths_batch.get(a.db_key, {})
             pb = paths_batch.get(b.db_key, {})
             raw = _raw_coi_from_paths(pa, pb)
-            cache.risk_pct[pk] = max(0.0, min(100.0, (raw / 0.25) * 100.0))
+            cache.risk_pct[pk] = max(0.0, min(100.0, raw * 100.0))
 
             da = cache.ancestor_depths.get(a.db_key, {})
             db_depths = cache.ancestor_depths.get(b.db_key, {})
@@ -4796,7 +4793,7 @@ class SafeBreedingView(QWidget):
 
         self._summary.setText(
             f"{len(candidates)} possible alive candidates  |  "
-            "Risk% = normalized CoI (0.25 => 100%)"
+            "Risk% = inbreeding coefficient (birth defects scale above 20%)"
         )
         self._table.setRowCount(len(candidates))
         for row, (rel, packed_shared, closest_recent_gen, other) in enumerate(candidates):
