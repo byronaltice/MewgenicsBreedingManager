@@ -121,6 +121,7 @@ def _apply_font_offset_to_tree(root: Optional[QWidget], offset_px: int):
         if new_style != style:
             widget.setStyleSheet(new_style)
 
+
 # ── Constants ─────────────────────────────────────────────────────────────────
 
 STAT_NAMES = ["STR", "DEX", "CON", "INT", "SPD", "CHA", "LCK"]
@@ -133,6 +134,7 @@ APPDATA_CONFIG_DIR = os.path.join(
     os.environ.get("APPDATA", str(Path.home())),
     "MewgenicsBreedingManager",
 )
+os.makedirs(APPDATA_CONFIG_DIR, exist_ok=True)
 APP_CONFIG_PATH = os.path.join(APPDATA_CONFIG_DIR, "settings.json")
 
 STAT_COLORS = {
@@ -191,6 +193,7 @@ _ABILITY_LOOKUP: dict[str, str] = {
     "lumpybody":          "Start each battle with 1 Bruise",
     "malnourishedbody":   "-1 Constitution",
     "turnersyndrome":     "-2 Intelligence",
+    "williamssyndrome":   "+10 Charisma, -5 Intelligence",
     "birdbeakears":       "Start each battle with Confusion 2",
     "floppyears":         "Start each battle with Immobile 1",
     "inwardeyes":         "Start each battle with Confusion 2",
@@ -528,6 +531,18 @@ def _set_default_save(path: Optional[str]):
     _save_app_config(data)
 
 
+def _save_current_view(name: str):
+    """Persist the current view name to settings.json."""
+    data = _load_app_config()
+    data["current_view"] = name
+    _save_app_config(data)
+
+
+def _load_current_view() -> str:
+    """Return the last saved view name, defaulting to 'table'."""
+    return _load_app_config().get("current_view", "table")
+
+
 def _candidate_gpak_paths() -> list[str]:
     candidates: list[str] = []
 
@@ -736,6 +751,7 @@ _MUTATION_DISPLAY_NAMES: dict[str, str] = {
     "lumpybody": "Lumpy Body",
     "malnourishedbody": "Malnourished Body",
     "turnersyndrome": "Turner Syndrome",
+    "williamssyndrome": "Williams Syndrome",
     "birdbeakears": "Bird Beak Ears",
     "floppyears": "Floppy Ears",
     "inwardeyes": "Inward Eyes",
@@ -800,7 +816,11 @@ def _ability_tip(name: str) -> str:
     """Return a tooltip description for an ability/mutation name, or '' if unknown."""
     key = re.sub(r'[^a-z0-9]', '', name.lower())
     key = _ABILITY_KEY_ALIASES.get(key, key)
-    return _ABILITY_DESC.get(key) or _ABILITY_LOOKUP.get(key, "")
+    lookup = _ABILITY_LOOKUP.get(key, "")
+    desc = _ABILITY_DESC.get(key, "")
+    if lookup and desc and lookup.lower() != desc.lower():
+        return f"{lookup}\n{desc}"
+    return desc or lookup
 
 
 def _read_db_key_candidates(raw: bytes, self_key: int, offsets: tuple[int, ...], base_offset: int = 0) -> list[int]:
@@ -829,11 +849,20 @@ def _abilities_tooltip(cat: "Cat") -> str:
         name = _mutation_display_name(passive)
         tip = _ability_tip(passive)
         lines.append(f"● {name}" if not tip else f"● {name}\n{tip}")
+    for disorder in cat.disorders:
+        name = _mutation_display_name(disorder)
+        tip = _ability_tip(disorder)
+        lines.append(f"⚠ {name}" if not tip else f"⚠ {name}\n{tip}")
     return "\n\n".join(lines)
 
 
 def _mutations_tooltip(cat: "Cat") -> str:
-    return "\n\n".join(tip or text for text, tip in cat.mutation_chip_items)
+    parts: list[str] = []
+    for text, tip in cat.mutation_chip_items:
+        parts.append(tip or text)
+    for text, tip in getattr(cat, "defect_chip_items", []):
+        parts.append(f"⚠ {tip or text}")
+    return "\n\n".join(parts)
 
 
 def _relations_summary(cat: "Cat") -> str:
@@ -1115,30 +1144,33 @@ _VISUAL_MUTATION_PART_LABELS = {
 
 
 def _parse_mutation_gon(content: str, game_strings: dict[str, str], category: str) -> dict[int, tuple[str, str]]:
-    """Parse a mutation GON file into {slot_id: (display_name, stat_desc)}."""
+    """Parse a mutation GON file into {slot_id: (display_name, stat_desc)}.
+
+    Covers normal mutations (300-699), birth defects (700-706, and the
+    special -2 "completely missing part" defect stored as 0xFFFFFFFE in
+    the T table), and special/rare mutations (750+).
+    IDs < 300 are base appearance variants handled separately.
+    """
     result: dict[int, tuple[str, str]] = {}
     csv_prefix = f"MUTATION_{category.upper()}_"
-    idx = 0
-    while idx < len(content):
-        match = re.search(r'(?<!\w)(\d{3,})\s*\{', content[idx:])
-        if not match:
-            break
-        slot_id = int(match.group(1))
-        block_start = idx + match.end()
-        depth, block_end = 1, block_start
-        while block_end < len(content) and depth > 0:
-            if content[block_end] == '{':
-                depth += 1
-            elif content[block_end] == '}':
-                depth -= 1
-            block_end += 1
-        block = content[block_start:block_end - 1]
-        idx = block_end
-        if slot_id < 300:
-            continue
 
+    def _extract_block(start_pos: int) -> tuple[str, int]:
+        """Extract the brace-delimited block starting at start_pos (after '{')."""
+        depth, end = 1, start_pos
+        while end < len(content) and depth > 0:
+            if content[end] == '{':
+                depth += 1
+            elif content[end] == '}':
+                depth -= 1
+            end += 1
+        return content[start_pos:end - 1], end
+
+    def _block_to_entry(slot_id: int, block: str):
+        """Parse a single mutation block into (display_name, stat_desc)."""
         name_match = re.search(r'//\s*(.+)', block)
         raw_name = name_match.group(1).strip().title() if name_match else f"Mutation {slot_id}"
+        # Trim parenthetical dev comments, e.g., "No Eyes (Frame 703, ...)" → "No Eyes"
+        raw_name = re.sub(r'\s*\(.*', '', raw_name).strip() or raw_name
         csv_key = f"{csv_prefix}{slot_id}_DESC"
         if csv_key in game_strings:
             stat_desc = _resolve_game_string(game_strings[csv_key], game_strings).strip().rstrip(".")
@@ -1152,6 +1184,39 @@ def _parse_mutation_gon(content: str, game_strings: dict[str, str], category: st
                     stats.append(f"{'+' if value > 0 else ''}{value} {label}")
             stat_desc = ", ".join(stats)
         result[slot_id] = (raw_name, stat_desc)
+
+    # ── Main numeric IDs (300+) ──────────────────────────────────────────
+    # IDs < 300 are base appearance variants, not mutations — skip them.
+    idx = 0
+    while idx < len(content):
+        match = re.search(r'(?<!\w)(\d{3,})\s*\{', content[idx:])
+        if not match:
+            break
+        slot_id = int(match.group(1))
+        block, idx = _extract_block(idx + match.end())
+        if slot_id < 300:
+            continue
+        _block_to_entry(slot_id, block)
+
+    # ── Special -2 entry ("completely missing part" birth defect) ────────
+    # The GON files use `-2 {` for body parts that are entirely absent.
+    # In the save's visual-mutation T table this is stored as the u32
+    # value 0xFFFFFFFE (unsigned representation of -2).
+    m2_match = re.search(r'(?<!\w)-2\s*\{', content)
+    if m2_match:
+        block, _ = _extract_block(m2_match.end())
+        # Try the game-string key "MUTATION_EYES_M2_DESC" etc.
+        csv_key_m2 = f"{csv_prefix}M2_DESC"
+        if csv_key_m2 in game_strings:
+            name_match = re.search(r'//\s*(.+)', block)
+            raw_name = name_match.group(1).strip().title() if name_match else "Missing Part"
+            # Trim parenthetical dev comments from the name
+            raw_name = re.sub(r'\s*\(.*', '', raw_name).strip() or raw_name
+            stat_desc = _resolve_game_string(game_strings[csv_key_m2], game_strings).strip().rstrip(".")
+            result[0xFFFFFFFE] = (raw_name, stat_desc)
+        else:
+            _block_to_entry(0xFFFFFFFE, block)
+
     return result
 
 
@@ -1203,6 +1268,9 @@ def _read_visual_mutation_entries(table: list[int]) -> list[dict[str, object]]:
         if mutation_id in (0, 0xFFFF_FFFF):
             continue
 
+        # IDs < 300 are base appearance variants (normal cat looks), not mutations.
+        # Actual mutations start at 300; birth defects are in the 700-706 range.
+        # 0xFFFFFFFE (-2 as u32) = "completely missing part" birth defect.
         display_name = ""
         detail = ""
         gpak_info = _VISUAL_MUT_DATA.get(gpak_category, {}).get(mutation_id)
@@ -1218,8 +1286,13 @@ def _read_visual_mutation_entries(table: list[int]) -> list[dict[str, object]]:
             if fallback_name is None:
                 if mutation_id < 300:
                     continue
-                fallback_name = f"{_VISUAL_MUTATION_PART_LABELS.get(group_key, slot_label)} {mutation_id}"
+                if mutation_id == 0xFFFF_FFFE:
+                    fallback_name = f"No {_VISUAL_MUTATION_PART_LABELS.get(group_key, slot_label)}"
+                else:
+                    fallback_name = f"{_VISUAL_MUTATION_PART_LABELS.get(group_key, slot_label)} {mutation_id}"
             display_name = fallback_name
+
+        is_defect = (700 <= mutation_id <= 706) or mutation_id == 0xFFFF_FFFE
 
         display_name = str(display_name).strip() or f"{slot_label} {mutation_id}"
         entries.append({
@@ -1230,11 +1303,13 @@ def _read_visual_mutation_entries(table: list[int]) -> list[dict[str, object]]:
             "mutation_id": mutation_id,
             "name": display_name,
             "detail": str(detail).strip(),
+            "is_defect": is_defect,
         })
     return entries
 
 
-def _visual_mutation_chip_items(entries: list[dict[str, object]]) -> list[tuple[str, str]]:
+def _visual_mutation_chip_items(entries: list[dict[str, object]]) -> list[tuple[str, str, bool]]:
+    """Return [(display_text, tooltip, is_defect), ...] from visual mutation entries."""
     grouped: dict[tuple[str, int], list[dict[str, object]]] = {}
     order: list[tuple[str, int]] = []
     for entry in entries:
@@ -1252,8 +1327,11 @@ def _visual_mutation_chip_items(entries: list[dict[str, object]]) -> list[tuple[
         mutation_id = int(items[0]["mutation_id"])
         part_label = str(items[0]["part_label"])
         detail = str(items[0]["detail"]).strip()
+        is_defect = bool(items[0].get("is_defect", False))
         title_label = part_label if len(slot_labels) > 1 else str(items[0]["slot_label"])
-        tooltip = f"{title_label} Mutation (ID {mutation_id})\n{name}"
+        kind = "Birth Defect" if is_defect else "Mutation"
+        id_str = "-2" if mutation_id == 0xFFFF_FFFE else str(mutation_id)
+        tooltip = f"{title_label} {kind} (ID {id_str})\n{name}"
         if detail:
             tooltip = f"{tooltip}\n{detail}"
         if len(slot_labels) > 1:
@@ -1262,6 +1340,7 @@ def _visual_mutation_chip_items(entries: list[dict[str, object]]) -> list[tuple[
             "text": name,
             "tooltip": tooltip,
             "slot_labels": slot_labels,
+            "is_defect": is_defect,
         })
 
     text_counts: dict[str, int] = {}
@@ -1269,12 +1348,12 @@ def _visual_mutation_chip_items(entries: list[dict[str, object]]) -> list[tuple[
         text = str(group["text"])
         text_counts[text] = text_counts.get(text, 0) + 1
 
-    chip_items: list[tuple[str, str]] = []
+    chip_items: list[tuple[str, str, bool]] = []
     for group in groups:
         text = str(group["text"])
         if text_counts[text] > 1:
             text = f"{text} ({' / '.join(group['slot_labels'])})"
-        chip_items.append((text, str(group["tooltip"])))
+        chip_items.append((text, str(group["tooltip"]), bool(group["is_defect"])))
     return chip_items
 
 
@@ -1517,8 +1596,11 @@ class Cat:
         visual_entries = _read_visual_mutation_entries(T)
         visual_items = _visual_mutation_chip_items(visual_entries)
         self.visual_mutation_entries = visual_entries
-        self.visual_mutation_ids = [int(entry["mutation_id"]) for entry in visual_entries]
-        visual_display_names = [text for text, _ in visual_items]
+        self.visual_mutation_ids = [int(entry["mutation_id"]) for entry in visual_entries
+                                    if not entry.get("is_defect")]
+        # Separate normal mutations from birth defects
+        visual_display_names = [text for text, _, is_def in visual_items if not is_def]
+        defect_display_names = [text for text, _, is_def in visual_items if is_def]
 
         self.gender_token_fields = tuple(r.u32() for _ in range(3))
         raw_gender = r.str()
@@ -1636,21 +1718,28 @@ class Cat:
             except Exception:
                 pass
 
-            for _ in range(3):
+            # Tail slots: index 0 = Passive2, indices 1–2 = Disorder1/Disorder2.
+            # Passive2 goes into passives; disorders are kept separate so they
+            # don't appear twice in the UI (once as ● passive, once as ⚠ disorder).
+            disorders: list[str] = []
+            for tail_idx in range(3):
                 try:
                     item = r.str()
                 except Exception:
                     break
                 if item is not None and _IDENT_RE.match(item) and _valid_str(item):
-                    if item not in passives:
-                        passives.append(item)
-                # Skip tier regardless of whether string was valid/junk
+                    if tail_idx == 0:
+                        if item not in passives:
+                            passives.append(item)
+                    else:
+                        disorders.append(item)
                 try:
                     r.u32()
                 except Exception:
                     break
 
             self.passive_abilities = passives
+            self.disorders = disorders
             self.equipment = []   # equipment parsing requires separate byte-marker logic
 
         else:
@@ -1670,6 +1759,7 @@ class Cat:
             self.equipment = [s for s in [r.str() for _ in range(4)] if _valid_str(s)]
 
             self.passive_abilities = []
+            self.disorders = []
             first = r.str()
             if _valid_str(first):
                 self.passive_abilities.append(first)
@@ -1684,7 +1774,9 @@ class Cat:
                     self.passive_abilities.append(p)
 
         self.mutations = visual_display_names
-        self.mutation_chip_items = visual_items
+        self.mutation_chip_items = [(text, tip) for text, tip, is_def in visual_items if not is_def]
+        self.defects = defect_display_names
+        self.defect_chip_items = [(text, tip) for text, tip, is_def in visual_items if is_def]
 
         # Extract age from creation_day stored near the end of the blob (around blob_len - 103).
         # Search a small window around the typical offset to handle varying blob structures.
@@ -3228,9 +3320,14 @@ class CatTableModel(QAbstractTableModel):
             if col == COL_SUM:
                 return str(sum(cat.base_stats.values()))
             if col == COL_MUTS:
-                return ", ".join(_mutation_display_name(m) for m in cat.mutations)
+                parts = [_mutation_display_name(m) for m in cat.mutations]
+                if cat.defects:
+                    parts += [f"⚠ {d}" for d in cat.defects]
+                return ", ".join(parts)
             if col == COL_ABIL:
                 parts = list(cat.abilities) + [f"● {_mutation_display_name(p)}" for p in cat.passive_abilities]
+                if cat.disorders:
+                    parts += [f"⚠ {_mutation_display_name(d)}" for d in cat.disorders]
                 return ", ".join(parts)
             if col == COL_RELNS:
                 return _relations_summary(cat) or "—"
@@ -3361,7 +3458,7 @@ class CatTableModel(QAbstractTableModel):
                 return "Excluded from breeding calculations" if cat.is_blacklisted else "Included in breeding calculations"
             if col == COL_MB:
                 return "Must breed - prioritized in optimization" if cat.must_breed else "Normal breeding priority"
-            if col == COL_MUTS and cat.mutations:
+            if col == COL_MUTS and (cat.mutations or cat.defects):
                 return _mutations_tooltip(cat)
             if col == COL_ABIL and (cat.abilities or cat.passive_abilities):
                 return _abilities_tooltip(cat)
@@ -3469,9 +3566,13 @@ class RoomFilterModel(QSortFilterProxyModel):
         terms.extend(cat.abilities)
         terms.extend(cat.passive_abilities)
         terms.extend(_mutation_display_name(p) for p in cat.passive_abilities)
+        terms.extend(cat.disorders)
+        terms.extend(_mutation_display_name(d) for d in cat.disorders)
         terms.extend(cat.mutations)
         terms.extend(_mutation_display_name(m) for m in cat.mutations)
+        terms.extend(cat.defects)
         terms.extend(text for text, _ in getattr(cat, "mutation_chip_items", []))
+        terms.extend(text for text, _ in getattr(cat, "defect_chip_items", []))
         terms.extend(other.name for other in cat.lovers)
         terms.extend(other.name for other in cat.haters)
         terms.append(_relations_summary(cat))
@@ -3508,6 +3609,8 @@ class RoomFilterModel(QSortFilterProxyModel):
 
 _CHIP_STYLE = ("QLabel { background:#252545; color:#ccc; border-radius:6px;"
                " padding:2px 7px; font-size:11px; }")
+_DEFECT_CHIP_STYLE = ("QLabel { background:#3a1a1a; color:#e0a0a0; border-radius:6px;"
+                      " padding:2px 7px; font-size:11px; }")
 _SEC_STYLE  = "color:#555; font-size:10px; font-weight:bold; letter-spacing:1px;"
 _NAME_STYLE = "color:#eee; font-size:13px; font-weight:bold;"
 _META_STYLE = "color:#777; font-size:11px;"
@@ -3522,6 +3625,13 @@ _NOTE_STYLE = "color:#666; font-size:10px;"
 def _chip(text: str, tooltip: str = "") -> QLabel:
     lbl = QLabel(text)
     lbl.setStyleSheet(_CHIP_STYLE)
+    if tooltip:
+        lbl.setToolTip(tooltip)
+    return lbl
+
+def _defect_chip(text: str, tooltip: str = "") -> QLabel:
+    lbl = QLabel(text)
+    lbl.setStyleSheet(_DEFECT_CHIP_STYLE)
     if tooltip:
         lbl.setToolTip(tooltip)
     return lbl
@@ -3590,6 +3700,24 @@ class ChipRow(QWidget):
                 tip = tooltip_fn(item) if tooltip_fn else ""
             row.addWidget(_chip(text, tip))
         row.addStretch()
+
+
+def _defect_chip_row(items, tooltip_fn=None) -> QWidget:
+    """Like ChipRow but uses the reddish defect chip style."""
+    w = QWidget()
+    row = QHBoxLayout(w)
+    row.setContentsMargins(0, 0, 0, 0)
+    row.setSpacing(5)
+    for item in items:
+        if isinstance(item, tuple):
+            text, tip = item
+            tip = tip or (tooltip_fn(text) if tooltip_fn else "")
+        else:
+            text = item
+            tip = tooltip_fn(item) if tooltip_fn else ""
+        row.addWidget(_defect_chip(text, tip))
+    row.addStretch()
+    return w
 
 
 class CatDetailPanel(QWidget):
@@ -3803,7 +3931,7 @@ class CatDetailPanel(QWidget):
         root.addLayout(id_col)
 
         # Abilities
-        if cat.abilities or cat.passive_abilities:
+        if cat.abilities or cat.passive_abilities or cat.disorders:
             root.addWidget(_vsep())
             ab = QVBoxLayout(); ab.setSpacing(4)
             ab.addWidget(_sec("ABILITIES"))
@@ -3814,6 +3942,13 @@ class CatDetailPanel(QWidget):
                     cat.passive_abilities,
                     tooltip_fn=_ability_tip,
                     display_fn=lambda n: f"● {_mutation_display_name(n)}",
+                ))
+            if cat.disorders:
+                ab.addWidget(_sec("DISORDERS"))
+                ab.addWidget(ChipRow(
+                    cat.disorders,
+                    tooltip_fn=_ability_tip,
+                    display_fn=lambda n: f"⚠ {_mutation_display_name(n)}",
                 ))
             ability_lines = _ability_effect_lines(cat)
             if ability_lines:
@@ -3827,19 +3962,23 @@ class CatDetailPanel(QWidget):
             root.addLayout(ab)
 
         # Mutations
-        if cat.mutations:
+        if cat.mutations or cat.defects:
             root.addWidget(_vsep())
             mu = QVBoxLayout(); mu.setSpacing(4)
-            mu.addWidget(_sec("MUTATIONS"))
-            mu.addWidget(ChipRow(cat.mutation_chip_items, tooltip_fn=_ability_tip))
-            mutation_lines = _mutation_effect_lines(cat)
-            if mutation_lines:
-                mu.addWidget(_detail_text_block(mutation_lines))
-            elif not _GPAK_PATH:
-                mu.addWidget(_detail_text_block(
-                    ["Mutation effect text unavailable. Set MEWGENICS_GPAK_PATH or place resources.gpak next to the app."],
-                    style=_NOTE_STYLE,
-                ))
+            if cat.mutations:
+                mu.addWidget(_sec("MUTATIONS"))
+                mu.addWidget(ChipRow(cat.mutation_chip_items, tooltip_fn=_ability_tip))
+                mutation_lines = _mutation_effect_lines(cat)
+                if mutation_lines:
+                    mu.addWidget(_detail_text_block(mutation_lines))
+                elif not _GPAK_PATH:
+                    mu.addWidget(_detail_text_block(
+                        ["Mutation effect text unavailable. Set MEWGENICS_GPAK_PATH or place resources.gpak next to the app."],
+                        style=_NOTE_STYLE,
+                    ))
+            if cat.defects:
+                mu.addWidget(_sec("BIRTH DEFECTS"))
+                mu.addWidget(_defect_chip_row(cat.defect_chip_items, tooltip_fn=_ability_tip))
             mu.addStretch()
             root.addLayout(mu)
 
@@ -4107,26 +4246,37 @@ class CatDetailPanel(QWidget):
         ab_col.setSpacing(6)
         ab_col.addWidget(_sec("ABILITIES"))
         for cat in (a, b):
-            if cat.abilities or cat.passive_abilities:
+            if cat.abilities or cat.passive_abilities or cat.disorders:
                 ab_col.addWidget(QLabel(f"{cat.name}:", styleSheet="color:#555; font-size:10px;"))
                 ability_items = [(ab, _ability_tip(ab)) for ab in cat.abilities]
                 ability_items.extend(
                     (f"● {_mutation_display_name(pa)}", _ability_tip(pa))
                     for pa in cat.passive_abilities
                 )
+                ability_items.extend(
+                    (f"⚠ {_mutation_display_name(d)}", _ability_tip(d))
+                    for d in cat.disorders
+                )
                 ab_col.addWidget(_wrapped_chip_block(ability_items, max_per_row=4))
         ab_col.addStretch()
         mid.addLayout(ab_col)
         mid.addWidget(_vsep())
 
-        if a.mutations or b.mutations:
+        if a.mutations or b.mutations or a.defects or b.defects:
             mu_col = QVBoxLayout()
             mu_col.setSpacing(6)
-            mu_col.addWidget(_sec("MUTATIONS"))
-            for cat in (a, b):
-                if cat.mutations:
-                    mu_col.addWidget(QLabel(f"{cat.name}:", styleSheet="color:#555; font-size:10px;"))
-                    mu_col.addWidget(_wrapped_chip_block(cat.mutation_chip_items, max_per_row=3))
+            if a.mutations or b.mutations:
+                mu_col.addWidget(_sec("MUTATIONS"))
+                for cat in (a, b):
+                    if cat.mutations:
+                        mu_col.addWidget(QLabel(f"{cat.name}:", styleSheet="color:#555; font-size:10px;"))
+                        mu_col.addWidget(_wrapped_chip_block(cat.mutation_chip_items, max_per_row=3))
+            if a.defects or b.defects:
+                mu_col.addWidget(_sec("BIRTH DEFECTS"))
+                for cat in (a, b):
+                    if cat.defects:
+                        mu_col.addWidget(QLabel(f"{cat.name}:", styleSheet="color:#555; font-size:10px;"))
+                        mu_col.addWidget(_defect_chip_row(cat.defect_chip_items, tooltip_fn=_ability_tip))
             mu_col.addStretch()
             mid.addLayout(mu_col)
 
@@ -10052,6 +10202,8 @@ class MainWindow(QMainWindow):
     # ── Filtering ──────────────────────────────────────────────────────────
 
     def _filter(self, room_key, btn: QPushButton):
+        if not getattr(self, "_save_view_disabled", False):
+            _save_current_view("table")
         self._show_table_view()
         if self._active_btn and self._active_btn is not btn:
             self._active_btn.setChecked(False)
@@ -10837,6 +10989,7 @@ class MainWindow(QMainWindow):
         self._save_load_worker = None
         # Dismiss overlay immediately — UI work below is fast (model.load is O(n), no ancestry)
         self._loading_overlay.hide()
+        self._save_view_disabled = True
         try:
             cats = result["cats"]
             errors = result["errors"]
@@ -10877,7 +11030,6 @@ class MainWindow(QMainWindow):
                 self._perfect_planner_view.set_cats(cats)
             if self._calibration_view is not None and self._calibration_view.isVisible():
                 self._calibration_view.set_context(self._current_save, cats)
-
             name = os.path.basename(self._current_save)
             self._save_lbl.setText(name)
             self.setWindowTitle(f"Mewgenics Breeding Manager \u2014 {name}")
@@ -10900,6 +11052,9 @@ class MainWindow(QMainWindow):
             import traceback
             print(traceback.format_exc())
             self.statusBar().showMessage(f"Error loading save: {e}")
+        finally:
+            self._save_view_disabled = False
+            self._restore_current_view()
 
     def _update_default_save_menu(self):
         """Update the enabled state of default save menu items."""
@@ -10957,6 +11112,7 @@ class MainWindow(QMainWindow):
             self._reload()
 
     def _open_tree_browser(self):
+        _save_current_view("tree")
         self._show_tree_view()
         rows = list({
             self._proxy_model.mapToSource(idx).row()
@@ -10967,6 +11123,7 @@ class MainWindow(QMainWindow):
             self._tree_view.select_cat(cats[0])
 
     def _open_safe_breeding_view(self):
+        _save_current_view("safe_breeding")
         self._show_safe_breeding_view()
         rows = list({
             self._proxy_model.mapToSource(idx).row()
@@ -10977,19 +11134,40 @@ class MainWindow(QMainWindow):
             self._safe_breeding_view.select_cat(cats[0])
 
     def _open_breeding_partners_view(self):
+        _save_current_view("breeding_partners")
         self._show_breeding_partners_view()
 
     def _open_room_optimizer(self):
+        _save_current_view("room_optimizer")
         self._show_room_optimizer_view()
 
     def _open_perfect_planner_view(self):
+        _save_current_view("perfect_planner")
         self._show_perfect_planner_view()
 
     def _open_calibration_view(self):
+        _save_current_view("calibration")
         self._show_calibration_view()
 
     def _open_mutation_planner_view(self):
+        _save_current_view("mutation_planner")
         self._show_mutation_planner_view()
+
+    def _restore_current_view(self):
+        """Restore the last-used view after a save is loaded."""
+        view = _load_current_view()
+        _restore_map = {
+            "tree":               self._show_tree_view,
+            "safe_breeding":      self._show_safe_breeding_view,
+            "breeding_partners":  self._show_breeding_partners_view,
+            "room_optimizer":     self._show_room_optimizer_view,
+            "perfect_planner":    self._show_perfect_planner_view,
+            "calibration":        self._show_calibration_view,
+            "mutation_planner":   self._show_mutation_planner_view,
+        }
+        fn = _restore_map.get(view)
+        if fn:
+            fn()
 
     # ── UI zoom ───────────────────────────────────────────────────────────
 
