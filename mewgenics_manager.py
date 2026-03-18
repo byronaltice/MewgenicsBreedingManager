@@ -1186,6 +1186,7 @@ def _parse_mutation_gon(content: str, game_strings: dict[str, str], category: st
         result[slot_id] = (raw_name, stat_desc)
 
     # ── Main numeric IDs (300+) ──────────────────────────────────────────
+    # IDs < 300 are base appearance variants, not mutations — skip them.
     idx = 0
     while idx < len(content):
         match = re.search(r'(?<!\w)(\d{3,})\s*\{', content[idx:])
@@ -1193,6 +1194,8 @@ def _parse_mutation_gon(content: str, game_strings: dict[str, str], category: st
             break
         slot_id = int(match.group(1))
         block, idx = _extract_block(idx + match.end())
+        if slot_id < 300:
+            continue
         _block_to_entry(slot_id, block)
 
     # ── Special -2 entry ("completely missing part" birth defect) ────────
@@ -1715,8 +1718,9 @@ class Cat:
             except Exception:
                 pass
 
-            # Tail: Passive2, then Disorder1, Disorder2 — main merges all valid IDs into
-            # passives; slots 1–2 also populate disorders for UI.
+            # Tail slots: index 0 = Passive2, indices 1–2 = Disorder1/Disorder2.
+            # Passive2 goes into passives; disorders are kept separate so they
+            # don't appear twice in the UI (once as ● passive, once as ⚠ disorder).
             disorders: list[str] = []
             for tail_idx in range(3):
                 try:
@@ -1724,9 +1728,10 @@ class Cat:
                 except Exception:
                     break
                 if item is not None and _IDENT_RE.match(item) and _valid_str(item):
-                    if item not in passives:
-                        passives.append(item)
-                    if tail_idx >= 1:
+                    if tail_idx == 0:
+                        if item not in passives:
+                            passives.append(item)
+                    else:
                         disorders.append(item)
                 try:
                     r.u32()
