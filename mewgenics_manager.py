@@ -3460,7 +3460,7 @@ class CatTableModel(QAbstractTableModel):
                 return "Must breed - prioritized in optimization" if cat.must_breed else "Normal breeding priority"
             if col == COL_MUTS and (cat.mutations or cat.defects):
                 return _mutations_tooltip(cat)
-            if col == COL_ABIL and (cat.abilities or cat.passive_abilities):
+            if col == COL_ABIL and (cat.abilities or cat.passive_abilities or cat.disorders):
                 return _abilities_tooltip(cat)
             if col == COL_RELNS and (cat.lovers or cat.haters):
                 lines: list[str] = []
@@ -9226,34 +9226,34 @@ class MutationDisorderPlannerView(QWidget):
             "Each parent has a flat 15% chance per disorder to pass it down."
         ))
 
-        a_passives = cat_a.passive_abilities or []
-        b_passives = cat_b.passive_abilities or []
+        a_disorders = cat_a.disorders or []
+        b_disorders = cat_b.disorders or []
 
         disorder_rows: list[str] = []
         seen = set()
-        for p in a_passives:
-            name = _mutation_display_name(p)
-            key = p.lower()
+        for disorder in a_disorders:
+            name = _mutation_display_name(disorder)
+            key = disorder.lower()
             if key not in seen:
                 seen.add(key)
                 # Check if other parent also has it
-                b_has = any(bp.lower() == key for bp in b_passives)
+                b_has = any(other.lower() == key for other in b_disorders)
                 if b_has:
                     pct = 1.0 - (0.85 * 0.85)  # both parents: ~27.75%
                     disorder_rows.append(f"  {name}: {pct*100:.1f}% (both parents)")
                 else:
                     disorder_rows.append(f"  {name}: 15% (from {cat_a.name})")
-        for p in b_passives:
-            key = p.lower()
+        for disorder in b_disorders:
+            key = disorder.lower()
             if key not in seen:
                 seen.add(key)
-                name = _mutation_display_name(p)
+                name = _mutation_display_name(disorder)
                 disorder_rows.append(f"  {name}: 15% (from {cat_b.name})")
 
         if disorder_rows:
             layout.addWidget(self._info_label("\n".join(disorder_rows)))
         else:
-            layout.addWidget(self._info_label("  Neither parent has passives/disorders to pass."))
+            layout.addWidget(self._info_label("  Neither parent has disorders to pass."))
 
         # Birth defect risk breakdown
         coi = kinship_coi(cat_a, cat_b)
@@ -9268,9 +9268,9 @@ class MutationDisorderPlannerView(QWidget):
         ))
 
         note_lbl = QLabel(
-            "Note: Save data does not distinguish passives from disorders.\n"
-            "All passive_abilities entries are shown. Refer to game knowledge\n"
-            "to identify which are disorders."
+            "Note: This view uses parsed disorder slots from the save file.\n"
+            "Passive abilities are tracked separately and are not included\n"
+            "in these disorder inheritance odds."
         )
         note_lbl.setStyleSheet("color:#665; font-size:10px; font-style:italic;")
         note_lbl.setWordWrap(True)
@@ -11410,4 +11410,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-
