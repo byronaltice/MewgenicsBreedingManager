@@ -4646,7 +4646,7 @@ class LineageDialog(QDialog):
 
     def __init__(self, cat: 'Cat', parent=None, navigate_fn=None):
         super().__init__(parent)
-        self.setWindowTitle(f"Family Tree — {cat.name}")
+        self.setWindowTitle(_tr("family_tree.title", name=cat.name))
         self.setMinimumSize(700, 400)
         self.setStyleSheet(
             "QDialog { background:#0a0a18; }"
@@ -4663,7 +4663,7 @@ class LineageDialog(QDialog):
         # ── Reusable box builder ─────────────────────────────────────────
         def cat_box(cat_obj, highlight=False, dim=False):
             if cat_obj is None:
-                btn = QPushButton("Unknown")
+                btn = QPushButton(_tr("family_tree.unknown"))
                 btn.setEnabled(False)
                 btn.setStyleSheet(
                     "QPushButton { color:#252535; font-size:10px; padding:6px 10px;"
@@ -4725,25 +4725,25 @@ class LineageDialog(QDialog):
         for child in children:
             grandchildren.extend(child.children)
 
-        make_gen_row("GRANDPARENTS", grandparents)
-        make_gen_row("PARENTS",      parents)
+        make_gen_row(_tr("family_tree.grandparents"), grandparents)
+        make_gen_row(_tr("family_tree.parents"),      parents)
         make_gen_row("",             [cat], highlight_all=True)
         if children:
-            make_gen_row("CHILDREN", children[:8])
+            make_gen_row(_tr("family_tree.lineage_children"), children[:8])
             if len(children) > 8:
                 outer.addWidget(
-                    QLabel(f"  … and {len(children)-8} more children",
+                    QLabel(_tr("family_tree.more_children", count=len(children)-8),
                            styleSheet="color:#444; font-size:10px; padding-left:100px;"))
         if grandchildren:
             unique_gc = list({id(g): g for g in grandchildren}.values())
-            make_gen_row("GRANDCHILDREN", unique_gc[:8])
+            make_gen_row(_tr("family_tree.lineage_grandchildren"), unique_gc[:8])
             if len(unique_gc) > 8:
                 outer.addWidget(
-                    QLabel(f"  … and {len(unique_gc)-8} more grandchildren",
+                    QLabel(_tr("family_tree.more_grandchildren", count=len(unique_gc)-8),
                            styleSheet="color:#444; font-size:10px; padding-left:100px;"))
 
         outer.addStretch()
-        close_btn = QPushButton("Close")
+        close_btn = QPushButton(_tr("family_tree.close"))
         close_btn.clicked.connect(self.accept)
         outer.addWidget(close_btn, alignment=Qt.AlignRight)
         _enforce_min_font_in_widget_tree(self)
@@ -4778,12 +4778,12 @@ class FamilyTreeBrowserView(QWidget):
         lv = QVBoxLayout(left)
         lv.setContentsMargins(0, 0, 0, 0)
         lv.setSpacing(8)
-        lv.addWidget(QLabel("Cats", styleSheet="color:#666; font-size:10px; font-weight:bold;"))
+        lv.addWidget(QLabel(_tr("family_tree.cats"), styleSheet="color:#666; font-size:10px; font-weight:bold;"))
         mode_row = QHBoxLayout()
         mode_row.setContentsMargins(0, 0, 0, 0)
         mode_row.setSpacing(6)
-        self._all_btn = _sidebar_btn("All")
-        self._alive_btn = _sidebar_btn("Alive")
+        self._all_btn = _sidebar_btn(_tr("family_tree.filter_all"))
+        self._alive_btn = _sidebar_btn(_tr("family_tree.filter_alive"))
         self._all_btn.setCheckable(True)
         self._alive_btn.setCheckable(True)
         self._alive_btn.setChecked(True)
@@ -4793,7 +4793,7 @@ class FamilyTreeBrowserView(QWidget):
         mode_row.addWidget(self._alive_btn)
         lv.addLayout(mode_row)
         self._search = QLineEdit()
-        self._search.setPlaceholderText("Search cat name…")
+        self._search.setPlaceholderText(_tr("family_tree.search_placeholder"))
         lv.addWidget(self._search)
         self._list = QListWidget()
         lv.addWidget(self._list, 1)
@@ -4899,18 +4899,18 @@ class FamilyTreeBrowserView(QWidget):
         root.setSpacing(10)
 
         if cat is None:
-            root.addWidget(QLabel("No cats match the current filter.", styleSheet="color:#666; font-size:12px;"))
+            root.addWidget(QLabel(_tr("family_tree.no_match"), styleSheet="color:#666; font-size:12px;"))
             root.addStretch()
             return
 
-        title = QLabel(f"Family Tree — {cat.name}")
+        title = QLabel(_tr("family_tree.title", name=cat.name))
         title.setStyleSheet("color:#ddd; font-size:16px; font-weight:bold;")
         root.addWidget(title)
-        root.addWidget(QLabel("Click any box to jump to that cat.", styleSheet="color:#666; font-size:11px;"))
+        root.addWidget(QLabel(_tr("family_tree.click_hint"), styleSheet="color:#666; font-size:11px;"))
 
         def cat_box(c: Optional[Cat], highlight=False):
             if c is None:
-                btn = QPushButton("Unknown")
+                btn = QPushButton(_tr("family_tree.unknown"))
                 btn.setEnabled(False)
                 btn.setStyleSheet(
                     "QPushButton { color:#303040; font-size:10px; padding:7px 10px;"
@@ -4920,7 +4920,7 @@ class FamilyTreeBrowserView(QWidget):
             if c.room_display:
                 line2 += f"  {c.room_display}"
             if c.status == "Gone":
-                line2 += "  (Gone)"
+                line2 += f"  ({_tr('status.gone')})"
             bg = "#1d2f4a" if highlight else "#131326"
             border = "#3b5f95" if highlight else "#252545"
             btn = QPushButton(f"{c.name}\n{line2}")
@@ -4970,12 +4970,12 @@ class FamilyTreeBrowserView(QWidget):
 
         def _ancestor_row_label(level: int) -> str:
             if level == 1:
-                return "PARENTS"
+                return _tr("family_tree.level.parents")
             if level == 2:
-                return "GRANDPARENTS"
+                return _tr("family_tree.level.grandparents")
             if level == 3:
-                return "GREAT-GRANDPARENTS"
-            return f"{level - 2}x GREAT-GRANDPARENTS"
+                return _tr("family_tree.level.great_grandparents")
+            return _tr("family_tree.level.n_great_grandparents", count=level - 2)
 
         # Build all known ancestor levels (1=parents, 2=grandparents, ...).
         ancestor_levels: list[list[Cat]] = []
