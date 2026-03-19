@@ -5333,7 +5333,7 @@ class BreedingPartnersView(QWidget):
         root.setSpacing(10)
 
         header = QHBoxLayout()
-        self._title = QLabel("Breeding Partners")
+        self._title = QLabel()
         self._title.setStyleSheet("color:#ddd; font-size:18px; font-weight:bold;")
         self._summary = QLabel("")
         self._summary.setStyleSheet("color:#666; font-size:11px;")
@@ -5343,11 +5343,16 @@ class BreedingPartnersView(QWidget):
         root.addLayout(header)
 
         self._search = QLineEdit()
-        self._search.setPlaceholderText("Search partner names or rooms…")
         root.addWidget(self._search)
 
         self._table = QTableWidget(0, 5)
-        self._table.setHorizontalHeaderLabels(["Cat A", "Cat B", "Room A", "Room B", "Status"])
+        self._table.setHorizontalHeaderLabels([
+            _tr("breeding_partners.table.cat_a"),
+            _tr("breeding_partners.table.cat_b"),
+            _tr("breeding_partners.table.room_a"),
+            _tr("breeding_partners.table.room_b"),
+            _tr("breeding_partners.table.status"),
+        ])
         self._table.verticalHeader().setVisible(False)
         self._table.setSelectionMode(QAbstractItemView.NoSelection)
         self._table.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -5361,6 +5366,7 @@ class BreedingPartnersView(QWidget):
 
         self._search.textChanged.connect(self._refresh_table)
         _enforce_min_font_in_widget_tree(self)
+        self.retranslate_ui()
 
     def set_cats(self, cats: list[Cat]):
         self._cats = cats
@@ -5412,7 +5418,7 @@ class BreedingPartnersView(QWidget):
             same_room = bool(pair["same_room"])
             if not same_room:
                 mismatch_count += 1
-            status_text = "Same Room" if same_room else "Mismatch"
+            status_text = _tr("breeding_partners.status.same_room") if same_room else _tr("breeding_partners.status.mismatch")
             status_color = QColor(98, 194, 135) if same_room else QColor(216, 181, 106)
             items = [
                 QTableWidgetItem(f"{pair['cat_a'].name} ({pair['cat_a'].gender_display})"),
@@ -5431,7 +5437,19 @@ class BreedingPartnersView(QWidget):
 
         total = len(self._pairs)
         shown = len(pairs)
-        self._summary.setText(f"{shown} / {total} mutual-lover pairs  |  mismatches: {mismatch_count}")
+        self._summary.setText(_tr("breeding_partners.summary",
+                                   shown=shown, total=total, mismatches=mismatch_count))
+
+    def retranslate_ui(self):
+        self._title.setText(_tr("breeding_partners.title"))
+        self._search.setPlaceholderText(_tr("breeding_partners.search_placeholder"))
+        self._table.setHorizontalHeaderLabels([
+            _tr("breeding_partners.table.cat_a"),
+            _tr("breeding_partners.table.cat_b"),
+            _tr("breeding_partners.table.room_a"),
+            _tr("breeding_partners.table.room_b"),
+            _tr("breeding_partners.table.status"),
+        ])
 
 
 # ── Room Optimizer View ───────────────────────────────────────────────────────
@@ -10138,6 +10156,8 @@ class MainWindow(QMainWindow):
             self._source_model.headerDataChanged.emit(Qt.Horizontal, 0, len(COLUMNS) - 1)
         if self._safe_breeding_view is not None:
             self._safe_breeding_view.retranslate_ui()
+        if self._breeding_partners_view is not None:
+            self._breeding_partners_view.retranslate_ui()
         if self._calibration_view is not None:
             self._calibration_view.retranslate_ui()
 

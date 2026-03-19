@@ -179,5 +179,15 @@
   "family_tree.level.parents": "父母",
   "family_tree.level.grandparents": "祖父母",
   "family_tree.level.great_grandparents": "曾祖父母",
-  "family_tree.level.n_great_grandparents": "{count}x 曾祖父母"
+  "family_tree.level.n_great_grandparents": "{count}x 曾祖父母",
+  "breeding_partners.title": "育种伙伴",
+  "breeding_partners.search_placeholder": "搜索育种伙伴姓名或房间…",
+  "breeding_partners.table.cat_a": "猫咪 A",
+  "breeding_partners.table.cat_b": "猫咪 B",
+  "breeding_partners.table.room_a": "房间 A",
+  "breeding_partners.table.room_b": "房间 B",
+  "breeding_partners.table.status": "状态",
+  "breeding_partners.status.same_room": "同房",
+  "breeding_partners.status.mismatch": "不一致",
+  "breeding_partners.summary": "{shown} / {total} 互爱配对  |  不一致: {mismatches}"
 }

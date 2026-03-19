@@ -179,5 +179,15 @@
   "family_tree.level.parents": "Parents",
   "family_tree.level.grandparents": "Grandparents",
   "family_tree.level.great_grandparents": "Great-Grandparents",
-  "family_tree.level.n_great_grandparents": "{count}x Great-Grandparents"
+  "family_tree.level.n_great_grandparents": "{count}x Great-Grandparents",
+  "breeding_partners.title": "Breeding Partners",
+  "breeding_partners.search_placeholder": "Search partner names or rooms…",
+  "breeding_partners.table.cat_a": "Cat A",
+  "breeding_partners.table.cat_b": "Cat B",
+  "breeding_partners.table.room_a": "Room A",
+  "breeding_partners.table.room_b": "Room B",
+  "breeding_partners.table.status": "Status",
+  "breeding_partners.status.same_room": "Same Room",
+  "breeding_partners.status.mismatch": "Mismatch",
+  "breeding_partners.summary": "{shown} / {total} mutual-lover pairs  |  mismatches: {mismatches}"
 }
