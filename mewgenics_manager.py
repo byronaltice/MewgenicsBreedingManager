@@ -2597,7 +2597,7 @@ class SaveLoadWorker(QThread):
 
     def run(self):
         self.status.emit("Parsing save file…")
-        cats, errors = parse_save(self._path)
+        cats, errors, unlocked_house_rooms = parse_save(self._path)
         self.status.emit("Loading blacklist & overrides…")
         _load_blacklist(self._path, cats)
         _load_must_breed(self._path, cats)
@@ -2606,6 +2606,7 @@ class SaveLoadWorker(QThread):
         self.finished_load.emit({
             "cats": cats,
             "errors": errors,
+            "unlocked_house_rooms": unlocked_house_rooms,
             "applied_overrides": applied_overrides,
             "override_rows": override_rows,
             "cal_explicit": cal_explicit,
@@ -2662,6 +2663,34 @@ def _get_house_info(conn) -> dict:
         pos += 24
         result[cat_key] = room_name
     return result
+
+
+def _get_unlocked_house_rooms(conn) -> list[str]:
+    row = conn.execute("SELECT data FROM files WHERE key = 'house_unlocks'").fetchone()
+    if not row or not row[0]:
+        return []
+
+    # The blob includes ASCII unlock identifiers even though its binary layout
+    # is awkward to parse directly. We only need the unlock names that map to
+    # actual house rooms.
+    tokens = {
+        m.group(0).decode("ascii", errors="ignore")
+        for m in re.finditer(rb"[A-Za-z][A-Za-z0-9_]+", row[0])
+    }
+    unlocked = set()
+
+    if tokens & {"Default", "House3", "MediumHouse", "LargeHouse"}:
+        unlocked.add("Floor1_Large")
+    if tokens & {"House3", "MediumHouse_SmallRoom", "LargeHouse"}:
+        unlocked.add("Floor1_Small")
+    if "SmallHouse_Attic" in tokens:
+        unlocked.add("Attic")
+    if tokens & {"MediumHouse", "LargeHouse_Floor2Large"}:
+        unlocked.add("Floor2_Large")
+    if "LargeHouse_Floor2Small" in tokens:
+        unlocked.add("Floor2_Small")
+
+    return [room for room in ROOM_DISPLAY.keys() if room in unlocked]
 
 
 def _get_adventure_keys(conn) -> set:
@@ -2732,9 +2761,10 @@ def _parse_pedigree(conn) -> dict:
     return ped_map
 
 
-def parse_save(path: str) -> tuple[list, list]:
+def parse_save(path: str) -> tuple[list, list, list[str]]:
     conn  = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
     house = _get_house_info(conn)
+    unlocked_house_rooms = _get_unlocked_house_rooms(conn)
     adv   = _get_adventure_keys(conn)
     rows  = conn.execute("SELECT key, data FROM cats").fetchall()
     ped_map = _parse_pedigree(conn)
@@ -2816,7 +2846,7 @@ def parse_save(path: str) -> tuple[list, list]:
         if c.generation < 0:
             c.generation = 0
 
-    return cats, errors
+    return cats, errors, unlocked_house_rooms
 
 
 def find_save_files() -> list[str]:
@@ -3510,9 +3540,9 @@ class CatTableModel(QAbstractTableModel):
             if col == COL_SRC:
                 pa, pb = cat.parent_a, cat.parent_b
                 if pa is None and pb is None:
-                    return "Stray"
+                    return _tr("cat_detail.stray")
                 def _pname(p):
-                    return p.name if p.status != "Gone" else f"{p.name} (gone)"
+                    return p.name if p.status != "Gone" else _tr("cat_detail.gone_suffix", name=p.name)
                 return " × ".join(_pname(p) for p in (pa, pb) if p is not None)
         elif role == Qt.UserRole:
             if col == COL_NAME:
@@ -3614,9 +3644,9 @@ class CatTableModel(QAbstractTableModel):
             if col == COL_ROOM:
                 return cat.room
             if col == COL_BL:
-                return "Excluded from breeding calculations" if cat.is_blacklisted else "Included in breeding calculations"
+                return _tr("table.tooltip.excluded") if cat.is_blacklisted else _tr("table.tooltip.included")
             if col == COL_MB:
-                return "Must breed - prioritized in optimization" if cat.must_breed else "Normal breeding priority"
+                return _tr("table.tooltip.must_breed") if cat.must_breed else _tr("table.tooltip.normal_priority")
             if col == COL_MUTS and (cat.mutations or cat.defects):
                 return _mutations_tooltip(cat)
             if col == COL_ABIL and (cat.abilities or cat.passive_abilities or cat.disorders):
@@ -3969,7 +3999,7 @@ class CatDetailPanel(QWidget):
             stats_grid.addWidget(head, 0, col)
             stats_grid.setColumnMinimumWidth(col, 28)
 
-        for row, label in enumerate(("Base", "Mod", "Total"), start=1):
+        for row, label in enumerate((_tr("cat_detail.base"), _tr("cat_detail.mod"), _tr("cat_detail.total")), start=1):
             row_lbl = QLabel(label)
             row_lbl.setStyleSheet("color:#777; font-size:9px; font-weight:bold;")
             stats_grid.addWidget(row_lbl, row, 0)
@@ -4026,7 +4056,7 @@ class CatDetailPanel(QWidget):
                     break
 
         if self._show_lineage:
-            tree_btn = QPushButton("Family Tree…")
+            tree_btn = QPushButton(_tr("cat_detail.family_tree"))
             tree_btn.setStyleSheet(
                 "QPushButton { color:#5a8aaa; background:transparent; border:1px solid #252545;"
                 " padding:3px 8px; border-radius:4px; font-size:10px; }"
@@ -4035,7 +4065,7 @@ class CatDetailPanel(QWidget):
             id_col.addWidget(tree_btn)
 
         # Blacklist toggle button
-        blacklist_btn = QPushButton("✓ Include in Breeding" if not cat.is_blacklisted else "✗ Exclude from Breeding")
+        blacklist_btn = QPushButton(_tr("cat_detail.include_in_breeding") if not cat.is_blacklisted else _tr("cat_detail.exclude_from_breeding"))
         blacklist_btn.setStyleSheet(
             "QPushButton { color:#888; background:transparent; border:1px solid #252545;"
             " padding:3px 8px; border-radius:4px; font-size:10px; }"
@@ -4044,8 +4074,8 @@ class CatDetailPanel(QWidget):
             cat.is_blacklisted = not cat.is_blacklisted
             if cat.is_blacklisted:
                 cat.must_breed = False
-            blacklist_btn.setText("✓ Include in Breeding" if not cat.is_blacklisted else "✗ Exclude from Breeding")
-            must_breed_btn.setText("★ Must Breed" if cat.must_breed else "☆ Normal Priority")
+            blacklist_btn.setText(_tr("cat_detail.include_in_breeding") if not cat.is_blacklisted else _tr("cat_detail.exclude_from_breeding"))
+            must_breed_btn.setText(_tr("cat_detail.must_breed") if cat.must_breed else _tr("cat_detail.normal_priority"))
             mw = self.window()
             if hasattr(mw, "_source_model") and mw._source_model is not None:
                 for row in range(mw._source_model.rowCount()):
@@ -4061,7 +4091,7 @@ class CatDetailPanel(QWidget):
         id_col.addWidget(blacklist_btn)
 
         # Must breed toggle button
-        must_breed_btn = QPushButton("★ Must Breed" if cat.must_breed else "☆ Normal Priority")
+        must_breed_btn = QPushButton(_tr("cat_detail.must_breed") if cat.must_breed else _tr("cat_detail.normal_priority"))
         must_breed_btn.setStyleSheet(
             "QPushButton { color:#888; background:transparent; border:1px solid #252545;"
             " padding:3px 8px; border-radius:4px; font-size:10px; }"
@@ -4070,8 +4100,8 @@ class CatDetailPanel(QWidget):
             cat.must_breed = not cat.must_breed
             if cat.must_breed:
                 cat.is_blacklisted = False
-            must_breed_btn.setText("★ Must Breed" if cat.must_breed else "☆ Normal Priority")
-            blacklist_btn.setText("✓ Include in Breeding" if not cat.is_blacklisted else "✗ Exclude from Breeding")
+            must_breed_btn.setText(_tr("cat_detail.must_breed") if cat.must_breed else _tr("cat_detail.normal_priority"))
+            blacklist_btn.setText(_tr("cat_detail.include_in_breeding") if not cat.is_blacklisted else _tr("cat_detail.exclude_from_breeding"))
             mw = self.window()
             if hasattr(mw, "_source_model") and mw._source_model is not None:
                 for row in range(mw._source_model.rowCount()):
@@ -4222,7 +4252,7 @@ class CatDetailPanel(QWidget):
                 hdr.addWidget(x)
 
         hdr.addStretch()
-        stim_lbl = QLabel("Stimulation")
+        stim_lbl = QLabel(_tr("cat_detail.stimulation"))
         stim_lbl.setStyleSheet(_META_STYLE)
         hdr.addWidget(stim_lbl)
         stim_box = QSpinBox()
@@ -4277,7 +4307,7 @@ class CatDetailPanel(QWidget):
             h.setAlignment(Qt.AlignCenter)
             grid.addWidget(h, 0, j + 1)
         sum_col = len(STAT_NAMES) + 1
-        sh = QLabel("Sum")
+        sh = QLabel(_tr("cat_detail.sum"))
         sh.setStyleSheet("color:#455; font-size:9px; font-weight:bold;")
         sh.setAlignment(Qt.AlignCenter)
         grid.addWidget(sh, 0, sum_col)
@@ -4303,7 +4333,7 @@ class CatDetailPanel(QWidget):
                 lbl_hb.addWidget(name_lbl)
                 lbl_hb.addWidget(gen_lbl)
             else:
-                off_lbl = QLabel("Offspring")
+                off_lbl = QLabel(_tr("cat_detail.offspring"))
                 off_lbl.setStyleSheet("color:#555; font-size:10px; font-style:italic;")
                 lbl_hb.addWidget(off_lbl)
 
@@ -4483,11 +4513,11 @@ class CatDetailPanel(QWidget):
         # ── Trait inheritance probabilities ──
         trait_probs = _trait_inheritance_probabilities(a, b, stim)
         if trait_probs:
-            inh.addWidget(QLabel("Trait inheritance chances", styleSheet="color:#555; font-size:10px;"))
+            inh.addWidget(QLabel(_tr("cat_detail.trait_inheritance"), styleSheet="color:#555; font-size:10px;"))
             prob_chips: list[tuple[str, str]] = []
             for display, category, prob, detail in trait_probs:
                 pct = prob * 100
-                cat_label = {"ability": "Spell", "passive": "Passive", "mutation": "Mutation"}.get(category, category)
+                cat_label = {"ability": _tr("cat_detail.spell"), "passive": _tr("cat_detail.passive"), "mutation": _tr("cat_detail.mutation")}.get(category, category)
                 chip_text = f"{display} {pct:.0f}%"
                 tip_text = f"[{cat_label}] {detail}\n{_ability_tip(display)}" if _ability_tip(display) else f"[{cat_label}] {detail}"
                 prob_chips.append((chip_text, tip_text))
@@ -4612,19 +4642,19 @@ class CatDetailPanel(QWidget):
         app_col = QVBoxLayout()
         app_col.setSpacing(6)
         app_col.addWidget(_sec("APPEARANCE PREVIEW"))
-        app_note = QLabel("Probabilistic preview from parent coat/body/part data.")
+        app_note = QLabel(_tr("cat_detail.appearance_preview"))
         app_note.setStyleSheet(_META_STYLE)
         app_note.setWordWrap(True)
         app_col.addWidget(app_note)
 
         appearance_groups = [
-            ("fur", "Fur"),
-            ("body", "Body"),
-            ("head", "Head"),
-            ("tail", "Tail"),
-            ("ears", "Ears"),
-            ("eyes", "Eyes"),
-            ("mouth", "Mouth"),
+            ("fur", _tr("cat_detail.appearance.fur")),
+            ("body", _tr("cat_detail.appearance.body")),
+            ("head", _tr("cat_detail.appearance.head")),
+            ("tail", _tr("cat_detail.appearance.tail")),
+            ("ears", _tr("cat_detail.appearance.ears")),
+            ("eyes", _tr("cat_detail.appearance.eyes")),
+            ("mouth", _tr("cat_detail.appearance.mouth")),
         ]
         shown_preview = False
         for group_key, title in appearance_groups:
@@ -4645,7 +4675,7 @@ class CatDetailPanel(QWidget):
             app_col.addLayout(row)
 
         if not shown_preview:
-            app_col.addWidget(QLabel("No distinct parent appearance data detected.", styleSheet=_META_STYLE))
+            app_col.addWidget(QLabel(_tr("cat_detail.no_appearance_data"), styleSheet=_META_STYLE))
 
         app_col.addStretch()
         bot.addLayout(app_col, 1)
@@ -5503,15 +5533,15 @@ class RoomOptimizerView(QWidget):
     """View for optimizing cat room distribution to maximize breeding outcomes."""
 
     @staticmethod
-    def _set_toggle_button_label(btn: QPushButton, label: str):
-        state = "On" if btn.isChecked() else "Off"
-        btn.setText(f"{label}: {state}")
+    def _set_toggle_button_label(btn: QPushButton, label_key: str):
+        state = _tr("common.on") if btn.isChecked() else _tr("common.off")
+        btn.setText(f"{_tr(label_key)}: {state}")
 
     @staticmethod
-    def _bind_persistent_toggle(btn: QPushButton, label: str, key: str):
-        RoomOptimizerView._set_toggle_button_label(btn, label)
+    def _bind_persistent_toggle(btn: QPushButton, label_key: str, key: str):
+        RoomOptimizerView._set_toggle_button_label(btn, label_key)
         btn.toggled.connect(lambda checked: _set_optimizer_flag(key, checked))
-        btn.toggled.connect(lambda _: RoomOptimizerView._set_toggle_button_label(btn, label))
+        btn.toggled.connect(lambda _: RoomOptimizerView._set_toggle_button_label(btn, label_key))
 
     def _set_mode_button_text(self, enabled: bool):
         key = "room_optimizer.mode_family" if enabled else "room_optimizer.mode_pair"
@@ -5534,6 +5564,7 @@ class RoomOptimizerView(QWidget):
         self._optimizer_worker: Optional[RoomOptimizerWorker] = None
         self._planner_view: Optional['MutationDisorderPlannerView'] = None
         self._planner_traits: list[dict] = []
+        self._available_rooms: list[str] = list(ROOM_DISPLAY.keys())
 
         root = QVBoxLayout(self)
         root.setContentsMargins(12, 12, 12, 12)
@@ -5630,52 +5661,46 @@ class RoomOptimizerView(QWidget):
             "QPushButton:checked { background:#2a4a5a; color:#ddd; border:1px solid #4a6a7a; }"
             "QPushButton:hover { background:#252545; color:#ddd; }"
         )
-        self._bind_persistent_toggle(self._minimize_variance_checkbox, "Minimize Variance", "minimize_variance")
+        self._bind_persistent_toggle(self._minimize_variance_checkbox, "room_optimizer.toggle.minimize_variance", "minimize_variance")
         controls.addWidget(self._minimize_variance_checkbox)
 
         self._avoid_lovers_checkbox = QPushButton()
         self._avoid_lovers_checkbox.setCheckable(True)
         self._avoid_lovers_checkbox.setChecked(_saved_optimizer_flag("avoid_lovers", True))
-        self._avoid_lovers_checkbox.setToolTip(
-            "If enabled, cats that already have lovers will not be paired with other cats."
-        )
+        self._avoid_lovers_checkbox.setToolTip(_tr("room_optimizer.tooltip.avoid_lovers"))
         self._avoid_lovers_checkbox.setStyleSheet(
             "QPushButton { background:#1a1a32; color:#aaa; border:1px solid #2a2a4a; "
             "border-radius:4px; padding:6px 12px; font-size:11px; }"
             "QPushButton:checked { background:#5a3a2a; color:#ddd; border:1px solid #8a5a4a; }"
             "QPushButton:hover { background:#252545; color:#ddd; }"
         )
-        self._bind_persistent_toggle(self._avoid_lovers_checkbox, "Avoid Lovers", "avoid_lovers")
+        self._bind_persistent_toggle(self._avoid_lovers_checkbox, "room_optimizer.toggle.avoid_lovers", "avoid_lovers")
         controls.addWidget(self._avoid_lovers_checkbox)
 
         self._prefer_low_aggression_checkbox = QPushButton()
         self._prefer_low_aggression_checkbox.setCheckable(True)
         self._prefer_low_aggression_checkbox.setChecked(_saved_optimizer_flag("prefer_low_aggression", True))
-        self._prefer_low_aggression_checkbox.setToolTip(
-            "If enabled, optimizer gives extra weight to lower-aggression cats."
-        )
+        self._prefer_low_aggression_checkbox.setToolTip(_tr("room_optimizer.tooltip.prefer_low_aggression"))
         self._prefer_low_aggression_checkbox.setStyleSheet(
             "QPushButton { background:#1a1a32; color:#aaa; border:1px solid #2a2a4a; "
             "border-radius:4px; padding:6px 12px; font-size:11px; }"
             "QPushButton:checked { background:#4a2a2a; color:#ddd; border:1px solid #7a4a4a; }"
             "QPushButton:hover { background:#252545; color:#ddd; }"
         )
-        self._bind_persistent_toggle(self._prefer_low_aggression_checkbox, "Prefer Low Aggression", "prefer_low_aggression")
+        self._bind_persistent_toggle(self._prefer_low_aggression_checkbox, "room_optimizer.toggle.prefer_low_aggression", "prefer_low_aggression")
         controls.addWidget(self._prefer_low_aggression_checkbox)
 
         self._prefer_high_libido_checkbox = QPushButton()
         self._prefer_high_libido_checkbox.setCheckable(True)
         self._prefer_high_libido_checkbox.setChecked(_saved_optimizer_flag("prefer_high_libido", True))
-        self._prefer_high_libido_checkbox.setToolTip(
-            "If enabled, optimizer gives extra weight to higher-libido cats."
-        )
+        self._prefer_high_libido_checkbox.setToolTip(_tr("room_optimizer.tooltip.prefer_high_libido"))
         self._prefer_high_libido_checkbox.setStyleSheet(
             "QPushButton { background:#1a1a32; color:#aaa; border:1px solid #2a2a4a; "
             "border-radius:4px; padding:6px 12px; font-size:11px; }"
             "QPushButton:checked { background:#2a4a36; color:#ddd; border:1px solid #4a7a5a; }"
             "QPushButton:hover { background:#252545; color:#ddd; }"
         )
-        self._bind_persistent_toggle(self._prefer_high_libido_checkbox, "Prefer High Libido", "prefer_high_libido")
+        self._bind_persistent_toggle(self._prefer_high_libido_checkbox, "room_optimizer.toggle.prefer_high_libido", "prefer_high_libido")
         controls.addWidget(self._prefer_high_libido_checkbox)
 
         controls.addSpacing(16)
@@ -5745,11 +5770,11 @@ class RoomOptimizerView(QWidget):
         # Tab 1: Breeding Pairs (existing detail panel)
         self._details_pane = RoomOptimizerDetailPanel()
         self._details_pane._navigate_to_cat_callback = self._navigate_to_cat_from_breeding_pairs
-        self._bottom_tabs.addTab(self._details_pane, "Breeding Pairs")
+        self._bottom_tabs.addTab(self._details_pane, _tr("room_optimizer.tab.breeding_pairs"))
 
         # Tab 2: Cat Locator
         self._cat_locator = RoomOptimizerCatLocator()
-        self._bottom_tabs.addTab(self._cat_locator, "Cat Locator")
+        self._bottom_tabs.addTab(self._cat_locator, _tr("room_optimizer.tab.cat_locator"))
 
         self._splitter.addWidget(self._bottom_tabs)
         self._splitter.setSizes([180, 420])
@@ -5790,6 +5815,10 @@ class RoomOptimizerView(QWidget):
         else:
             self._summary.setText(_tr("room_optimizer.summary.no_excluded",
                                        alive=alive_count))
+
+    def set_available_rooms(self, rooms: list[str]):
+        ordered = [room for room in ROOM_DISPLAY.keys() if room in set(rooms)]
+        self._available_rooms = ordered or list(ROOM_DISPLAY.keys())
 
     def _navigate_to_cat_from_breeding_pairs(self, cat_name_formatted: str):
         """Navigate to a cat by its formatted name (e.g. 'Fluffy (Female)')."""
@@ -5840,6 +5869,14 @@ class RoomOptimizerView(QWidget):
         self._set_mode_button_text(self._mode_toggle_btn.isChecked())
         self._import_planner_btn.setText(_tr("room_optimizer.import_planner"))
         self._import_planner_btn.setToolTip(_tr("room_optimizer.import_none_tooltip"))
+        # Refresh toggle button labels
+        RoomOptimizerView._set_toggle_button_label(self._minimize_variance_checkbox, "room_optimizer.toggle.minimize_variance")
+        RoomOptimizerView._set_toggle_button_label(self._avoid_lovers_checkbox, "room_optimizer.toggle.avoid_lovers")
+        RoomOptimizerView._set_toggle_button_label(self._prefer_low_aggression_checkbox, "room_optimizer.toggle.prefer_low_aggression")
+        RoomOptimizerView._set_toggle_button_label(self._prefer_high_libido_checkbox, "room_optimizer.toggle.prefer_high_libido")
+        # Refresh tab titles
+        self._bottom_tabs.setTabText(0, _tr("room_optimizer.tab.breeding_pairs"))
+        self._bottom_tabs.setTabText(1, _tr("room_optimizer.tab.cat_locator"))
         self._table.setHorizontalHeaderLabels([
             _tr("room_optimizer.table.room"),
             _tr("room_optimizer.table.cats"),
@@ -5877,6 +5914,7 @@ class RoomOptimizerView(QWidget):
             "prefer_high_libido": self._prefer_high_libido_checkbox.isChecked(),
             "mode_family": self._mode_toggle_btn.isChecked(),
             "planner_traits": list(self._planner_traits),
+            "available_rooms": list(getattr(self, "_available_rooms", [])),
         }
 
         self._optimize_btn.setEnabled(False)
@@ -6031,7 +6069,7 @@ class RoomOptimizerView(QWidget):
         filter_str = f"  |  Filters: {', '.join(filter_info)}" if filter_info else ""
 
         self._summary.setText(
-            f"Optimized {total_assigned} cats into {row_idx} rooms  |  "
+            f"Optimized {total_assigned} cats into {len(room_rows)} rooms  |  "
             f"{total_pairs} total breeding pairs{filter_str}"
         )
 
@@ -6064,6 +6102,7 @@ class RoomOptimizerWorker(QThread):
         prefer_low_aggression = p["prefer_low_aggression"]
         prefer_high_libido = p["prefer_high_libido"]
         mode_family = p["mode_family"]
+        configured_rooms = [room for room in p.get("available_rooms", []) if room in ROOM_DISPLAY]
 
         if min_stats > 0:
             alive_cats = [c for c in alive_cats if sum(c.base_stats.values()) >= min_stats]
@@ -6140,9 +6179,19 @@ class RoomOptimizerWorker(QThread):
         females = sorted([c for c in alive_cats if c.gender == "female"], key=lambda c: stat_sum[c.db_key], reverse=True)
         unknown = sorted([c for c in alive_cats if c.gender == "?"],      key=lambda c: stat_sum[c.db_key], reverse=True)
         all_cats = males + females + unknown
+        occupied_rooms = {
+            c.room for c in alive_cats
+            if c.status == "In House" and c.room in ROOM_DISPLAY
+        }
+        available_rooms = [
+            room for room in ROOM_DISPLAY.keys()
+            if room in (set(configured_rooms) | occupied_rooms)
+        ]
+        if not available_rooms:
+            available_rooms = list(ROOM_DISPLAY.keys())
 
         if mode_family:
-            all_rooms = list(ROOM_DISPLAY.keys())
+            all_rooms = list(available_rooms)
             fallback_room = None
             max_cats_per_room = 6
             family_assignments = {room: {"males": [], "females": [], "unknown": []} for room in all_rooms}
@@ -6213,13 +6262,10 @@ class RoomOptimizerWorker(QThread):
             room_assignments = {room: _room_cats(room) for room in all_rooms}
 
         else:
-            # Determine number of priority rooms from actual rooms in the save.
-            # Reserve one room as fallback (non-breeding overflow), rest are priority.
-            actual_rooms = set()
-            for c in alive_cats:
-                if c.room and c.room != "Adventure" and c.status == "In House":
-                    actual_rooms.add(c.room)
-            n_priority = max(len(actual_rooms) - 1, 1)
+            # Reserve one unlocked room as fallback (non-breeding overflow),
+            # and use the rest as breeding rooms. If unlock metadata is
+            # missing, fall back to whatever rooms are currently occupied.
+            n_priority = max(len(available_rooms) - 1, 1)
             priority_rooms = [f"Priority {i+1}" for i in range(n_priority)]
             fallback_room = "Fallback"
             all_rooms = priority_rooms + [fallback_room]
@@ -6332,8 +6378,6 @@ class RoomOptimizerWorker(QThread):
         room_rows = []
         for room in all_rooms:
             cats_in_room = room_assignments[room]
-            if not cats_in_room:
-                continue
             cat_names = [f"{c.name} ({c.gender_display})" for c in cats_in_room]
             room_pairs = []
             for i, a in enumerate(cats_in_room):
@@ -6349,8 +6393,6 @@ class RoomOptimizerWorker(QThread):
                             "stat_ranges": stat_ranges,
                             "sum_range": (sum(lo for lo, _ in stat_ranges.values()), sum(hi for _, hi in stat_ranges.values())),
                         })
-            if not room_pairs and room != fallback_room:
-                continue
             room_pairs.sort(key=lambda p: (-p["avg_stats"], p["risk"]))
             avg_stats = sum(p["avg_stats"] for p in room_pairs) / len(room_pairs) if room_pairs else 0.0
             avg_risk  = sum(p["risk"]      for p in room_pairs) / len(room_pairs) if room_pairs else 0.0
@@ -11514,6 +11556,7 @@ class MainWindow(QMainWindow):
         try:
             cats = result["cats"]
             errors = result["errors"]
+            unlocked_house_rooms = result.get("unlocked_house_rooms", [])
             applied_overrides = result["applied_overrides"]
             override_rows = result["override_rows"]
             cal_explicit = result["cal_explicit"]
@@ -11525,6 +11568,8 @@ class MainWindow(QMainWindow):
             self._rebuild_room_buttons(cats)
             self._refresh_filter_button_counts()
             self._filter(None, self._btn_all)
+            if self._room_optimizer_view is not None:
+                self._room_optimizer_view.set_available_rooms(unlocked_house_rooms)
             # Only push cats to currently visible views immediately.
             # Hidden views call set_cats themselves when shown via _show_* methods.
             if self._tree_view is not None and self._tree_view.isVisible():
