@@ -5468,6 +5468,11 @@ class RoomOptimizerView(QWidget):
         btn.toggled.connect(lambda checked: _set_optimizer_flag(key, checked))
         btn.toggled.connect(lambda _: RoomOptimizerView._set_toggle_button_label(btn, label))
 
+    def _set_mode_button_text(self, enabled: bool):
+        key = "room_optimizer.mode_family" if enabled else "room_optimizer.mode_pair"
+        self._mode_toggle_btn.setText(_tr(key))
+        self._mode_toggle_btn.setToolTip(_tr("room_optimizer.mode_tooltip"))
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setStyleSheet(
@@ -5491,7 +5496,7 @@ class RoomOptimizerView(QWidget):
 
         # Header
         header = QHBoxLayout()
-        self._title = QLabel("Room Distribution Optimizer")
+        self._title = QLabel()
         self._title.setStyleSheet("color:#ddd; font-size:18px; font-weight:bold;")
         self._summary = QLabel("")
         self._summary.setStyleSheet("color:#666; font-size:11px;")
@@ -5514,12 +5519,12 @@ class RoomOptimizerView(QWidget):
         controls.setSpacing(8)
         controls.setContentsMargins(0, 0, 0, 0)
 
-        self._min_stats_label = QLabel("Min base stats:")
+        self._min_stats_label = QLabel()
         self._min_stats_label.setStyleSheet("color:#888; font-size:11px;")
         controls.addWidget(self._min_stats_label)
 
         self._min_stats_input = QLineEdit()
-        self._min_stats_input.setPlaceholderText("0")
+        self._min_stats_input.setPlaceholderText("")
         self._min_stats_input.setFixedWidth(60)
         self._min_stats_input.setStyleSheet(
             "QLineEdit { background:#0d0d1c; color:#ccc; border:1px solid #2a2a4a;"
@@ -5529,12 +5534,12 @@ class RoomOptimizerView(QWidget):
 
         controls.addSpacing(16)
 
-        self._max_risk_label = QLabel("Max inbreeding risk %:")
+        self._max_risk_label = QLabel()
         self._max_risk_label.setStyleSheet("color:#888; font-size:11px;")
         controls.addWidget(self._max_risk_label)
 
         self._max_risk_input = QLineEdit()
-        self._max_risk_input.setPlaceholderText("10")
+        self._max_risk_input.setPlaceholderText("")
         self._max_risk_input.setFixedWidth(60)
         self._max_risk_input.setStyleSheet(
             "QLineEdit { background:#0d0d1c; color:#ccc; border:1px solid #2a2a4a;"
@@ -5544,7 +5549,7 @@ class RoomOptimizerView(QWidget):
 
         controls.addSpacing(16)
 
-        self._optimize_btn = QPushButton("Calculate Optimal Distribution")
+        self._optimize_btn = QPushButton()
         self._optimize_btn.clicked.connect(self._calculate_optimal_distribution)
         self._optimize_btn.setStyleSheet(
             "QPushButton { background:#1f5f4a; color:#f2f7f3; border:1px solid #3f8f72; "
@@ -5556,14 +5561,10 @@ class RoomOptimizerView(QWidget):
 
         controls.addSpacing(8)
 
-        self._mode_toggle_btn = QPushButton("Mode: Pair Quality")
+        self._mode_toggle_btn = QPushButton()
         self._mode_toggle_btn.setCheckable(True)
         self._mode_toggle_btn.setChecked(False)
-        self._mode_toggle_btn.setToolTip(
-            "Toggle optimizer mode:\n"
-            "Pair Quality = best pair scoring\n"
-            "Family Separation = spread family lines across rooms"
-        )
+        self._mode_toggle_btn.setToolTip("")
         self._mode_toggle_btn.setStyleSheet(
             "QPushButton { background:#1a1a32; color:#aaa; border:1px solid #2a2a4a; "
             "border-radius:4px; padding:6px 12px; font-size:11px; }"
@@ -5633,11 +5634,8 @@ class RoomOptimizerView(QWidget):
         controls.addWidget(self._prefer_high_libido_checkbox)
 
         controls.addSpacing(16)
-        self._import_planner_btn = QPushButton("Import Breeding Planner")
-        self._import_planner_btn.setToolTip(
-            "Import weighted trait selections from the Mutation & Disorder Planner.\n"
-            "The optimizer will boost pairs that carry the selected traits."
-        )
+        self._import_planner_btn = QPushButton()
+        self._import_planner_btn.setToolTip("")
         self._import_planner_btn.setStyleSheet(
             "QPushButton { background:#2a2a5a; color:#bbbbee; border:1px solid #4a4a8a; "
             "border-radius:4px; padding:6px 12px; font-size:11px; }"
@@ -5657,7 +5655,12 @@ class RoomOptimizerView(QWidget):
         # Results table
         self._table = QTableWidget(0, 6)
         self._table.setHorizontalHeaderLabels([
-            "Room", "Cats to Place", "Expected Pairs", "Avg Stats", "Risk%", "Details"
+            _tr("room_optimizer.table.room"),
+            _tr("room_optimizer.table.cats"),
+            _tr("room_optimizer.table.expected_pairs"),
+            _tr("room_optimizer.table.avg_stats"),
+            _tr("room_optimizer.table.risk"),
+            _tr("room_optimizer.table.details"),
         ])
         self._table.verticalHeader().setVisible(False)
         self._table.setSelectionMode(QAbstractItemView.SingleSelection)
@@ -5705,19 +5708,13 @@ class RoomOptimizerView(QWidget):
         root.addWidget(self._splitter, 1)
 
         _enforce_min_font_in_widget_tree(self)
+        self.retranslate_ui()
 
     def _on_optimizer_mode_toggled(self, enabled: bool):
-        if enabled:
-            self._mode_toggle_btn.setText("Mode: Family Separation")
-            self._minimize_variance_checkbox.setChecked(False)
-            self._minimize_variance_checkbox.setEnabled(False)
-            self._minimize_variance_checkbox.setToolTip(
-                "Variance minimization is available in Pair Quality mode only."
-            )
-        else:
-            self._mode_toggle_btn.setText("Mode: Pair Quality")
-            self._minimize_variance_checkbox.setEnabled(True)
-            self._minimize_variance_checkbox.setToolTip("")
+        self._set_mode_button_text(enabled)
+        self._minimize_variance_checkbox.setChecked(False if enabled else _saved_optimizer_flag("minimize_variance", True))
+        self._minimize_variance_checkbox.setEnabled(not enabled)
+        self._minimize_variance_checkbox.setToolTip("" if not enabled else _tr("room_optimizer.tooltip.variance"))
 
     def _on_table_selection_changed(self):
         selected_ranges = self._table.selectedRanges()
@@ -5739,9 +5736,11 @@ class RoomOptimizerView(QWidget):
         alive_count = len([c for c in cats if c.status != 'Gone'])
         excluded_count = len([c for c in cats if c.status != 'Gone' and c.db_key in self._excluded_keys])
         if excluded_count > 0:
-            self._summary.setText(f"{alive_count} alive cats available ({excluded_count} excluded from breeding)")
+            self._summary.setText(_tr("room_optimizer.summary.with_excluded",
+                                       alive=alive_count, excluded=excluded_count))
         else:
-            self._summary.setText(f"{alive_count} alive cats available")
+            self._summary.setText(_tr("room_optimizer.summary.no_excluded",
+                                       alive=alive_count))
 
     def _navigate_to_cat_from_breeding_pairs(self, cat_name_formatted: str):
         """Navigate to a cat by its formatted name (e.g. 'Fluffy (Female)')."""
@@ -5767,19 +5766,39 @@ class RoomOptimizerView(QWidget):
             return
         self._planner_traits = self._planner_view.get_selected_traits()
         if not self._planner_traits:
-            self._import_planner_btn.setText("Import Breeding Planner")
-            self._import_planner_btn.setToolTip("No traits selected in the planner. Select traits first.")
+            self._import_planner_btn.setText(_tr("room_optimizer.import_planner"))
+            self._import_planner_btn.setToolTip(_tr("room_optimizer.import_none_tooltip"))
             return
         names = [f"{t['display'].split('] ')[-1]}({t['weight']})" for t in self._planner_traits[:4]]
         summary = ", ".join(names)
         if len(self._planner_traits) > 4:
             summary += f" +{len(self._planner_traits) - 4} more"
-        self._import_planner_btn.setText(f"Imported: {summary}")
+        self._import_planner_btn.setText(_tr("room_optimizer.imported", summary=summary))
         self._import_planner_btn.setStyleSheet(
             "QPushButton { background:#2a3a5a; color:#aaddff; border:1px solid #4a6a9a; "
             "border-radius:4px; padding:6px 12px; font-size:11px; }"
             "QPushButton:hover { background:#3a4a6a; color:#ddd; }"
         )
+
+    def retranslate_ui(self):
+        self._title.setText(_tr("room_optimizer.title"))
+        self._summary.setText(_tr("room_optimizer.summary_empty"))
+        self._min_stats_label.setText(_tr("room_optimizer.min_stats"))
+        self._min_stats_input.setPlaceholderText(_tr("room_optimizer.placeholder.min_stats"))
+        self._max_risk_label.setText(_tr("room_optimizer.max_risk"))
+        self._max_risk_input.setPlaceholderText(_tr("room_optimizer.placeholder.max_risk"))
+        self._optimize_btn.setText(_tr("room_optimizer.optimize_btn"))
+        self._set_mode_button_text(self._mode_toggle_btn.isChecked())
+        self._import_planner_btn.setText(_tr("room_optimizer.import_planner"))
+        self._import_planner_btn.setToolTip(_tr("room_optimizer.import_none_tooltip"))
+        self._table.setHorizontalHeaderLabels([
+            _tr("room_optimizer.table.room"),
+            _tr("room_optimizer.table.cats"),
+            _tr("room_optimizer.table.expected_pairs"),
+            _tr("room_optimizer.table.avg_stats"),
+            _tr("room_optimizer.table.risk"),
+            _tr("room_optimizer.table.details"),
+        ])
 
     def _calculate_optimal_distribution(self):
         """Kick off background optimizer worker."""
@@ -5812,7 +5831,7 @@ class RoomOptimizerView(QWidget):
         }
 
         self._optimize_btn.setEnabled(False)
-        self._summary.setText("Calculating…")
+        self._summary.setText(_tr("room_optimizer.status.calculating"))
 
         worker = RoomOptimizerWorker(
             self._cats,
@@ -5831,7 +5850,7 @@ class RoomOptimizerView(QWidget):
 
         if "error" in result:
             self._table.setRowCount(0)
-            self._summary.setText(result["error"])
+            self._summary.setText(_tr("room_optimizer.status.error", message=result["error"]))
             return
 
         room_rows = result["room_rows"]
