@@ -321,24 +321,21 @@ Useful controls:
 
 ## Inbreeding / Risk Calculation
 
-`Risk%` is based on Wright's Coefficient of Inbreeding using parsed ancestor paths.
+`Risk%` is based on Wright's Coefficient of Inbreeding (COI), computed from the family tree using a recursive kinship coefficient rather than the game's stored inbredness value.
 
 High level:
 
-1. Build ancestor paths for each cat
-2. Find shared ancestors
-3. Reject invalid path combinations that reuse the same cat improperly
-4. Sum valid path contributions
-5. Normalize to a capped percentage for display
+1. Build the full ancestor graph for each cat
+2. Compute `_kinship(parent_a, parent_b)` recursively with memoization
+3. Derive birth defect risk from the COI using the game's disorder + part-defect probability formula
 
-This is useful, but still experimental for very complex pedigrees.
+Inbredness labels use COI thresholds: not (≤0.10), slightly (≤0.25), moderately (≤0.50), highly (>0.50). Strays with no parents always show as not inbred.
 
 ## Known Limits
 
 - Some parser-derived fields are still under active research
 - Sexuality / gayness is not fully mapped yet
 - Ability / mutation text quality depends on available game data
-- Inbreeding and family analysis are good enough to use, but should still be treated as save-research features rather than absolute ground truth
 
 ## Changelog
 
