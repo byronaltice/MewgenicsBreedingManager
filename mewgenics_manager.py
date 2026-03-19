@@ -37,7 +37,7 @@ from PySide6.QtCore import (
     QThread,
 )
 from PySide6.QtGui import (
-    QColor, QBrush, QAction, QPalette, QFont, QKeySequence, QFontMetrics,
+    QColor, QBrush, QAction, QActionGroup, QPalette, QFont, QKeySequence, QFontMetrics,
     QDoubleValidator, QRegularExpressionValidator,
 )
 
@@ -136,6 +136,14 @@ APPDATA_CONFIG_DIR = os.path.join(
 )
 os.makedirs(APPDATA_CONFIG_DIR, exist_ok=True)
 APP_CONFIG_PATH = os.path.join(APPDATA_CONFIG_DIR, "settings.json")
+LOCALES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "locales")
+
+_SUPPORTED_LANGUAGES = {
+    "en": "language.english",
+    "zh_CN": "language.zh_cn",
+}
+_LOCALE_CACHE: dict[str, dict[str, str]] = {}
+_CURRENT_LANGUAGE = "en"
 
 STAT_COLORS = {
     1: QColor(170, 40,  40),
@@ -492,6 +500,81 @@ def _save_app_config(data: dict):
             json.dump(data, f, indent=2, sort_keys=True)
     except Exception:
         pass
+
+
+def _load_locale_catalog(language: str) -> dict[str, str]:
+    cached = _LOCALE_CACHE.get(language)
+    if cached is not None:
+        return cached
+    path = os.path.join(LOCALES_DIR, f"{language}.json")
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        catalog = data if isinstance(data, dict) else {}
+    except Exception:
+        catalog = {}
+    _LOCALE_CACHE[language] = catalog
+    return catalog
+
+
+def _saved_language() -> str:
+    data = _load_app_config()
+    value = data.get("language", "en")
+    return value if value in _SUPPORTED_LANGUAGES else "en"
+
+
+def _set_saved_language(language: str):
+    if language not in _SUPPORTED_LANGUAGES:
+        return
+    data = _load_app_config()
+    data["language"] = language
+    _save_app_config(data)
+
+
+def _set_current_language(language: str):
+    global _CURRENT_LANGUAGE
+    _CURRENT_LANGUAGE = language if language in _SUPPORTED_LANGUAGES else "en"
+    _load_locale_catalog("en")
+    if _CURRENT_LANGUAGE != "en":
+        _load_locale_catalog(_CURRENT_LANGUAGE)
+
+
+def _current_language() -> str:
+    return _CURRENT_LANGUAGE
+
+
+def _tr(key: str, default: Optional[str] = None, **kwargs) -> str:
+    text = _load_locale_catalog(_CURRENT_LANGUAGE).get(key)
+    if text is None:
+        text = _load_locale_catalog("en").get(key, default if default is not None else key)
+    if kwargs:
+        try:
+            text = text.format(**kwargs)
+        except Exception:
+            pass
+    return text
+
+
+def _language_label(language: str) -> str:
+    return _tr(_SUPPORTED_LANGUAGES.get(language, "language.english"))
+
+
+def _localized_room_display() -> dict[str, str]:
+    return {
+        "Floor1_Large": _tr("room.floor1_large"),
+        "Floor1_Small": _tr("room.floor1_small"),
+        "Floor2_Large": _tr("room.floor2_large"),
+        "Floor2_Small": _tr("room.floor2_small"),
+        "Attic": _tr("room.attic"),
+    }
+
+
+def _localized_status_abbrev() -> dict[str, str]:
+    return {
+        "In House": _tr("status.in_house"),
+        "Adventure": _tr("status.adventure"),
+        "Gone": _tr("status.gone"),
+    }
 
 
 def _saved_gpak_path() -> str:
@@ -3110,7 +3193,7 @@ def _load_must_breed(save_path: str, cats: list[Cat]):
 
 # ── Qt table model ────────────────────────────────────────────────────────────
 
-COLUMNS   = ["Name", "Age", "♀/♂", "Room", "Status", "BL", "MB"] + STAT_NAMES + ["Sum", "Abilities", "Mutations", "Relations", "Risk%", "Agg", "Lib", "Inbred", "Sexuality", "Gen", "Source"]
+COLUMNS: list[str] = []
 COL_NAME  = 0
 COL_AGE   = 1
 COL_GEN   = 2
@@ -3130,6 +3213,37 @@ COL_INBRD = 21
 COL_SEXUALITY = 22
 COL_GEN_DEPTH = 23
 COL_SRC   = 24
+
+
+def _refresh_localized_constants():
+    global ROOM_DISPLAY, STATUS_ABBREV, COLUMNS
+    ROOM_DISPLAY = _localized_room_display()
+    STATUS_ABBREV = _localized_status_abbrev()
+    COLUMNS = [
+        _tr("table.column.name"),
+        _tr("table.column.age"),
+        _tr("table.column.gender"),
+        _tr("table.column.room"),
+        _tr("table.column.status"),
+        _tr("table.column.blacklist"),
+        _tr("table.column.must_breed"),
+    ] + STAT_NAMES + [
+        _tr("table.column.sum"),
+        _tr("table.column.abilities"),
+        _tr("table.column.mutations"),
+        _tr("table.column.relations"),
+        _tr("table.column.risk"),
+        _tr("table.column.aggression"),
+        _tr("table.column.libido"),
+        _tr("table.column.inbred"),
+        _tr("table.column.sexuality"),
+        _tr("table.column.generation"),
+        _tr("table.column.source"),
+    ]
+
+
+_set_current_language(_saved_language())
+_refresh_localized_constants()
 
 # Fixed pixel widths for narrow columns
 _W_STATUS = 62
@@ -4992,9 +5106,9 @@ class SafeBreedingView(QWidget):
         lv = QVBoxLayout(left)
         lv.setContentsMargins(0, 0, 0, 0)
         lv.setSpacing(8)
-        lv.addWidget(QLabel("Alive cats", styleSheet="color:#666; font-size:10px; font-weight:bold;"))
+        self._list_title = QLabel(styleSheet="color:#666; font-size:10px; font-weight:bold;")
+        lv.addWidget(self._list_title)
         self._search = QLineEdit()
-        self._search.setPlaceholderText("Search cat name…")
         lv.addWidget(self._search)
         self._list = QListWidget()
         lv.addWidget(self._list, 1)
@@ -5004,12 +5118,11 @@ class SafeBreedingView(QWidget):
         rv = QVBoxLayout(right)
         rv.setContentsMargins(0, 0, 0, 0)
         rv.setSpacing(8)
-        self._title = QLabel("Safe Breeding")
+        self._title = QLabel()
         self._title.setStyleSheet("color:#ddd; font-size:16px; font-weight:bold;")
         self._summary = QLabel("")
         self._summary.setStyleSheet("color:#666; font-size:11px;")
         self._table = QTableWidget(0, 4)
-        self._table.setHorizontalHeaderLabels(["Cat", "Risk%", "Shared Anc.", "Children will be"])
         self._table.verticalHeader().setVisible(False)
         self._table.setSelectionMode(QAbstractItemView.SingleSelection)
         self._table.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -5033,7 +5146,19 @@ class SafeBreedingView(QWidget):
         self._search.textChanged.connect(self._refresh_list)
         self._list.currentItemChanged.connect(self._on_current_item_changed)
         self._table.cellClicked.connect(self._on_table_row_clicked)
+        self.retranslate_ui()
         _enforce_min_font_in_widget_tree(self)
+
+    def retranslate_ui(self):
+        self._list_title.setText(_tr("safe_breeding.list_title"))
+        self._search.setPlaceholderText(_tr("safe_breeding.search_placeholder"))
+        self._table.setHorizontalHeaderLabels([
+            _tr("safe_breeding.table.cat"),
+            _tr("safe_breeding.table.risk"),
+            _tr("safe_breeding.table.shared_ancestors"),
+            _tr("safe_breeding.table.child_outcome"),
+        ])
+        self._refresh_list()
 
     def set_cats(self, cats: list[Cat]):
         selected_key = None
@@ -5081,9 +5206,9 @@ class SafeBreedingView(QWidget):
                 continue
             text = f"{cat.name}  ({cat.gender_display})"
             if cat.is_blacklisted:
-                text += "  [BLOCKED]"
+                text += f"  [{_tr('safe_breeding.list.blocked')}]"
             if cat.must_breed:
-                text += "  [MUST]"
+                text += f"  [{_tr('safe_breeding.list.must')}]"
             item = QListWidgetItem(text)
             item.setData(Qt.UserRole, cat.db_key)
             if cat.is_blacklisted:
@@ -5119,12 +5244,12 @@ class SafeBreedingView(QWidget):
         self._table.setRowCount(0)
         self._table_row_cat_keys = []
         if cat is None:
-            self._title.setText("Safe Breeding")
-            self._summary.setText("Select an alive cat.")
+            self._title.setText(_tr("safe_breeding.title"))
+            self._summary.setText(_tr("safe_breeding.summary_empty"))
             return
 
         cache = self._cache
-        self._title.setText(f"Safe Breeding — {cat.name}")
+        self._title.setText(_tr("safe_breeding.title_with_cat", name=cat.name))
         candidates: list[tuple[float, int, int, Cat]] = []
         for other in self._alive:
             if other is cat:
@@ -5157,23 +5282,20 @@ class SafeBreedingView(QWidget):
             candidates.append((rel, recent_shared * 1000 + shared, closest_recent_gen, other))
         candidates.sort(key=lambda t: (t[0], t[1], (t[3].name or "").lower()))
 
-        self._summary.setText(
-            f"{len(candidates)} possible alive candidates  |  "
-            "Risk% = combined birth-defect probability from game CoI formula"
-        )
+        self._summary.setText(_tr("safe_breeding.summary", count=len(candidates)))
         self._table.setRowCount(len(candidates))
         for row, (rel, packed_shared, closest_recent_gen, other) in enumerate(candidates):
             self._table_row_cat_keys.append(other.db_key)
             shared = packed_shared % 1000
             risk_pct = int(round(rel))
             if risk_pct >= 100:
-                tag, col = "Highly Inbred", QColor(217, 119, 119)
+                tag, col = _tr("safe_breeding.tag.highly_inbred"), QColor(217, 119, 119)
             elif risk_pct >= 50:
-                tag, col = "Moderately Inbred", QColor(216, 181, 106)
+                tag, col = _tr("safe_breeding.tag.moderately_inbred"), QColor(216, 181, 106)
             elif risk_pct >= 20:
-                tag, col = "Slightly Inbred", QColor(143, 201, 230)
+                tag, col = _tr("safe_breeding.tag.slightly_inbred"), QColor(143, 201, 230)
             else:
-                tag, col = "Not Inbred", QColor(98, 194, 135)
+                tag, col = _tr("safe_breeding.tag.not_inbred"), QColor(98, 194, 135)
 
             name_item = QTableWidgetItem(f"{other.name} ({other.gender_display})")
             rel_item = QTableWidgetItem(f"{risk_pct}%")
@@ -7852,23 +7974,20 @@ class CalibrationView(QWidget):
         root.setContentsMargins(12, 12, 12, 12)
         root.setSpacing(10)
 
-        title = QLabel("Calibration")
-        title.setStyleSheet("color:#ddd; font-size:18px; font-weight:bold;")
-        root.addWidget(title)
+        self._title_label = QLabel()
+        self._title_label.setStyleSheet("color:#ddd; font-size:18px; font-weight:bold;")
+        root.addWidget(self._title_label)
 
-        desc = QLabel(
-            "Edit override values for alive cats. Blank = keep parser value. "
-            "Save applies overrides immediately and stores parser hints."
-        )
-        desc.setWordWrap(True)
-        desc.setStyleSheet("color:#8d8da8; font-size:11px;")
-        root.addWidget(desc)
+        self._desc_label = QLabel()
+        self._desc_label.setWordWrap(True)
+        self._desc_label.setStyleSheet("color:#8d8da8; font-size:11px;")
+        root.addWidget(self._desc_label)
 
         actions = QHBoxLayout()
-        self._save_btn = QPushButton("Save Calibration")
-        self._reload_btn = QPushButton("Reload From File")
-        self._export_btn = QPushButton("Export Calibration")
-        self._import_btn = QPushButton("Import Calibration")
+        self._save_btn = QPushButton()
+        self._reload_btn = QPushButton()
+        self._export_btn = QPushButton()
+        self._import_btn = QPushButton()
         self._status = QLabel("")
         self._status.setStyleSheet("color:#8d8da8; font-size:11px;")
         actions.addWidget(self._save_btn)
@@ -7877,12 +7996,11 @@ class CalibrationView(QWidget):
         actions.addWidget(self._import_btn)
         actions.addSpacing(16)
 
-        bulk_label = QLabel("Bulk Edit Selected:")
-        bulk_label.setStyleSheet("color:#888; font-size:11px;")
-        actions.addWidget(bulk_label)
+        self._bulk_label = QLabel()
+        self._bulk_label.setStyleSheet("color:#888; font-size:11px;")
+        actions.addWidget(self._bulk_label)
 
         self._bulk_sexuality_combo = QComboBox()
-        self._bulk_sexuality_combo.addItems(["Straight", "Gay", "Bi"])
         self._bulk_sexuality_combo.setFixedWidth(100)
         self._bulk_sexuality_combo.setStyleSheet(
             "QComboBox { background:#1a1a32; color:#ddd; border:1px solid #2a2a4a; padding:2px 6px; }"
@@ -7890,7 +8008,7 @@ class CalibrationView(QWidget):
         )
         actions.addWidget(self._bulk_sexuality_combo)
 
-        self._bulk_apply_btn = QPushButton("Apply Sexuality")
+        self._bulk_apply_btn = QPushButton()
         self._bulk_apply_btn.setStyleSheet(
             "QPushButton { background:#2a3a2a; color:#aaa; border:1px solid #3a5a3a; "
             "border-radius:4px; padding:4px 10px; font-size:10px; }"
@@ -7957,10 +8075,33 @@ class CalibrationView(QWidget):
         self._table.setSortingEnabled(True)
         root.addWidget(self._table, 1)
 
+        self.retranslate_ui()
         self._save_btn.clicked.connect(self._save_clicked)
         self._reload_btn.clicked.connect(self._reload_clicked)
         self._export_btn.clicked.connect(self._export_clicked)
         self._import_btn.clicked.connect(self._import_clicked)
+
+    def retranslate_ui(self):
+        self._title_label.setText(_tr("calibration.title"))
+        self._desc_label.setText(_tr("calibration.description"))
+        self._save_btn.setText(_tr("calibration.save"))
+        self._reload_btn.setText(_tr("calibration.reload"))
+        self._export_btn.setText(_tr("calibration.export"))
+        self._import_btn.setText(_tr("calibration.import"))
+        self._bulk_label.setText(_tr("calibration.bulk_edit_selected"))
+        current_value = self._bulk_sexuality_combo.currentData()
+        self._bulk_sexuality_combo.blockSignals(True)
+        self._bulk_sexuality_combo.clear()
+        self._bulk_sexuality_combo.addItem(_tr("calibration.sexuality.straight"), "straight")
+        self._bulk_sexuality_combo.addItem(_tr("calibration.sexuality.gay"), "gay")
+        self._bulk_sexuality_combo.addItem(_tr("calibration.sexuality.bi"), "bi")
+        index = self._bulk_sexuality_combo.findData(current_value)
+        if index >= 0:
+            self._bulk_sexuality_combo.setCurrentIndex(index)
+        self._bulk_sexuality_combo.blockSignals(False)
+        self._bulk_apply_btn.setText(_tr("calibration.apply_sexuality"))
+        if self._save_path and self._cats:
+            self.set_context(self._save_path, self._cats)
         _enforce_min_font_in_widget_tree(self)
 
     @staticmethod
@@ -8008,8 +8149,11 @@ class CalibrationView(QWidget):
     @staticmethod
     def _sexuality_combo(value: str) -> QComboBox:
         combo = QComboBox()
-        combo.addItems(["", "bi", "gay", "straight"])
-        idx = combo.findText((value or "").strip().lower(), Qt.MatchFixedString)
+        combo.addItem("", "")
+        combo.addItem(_tr("calibration.sexuality.bi"), "bi")
+        combo.addItem(_tr("calibration.sexuality.gay"), "gay")
+        combo.addItem(_tr("calibration.sexuality.straight"), "straight")
+        idx = combo.findData((value or "").strip().lower(), Qt.MatchFixedString)
         combo.setCurrentIndex(idx if idx >= 0 else 0)
         return combo
 
@@ -8116,7 +8260,8 @@ class CalibrationView(QWidget):
             agg = _normalize_trait_override("aggression", self._get_text_item(self._table, row, self.COL_OVR_AGG))
             lib = _normalize_trait_override("libido", self._get_text_item(self._table, row, self.COL_OVR_LIB))
             inb = _normalize_trait_override("inbredness", self._get_text_item(self._table, row, self.COL_OVR_INB))
-            sexuality_raw = self._get_text_item(self._table, row, self.COL_OVR_SEXUALITY).strip().lower()
+            sexuality_widget = self._table.cellWidget(row, self.COL_OVR_SEXUALITY)
+            sexuality_raw = sexuality_widget.currentData() if isinstance(sexuality_widget, QComboBox) else ""
             sexuality = sexuality_raw if sexuality_raw in ("bi", "gay", "straight") else ""
 
             # Collect base stats overrides
@@ -8241,17 +8386,24 @@ class CalibrationView(QWidget):
         """Apply sexuality to all selected rows."""
         selected_rows = sorted(set(idx.row() for idx in self._table.selectedIndexes()))
         if not selected_rows:
-            self._status.setText("Select rows to apply sexuality")
+            self._status.setText(_tr("calibration.status.select_rows"))
             return
 
-        sexuality = self._bulk_sexuality_combo.currentText().lower()
+        sexuality = str(self._bulk_sexuality_combo.currentData() or "")
         for row in selected_rows:
             widget = self._table.cellWidget(row, self.COL_OVR_SEXUALITY)
             if isinstance(widget, QComboBox):
-                widget.setCurrentText(sexuality)
+                idx = widget.findData(sexuality)
+                widget.setCurrentIndex(idx if idx >= 0 else 0)
 
         self._save_clicked()
-        self._status.setText(f"Applied {sexuality} to {len(selected_rows)} cat(s) and saved")
+        self._status.setText(
+            _tr(
+                "calibration.status.applied",
+                sexuality=_tr(f"calibration.sexuality.{sexuality}"),
+                count=len(selected_rows),
+            )
+        )
 
 _SIDEBAR_BTN = """
 QPushButton {
@@ -9453,11 +9605,13 @@ class MutationDisorderPlannerView(QWidget):
 class MainWindow(QMainWindow):
     @staticmethod
     def _set_bulk_toggle_label(btn: QPushButton, label: str, enabled: bool):
-        btn.setText(f"{label}: {'On' if enabled else 'Off'}")
+        btn.setText(_tr("bulk.label_template", label=label, state=_tr("common.on" if enabled else "common.off")))
 
     def __init__(self, initial_save: Optional[str] = None):
         super().__init__()
-        self.setWindowTitle("Mewgenics Breeding Manager")
+        _set_current_language(_saved_language())
+        _refresh_localized_constants()
+        self.setWindowTitle(_tr("app.title"))
         self.resize(1440, 900)
 
         self._current_save = None
@@ -9509,7 +9663,7 @@ class MainWindow(QMainWindow):
         self._cache_progress.setFixedWidth(200)
         self._cache_progress.setFixedHeight(16)
         self._cache_progress.setTextVisible(True)
-        self._cache_progress.setFormat("Computing breeding data… %p%")
+        self._cache_progress.setFormat(_tr("loading.cache.computing"))
         self._cache_progress.setStyleSheet(
             "QProgressBar { background:#1a1a32; border:1px solid #2a2a4a; border-radius:4px; color:#aaa; font-size:10px; }"
             "QProgressBar::chunk { background:#3f8f72; border-radius:3px; }"
@@ -9529,72 +9683,84 @@ class MainWindow(QMainWindow):
     # ── Menu ──────────────────────────────────────────────────────────────
 
     def _build_menu(self):
-        fm = self.menuBar().addMenu("File")
-        self._file_menu = fm
+        self.menuBar().clear()
+        fm = self.menuBar().addMenu(_tr("menu.file"))
 
-        oa = QAction("Open Save File...", self)
+        oa = QAction(_tr("menu.file.open_save"), self)
         oa.setShortcut("Ctrl+O")
         oa.triggered.connect(self._open_file)
         fm.addAction(oa)
 
         # Recent Saves submenu
-        self._recent_saves_menu = fm.addMenu("Recent Saves")
+        self._recent_saves_menu = fm.addMenu(_tr("menu.file.recent_saves"))
         self._recent_save_actions: list[QAction] = []
         self._refresh_recent_save_actions()
 
         fm.addSeparator()
 
         # Default Save submenu
-        default_menu = fm.addMenu("Default Save")
-        self._set_default_save_action = QAction("Set Current as Default", self)
+        self._default_save_menu = fm.addMenu(_tr("menu.file.default_save"))
+        self._set_default_save_action = QAction(_tr("menu.file.default_save.set_current"), self)
         self._set_default_save_action.triggered.connect(self._set_current_as_default)
         self._set_default_save_action.setEnabled(False)
-        default_menu.addAction(self._set_default_save_action)
+        self._default_save_menu.addAction(self._set_default_save_action)
 
-        self._clear_default_save_action = QAction("Clear Default", self)
+        self._clear_default_save_action = QAction(_tr("menu.file.default_save.clear"), self)
         self._clear_default_save_action.triggered.connect(self._clear_default_save)
         self._clear_default_save_action.setEnabled(False)
-        default_menu.addAction(self._clear_default_save_action)
+        self._default_save_menu.addAction(self._clear_default_save_action)
 
         fm.addSeparator()
 
-        ra = QAction("Reload", self)
+        ra = QAction(_tr("menu.file.reload"), self)
         ra.setShortcut("F5")
         ra.triggered.connect(self._reload)
         fm.addAction(ra)
 
-        recalc = QAction("Recalculate Breeding Data", self)
+        recalc = QAction(_tr("menu.file.recalculate_breeding_data"), self)
         recalc.setShortcut("Ctrl+F5")
-        recalc.setToolTip("Force full recomputation of breeding data (ignores disk cache)")
+        recalc.setToolTip(_tr("menu.file.recalculate_breeding_data.tooltip"))
         recalc.triggered.connect(lambda: self._start_breeding_cache(self._cats, force_full=True) if self._cats else None)
         fm.addAction(recalc)
 
-        clear_cache = QAction("Clear Breeding Cache", self)
-        clear_cache.setToolTip("Delete the on-disk breeding cache for the current save file")
+        clear_cache = QAction(_tr("menu.file.clear_breeding_cache"), self)
+        clear_cache.setToolTip(_tr("menu.file.clear_breeding_cache.tooltip"))
         clear_cache.triggered.connect(self._clear_breeding_cache)
         fm.addAction(clear_cache)
 
         fm.addSeparator()
 
-        exit_action = QAction("Exit", self)
+        exit_action = QAction(_tr("menu.file.exit"), self)
         exit_action.setShortcut("Alt+F4")
         exit_action.triggered.connect(self.close)
         fm.addAction(exit_action)
 
-        sm = self.menuBar().addMenu("Settings")
-        locations_action = QAction("Locations…", self)
+        sm = self.menuBar().addMenu(_tr("menu.settings"))
+        locations_action = QAction(_tr("menu.settings.locations"), self)
         locations_action.triggered.connect(self._open_locations_dialog)
         sm.addAction(locations_action)
 
         sm.addSeparator()
-        self._lineage_action = QAction("Show Family Tree && Inbreeding", self)
+        self._language_menu = sm.addMenu(_tr("language.menu"))
+        self._language_group = QActionGroup(self)
+        self._language_group.setExclusive(True)
+        for language in _SUPPORTED_LANGUAGES:
+            action = QAction(_language_label(language), self)
+            action.setCheckable(True)
+            action.setChecked(language == _current_language())
+            action.triggered.connect(lambda checked=False, lang=language: self._change_language(lang))
+            self._language_group.addAction(action)
+            self._language_menu.addAction(action)
+
+        sm.addSeparator()
+        self._lineage_action = QAction(_tr("menu.settings.show_lineage"), self)
         self._lineage_action.setCheckable(True)
-        self._lineage_action.setChecked(False)
+        self._lineage_action.setChecked(self._show_lineage)
         self._lineage_action.triggered.connect(self._toggle_lineage)
         sm.addAction(self._lineage_action)
 
         sm.addSeparator()
-        zoom_in = QAction("Zoom In", self)
+        zoom_in = QAction(_tr("menu.settings.zoom_in"), self)
         zoom_in_keys = QKeySequence.keyBindings(QKeySequence.StandardKey.ZoomIn)
         if not zoom_in_keys:
             zoom_in_keys = []
@@ -9605,7 +9771,7 @@ class MainWindow(QMainWindow):
         zoom_in.triggered.connect(lambda: self._change_zoom(+1))
         sm.addAction(zoom_in)
 
-        zoom_out = QAction("Zoom Out", self)
+        zoom_out = QAction(_tr("menu.settings.zoom_out"), self)
         zoom_out_keys = QKeySequence.keyBindings(QKeySequence.StandardKey.ZoomOut)
         if not zoom_out_keys:
             zoom_out_keys = []
@@ -9615,7 +9781,7 @@ class MainWindow(QMainWindow):
         zoom_out.triggered.connect(lambda: self._change_zoom(-1))
         sm.addAction(zoom_out)
 
-        zoom_reset = QAction("Reset Zoom", self)
+        zoom_reset = QAction(_tr("menu.settings.reset_zoom"), self)
         zoom_reset.setShortcut("Ctrl+0")
         zoom_reset.triggered.connect(self._reset_zoom)
         sm.addAction(zoom_reset)
@@ -9626,17 +9792,17 @@ class MainWindow(QMainWindow):
         self._update_zoom_info_action()
 
         sm.addSeparator()
-        fs_in = QAction("Increase Font Size", self)
+        fs_in = QAction(_tr("menu.settings.increase_font_size"), self)
         fs_in.setShortcut("Ctrl+]")
         fs_in.triggered.connect(lambda: self._change_font_size(+1))
         sm.addAction(fs_in)
 
-        fs_out = QAction("Decrease Font Size", self)
+        fs_out = QAction(_tr("menu.settings.decrease_font_size"), self)
         fs_out.setShortcut("Ctrl+[")
         fs_out.triggered.connect(lambda: self._change_font_size(-1))
         sm.addAction(fs_out)
 
-        fs_reset = QAction("Reset Font Size", self)
+        fs_reset = QAction(_tr("menu.settings.reset_font_size"), self)
         fs_reset.setShortcut("Ctrl+\\")
         fs_reset.triggered.connect(lambda: self._set_font_size_offset(0))
         sm.addAction(fs_reset)
@@ -9654,7 +9820,7 @@ class MainWindow(QMainWindow):
 
         saves = find_save_files()
         if not saves:
-            action = QAction(f"No saves found in {_save_root_dir()}", self)
+            action = QAction(_tr("menu.file.no_saves_found", path=_save_root_dir()), self)
             action.setEnabled(False)
             self._recent_saves_menu.addAction(action)
             self._recent_save_actions.append(action)
@@ -9669,33 +9835,30 @@ class MainWindow(QMainWindow):
 
     def _open_locations_dialog(self):
         dlg = QDialog(self)
-        dlg.setWindowTitle("Locations")
+        dlg.setWindowTitle(_tr("dialog.locations.title"))
         dlg.setModal(True)
         layout = QVBoxLayout(dlg)
         layout.setContentsMargins(14, 14, 14, 14)
         layout.setSpacing(10)
 
-        game_title = QLabel("Game Install")
+        game_title = QLabel(_tr("dialog.locations.game_install"))
         game_title.setStyleSheet(_NAME_STYLE)
         game_path_label = QLabel()
         game_path_label.setWordWrap(True)
         game_path_label.setStyleSheet(_META_STYLE)
 
-        save_title = QLabel("Save Root")
+        save_title = QLabel(_tr("dialog.locations.save_root"))
         save_title.setStyleSheet(_NAME_STYLE)
         save_path_label = QLabel()
         save_path_label.setWordWrap(True)
         save_path_label.setStyleSheet(_META_STYLE)
 
-        note_label = QLabel(
-            f"Default save root: {APPDATA_SAVE_DIR}\n"
-            "The save root should contain profile folders with a nested saves directory."
-        )
+        note_label = QLabel(_tr("dialog.locations.note", path=APPDATA_SAVE_DIR))
         note_label.setWordWrap(True)
         note_label.setStyleSheet(_META_STYLE)
 
         def _refresh_labels():
-            game_path_label.setText(_GPAK_PATH or "Not found")
+            game_path_label.setText(_GPAK_PATH or _tr("common.not_found"))
             save_path_label.setText(_save_root_dir())
 
         def _choose_game_dir():
@@ -9710,7 +9873,7 @@ class MainWindow(QMainWindow):
             )
             chosen_dir = QFileDialog.getExistingDirectory(
                 dlg,
-                "Select Mewgenics Install Folder",
+                _tr("dialog.locations.select_game_folder"),
                 start_dir,
             )
             if not chosen_dir:
@@ -9719,20 +9882,20 @@ class MainWindow(QMainWindow):
             if not os.path.exists(gpak_path):
                 QMessageBox.warning(
                     dlg,
-                    "resources.gpak not found",
-                    "The selected folder does not contain resources.gpak.",
+                    _tr("dialog.locations.resources_not_found.title"),
+                    _tr("dialog.locations.resources_not_found.body"),
                 )
                 return
             _set_gpak_path(gpak_path)
             _refresh_labels()
             if self._current_save:
                 self.load_save(self._current_save)
-            self.statusBar().showMessage(f"Using game data from {gpak_path}")
+            self.statusBar().showMessage(_tr("status.using_game_data", path=gpak_path))
 
         def _choose_save_dir():
             chosen_dir = QFileDialog.getExistingDirectory(
                 dlg,
-                "Select Mewgenics Save Root",
+                _tr("dialog.locations.select_save_root"),
                 _save_root_dir(),
             )
             if not chosen_dir:
@@ -9740,11 +9903,11 @@ class MainWindow(QMainWindow):
             _set_save_dir(chosen_dir)
             _refresh_labels()
             self._refresh_recent_save_actions()
-            self.statusBar().showMessage(f"Using save root {chosen_dir}")
+            self.statusBar().showMessage(_tr("status.using_save_root", path=chosen_dir))
 
-        game_btn = QPushButton("Change Game Folder…")
+        game_btn = QPushButton(_tr("dialog.locations.change_game_folder"))
         game_btn.clicked.connect(_choose_game_dir)
-        save_btn = QPushButton("Change Save Root…")
+        save_btn = QPushButton(_tr("dialog.locations.change_save_root"))
         save_btn.clicked.connect(_choose_save_dir)
 
         layout.addWidget(game_title)
@@ -9757,7 +9920,7 @@ class MainWindow(QMainWindow):
         layout.addSpacing(8)
         layout.addWidget(note_label)
 
-        close_btn = QPushButton("Close")
+        close_btn = QPushButton(_tr("common.close"))
         close_btn.clicked.connect(dlg.accept)
         layout.addWidget(close_btn, alignment=Qt.AlignRight)
 
@@ -9803,21 +9966,22 @@ class MainWindow(QMainWindow):
                             " letter-spacing:1px; padding:8px 4px 4px 4px;")
             return l
 
-        vb.addWidget(sl("FILTERS"))
-        self._btn_everyone = _sidebar_btn("All Cats")
+        self._filters_section_label = sl(_tr("sidebar.section.filters"))
+        vb.addWidget(self._filters_section_label)
+        self._btn_everyone = _sidebar_btn(_tr("sidebar.button.all_cats"))
         self._btn_everyone.clicked.connect(
             lambda: self._filter("__all__", self._btn_everyone))
         vb.addWidget(self._btn_everyone)
         self._room_btns["__all__"] = self._btn_everyone
 
-        self._btn_all = _sidebar_btn("Alive Cats")
+        self._btn_all = _sidebar_btn(_tr("sidebar.button.alive_cats"))
         self._btn_all.setChecked(True)
         self._active_btn = self._btn_all
         self._btn_all.clicked.connect(lambda: self._filter(None, self._btn_all))
         vb.addWidget(self._btn_all)
         self._room_btns[None] = self._btn_all
 
-        self._btn_exceptional = _sidebar_btn(f"Exceptional  (>= {EXCEPTIONAL_SUM_THRESHOLD})")
+        self._btn_exceptional = _sidebar_btn(f"{_tr('sidebar.button.exceptional')}  (>= {EXCEPTIONAL_SUM_THRESHOLD})")
         self._btn_exceptional.setToolTip(
             f"Exceptional breeders: base stat sum >= {EXCEPTIONAL_SUM_THRESHOLD}."
         )
@@ -9827,7 +9991,7 @@ class MainWindow(QMainWindow):
         vb.addWidget(self._btn_exceptional)
         self._room_btns["__exceptional__"] = self._btn_exceptional
 
-        self._btn_donation = _sidebar_btn(f"Donation Candidates  (<= {DONATION_SUM_THRESHOLD})")
+        self._btn_donation = _sidebar_btn(f"{_tr('sidebar.button.donation_candidates')}  (<= {DONATION_SUM_THRESHOLD})")
         self._btn_donation.setToolTip(
             "Donation candidates use documented heuristics: "
             f"base stat sum <= {DONATION_SUM_THRESHOLD}, "
@@ -9840,41 +10004,45 @@ class MainWindow(QMainWindow):
         self._room_btns["__donation__"] = self._btn_donation
 
         vb.addWidget(_hsep())
-        vb.addWidget(sl("BREEDING"))
-        self._btn_room_optimizer = _sidebar_btn("Room Optimizer")
+        self._breeding_section_label = sl(_tr("sidebar.section.breeding"))
+        vb.addWidget(self._breeding_section_label)
+        self._btn_room_optimizer = _sidebar_btn(_tr("sidebar.button.room_optimizer"))
         self._btn_room_optimizer.clicked.connect(self._open_room_optimizer)
         vb.addWidget(self._btn_room_optimizer)
-        self._btn_perfect_planner = _sidebar_btn("Perfect 7 Planner")
+        self._btn_perfect_planner = _sidebar_btn(_tr("sidebar.button.perfect_7_planner"))
         self._btn_perfect_planner.clicked.connect(self._open_perfect_planner_view)
         vb.addWidget(self._btn_perfect_planner)
-        self._btn_mutation_planner = _sidebar_btn("Mutation Planner")
+        self._btn_mutation_planner = _sidebar_btn(_tr("sidebar.button.mutation_planner"))
         self._btn_mutation_planner.clicked.connect(self._open_mutation_planner_view)
         vb.addWidget(self._btn_mutation_planner)
-        self._btn_safe_breeding_view = _sidebar_btn("Safe Breeding")
+        self._btn_safe_breeding_view = _sidebar_btn(_tr("sidebar.button.safe_breeding"))
         self._btn_safe_breeding_view.clicked.connect(self._open_safe_breeding_view)
         vb.addWidget(self._btn_safe_breeding_view)
-        self._btn_breeding_partners_view = _sidebar_btn("Breeding Partners")
+        self._btn_breeding_partners_view = _sidebar_btn(_tr("sidebar.button.breeding_partners"))
         self._btn_breeding_partners_view.clicked.connect(self._open_breeding_partners_view)
         vb.addWidget(self._btn_breeding_partners_view)
 
         vb.addWidget(_hsep())
-        vb.addWidget(sl("INFO"))
-        self._btn_tree_view = _sidebar_btn("Family Tree View")
+        self._info_section_label = sl(_tr("sidebar.section.info"))
+        vb.addWidget(self._info_section_label)
+        self._btn_tree_view = _sidebar_btn(_tr("sidebar.button.family_tree_view"))
         self._btn_tree_view.clicked.connect(self._open_tree_browser)
         vb.addWidget(self._btn_tree_view)
-        self._btn_calibration = _sidebar_btn("Calibration")
+        self._btn_calibration = _sidebar_btn(_tr("sidebar.button.calibration"))
         self._btn_calibration.clicked.connect(self._open_calibration_view)
         vb.addWidget(self._btn_calibration)
 
         vb.addWidget(_hsep())
-        vb.addWidget(sl("ROOMS"))
+        self._rooms_section_label = sl(_tr("sidebar.section.rooms"))
+        vb.addWidget(self._rooms_section_label)
         self._rooms_vb = QVBoxLayout(); self._rooms_vb.setSpacing(2)
         vb.addLayout(self._rooms_vb)
         vb.addWidget(_hsep())
 
-        vb.addWidget(sl("OTHER"))
-        self._btn_adventure = _sidebar_btn("On Adventure")
-        self._btn_gone      = _sidebar_btn("Gone")
+        self._other_section_label = sl(_tr("sidebar.section.other"))
+        vb.addWidget(self._other_section_label)
+        self._btn_adventure = _sidebar_btn(_tr("sidebar.button.on_adventure"))
+        self._btn_gone      = _sidebar_btn(_tr("sidebar.button.gone"))
         self._btn_adventure.clicked.connect(
             lambda: self._filter("__adventure__", self._btn_adventure))
         self._btn_gone.clicked.connect(
@@ -9886,18 +10054,18 @@ class MainWindow(QMainWindow):
 
         vb.addStretch()
 
-        self._save_lbl = QLabel("No save loaded")
+        self._save_lbl = QLabel(_tr("sidebar.no_save_loaded"))
         self._save_lbl.setStyleSheet("color:#444; font-size:10px;")
         self._save_lbl.setWordWrap(True)
         vb.addWidget(self._save_lbl)
 
-        rb = QPushButton("⟳  Reload  (F5)")
-        rb.setStyleSheet("QPushButton { color:#888; background:#1a1a32;"
+        self._reload_btn = QPushButton(_tr("sidebar.button.reload"))
+        self._reload_btn.setStyleSheet("QPushButton { color:#888; background:#1a1a32;"
                          " border:1px solid #2a2a4a; padding:7px;"
                          " border-radius:4px; font-size:11px; }"
                          "QPushButton:hover { background:#222244; }")
-        rb.clicked.connect(self._reload)
-        vb.addWidget(rb)
+        self._reload_btn.clicked.connect(self._reload)
+        vb.addWidget(self._reload_btn)
         return w
 
     def _rebuild_room_buttons(self, cats: list[Cat]):
@@ -9922,6 +10090,67 @@ class MainWindow(QMainWindow):
             self._rooms_vb.addWidget(btn)
             self._room_btns[room] = btn
 
+    def _refresh_filter_button_counts(self):
+        total = len(self._cats)
+        alive = sum(1 for c in self._cats if c.status != "Gone")
+        exceptional = sum(1 for c in self._cats if c.status != "Gone" and _is_exceptional_breeder(c))
+        donation = sum(1 for c in self._cats if c.status != "Gone" and _is_donation_candidate(c))
+        adv = sum(1 for c in self._cats if c.status == "Adventure")
+        gone = sum(1 for c in self._cats if c.status == "Gone")
+
+        self._btn_everyone.setText(f"{_tr('sidebar.button.all_cats')}  ({total})" if total else _tr("sidebar.button.all_cats"))
+        self._btn_all.setText(f"{_tr('sidebar.button.alive_cats')}  ({alive})" if total else _tr("sidebar.button.alive_cats"))
+        self._btn_exceptional.setText(f"{_tr('sidebar.button.exceptional')}  ({exceptional})")
+        self._btn_donation.setText(f"{_tr('sidebar.button.donation_candidates')}  ({donation})")
+        self._btn_adventure.setText(f"{_tr('sidebar.button.on_adventure')}  ({adv})" if total else _tr("sidebar.button.on_adventure"))
+        self._btn_gone.setText(f"{_tr('sidebar.button.gone')}  ({gone})" if total else _tr("sidebar.button.gone"))
+        self._btn_room_optimizer.setText(_tr("sidebar.button.room_optimizer"))
+        self._btn_perfect_planner.setText(_tr("sidebar.button.perfect_7_planner"))
+        self._btn_mutation_planner.setText(_tr("sidebar.button.mutation_planner"))
+        self._btn_safe_breeding_view.setText(_tr("sidebar.button.safe_breeding"))
+        self._btn_breeding_partners_view.setText(_tr("sidebar.button.breeding_partners"))
+        self._btn_tree_view.setText(_tr("sidebar.button.family_tree_view"))
+        self._btn_calibration.setText(_tr("sidebar.button.calibration"))
+
+    def _retranslate_ui(self):
+        current_room_key = next((key for key, btn in self._room_btns.items() if btn is self._active_btn), None)
+        _refresh_localized_constants()
+        self._build_menu()
+        self._filters_section_label.setText(_tr("sidebar.section.filters"))
+        self._breeding_section_label.setText(_tr("sidebar.section.breeding"))
+        self._info_section_label.setText(_tr("sidebar.section.info"))
+        self._rooms_section_label.setText(_tr("sidebar.section.rooms"))
+        self._other_section_label.setText(_tr("sidebar.section.other"))
+        self._reload_btn.setText(_tr("sidebar.button.reload"))
+        self._save_lbl.setText(os.path.basename(self._current_save) if self._current_save else _tr("sidebar.no_save_loaded"))
+        self._search.setPlaceholderText(_tr("header.search_placeholder"))
+        self._loading_label.setText(_tr("loading.save_file"))
+        self._cache_progress.setFormat(_tr("loading.cache.computing"))
+        self._refresh_filter_button_counts()
+        self._rebuild_room_buttons(self._cats)
+        if current_room_key in self._room_btns:
+            self._active_btn = self._room_btns[current_room_key]
+            self._active_btn.setChecked(True)
+        self._update_header(current_room_key)
+        self._update_count()
+        self._refresh_bulk_view_buttons()
+        if hasattr(self, "_source_model") and self._source_model is not None:
+            self._source_model.headerDataChanged.emit(Qt.Horizontal, 0, len(COLUMNS) - 1)
+        if self._safe_breeding_view is not None:
+            self._safe_breeding_view.retranslate_ui()
+        if self._calibration_view is not None:
+            self._calibration_view.retranslate_ui()
+
+    def _change_language(self, language: str):
+        if language not in _SUPPORTED_LANGUAGES or language == _current_language():
+            return
+        _set_saved_language(language)
+        _set_current_language(language)
+        self._retranslate_ui()
+        current_title = _language_label(language)
+        self.setWindowTitle(_tr("app.title_with_save", name=os.path.basename(self._current_save)) if self._current_save else _tr("app.title"))
+        self.statusBar().showMessage(_tr("status.language_changed", language=current_title))
+
     # ── Content ────────────────────────────────────────────────────────────
 
     def _build_content(self) -> QWidget:
@@ -9936,7 +10165,7 @@ class MainWindow(QMainWindow):
         hdr.setStyleSheet("background:#16213e; border-bottom:1px solid #1e1e38;")
         hdr.setFixedHeight(self._base_header_height)
         hb = QHBoxLayout(hdr); hb.setContentsMargins(14, 0, 14, 0)
-        self._header_lbl = QLabel("All Cats")
+        self._header_lbl = QLabel(_tr("header.filter.all_cats"))
         self._header_lbl.setStyleSheet("color:#eee; font-size:15px; font-weight:bold;")
         self._count_lbl = QLabel("")
         self._count_lbl.setStyleSheet("color:#555; font-size:12px; padding-left:8px;")
@@ -9952,7 +10181,7 @@ class MainWindow(QMainWindow):
             "QPushButton:pressed { background:#4c241b; }"
             "QPushButton:checked { background:#7a3626; border:1px solid #b35b48; }"
         )
-        self._set_bulk_toggle_label(self._bulk_blacklist_btn, "Breeding Block", False)
+        self._set_bulk_toggle_label(self._bulk_blacklist_btn, _tr("bulk.breeding_block"), False)
         self._bulk_blacklist_btn.clicked.connect(self._toggle_blacklist_filtered_cats)
         self._bulk_must_breed_btn = QPushButton()
         self._bulk_must_breed_btn.setCheckable(True)
@@ -9964,7 +10193,7 @@ class MainWindow(QMainWindow):
             "QPushButton:pressed { background:#312c4f; }"
             "QPushButton:checked { background:#514890; border:1px solid #7d73c7; }"
         )
-        self._set_bulk_toggle_label(self._bulk_must_breed_btn, "Must Breed", False)
+        self._set_bulk_toggle_label(self._bulk_must_breed_btn, _tr("bulk.must_breed"), False)
         self._bulk_must_breed_btn.clicked.connect(self._toggle_must_breed_filtered_cats)
         bulk_container = QWidget()
         self._bulk_actions_layout = QHBoxLayout(bulk_container)
@@ -9973,7 +10202,7 @@ class MainWindow(QMainWindow):
         self._bulk_actions_layout.addWidget(self._bulk_must_breed_btn)
         self._bulk_actions_layout.addWidget(self._bulk_blacklist_btn)
         self._search = QLineEdit()
-        self._search.setPlaceholderText("Search cats, abilities, mutations…")
+        self._search.setPlaceholderText(_tr("header.search_placeholder"))
         self._search.setClearButtonEnabled(True)
         self._search.setFixedWidth(self._base_search_width)
         self._search.setStyleSheet(
@@ -10144,7 +10373,7 @@ class MainWindow(QMainWindow):
         self._loading_overlay.setStyleSheet("background:#0a0a18;")
         lo_vb = QVBoxLayout(self._loading_overlay)
         lo_vb.setAlignment(Qt.AlignCenter)
-        self._loading_label = QLabel("Loading save file\u2026")
+        self._loading_label = QLabel(_tr("loading.save_file"))
         self._loading_label.setStyleSheet("color:#aaa; font-size:15px; font-weight:bold;")
         self._loading_label.setAlignment(Qt.AlignCenter)
         self._loading_bar = QProgressBar()
@@ -10268,15 +10497,15 @@ class MainWindow(QMainWindow):
         if alive_view:
             self._bulk_blacklist_btn.blockSignals(True)
             self._bulk_blacklist_btn.setCheckable(False)
-            self._bulk_blacklist_btn.setText("Toggle Breeding Block")
+            self._bulk_blacklist_btn.setText(_tr("bulk.toggle_breeding_block"))
             self._bulk_blacklist_btn.setEnabled(True)
-            self._bulk_blacklist_btn.setToolTip("Toggle breeding block on selected cats")
+            self._bulk_blacklist_btn.setToolTip(_tr("bulk.toggle_breeding_block.tooltip"))
             self._bulk_blacklist_btn.blockSignals(False)
             self._bulk_must_breed_btn.blockSignals(True)
             self._bulk_must_breed_btn.setCheckable(False)
-            self._bulk_must_breed_btn.setText("Toggle Must Breed")
+            self._bulk_must_breed_btn.setText(_tr("bulk.toggle_must_breed"))
             self._bulk_must_breed_btn.setEnabled(True)
-            self._bulk_must_breed_btn.setToolTip("Toggle must breed on selected cats")
+            self._bulk_must_breed_btn.setToolTip(_tr("bulk.toggle_must_breed.tooltip"))
             self._bulk_must_breed_btn.blockSignals(False)
             return
         cats = self._visible_filtered_cats()
@@ -10288,14 +10517,12 @@ class MainWindow(QMainWindow):
             any_blocked = any(cat.is_blacklisted for cat in cats)
             self._bulk_blacklist_btn.setChecked(False)
             self._bulk_blacklist_btn.setEnabled(any_blocked)
-            self._bulk_blacklist_btn.setText("Clear Breeding Block")
-            self._bulk_blacklist_btn.setToolTip(
-                "Exceptional view only clears breeding blocks so high-value cats stay in the exceptional filter."
-            )
+            self._bulk_blacklist_btn.setText(_tr("bulk.clear_breeding_block"))
+            self._bulk_blacklist_btn.setToolTip(_tr("bulk.clear_breeding_block.tooltip"))
         else:
             self._bulk_blacklist_btn.setChecked(all_blocked)
             self._bulk_blacklist_btn.setEnabled(True)
-            self._set_bulk_toggle_label(self._bulk_blacklist_btn, "Breeding Block", all_blocked)
+            self._set_bulk_toggle_label(self._bulk_blacklist_btn, _tr("bulk.breeding_block"), all_blocked)
             self._bulk_blacklist_btn.setToolTip("")
         self._bulk_blacklist_btn.blockSignals(False)
         self._bulk_must_breed_btn.setCheckable(True)
@@ -10304,14 +10531,12 @@ class MainWindow(QMainWindow):
             any_must_breed = any(cat.must_breed for cat in cats)
             self._bulk_must_breed_btn.setChecked(False)
             self._bulk_must_breed_btn.setEnabled(any_must_breed)
-            self._bulk_must_breed_btn.setText("Clear Must Breed")
-            self._bulk_must_breed_btn.setToolTip(
-                "Donation view only clears Must Breed so those cats stay in the donation-candidate filter."
-            )
+            self._bulk_must_breed_btn.setText(_tr("bulk.clear_must_breed"))
+            self._bulk_must_breed_btn.setToolTip(_tr("bulk.clear_must_breed.tooltip"))
         else:
             self._bulk_must_breed_btn.setChecked(all_must_breed)
             self._bulk_must_breed_btn.setEnabled(True)
-            self._set_bulk_toggle_label(self._bulk_must_breed_btn, "Must Breed", all_must_breed)
+            self._set_bulk_toggle_label(self._bulk_must_breed_btn, _tr("bulk.must_breed"), all_must_breed)
             self._bulk_must_breed_btn.setToolTip("")
         self._bulk_must_breed_btn.blockSignals(False)
 
@@ -10795,30 +11020,29 @@ class MainWindow(QMainWindow):
 
     def _update_header(self, room_key):
         if room_key == "__all__":
-            self._header_lbl.setText("All Cats")
+            self._header_lbl.setText(_tr("header.filter.all_cats"))
         elif room_key is None:
-            self._header_lbl.setText("Alive")
+            self._header_lbl.setText(_tr("header.filter.alive"))
         elif room_key == "__exceptional__":
-            self._header_lbl.setText("Exceptional Cats")
+            self._header_lbl.setText(_tr("header.filter.exceptional"))
         elif room_key == "__donation__":
-            self._header_lbl.setText("Donation Candidates")
+            self._header_lbl.setText(_tr("header.filter.donation"))
         elif room_key == "__gone__":
-            self._header_lbl.setText("Gone")
+            self._header_lbl.setText(_tr("header.filter.gone"))
         elif room_key == "__adventure__":
-            self._header_lbl.setText("On Adventure")
+            self._header_lbl.setText(_tr("header.filter.adventure"))
         else:
             self._header_lbl.setText(ROOM_DISPLAY.get(room_key, room_key))
 
     def _update_count(self):
         visible = self._proxy_model.rowCount()
         total   = self._source_model.rowCount()
-        self._count_lbl.setText(f"  {visible} / {total} cats")
+        self._count_lbl.setText(_tr("header.count", visible=visible, total=total))
 
         placed = sum(1 for c in self._cats if c.status == "In House")
         adv    = sum(1 for c in self._cats if c.status == "Adventure")
         gone   = sum(1 for c in self._cats if c.status == "Gone")
-        self._summary_lbl.setText(
-            f"House: {placed}  |  Away: {adv}  |  Gone: {gone}")
+        self._summary_lbl.setText(_tr("header.summary", placed=placed, adv=adv, gone=gone))
 
     def _on_blacklist_changed(self):
         if self._current_save:
@@ -10839,10 +11063,7 @@ class MainWindow(QMainWindow):
             return
         cal_explicit, cal_token, cal_rows = _apply_calibration(self._current_save, self._cats)
         self._source_model.load(self._cats)
-        exceptional = sum(1 for c in self._cats if c.status != "Gone" and _is_exceptional_breeder(c))
-        donation = sum(1 for c in self._cats if c.status != "Gone" and _is_donation_candidate(c))
-        self._btn_exceptional.setText(f"Exceptional  ({exceptional})")
-        self._btn_donation.setText(f"Donation Candidates  ({donation})")
+        self._refresh_filter_button_counts()
         if self._safe_breeding_view is not None:
             self._safe_breeding_view.set_cats(self._cats)
         if self._breeding_partners_view is not None:
@@ -10891,13 +11112,13 @@ class MainWindow(QMainWindow):
         if not force_full and save_path:
             existing = BreedingCache.load_from_disk(save_path)
             if existing is not None:
-                self._cache_progress.setFormat("Loading cached breeding data\u2026 %p%")
+                self._cache_progress.setFormat(_tr("loading.cache.loading_cached"))
             elif prev_cache is not None:
-                self._cache_progress.setFormat("Updating breeding data\u2026 %p%")
+                self._cache_progress.setFormat(_tr("loading.cache.updating"))
             else:
-                self._cache_progress.setFormat("Computing breeding data\u2026 %p%")
+                self._cache_progress.setFormat(_tr("loading.cache.computing"))
         else:
-            self._cache_progress.setFormat("Computing breeding data\u2026 %p%")
+            self._cache_progress.setFormat(_tr("loading.cache.computing"))
 
         worker = BreedingCacheWorker(
             cats, save_path=save_path, existing_pairwise=existing,
@@ -10918,17 +11139,17 @@ class MainWindow(QMainWindow):
     def _clear_breeding_cache(self):
         """Delete the on-disk breeding cache for the current save file."""
         if not self._current_save:
-            self.statusBar().showMessage("No save loaded — nothing to clear")
+            self.statusBar().showMessage(_tr("status.no_save_loaded_clear"))
             return
         cp = _breeding_cache_path(self._current_save)
         if os.path.exists(cp):
             try:
                 os.remove(cp)
-                self.statusBar().showMessage("Breeding cache cleared — next load will recompute from scratch")
+                self.statusBar().showMessage(_tr("status.cache_cleared"))
             except OSError as e:
                 self.statusBar().showMessage(f"Could not delete cache: {e}")
         else:
-            self.statusBar().showMessage("No on-disk breeding cache found for this save")
+            self.statusBar().showMessage(_tr("status.cache_missing"))
 
     def _on_phase1_ready(self, cache: BreedingCache):
         """Ancestry computed — push to table and Safe Breeding so they're usable immediately."""
@@ -10938,7 +11159,7 @@ class MainWindow(QMainWindow):
             self._safe_breeding_view.set_cache(cache)
         if self._perfect_planner_view is not None:
             self._perfect_planner_view.set_cache(cache)
-        self._cache_progress.setFormat("Computing pair risks\u2026 %p%")
+        self._cache_progress.setFormat(_tr("loading.cache.pair_risks"))
 
     def _on_cache_ready(self, cache: BreedingCache):
         self._breeding_cache = cache
@@ -10972,7 +11193,7 @@ class MainWindow(QMainWindow):
 
         # Show overlay while parsing (background thread — main thread stays responsive for repaint)
         name = os.path.basename(path)
-        self._loading_label.setText(f"Loading {name}\u2026")
+        self._loading_label.setText(_tr("loading.save_named", name=name))
         overlay = self._loading_overlay
         parent = overlay.parentWidget()
         if parent:
@@ -11002,19 +11223,7 @@ class MainWindow(QMainWindow):
             self._cats = cats
             self._source_model.load(cats)
             self._rebuild_room_buttons(cats)
-            # Update fixed sidebar button counts
-            total = len(cats)
-            alive = sum(1 for c in cats if c.status != "Gone")
-            exceptional = sum(1 for c in cats if c.status != "Gone" and _is_exceptional_breeder(c))
-            donation = sum(1 for c in cats if c.status != "Gone" and _is_donation_candidate(c))
-            adv   = sum(1 for c in cats if c.status == "Adventure")
-            gone  = sum(1 for c in cats if c.status == "Gone")
-            self._btn_everyone.setText(f"All Cats  ({total})")
-            self._btn_all.setText(f"Alive Cats  ({alive})")
-            self._btn_exceptional.setText(f"Exceptional  ({exceptional})")
-            self._btn_donation.setText(f"Donation Candidates  ({donation})")
-            self._btn_adventure.setText(f"On Adventure  ({adv})")
-            self._btn_gone.setText(f"Gone  ({gone})")
+            self._refresh_filter_button_counts()
             self._filter(None, self._btn_all)
             # Only push cats to currently visible views immediately.
             # Hidden views call set_cats themselves when shown via _show_* methods.
@@ -11032,7 +11241,7 @@ class MainWindow(QMainWindow):
                 self._calibration_view.set_context(self._current_save, cats)
             name = os.path.basename(self._current_save)
             self._save_lbl.setText(name)
-            self.setWindowTitle(f"Mewgenics Breeding Manager \u2014 {name}")
+            self.setWindowTitle(_tr("app.title_with_save", name=name))
 
             msg = f"Loaded {len(cats)} cats from {name}"
             if errors:
@@ -11091,8 +11300,11 @@ class MainWindow(QMainWindow):
         saves   = find_save_files()
         start   = os.path.dirname(saves[0]) if saves else os.path.expanduser("~")
         path, _ = QFileDialog.getOpenFileName(
-            self, "Open Mewgenics Save File", start,
-            "Save Files (*.sav);;All Files (*)")
+            self,
+            _tr("dialog.open_save.title"),
+            start,
+            _tr("dialog.open_save.filter"),
+        )
         if path:
             self.load_save(path)
 
@@ -11176,7 +11388,7 @@ class MainWindow(QMainWindow):
 
     def _update_zoom_info_action(self):
         if hasattr(self, "_zoom_info_action"):
-            self._zoom_info_action.setText(f"Zoom: {self._zoom_percent}%")
+            self._zoom_info_action.setText(_tr("menu.settings.zoom_info", percent=self._zoom_percent))
 
     def _set_zoom(self, percent: int):
         clamped = max(_ZOOM_MIN, min(_ZOOM_MAX, int(percent)))
@@ -11210,7 +11422,7 @@ class MainWindow(QMainWindow):
         if hasattr(self, "_font_size_info_action"):
             off = self._font_size_offset
             label = f"+{off}pt" if off > 0 else f"{off}pt" if off < 0 else "default"
-            self._font_size_info_action.setText(f"Font size: {label}")
+            self._font_size_info_action.setText(_tr("menu.settings.font_size_info", label=label))
 
     def _apply_zoom(self):
         app = QApplication.instance()
@@ -11288,7 +11500,7 @@ class SaveSelectorDialog(QDialog):
 
     def __init__(self, saves: list[str], parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Mewgenics Breeding Manager — Select Save")
+        self.setWindowTitle(f"{_tr('app.title')} — {_tr('save_picker.title')}")
         self.setFixedSize(520, 360)
         self.setStyleSheet(
             "QDialog { background:#0d0d1c; }"
@@ -11308,7 +11520,7 @@ class SaveSelectorDialog(QDialog):
         vb.setContentsMargins(16, 16, 16, 16)
         vb.setSpacing(12)
 
-        title = QLabel("Select a save file to open")
+        title = QLabel(_tr("save_picker.title"))
         title.setStyleSheet("color:#ddd; font-size:16px; font-weight:bold;")
         vb.addWidget(title)
 
@@ -11327,12 +11539,12 @@ class SaveSelectorDialog(QDialog):
 
         btn_row = QHBoxLayout()
         btn_row.addStretch()
-        self._open_btn = QPushButton("Open")
+        self._open_btn = QPushButton(_tr("save_picker.open"))
         self._open_btn.clicked.connect(self._accept)
         self._open_btn.setEnabled(len(saves) > 0)
         btn_row.addWidget(self._open_btn)
 
-        browse_btn = QPushButton("Browse…")
+        browse_btn = QPushButton(_tr("save_picker.browse"))
         browse_btn.setStyleSheet(
             "QPushButton { background:#1a1a32; color:#aaa; border:1px solid #2a2a4a; }"
             "QPushButton:hover { background:#252545; color:#ddd; }"
@@ -11349,9 +11561,10 @@ class SaveSelectorDialog(QDialog):
 
     def _browse(self):
         path, _ = QFileDialog.getOpenFileName(
-            self, "Open Mewgenics Save File",
+            self,
+            _tr("dialog.open_save.title"),
             str(Path.home()),
-            "Save Files (*.sav);;All Files (*)",
+            _tr("dialog.open_save.filter"),
         )
         if path:
             self._selected_path = path
