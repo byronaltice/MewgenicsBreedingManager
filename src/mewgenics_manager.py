@@ -20,11 +20,20 @@ import math
 import logging
 from pathlib import Path
 from typing import Optional
+
+# Handle imports from tools/ when running from src/ subdirectory
+_proj_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _proj_root not in sys.path:
+    sys.path.insert(0, _proj_root)
+
 try:
-    from visual_mutation_catalog import load_visual_mutation_names
-except ModuleNotFoundError:
-    # Support repo layout where the catalog utility lives under tools/.
     from tools.visual_mutation_catalog import load_visual_mutation_names
+except (ModuleNotFoundError, ImportError):
+    try:
+        from visual_mutation_catalog import load_visual_mutation_names
+    except ModuleNotFoundError as e:
+        print(f"ERROR: Could not load visual_mutation_catalog from {_proj_root}/tools/ or current directory")
+        raise
 
 logger = logging.getLogger("mewgenics")
 
@@ -63,7 +72,7 @@ from save_parser import (
     _VISUAL_MUTATION_FIELDS, _VISUAL_MUTATION_PART_LABELS,
     _appearance_group_names, _appearance_preview_text,
     _stimulation_inheritance_weight, _inheritance_candidates,
-    _trait_inheritance_probabilities, set_visual_mut_data,
+    set_visual_mut_data,
     _malady_breakdown, _combined_malady_chance,
     ROOM_KEYS, EXCEPTIONAL_SUM_THRESHOLD, DONATION_SUM_THRESHOLD, DONATION_MAX_TOP_STAT,
 )
@@ -11531,8 +11540,46 @@ class MainWindow(QMainWindow):
 
     # ── Breeding cache ──────────────────────────────────────────────────
 
+    @staticmethod
+    def _cache_cat_fingerprint(cat: 'Cat') -> tuple:
+        """Tuple of every field that affects cache computation (not room/display)."""
+        return (
+            cat.db_key,
+            cat.parent_a.db_key if cat.parent_a is not None else None,
+            cat.parent_b.db_key if cat.parent_b is not None else None,
+            cat.status,
+            cat.gender,
+        )
+
+    def _only_display_changed(self, new_cats: list['Cat']) -> bool:
+        """Return True if self._cats and new_cats differ only in display fields (e.g. room)."""
+        if not self._cats:
+            return False
+        old_fps = {c.db_key: self._cache_cat_fingerprint(c) for c in self._cats}
+        new_fps = {c.db_key: self._cache_cat_fingerprint(c) for c in new_cats}
+        return old_fps == new_fps
+
     def _start_breeding_cache(self, cats: list[Cat], force_full: bool = False):
         """Kick off background computation of the breeding cache."""
+        # Fast path: skip rebuild when only display fields (e.g. room) changed
+        if (not force_full
+                and self._breeding_cache is not None
+                and self._breeding_cache.ready
+                and self._only_display_changed(cats)):
+            # Refresh cat object references so views see updated rooms
+            self._breeding_cache._cats_by_key = {
+                c.db_key: c for c in cats if c.status != "Gone"
+            }
+            # Keep _prev_parent_keys current for the next reload's incremental check
+            self._prev_parent_keys = {
+                c.db_key: (
+                    c.parent_a.db_key if c.parent_a is not None else None,
+                    c.parent_b.db_key if c.parent_b is not None else None,
+                )
+                for c in cats
+            }
+            return
+
         # Cancel any in-progress worker
         if self._cache_worker is not None:
             self._cache_worker.quit()

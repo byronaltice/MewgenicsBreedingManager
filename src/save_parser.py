@@ -980,6 +980,15 @@ def can_breed(a: Cat, b: Cat) -> tuple[bool, str]:
     # Sexuality check
     sa = (getattr(a, "sexuality", None) or "straight").lower()
     sb = (getattr(b, "sexuality", None) or "straight").lower()
+
+    # "bi" sexuality can breed with anyone
+    if sa == "bi" or sb == "bi":
+        if ga != "?" and gb != "?":
+            return True, ""
+
+    if ga == "?" or gb == "?":
+        return True, ""
+
     if ga != "?" and gb != "?":
         same_gender = ga == gb
         if sa == "gay" and not same_gender:
@@ -990,11 +999,6 @@ def can_breed(a: Cat, b: Cat) -> tuple[bool, str]:
             return False, f"{a.name} is straight — needs opposite-gender partner"
         if sb == "straight" and same_gender:
             return False, f"{b.name} is straight — needs opposite-gender partner"
-
-    if ga == "?" or gb == "?":
-        return True, ""
-    if sa == "bi" or sb == "bi":
-        return True, ""
     if sa == "gay" or sb == "gay":
         return True, ""
     if ga != gb and {ga, gb} == {"male", "female"}:

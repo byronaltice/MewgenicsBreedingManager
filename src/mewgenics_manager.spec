@@ -1,7 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 a = Analysis(
-    ['mewgenics_manager.py'],
+    ['src/mewgenics_manager.py'],
     pathex=[],
     binaries=[],
     datas=[

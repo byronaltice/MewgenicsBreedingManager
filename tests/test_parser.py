@@ -8,8 +8,13 @@ import sys
 import os
 from types import SimpleNamespace
 
-# Ensure the project root is on the path so save_parser can be imported
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import pytest
+
+# Ensure src/ directory is on the path so save_parser can be imported
+_proj_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_src_dir = os.path.join(_proj_root, 'src')
+sys.path.insert(0, _src_dir)
+sys.path.insert(0, _proj_root)
 
 from save_parser import (
     BinaryReader,
@@ -48,36 +53,53 @@ from breeding import (
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
+class CatStub:
+    """Minimal hashable Cat stub for testing without binary parsing."""
+
+    def __init__(self, **kwargs):
+        self.db_key = kwargs.get("db_key", 1)
+        self.name = kwargs.get("name", "TestCat")
+        self.gender = kwargs.get("gender", "male")
+        self.sexuality = kwargs.get("sexuality", "straight")
+        self.status = kwargs.get("status", "In House")
+        self.room = kwargs.get("room", "Floor1_Large")
+        self.generation = kwargs.get("generation", 0)
+        self.parent_a = kwargs.get("parent_a", None)
+        self.parent_b = kwargs.get("parent_b", None)
+        self.children = kwargs.get("children", [])
+        self.lovers = kwargs.get("lovers", [])
+        self.haters = kwargs.get("haters", [])
+        self.base_stats = kwargs.get("base_stats", {s: 4 for s in STAT_NAMES})
+        self.total_stats = kwargs.get("total_stats", {s: 4 for s in STAT_NAMES})
+        self.aggression = kwargs.get("aggression", 0.5)
+        self.libido = kwargs.get("libido", 0.5)
+        self.inbredness = kwargs.get("inbredness", 0.0)
+        self.age = kwargs.get("age", 5)
+        self.abilities = kwargs.get("abilities", [])
+        self.passive_abilities = kwargs.get("passive_abilities", [])
+        self.mutations = kwargs.get("mutations", [])
+        self.disorders = kwargs.get("disorders", [])
+        self.unique_id = kwargs.get("unique_id", "0x1")
+        self.is_blacklisted = False
+        self.must_breed = False
+
+    def __hash__(self):
+        """Make TestCat hashable so it can be used in sets and as dict keys."""
+        return hash(self.db_key)
+
+    def __eq__(self, other):
+        """Compare CatStub objects by db_key."""
+        if not isinstance(other, CatStub):
+            return False
+        return self.db_key == other.db_key
+
+    def __repr__(self):
+        return f"CatStub(db_key={self.db_key}, name={self.name!r})"
+
+
 def _make_cat(**kwargs):
     """Create a minimal Cat-like stub for testing without binary parsing."""
-    cat = SimpleNamespace(
-        db_key=kwargs.get("db_key", 1),
-        name=kwargs.get("name", "TestCat"),
-        gender=kwargs.get("gender", "male"),
-        sexuality=kwargs.get("sexuality", "straight"),
-        status=kwargs.get("status", "In House"),
-        room=kwargs.get("room", "Floor1_Large"),
-        generation=kwargs.get("generation", 0),
-        parent_a=kwargs.get("parent_a", None),
-        parent_b=kwargs.get("parent_b", None),
-        children=kwargs.get("children", []),
-        lovers=kwargs.get("lovers", []),
-        haters=kwargs.get("haters", []),
-        base_stats=kwargs.get("base_stats", {s: 4 for s in STAT_NAMES}),
-        total_stats=kwargs.get("total_stats", {s: 4 for s in STAT_NAMES}),
-        aggression=kwargs.get("aggression", 0.5),
-        libido=kwargs.get("libido", 0.5),
-        inbredness=kwargs.get("inbredness", 0.0),
-        age=kwargs.get("age", 5),
-        abilities=kwargs.get("abilities", []),
-        passive_abilities=kwargs.get("passive_abilities", []),
-        mutations=kwargs.get("mutations", []),
-        disorders=kwargs.get("disorders", []),
-        unique_id=kwargs.get("unique_id", "0x1"),
-        is_blacklisted=False,
-        must_breed=False,
-    )
-    return cat
+    return CatStub(**kwargs)
 
 
 # ── BinaryReader tests ───────────────────────────────────────────────────────
@@ -372,10 +394,11 @@ class TestAncestry:
 
 
 class TestInbreeding:
-    def test_unrelated_zero_risk(self):
+    def test_unrelated_minimal_risk(self):
         a = _make_cat(db_key=1, name="A")
         b = _make_cat(db_key=2, name="B", gender="female")
-        assert risk_percent(a, b) == 0.0
+        # Even unrelated cats have a base 2% disorder rate per game logic
+        assert risk_percent(a, b) == pytest.approx(2.0)
 
     def test_siblings_nonzero_risk(self):
         dad = _make_cat(db_key=1, name="Dad")
