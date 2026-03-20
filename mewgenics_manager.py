@@ -132,6 +132,20 @@ def _enable_manual_header_resize(header, columns: list[int]):
         header.setSectionResizeMode(col, QHeaderView.Interactive)
 
 
+def _bundle_dir() -> str:
+    """Return the directory containing bundled app resources."""
+    if getattr(sys, "frozen", False):
+        return getattr(sys, "_MEIPASS", os.path.dirname(sys.executable))
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+def _app_dir() -> str:
+    """Return the directory containing the running script or built executable."""
+    if getattr(sys, "frozen", False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
+
+
 # ── Constants ─────────────────────────────────────────────────────────────────
 
 STAT_NAMES = ["STR", "DEX", "CON", "INT", "SPD", "CHA", "LCK"]
@@ -146,7 +160,7 @@ APPDATA_CONFIG_DIR = os.path.join(
 )
 os.makedirs(APPDATA_CONFIG_DIR, exist_ok=True)
 APP_CONFIG_PATH = os.path.join(APPDATA_CONFIG_DIR, "settings.json")
-LOCALES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "locales")
+LOCALES_DIR = os.path.join(_bundle_dir(), "locales")
 
 _SUPPORTED_LANGUAGES = {
     "en": "language.english",
@@ -154,6 +168,7 @@ _SUPPORTED_LANGUAGES = {
     "ru": "language.ru",
 }
 _LOCALE_CACHE: dict[str, dict[str, str]] = {}
+_LOCALE_LOGGED: set[str] = set()
 _CURRENT_LANGUAGE = "en"
 
 STAT_COLORS = {
@@ -513,17 +528,79 @@ def _save_app_config(data: dict):
         pass
 
 
+def _locale_log_path() -> str:
+    return os.path.join(APPDATA_CONFIG_DIR, "translation_debug.log")
+
+
+def _log_locale_event(language: str, message: str):
+    key = f"{language}:{message}"
+    if key in _LOCALE_LOGGED:
+        return
+    _LOCALE_LOGGED.add(key)
+    try:
+        with open(_locale_log_path(), "a", encoding="utf-8") as f:
+            f.write(f"[{datetime.datetime.now().isoformat(timespec='seconds')}] {message}\n")
+    except Exception:
+        pass
+
+
+def _log_startup_environment():
+    if not getattr(sys, "frozen", False):
+        return
+    _log_locale_event(
+        "startup",
+        "startup "
+        f"executable={sys.executable}; "
+        f"bundle_dir={_bundle_dir()}; "
+        f"app_dir={_app_dir()}; "
+        f"cwd={os.getcwd()}; "
+        f"appdata={os.environ.get('APPDATA', '')}; "
+        f"config_dir={APPDATA_CONFIG_DIR}",
+    )
+
+
 def _load_locale_catalog(language: str) -> dict[str, str]:
     cached = _LOCALE_CACHE.get(language)
     if cached is not None:
         return cached
-    path = os.path.join(LOCALES_DIR, f"{language}.json")
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        catalog = data if isinstance(data, dict) else {}
-    except Exception:
-        catalog = {}
+
+    candidate_paths: list[str] = []
+    for path in (
+        os.path.join(LOCALES_DIR, f"{language}.json"),
+        os.path.join(_bundle_dir(), f"{language}.json"),
+        os.path.join(_app_dir(), "locales", f"{language}.json"),
+        os.path.join(_app_dir(), f"{language}.json"),
+        os.path.join(os.getcwd(), "locales", f"{language}.json"),
+        os.path.join(os.getcwd(), f"{language}.json"),
+    ):
+        if path not in candidate_paths:
+            candidate_paths.append(path)
+
+    catalog = {}
+    errors: list[str] = []
+    for path in candidate_paths:
+        if not os.path.exists(path):
+            errors.append(f"missing:{path}")
+            continue
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            catalog = data if isinstance(data, dict) else {}
+            if catalog:
+                _log_locale_event(language, f"loaded locale from {path}")
+                break
+            errors.append(f"invalid_json_shape:{path}")
+        except Exception as exc:
+            errors.append(f"{path}: {type(exc).__name__}: {exc}")
+
+    if not catalog:
+        _log_locale_event(
+            language,
+            "failed to load locale "
+            f"{language}; frozen={getattr(sys, 'frozen', False)}; "
+            f"bundle_dir={_bundle_dir()}; app_dir={_app_dir()}; cwd={os.getcwd()}; "
+            f"attempts={'; '.join(errors)}",
+        )
     _LOCALE_CACHE[language] = catalog
     return catalog
 
@@ -659,7 +736,8 @@ def _candidate_gpak_paths() -> list[str]:
         ),
         r"D:\Games\Mewgenics\resources.gpak",
         os.path.join(os.getcwd(), "resources.gpak"),
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), "resources.gpak"),
+        os.path.join(_app_dir(), "resources.gpak"),
+        os.path.join(_bundle_dir(), "resources.gpak"),
         "/mnt/c/Program Files (x86)/Steam/steamapps/common/Mewgenics/resources.gpak",
         "/mnt/c/Program Files/Steam/steamapps/common/Mewgenics/resources.gpak",
     ]
@@ -3293,6 +3371,7 @@ def _refresh_localized_constants():
     ]
 
 
+_log_startup_environment()
 _set_current_language(_saved_language())
 _refresh_localized_constants()
 
