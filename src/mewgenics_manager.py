@@ -6308,10 +6308,17 @@ class RoomOptimizerWorker(QThread):
             available_rooms = list(ROOM_DISPLAY.keys())
 
         if mode_family:
-            all_rooms = list(available_rooms)
-            fallback_room = None
+            n_priority = max(len(available_rooms) - 1, 1)
+            priority_rooms = [f"Priority {i+1}" for i in range(n_priority)]
+            fallback_room = "Fallback"
+            all_rooms = priority_rooms + [fallback_room]
             max_cats_per_room = 6
             family_assignments = {room: {"males": [], "females": [], "unknown": []} for room in all_rooms}
+            # Map Priority labels to actual rooms for locator output
+            actual_room_map = {}
+            for i, priority in enumerate(priority_rooms):
+                actual_room_map[priority] = available_rooms[i] if i < len(available_rooms) else available_rooms[0]
+            actual_room_map[fallback_room] = available_rooms[-1] if available_rooms else list(ROOM_DISPLAY.keys())[0]
 
             def _room_cats(room_key):
                 rd = family_assignments[room_key]
@@ -6479,7 +6486,12 @@ class RoomOptimizerWorker(QThread):
         # Build locator data
         locator_data = []
         for room_idx, room in enumerate(all_rooms):
-            assigned_room_label = ROOM_DISPLAY.get(room, room)
+            if mode_family:
+                # Map Priority label to actual room for display
+                actual_room = actual_room_map.get(room, room)
+                assigned_room_label = ROOM_DISPLAY.get(actual_room, actual_room)
+            else:
+                assigned_room_label = ROOM_DISPLAY.get(room, room)
             for c in room_assignments[room]:
                 current = c.room_display or c.status or "?"
                 needs_move = c.status != "In House" or c.room_display != assigned_room_label
