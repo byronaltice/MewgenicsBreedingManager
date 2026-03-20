@@ -19,7 +19,13 @@ from collections import deque
 try:
     from visual_mutation_catalog import load_visual_mutation_names
 except ModuleNotFoundError:
-    from tools.visual_mutation_catalog import load_visual_mutation_names
+    try:
+        from tools.visual_mutation_catalog import load_visual_mutation_names
+    except ModuleNotFoundError:
+        # Support running from src/ directory
+        import sys
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+        from tools.visual_mutation_catalog import load_visual_mutation_names
 
 logger = logging.getLogger("mewgenics.parser")
 
