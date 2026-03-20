@@ -17,6 +17,7 @@ import datetime
 import lz4.block
 import os
 import math
+import logging
 from pathlib import Path
 from typing import Optional
 try:
@@ -24,6 +25,8 @@ try:
 except ModuleNotFoundError:
     # Support repo layout where the catalog utility lives under tools/.
     from tools.visual_mutation_catalog import load_visual_mutation_names
+
+logger = logging.getLogger("mewgenics")
 
 _IDENT_RE = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')
 
@@ -43,6 +46,32 @@ from PySide6.QtCore import (
 from PySide6.QtGui import (
     QColor, QBrush, QAction, QActionGroup, QPalette, QFont, QKeySequence, QFontMetrics,
     QDoubleValidator, QRegularExpressionValidator,
+)
+
+# ── Imports from extracted modules ─────────────────────────────────────────────
+from save_parser import (
+    BinaryReader, Cat, parse_save, find_save_files,
+    STAT_NAMES, can_breed, risk_percent, kinship_coi,
+    get_all_ancestors, get_parents, get_grandparents,
+    find_common_ancestors, shared_ancestor_counts,
+    _ancestor_depths, _ancestor_paths, _build_ancestor_paths_batch,
+    _ancestor_contributions, _build_ancestor_contribs_batch,
+    _coi_from_contribs, _kinship, raw_coi,
+    _is_hater_pair, _valid_str, _normalize_gender,
+    _scan_blob_for_parent_uids,
+    _read_visual_mutation_entries, _visual_mutation_chip_items,
+    _VISUAL_MUTATION_FIELDS, _VISUAL_MUTATION_PART_LABELS,
+    _appearance_group_names, _appearance_preview_text,
+    _stimulation_inheritance_weight, _inheritance_candidates,
+    _trait_inheritance_probabilities, set_visual_mut_data,
+    _malady_breakdown, _combined_malady_chance,
+    ROOM_KEYS, EXCEPTIONAL_SUM_THRESHOLD, DONATION_SUM_THRESHOLD, DONATION_MAX_TOP_STAT,
+)
+
+from breeding import (
+    pair_key, is_hater_conflict, is_lover_conflict,
+    is_mutual_lover_pair, trait_or_default, personality_score,
+    is_direct_family_pair, evaluate_pair,
 )
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -12000,6 +12029,17 @@ class SaveSelectorDialog(QDialog):
 
 
 def main():
+    # Configure logging
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        handlers=[logging.StreamHandler()],
+    )
+    logger.info("Mewgenics Breeding Manager starting")
+
+    # Pass game data to parser module
+    set_visual_mut_data(_VISUAL_MUT_DATA)
+
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
 
