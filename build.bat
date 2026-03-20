@@ -29,7 +29,7 @@ if exist "%BUILD_DIR%" (
 
 echo.
 echo Building standalone executable...
-pyinstaller mewgenics_manager.spec --noconfirm --distpath "%DIST_ROOT%"
+pyinstaller src/mewgenics_manager.spec --noconfirm --distpath "%DIST_ROOT%"
 
 echo.
 if exist "%APP_EXE_OUT%" (
