@@ -390,7 +390,7 @@
   "mutation_planner.multi_trait.table.score": "Score",
   "mutation_planner.multi_trait.table.coverage": "Coverage",
   "mutation_planner.multi_trait.table.uncovered": "Uncovered / Penalized",
-  "mutation_planner.multi_trait.table.inbreeding": "Inbreeding",
+  "mutation_planner.multi_trait.table.inbreeding": "Risk",
   "mutation_planner.single_trait.plan_for": "Breeding Plan: {trait}",
   "mutation_planner.single_trait.carriers": "Carriers ({count} cats)",
   "mutation_planner.single_trait.no_carriers": "No living cats have this trait.",

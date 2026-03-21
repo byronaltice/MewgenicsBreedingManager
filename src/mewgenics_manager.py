@@ -9376,12 +9376,10 @@ class MutationDisorderPlannerView(QWidget):
                     else:
                         uncovered.append(t)
             if covered:  # only show pairs that cover at least one positive trait
-                inbred_a = a.inbredness if a.inbredness is not None else 0.0
-                inbred_b = b.inbredness if b.inbredness is not None else 0.0
-                avg_inbred = (inbred_a + inbred_b) / 2.0
-                scored_pairs.append((score, a, b, covered, uncovered, penalized, avg_inbred))
+                pair_risk = risk_percent(a, b)
+                scored_pairs.append((score, a, b, covered, uncovered, penalized, pair_risk))
 
-        scored_pairs.sort(key=lambda x: (-x[0], x[6]))  # best score, lowest inbreeding
+        scored_pairs.sort(key=lambda x: (-x[0], x[6]))  # best score, lowest birth-defect risk
 
         # Build outcome panel
         layout = self._outcome_layout
@@ -9451,7 +9449,7 @@ class MutationDisorderPlannerView(QWidget):
             Qt.PointingHandCursor if c in (0, 1) else Qt.ArrowCursor
         ))
 
-        for row, (score, a, b, covered, uncovered, penalized, avg_inbred) in enumerate(show_pairs):
+        for row, (score, a, b, covered, uncovered, penalized, pair_risk) in enumerate(show_pairs):
             a_item = QTableWidgetItem(f"{a.name} ({a.gender_display})")
             a_item.setData(Qt.UserRole, a.db_key)
             a_item.setForeground(QColor("#5b9bd5"))
@@ -9490,10 +9488,15 @@ class MutationDisorderPlannerView(QWidget):
                 full_item.setForeground(QColor("#8fb8a0"))
                 pair_table.setItem(row, 4, full_item)
 
-            inbred_item = QTableWidgetItem(f"{avg_inbred:.0%}")
+            risk_pct = int(round(pair_risk))
+            inbred_item = QTableWidgetItem(f"{risk_pct}%")
             inbred_item.setTextAlignment(Qt.AlignCenter)
-            if avg_inbred > 0.2:
-                inbred_item.setForeground(QColor("#cc6666"))
+            if risk_pct >= 100:
+                inbred_item.setForeground(QColor("#d97777"))
+            elif risk_pct >= 50:
+                inbred_item.setForeground(QColor("#d8b56a"))
+            elif risk_pct >= 20:
+                inbred_item.setForeground(QColor("#8fc9e6"))
             pair_table.setItem(row, 5, inbred_item)
 
         layout.addWidget(pair_table)
@@ -9638,12 +9641,10 @@ class MutationDisorderPlannerView(QWidget):
             for f in females:
                 if m is f:
                     continue
-                inbred_a = m.inbredness if m.inbredness is not None else 0.0
-                inbred_b = f.inbredness if f.inbredness is not None else 0.0
-                avg_inbred = (inbred_a + inbred_b) / 2.0
+                pair_risk = risk_percent(m, f)
                 note = _tr("mutation_planner.single_trait.note.both_carriers")
-                if avg_inbred > 0.2:
-                    note += f" (inbreeding {avg_inbred:.0%} -- birth defect risk)"
+                if pair_risk >= 20:
+                    note += f" (birth defect risk {int(round(pair_risk))}%)"
                 pairs.append((m, f, note))
 
         # Good: carrier x non-carrier (opposite gender)
@@ -9687,13 +9688,16 @@ class MutationDisorderPlannerView(QWidget):
                 pair_table.setItem(row, 0, QTableWidgetItem(ca.name))
                 pair_table.setItem(row, 1, QTableWidgetItem(cb.name))
                 pair_table.setItem(row, 2, QTableWidgetItem(note))
-                inbred_a = ca.inbredness if ca.inbredness is not None else 0.0
-                inbred_b = cb.inbredness if cb.inbredness is not None else 0.0
-                avg = (inbred_a + inbred_b) / 2.0
-                inbred_item = QTableWidgetItem(f"{avg:.0%}")
+                pair_risk = risk_percent(ca, cb)
+                risk_pct = int(round(pair_risk))
+                inbred_item = QTableWidgetItem(f"{risk_pct}%")
                 inbred_item.setTextAlignment(Qt.AlignCenter)
-                if avg > 0.2:
-                    inbred_item.setForeground(QColor("#cc6666"))
+                if risk_pct >= 100:
+                    inbred_item.setForeground(QColor("#d97777"))
+                elif risk_pct >= 50:
+                    inbred_item.setForeground(QColor("#d8b56a"))
+                elif risk_pct >= 20:
+                    inbred_item.setForeground(QColor("#8fc9e6"))
                 pair_table.setItem(row, 3, inbred_item)
             layout.addWidget(pair_table)
 
