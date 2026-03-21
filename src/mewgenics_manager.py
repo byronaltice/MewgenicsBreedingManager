@@ -21,19 +21,7 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-# Handle imports from tools/ when running from src/ subdirectory
-_proj_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _proj_root not in sys.path:
-    sys.path.insert(0, _proj_root)
-
-try:
-    from tools.visual_mutation_catalog import load_visual_mutation_names
-except (ModuleNotFoundError, ImportError):
-    try:
-        from visual_mutation_catalog import load_visual_mutation_names
-    except ModuleNotFoundError as e:
-        print(f"ERROR: Could not load visual_mutation_catalog from {_proj_root}/tools/ or current directory")
-        raise
+from visual_mutation_catalog import load_visual_mutation_names
 
 logger = logging.getLogger("mewgenics")
 
@@ -6022,6 +6010,7 @@ class BreedingPartnersView(QWidget):
         )
         self._cats: list[Cat] = []
         self._pairs: list[dict[str, object]] = []
+        self._navigate_to_cat_callback = None
 
         root = QVBoxLayout(self)
         root.setContentsMargins(12, 12, 12, 12)
@@ -6061,6 +6050,7 @@ class BreedingPartnersView(QWidget):
         root.addWidget(self._table, 1)
 
         self._search.textChanged.connect(self._refresh_table)
+        self._table.itemClicked.connect(self._on_cat_cell_clicked)
         _enforce_min_font_in_widget_tree(self)
         self.retranslate_ui()
 
@@ -6117,10 +6107,16 @@ class BreedingPartnersView(QWidget):
             status_text = _tr("breeding_partners.status.same_room") if same_room else _tr("breeding_partners.status.mismatch")
             status_color = QColor(98, 194, 135) if same_room else QColor(216, 181, 106)
             item_a = QTableWidgetItem(f"{pair['cat_a'].name} ({pair['cat_a'].gender_display})")
+            link_font = QFont()
+            link_font.setUnderline(True)
+            item_a.setFont(link_font)
+            item_a.setForeground(QBrush(QColor(100, 149, 237)))
             icon_a = _make_tag_icon(_cat_tags(pair['cat_a']), dot_size=14, spacing=4)
             if not icon_a.isNull():
                 item_a.setIcon(icon_a)
             item_b = QTableWidgetItem(f"{pair['cat_b'].name} ({pair['cat_b'].gender_display})")
+            item_b.setFont(link_font)
+            item_b.setForeground(QBrush(QColor(100, 149, 237)))
             icon_b = _make_tag_icon(_cat_tags(pair['cat_b']), dot_size=14, spacing=4)
             if not icon_b.isNull():
                 item_b.setIcon(icon_b)
@@ -6143,6 +6139,20 @@ class BreedingPartnersView(QWidget):
         shown = len(pairs)
         self._summary.setText(_tr("breeding_partners.summary",
                                    shown=shown, total=total, mismatches=mismatch_count))
+
+    def _on_cat_cell_clicked(self, item):
+        """Handle clicks on cat names to navigate to the cat in the main view."""
+        col = self._table.column(item)
+        # Only handle clicks on Cat A (column 0) or Cat B (column 1)
+        if col not in (0, 1):
+            return
+
+        cat_name = item.text()
+        if not cat_name or not self._navigate_to_cat_callback:
+            return
+
+        # Call the navigate callback with the cat name
+        self._navigate_to_cat_callback(cat_name)
 
     def retranslate_ui(self):
         self._title.setText(_tr("breeding_partners.title"))
@@ -11422,6 +11432,7 @@ class MainWindow(QMainWindow):
         self._safe_breeding_view.hide()
         vb.addWidget(self._safe_breeding_view, 1)
         self._breeding_partners_view = BreedingPartnersView(self)
+        self._breeding_partners_view._navigate_to_cat_callback = self._navigate_to_cat_by_name
         self._breeding_partners_view.hide()
         vb.addWidget(self._breeding_partners_view, 1)
         self._room_optimizer_view = RoomOptimizerView(self)
@@ -12146,6 +12157,15 @@ class MainWindow(QMainWindow):
             if cat is not None and cat.db_key == db_key:
                 self._table.scrollTo(self._proxy_model.index(row, 0))
                 self._table.selectRow(row)
+                return
+
+    def _navigate_to_cat_by_name(self, cat_name_formatted: str):
+        """Navigate to a cat by its formatted name (e.g. 'Fluffy (Female)')."""
+        cat_name = cat_name_formatted.split(" (")[0] if " (" in cat_name_formatted else cat_name_formatted
+        cat_name = cat_name.replace(" \u2665", "")
+        for cat in self._cats:
+            if cat.name == cat_name:
+                self._navigate_to_cat(cat.db_key)
                 return
 
     def _update_header(self, room_key):

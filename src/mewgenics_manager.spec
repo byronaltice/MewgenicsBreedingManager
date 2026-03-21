@@ -1,17 +1,18 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 a = Analysis(
-    ['src/mewgenics_manager.py'],
+    ['mewgenics_manager.py'],
     pathex=[],
     binaries=[],
     datas=[
-        ('locales/en.json', '.'),
-        ('locales/ru.json', '.'),
-        ('locales/zh_CN.json', '.'),
+        ('../locales/en.json', '.'),
+        ('../locales/ru.json', '.'),
+        ('../locales/zh_CN.json', '.'),
     ],
     hiddenimports=[
         'lz4.frame',
         'lz4.block',
+        'visual_mutation_catalog',
     ],
     hookspath=[],
     hooksconfig={},
