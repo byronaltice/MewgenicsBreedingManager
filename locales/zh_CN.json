@@ -56,6 +56,8 @@
   "sidebar.button.alive_cats": "存活猫咪",
   "sidebar.button.exceptional": "优秀猫咪",
   "sidebar.button.donation_candidates": "捐赠候选",
+  "sidebar.button.pinned": "已固定",
+  "sidebar.tooltip.pinned": "仅显示已固定的猫",
   "sidebar.button.room_optimizer": "房间优化器",
   "sidebar.button.perfect_7_planner": "完美七值规划器",
   "sidebar.button.mutation_planner": "变异规划器",
@@ -82,6 +84,7 @@
   "table.column.status": "状态",
   "table.column.blacklist": "BL",
   "table.column.must_breed": "MB",
+  "table.column.pinned": "固定",
   "table.column.sum": "合计",
   "table.column.abilities": "能力",
   "table.column.mutations": "变异",
@@ -97,6 +100,7 @@
   "header.filter.alive": "存活",
   "header.filter.exceptional": "优秀猫咪",
   "header.filter.donation": "捐赠候选",
+  "header.filter.pinned": "已固定猫咪",
   "header.filter.gone": "离开",
   "header.filter.adventure": "冒险中",
   "header.count": "  {visible} / {total} 只猫咪",
@@ -512,5 +516,7 @@
   "table.tooltip.excluded": "已从繁殖计算中排除",
   "table.tooltip.included": "已纳入繁殖计算",
   "table.tooltip.must_breed": "必须繁殖 - 优化中优先考虑",
-  "table.tooltip.normal_priority": "普通繁殖优先级"
+  "table.tooltip.normal_priority": "普通繁殖优先级",
+  "table.tooltip.pinned": "已固定 - 在固定筛选视图中可见",
+  "table.tooltip.not_pinned": "未固定"
 }

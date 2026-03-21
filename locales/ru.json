@@ -56,6 +56,8 @@
   "sidebar.button.alive_cats": "Живые коты",
   "sidebar.button.exceptional": "Особенные",
   "sidebar.button.donation_candidates": "Кандидаты на пожертвование",
+  "sidebar.button.pinned": "Закреплённые",
+  "sidebar.tooltip.pinned": "Показать только закреплённых котов",
   "sidebar.button.room_optimizer": "Оптимизатор комнат",
   "sidebar.button.perfect_7_planner": "Планировщик Идеальная 7",
   "sidebar.button.mutation_planner": "Планировщик мутаций",
@@ -82,6 +84,7 @@
   "table.column.status": "Статус",
   "table.column.blacklist": "ЧС",
   "table.column.must_breed": "ОР",
+  "table.column.pinned": "Зак",
   "table.column.sum": "Сумма",
   "table.column.abilities": "Способности",
   "table.column.mutations": "Мутации",
@@ -97,6 +100,7 @@
   "header.filter.alive": "Живые",
   "header.filter.exceptional": "Особенные коты",
   "header.filter.donation": "Кандидаты на пожертвование",
+  "header.filter.pinned": "Закреплённые коты",
   "header.filter.gone": "Ушедшие",
   "header.filter.adventure": "В приключении",
   "header.count": "{visible} / {total} котов",
@@ -509,5 +513,7 @@
   "table.tooltip.excluded": "Исключён из расчётов разведения",
   "table.tooltip.included": "Включён в расчёты разведения",
   "table.tooltip.must_breed": "Обязательно разводить — приоритет в оптимизации",
-  "table.tooltip.normal_priority": "Обычный приоритет разведения"
+  "table.tooltip.normal_priority": "Обычный приоритет разведения",
+  "table.tooltip.pinned": "Закреплён — виден в фильтре «Закреплённые»",
+  "table.tooltip.not_pinned": "Не закреплён"
 }

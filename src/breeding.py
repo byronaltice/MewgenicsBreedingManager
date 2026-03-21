@@ -102,9 +102,6 @@ def evaluate_pair(a: Cat, b: Cat, *,
     if ok and is_hater_conflict(a, b, hater_key_map):
         ok, reason = False, "These cats hate each other"
 
-    if ok and is_lover_conflict(a, b, lover_key_map, avoid_lovers):
-        ok, reason = False, "One or both cats already have a lover"
-
     if ok:
         if cache is not None and cache.ready:
             risk = cache.risk_pct.get(cache._pair_key(a.db_key, b.db_key), 0.0)

@@ -387,6 +387,7 @@ class Cat:
     generation: int = 0   # generation depth: 0=stray, 1=child of strays, etc.
     is_blacklisted: bool = False  # exclude from breeding calculations
     must_breed: bool = False  # prioritize in breeding optimization
+    tags: list[str] = None  # user-assigned tag IDs for organization
     passive_abilities: list[str]
 
     def __init__(self, blob: bytes, cat_key: int, house_info: dict, adventure_keys: set, current_day: Optional[int] = None):
@@ -396,6 +397,7 @@ class Cat:
         self._raw = raw   # kept for parent-UID blob scan in parse_save
 
         self.db_key = cat_key
+        self.tags = []
 
         # Location / status
         if cat_key in adventure_keys:

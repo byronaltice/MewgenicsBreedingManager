@@ -45,7 +45,7 @@ from PySide6.QtWidgets import (
     QAbstractItemView, QSplitter, QFrame, QDialog, QGridLayout, QSizePolicy,
     QLineEdit, QListWidget, QListWidgetItem, QScrollArea, QToolButton,
     QTableWidget, QTableWidgetItem, QStyledItemDelegate, QStyle, QStyleOptionViewItem,
-    QComboBox, QMessageBox, QSpinBox, QProgressBar, QTabWidget,
+    QComboBox, QMessageBox, QSpinBox, QProgressBar, QTabWidget, QMenu,
 )
 from PySide6.QtCore import (
     Qt, QAbstractTableModel, QModelIndex, QSortFilterProxyModel,
@@ -54,7 +54,7 @@ from PySide6.QtCore import (
 )
 from PySide6.QtGui import (
     QColor, QBrush, QAction, QActionGroup, QPalette, QFont, QKeySequence, QFontMetrics,
-    QDoubleValidator, QRegularExpressionValidator,
+    QDoubleValidator, QRegularExpressionValidator, QPainter, QPixmap, QIcon,
 )
 
 # ── Imports from extracted modules ─────────────────────────────────────────────
@@ -564,6 +564,121 @@ def _save_app_config(data: dict):
             json.dump(data, f, indent=2, sort_keys=True)
     except Exception:
         pass
+
+
+# ── Tag definitions ───────────────────────────────────────────────────────────
+
+TAG_PRESET_COLORS = [
+    "#e74c3c", "#e67e22", "#f1c40f", "#2ecc71",
+    "#3498db", "#9b59b6", "#e91e8a", "#95a5a6",
+]
+
+_TAG_DEFS: list[dict] = []  # [{id, name, color}, ...]
+_TAG_ICON_CACHE: dict[tuple, QIcon] = {}
+_TAG_PIX_CACHE: dict[tuple, QPixmap] = {}
+
+
+def _load_tag_definitions():
+    """Load tag definitions from app config into module global."""
+    global _TAG_DEFS
+    cfg = _load_app_config()
+    _TAG_DEFS = cfg.get("tag_definitions", [])
+
+
+def _save_tag_definitions():
+    """Save current tag definitions to app config."""
+    cfg = _load_app_config()
+    cfg["tag_definitions"] = _TAG_DEFS
+    _save_app_config(cfg)
+    _TAG_ICON_CACHE.clear()
+    _TAG_PIX_CACHE.clear()
+
+
+def _tag_color(tag_id: str) -> str:
+    """Look up hex color for a tag ID, default gray."""
+    for td in _TAG_DEFS:
+        if td["id"] == tag_id:
+            return td["color"]
+    return "#555555"
+
+
+def _tag_name(tag_id: str) -> str:
+    """Look up display name for a tag ID."""
+    for td in _TAG_DEFS:
+        if td["id"] == tag_id:
+            return td["name"] or ""
+    return ""
+
+
+def _next_tag_id() -> str:
+    """Generate the next sequential tag ID."""
+    existing = {td["id"] for td in _TAG_DEFS}
+    i = 1
+    while f"tag_{i}" in existing:
+        i += 1
+    return f"tag_{i}"
+
+
+def _cat_tags(cat) -> list[str]:
+    """Safely get tags list from a Cat, handling missing attribute."""
+    return getattr(cat, 'tags', None) or []
+
+
+def _make_tag_icon(tag_ids: list[str], dot_size: int = 10, spacing: int = 3) -> QIcon:
+    """Create a QIcon with colored dots for the given tag IDs, ordered by definition."""
+    if not tag_ids:
+        return QIcon()
+    tag_set = set(tag_ids)
+    valid = [td["id"] for td in _TAG_DEFS if td["id"] in tag_set]
+    if not valid:
+        return QIcon()
+    cache_key = tuple(valid)
+    if cache_key in _TAG_ICON_CACHE:
+        return _TAG_ICON_CACHE[cache_key]
+    width = len(valid) * (dot_size + spacing) - spacing + 2
+    height = dot_size + 2
+    pix = QPixmap(width, height)
+    pix.fill(Qt.transparent)
+    painter = QPainter(pix)
+    painter.setRenderHint(QPainter.Antialiasing)
+    for i, tid in enumerate(valid):
+        color = QColor(_tag_color(tid))
+        painter.setBrush(QBrush(color))
+        painter.setPen(Qt.NoPen)
+        x = i * (dot_size + spacing) + 1
+        painter.drawEllipse(x, 1, dot_size, dot_size)
+    painter.end()
+    icon = QIcon(pix)
+    _TAG_ICON_CACHE[cache_key] = icon
+    return icon
+
+
+def _make_tag_pixmap(tag_ids: list[str], dot_size: int = 10, spacing: int = 3) -> Optional[QPixmap]:
+    """Create a QPixmap with colored dots for the given tag IDs, ordered by definition."""
+    if not tag_ids:
+        return None
+    tag_set = set(tag_ids)
+    valid = [td["id"] for td in _TAG_DEFS if td["id"] in tag_set]
+    if not valid:
+        return None
+    cache_key = tuple(valid)
+    if cache_key in _TAG_PIX_CACHE:
+        return _TAG_PIX_CACHE[cache_key]
+    width = len(valid) * (dot_size + spacing) - spacing + 4
+    height = dot_size + 4
+    pix = QPixmap(width, height)
+    pix.fill(Qt.transparent)
+    painter = QPainter(pix)
+    painter.setRenderHint(QPainter.Antialiasing)
+    for i, tid in enumerate(valid):
+        color = QColor(_tag_color(tid))
+        painter.setBrush(QBrush(color))
+        painter.setPen(Qt.NoPen)
+        x = i * (dot_size + spacing) + 2
+        painter.drawEllipse(x, 2, dot_size, dot_size)
+    painter.end()
+    _TAG_PIX_CACHE[cache_key] = pix
+    return pix
 
 
 def _locale_log_path() -> str:
@@ -1759,6 +1874,7 @@ class Cat:
     generation: int = 0   # generation depth: 0=stray, 1=child of strays, etc.
     is_blacklisted: bool = False  # exclude from breeding calculations
     must_breed: bool = False  # prioritize in breeding optimization
+    is_pinned: bool = False  # user-pinned for tracking
     passive_abilities: list[str]
 
     def __init__(self, blob: bytes, cat_key: int, house_info: dict, adventure_keys: set, current_day: Optional[int] = None):
@@ -2717,6 +2833,8 @@ class SaveLoadWorker(QThread):
         self.status.emit("Loading blacklist & overrides…")
         _load_blacklist(self._path, cats)
         _load_must_breed(self._path, cats)
+        _load_pinned(self._path, cats)
+        _load_tags(self._path, cats)
         applied_overrides, override_rows = _load_gender_overrides(self._path, cats)
         cal_explicit, cal_token, cal_rows = _apply_calibration(self._path, cats)
         self.finished_load.emit({
@@ -2986,6 +3104,16 @@ def _blacklist_path(save_path: str) -> str:
 def _must_breed_path(save_path: str) -> str:
     """Return path for must-breed file associated with save."""
     return save_path + ".mustbreed"
+
+
+def _pinned_path(save_path: str) -> str:
+    """Return path for pinned-cats file associated with save."""
+    return save_path + ".pinned"
+
+
+def _tags_path(save_path: str) -> str:
+    """Return JSON path for cat tag assignments associated with save."""
+    return save_path + ".tags.json"
 
 
 def _gender_overrides_path(save_path: str) -> str:
@@ -3358,6 +3486,64 @@ def _load_must_breed(save_path: str, cats: list[Cat]):
         pass
 
 
+def _save_pinned(save_path: str, cats: list[Cat]):
+    """Save pinned cat unique IDs to file."""
+    pinned_file = _pinned_path(save_path)
+    pinned_uids = [c.unique_id for c in cats if c.is_pinned]
+    try:
+        with open(pinned_file, 'w') as f:
+            f.write('\n'.join(pinned_uids))
+    except Exception:
+        pass
+
+
+def _load_pinned(save_path: str, cats: list[Cat]):
+    """Load pinned list and mark cats accordingly."""
+    pinned_file = _pinned_path(save_path)
+    if not os.path.exists(pinned_file):
+        return
+    try:
+        with open(pinned_file, 'r') as f:
+            pinned_uids = set(line.strip() for line in f if line.strip())
+        for cat in cats:
+            cat.is_pinned = cat.unique_id in pinned_uids
+    except Exception:
+        pass
+
+
+def _save_tags(save_path: str, cats: list[Cat]):
+    """Save cat tag assignments to JSON sidecar."""
+    tags_file = _tags_path(save_path)
+    valid_ids = {td["id"] for td in _TAG_DEFS}
+    data = {}
+    for c in cats:
+        tags = [t for t in _cat_tags(c) if t in valid_ids]
+        if tags:
+            data[c.unique_id] = tags
+    try:
+        with open(tags_file, 'w') as f:
+            json.dump(data, f, indent=2)
+    except Exception:
+        pass
+
+
+def _load_tags(save_path: str, cats: list[Cat]):
+    """Load tag assignments from JSON sidecar and apply to cats."""
+    tags_file = _tags_path(save_path)
+    if not os.path.exists(tags_file):
+        return
+    try:
+        with open(tags_file, 'r') as f:
+            data = json.load(f)
+        valid_ids = {td["id"] for td in _TAG_DEFS}
+        for cat in cats:
+            raw = data.get(cat.unique_id, [])
+            # Strip tag IDs that no longer exist in definitions
+            cat.tags = [t for t in raw if t in valid_ids]
+    except Exception:
+        pass
+
+
 # ── Qt table model ────────────────────────────────────────────────────────────
 
 COLUMNS: list[str] = []
@@ -3368,18 +3554,19 @@ COL_ROOM  = 3
 COL_STAT  = 4
 COL_BL    = 5
 COL_MB    = 6
-STAT_COLS = list(range(7, 14))   # STR … LCK
-COL_SUM   = 14
-COL_ABIL  = 15
-COL_MUTS  = 16
-COL_RELNS = 17
-COL_REL   = 18
-COL_AGG   = 19
-COL_LIB   = 20
-COL_INBRD = 21
-COL_SEXUALITY = 22
-COL_GEN_DEPTH = 23
-COL_SRC   = 24
+COL_PIN   = 7
+STAT_COLS = list(range(8, 15))   # STR … LCK
+COL_SUM   = 15
+COL_ABIL  = 16
+COL_MUTS  = 17
+COL_RELNS = 18
+COL_REL   = 19
+COL_AGG   = 20
+COL_LIB   = 21
+COL_INBRD = 22
+COL_SEXUALITY = 23
+COL_GEN_DEPTH = 24
+COL_SRC   = 25
 
 
 def _refresh_localized_constants():
@@ -3394,6 +3581,7 @@ def _refresh_localized_constants():
         _tr("table.column.status"),
         _tr("table.column.blacklist"),
         _tr("table.column.must_breed"),
+        _tr("table.column.pinned"),
     ] + STAT_NAMES + [
         _tr("table.column.sum"),
         _tr("table.column.abilities"),
@@ -3412,6 +3600,7 @@ def _refresh_localized_constants():
 _log_startup_environment()
 _set_current_language(_saved_language())
 _refresh_localized_constants()
+_load_tag_definitions()
 
 # Fixed pixel widths for narrow columns
 _W_STATUS = 62
@@ -3423,6 +3612,68 @@ _W_TRAIT  = 70
 _ZOOM_MIN = 70
 _ZOOM_MAX = 200
 _ZOOM_STEP = 10
+
+
+class NameTagDelegate(QStyledItemDelegate):
+    """Paints colored tag dots to the left of the cat name in the Name column."""
+
+    _DOT = 10
+    _GAP = 3
+    _PAD_LEFT = 4
+    _PAD_RIGHT = 4
+
+    def _get_cat(self, index):
+        model = index.model()
+        while hasattr(model, 'mapToSource'):
+            index = model.mapToSource(index)
+            model = model.sourceModel()
+        if hasattr(model, 'cat_at'):
+            return model.cat_at(index.row())
+        return None
+
+    def paint(self, painter, option, index):
+        cat = self._get_cat(index)
+        tags = set(_cat_tags(cat)) if cat else set()
+        valid = [td["id"] for td in _TAG_DEFS if td["id"] in tags]
+
+        if not valid:
+            # No tags — just draw normally
+            super().paint(painter, option, index)
+            return
+
+        # Draw background/selection the standard way
+        opt = QStyleOptionViewItem(option)
+        self.initStyleOption(opt, index)
+        style = opt.widget.style() if opt.widget else QApplication.style()
+
+        # Clear text/icon so the base drawing only paints background
+        saved_text = opt.text
+        opt.text = ""
+        opt.icon = QIcon()
+        style.drawControl(QStyle.CE_ItemViewItem, opt, painter, opt.widget)
+
+        # Draw dots
+        painter.save()
+        painter.setRenderHint(QPainter.Antialiasing)
+        r = option.rect
+        dot_y = r.center().y() - self._DOT // 2
+        dot_x = r.left() + self._PAD_LEFT
+        for tid in valid:
+            c = QColor(_tag_color(tid))
+            painter.setBrush(QBrush(c))
+            painter.setPen(Qt.NoPen)
+            painter.drawEllipse(dot_x, dot_y, self._DOT, self._DOT)
+            dot_x += self._DOT + self._GAP
+
+        # Draw the name text after the dots
+        text_left = dot_x + self._PAD_RIGHT
+        text_rect = r.adjusted(text_left - r.left(), 0, 0, 0)
+        painter.setPen(opt.palette.color(
+            QPalette.HighlightedText if opt.state & QStyle.State_Selected else QPalette.Text
+        ))
+        painter.setFont(opt.font)
+        painter.drawText(text_rect, Qt.AlignVCenter | Qt.AlignLeft, saved_text)
+        painter.restore()
 
 
 class CatTableModel(QAbstractTableModel):
@@ -3621,6 +3872,7 @@ class CatTableModel(QAbstractTableModel):
             if col == COL_STAT: return STATUS_ABBREV.get(cat.status, cat.status)
             if col == COL_BL:   return "X" if cat.is_blacklisted else ""
             if col == COL_MB:   return "★" if cat.must_breed else ""
+            if col == COL_PIN:  return "\u25C6" if cat.is_pinned else ""
             if col in STAT_COLS:
                 return str(cat.base_stats[STAT_NAMES[col - STAT_COLS[0]]])
             if col == COL_SUM:
@@ -3743,6 +3995,9 @@ class CatTableModel(QAbstractTableModel):
         elif role == Qt.ToolTipRole:
             if col == COL_NAME:
                 notes: list[str] = []
+                tag_names = [_tag_name(t) for t in _cat_tags(cat) if any(td["id"] == t for td in _TAG_DEFS)]
+                if tag_names:
+                    notes.append("Tags: " + ", ".join(tag_names))
                 if is_exceptional:
                     notes.append(
                         f"Exceptional breeder: base stat sum {_cat_base_sum(cat)} >= {EXCEPTIONAL_SUM_THRESHOLD}"
@@ -3764,6 +4019,8 @@ class CatTableModel(QAbstractTableModel):
                 return _tr("table.tooltip.excluded") if cat.is_blacklisted else _tr("table.tooltip.included")
             if col == COL_MB:
                 return _tr("table.tooltip.must_breed") if cat.must_breed else _tr("table.tooltip.normal_priority")
+            if col == COL_PIN:
+                return _tr("table.tooltip.pinned") if cat.is_pinned else _tr("table.tooltip.not_pinned")
             if col == COL_MUTS and (cat.mutations or cat.defects):
                 return _mutations_tooltip(cat)
             if col == COL_ABIL and (cat.abilities or cat.passive_abilities or cat.disorders):
@@ -3800,9 +4057,11 @@ class CatTableModel(QAbstractTableModel):
                 return Qt.Checked if cat.is_blacklisted else Qt.Unchecked
             if col == COL_MB:
                 return Qt.Checked if cat.must_breed else Qt.Unchecked
+            if col == COL_PIN:
+                return Qt.Checked if cat.is_pinned else Qt.Unchecked
 
         elif role == Qt.TextAlignmentRole:
-            if col in STAT_COLS or col in (COL_GEN, COL_STAT, COL_AGE, COL_BL, COL_MB, COL_SUM, COL_REL, COL_GEN_DEPTH, COL_AGG, COL_LIB, COL_INBRD, COL_SEXUALITY):
+            if col in STAT_COLS or col in (COL_GEN, COL_STAT, COL_AGE, COL_BL, COL_MB, COL_PIN, COL_SUM, COL_REL, COL_GEN_DEPTH, COL_AGG, COL_LIB, COL_INBRD, COL_SEXUALITY):
                 return Qt.AlignCenter
 
         return None
@@ -3811,7 +4070,7 @@ class CatTableModel(QAbstractTableModel):
         if not index.isValid():
             return Qt.NoItemFlags
         base = Qt.ItemIsSelectable | Qt.ItemIsEnabled
-        if index.column() in (COL_BL, COL_MB):
+        if index.column() in (COL_BL, COL_MB, COL_PIN):
             return base | Qt.ItemIsUserCheckable
         return base
 
@@ -3819,7 +4078,7 @@ class CatTableModel(QAbstractTableModel):
         if not index.isValid():
             return False
         col = index.column()
-        if col not in (COL_BL, COL_MB) or role != Qt.CheckStateRole:
+        if col not in (COL_BL, COL_MB, COL_PIN) or role != Qt.CheckStateRole:
             return False
         cat = self._cats[index.row()]
         new_state = (value == Qt.Checked)
@@ -3839,6 +4098,10 @@ class CatTableModel(QAbstractTableModel):
             if new_state and cat.is_blacklisted:
                 cat.is_blacklisted = False
                 changed_indexes.append(self.index(index.row(), COL_BL))
+        elif col == COL_PIN:
+            if cat.is_pinned == new_state:
+                return False
+            cat.is_pinned = new_state
 
         for changed_index in changed_indexes:
             self.dataChanged.emit(changed_index, changed_index, [Qt.DisplayRole, Qt.CheckStateRole, Qt.ToolTipRole])
@@ -3854,6 +4117,8 @@ class RoomFilterModel(QSortFilterProxyModel):
         super().__init__()
         self._room = None
         self._name_filter = ""
+        self._pinned_only = False
+        self._tag_filter: set[str] = set()  # empty = show all
         self.setSortRole(Qt.UserRole)
 
     def set_room(self, key):
@@ -3862,6 +4127,14 @@ class RoomFilterModel(QSortFilterProxyModel):
 
     def set_name_filter(self, text: str):
         self._name_filter = text.strip().lower()
+        self.invalidate()
+
+    def set_pinned_only(self, enabled: bool):
+        self._pinned_only = enabled
+        self.invalidate()
+
+    def set_tag_filter(self, tag_ids: set[str]):
+        self._tag_filter = tag_ids
         self.invalidate()
 
     def _matches_text_filter(self, cat: Cat) -> bool:
@@ -3896,6 +4169,12 @@ class RoomFilterModel(QSortFilterProxyModel):
             return False
         if not self._matches_text_filter(cat):
             return False
+        if self._pinned_only and not cat.is_pinned:
+            return False
+        if self._tag_filter:
+            cat_tags = set(_cat_tags(cat))
+            if not (cat_tags & self._tag_filter):
+                return False
         if self._room == "__all__":
             return True
         if self._room is None:
@@ -4026,6 +4305,214 @@ def _defect_chip_row(items, tooltip_fn=None) -> QWidget:
     return w
 
 
+class TagManagerDialog(QDialog):
+    """Dialog for creating, editing, and deleting tag definitions."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Manage Tags")
+        self.setMinimumWidth(380)
+        self.setStyleSheet(
+            "QDialog { background:#1a1a32; color:#ddd; }"
+            "QLabel { color:#ddd; }"
+            "QLineEdit { background:#101024; color:#ddd; border:1px solid #2a2a4a;"
+            " padding:4px 8px; border-radius:4px; }"
+        )
+        layout = QVBoxLayout(self)
+        layout.setSpacing(10)
+
+        # Tag list area
+        self._list_widget = QWidget()
+        self._list_layout = QVBoxLayout(self._list_widget)
+        self._list_layout.setContentsMargins(0, 0, 0, 0)
+        self._list_layout.setSpacing(6)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(self._list_widget)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setMaximumHeight(300)
+        scroll.setStyleSheet("QScrollArea { border:none; background:transparent; }")
+        layout.addWidget(scroll)
+
+        # Add new tag section
+        add_box = QWidget()
+        add_layout = QHBoxLayout(add_box)
+        add_layout.setContentsMargins(0, 0, 0, 0)
+        add_layout.setSpacing(6)
+
+        self._name_input = QLineEdit()
+        self._name_input.setPlaceholderText("New tag name...")
+        self._name_input.setMaxLength(20)
+        add_layout.addWidget(self._name_input, 1)
+
+        # Color preset buttons
+        self._selected_color = TAG_PRESET_COLORS[0]
+        self._color_btns = []
+        for color in TAG_PRESET_COLORS:
+            btn = QPushButton()
+            btn.setFixedSize(22, 22)
+            btn.setStyleSheet(
+                f"QPushButton {{ background:{color}; border:2px solid transparent;"
+                f" border-radius:11px; }}"
+                f"QPushButton:hover {{ border-color:#fff; }}"
+            )
+            btn.clicked.connect(lambda checked, c=color: self._select_color(c))
+            self._color_btns.append((btn, color))
+            add_layout.addWidget(btn)
+
+        add_btn = QPushButton("+")
+        add_btn.setFixedSize(28, 28)
+        add_btn.setStyleSheet(
+            "QPushButton { background:#2a4a2a; color:#6c6; font-size:16px; font-weight:bold;"
+            " border:none; border-radius:14px; }"
+            "QPushButton:hover { background:#3a6a3a; }"
+        )
+        add_btn.clicked.connect(self._add_tag)
+        add_layout.addWidget(add_btn)
+
+        layout.addWidget(add_box)
+        self._update_color_selection()
+        self._rebuild_list()
+
+        # Close button
+        close_btn = QPushButton("Close")
+        close_btn.setStyleSheet(
+            "QPushButton { background:#252545; color:#aaa; padding:6px 16px;"
+            " border:none; border-radius:4px; }"
+            "QPushButton:hover { background:#353565; color:#ddd; }"
+        )
+        close_btn.clicked.connect(self.accept)
+        layout.addWidget(close_btn, alignment=Qt.AlignRight)
+
+    def _select_color(self, color: str):
+        self._selected_color = color
+        self._update_color_selection()
+
+    def _update_color_selection(self):
+        for btn, color in self._color_btns:
+            if color == self._selected_color:
+                btn.setStyleSheet(
+                    f"QPushButton {{ background:{color}; border:2px solid #fff;"
+                    f" border-radius:11px; }}"
+                )
+            else:
+                btn.setStyleSheet(
+                    f"QPushButton {{ background:{color}; border:2px solid transparent;"
+                    f" border-radius:11px; }}"
+                    f"QPushButton:hover {{ border-color:#fff; }}"
+                )
+
+    def _add_tag(self):
+        name = self._name_input.text().strip()
+        tag_id = _next_tag_id()
+        _TAG_DEFS.append({"id": tag_id, "name": name, "color": self._selected_color})
+        _save_tag_definitions()
+        self._name_input.clear()
+        self._rebuild_list()
+
+    def _delete_tag(self, tag_id: str):
+        global _TAG_DEFS
+        _TAG_DEFS = [td for td in _TAG_DEFS if td["id"] != tag_id]
+        _save_tag_definitions()
+        mw = self.parent()
+        if hasattr(mw, '_cats'):
+            for cat in mw._cats:
+                current = list(getattr(cat, 'tags', None) or [])
+                if tag_id in current:
+                    current.remove(tag_id)
+                    cat.tags = current
+        self._rebuild_list()
+
+    def _rename_tag(self, tag_id: str, new_name: str):
+        for td in _TAG_DEFS:
+            if td["id"] == tag_id:
+                td["name"] = new_name.strip()
+                break
+        _save_tag_definitions()
+
+    def _recolor_tag(self, tag_id: str, new_color: str):
+        for td in _TAG_DEFS:
+            if td["id"] == tag_id:
+                td["color"] = new_color
+                break
+        _save_tag_definitions()
+        self._rebuild_list()
+
+    def _rebuild_list(self):
+        while self._list_layout.count():
+            item = self._list_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        if not _TAG_DEFS:
+            empty = QLabel("No tags defined yet")
+            empty.setStyleSheet("color:#666; font-style:italic; padding:10px;")
+            empty.setAlignment(Qt.AlignCenter)
+            self._list_layout.addWidget(empty)
+        else:
+            for td in _TAG_DEFS:
+                row = QWidget()
+                rl = QHBoxLayout(row)
+                rl.setContentsMargins(4, 2, 4, 2)
+                rl.setSpacing(8)
+
+                swatch = QPushButton()
+                swatch.setFixedSize(20, 20)
+                swatch.setStyleSheet(
+                    f"QPushButton {{ background:{td['color']}; border:none; border-radius:10px; }}"
+                    f"QPushButton:hover {{ border:2px solid #fff; }}"
+                )
+                tag_id = td["id"]
+                swatch.clicked.connect(lambda checked, tid=tag_id: self._show_color_picker(tid))
+                rl.addWidget(swatch)
+
+                name_edit = QLineEdit(td["name"])
+                name_edit.setMaxLength(20)
+                name_edit.setStyleSheet(
+                    "QLineEdit { background:transparent; color:#ddd; border:none;"
+                    " border-bottom:1px solid #2a2a4a; padding:2px 4px; font-size:12px; }"
+                    "QLineEdit:focus { border-bottom-color:#5a5a8a; }"
+                )
+                name_edit.editingFinished.connect(
+                    lambda tid=tag_id, le=name_edit: self._rename_tag(tid, le.text())
+                )
+                rl.addWidget(name_edit, 1)
+
+                del_btn = QPushButton("x")
+                del_btn.setFixedSize(22, 22)
+                del_btn.setStyleSheet(
+                    "QPushButton { background:transparent; color:#855; font-size:12px;"
+                    " font-weight:bold; border:1px solid #433; border-radius:11px; }"
+                    "QPushButton:hover { background:#4a2020; color:#f88; border-color:#855; }"
+                )
+                del_btn.clicked.connect(lambda checked, tid=tag_id: self._delete_tag(tid))
+                rl.addWidget(del_btn)
+
+                self._list_layout.addWidget(row)
+
+        self._list_layout.addStretch()
+
+    def _show_color_picker(self, tag_id: str):
+        popup = QDialog(self)
+        popup.setWindowTitle("Pick Color")
+        popup.setFixedWidth(200)
+        popup.setStyleSheet("QDialog { background:#1a1a32; }")
+        grid = QGridLayout(popup)
+        grid.setSpacing(6)
+        for i, color in enumerate(TAG_PRESET_COLORS):
+            btn = QPushButton()
+            btn.setFixedSize(30, 30)
+            btn.setStyleSheet(
+                f"QPushButton {{ background:{color}; border:2px solid transparent;"
+                f" border-radius:15px; }}"
+                f"QPushButton:hover {{ border-color:#fff; }}"
+            )
+            btn.clicked.connect(lambda checked, c=color: (self._recolor_tag(tag_id, c), popup.accept()))
+            grid.addWidget(btn, i // 4, i % 4)
+        popup.exec()
+
+
 class CatDetailPanel(QWidget):
     """
     Bottom panel driven by table selection.
@@ -4092,6 +4579,7 @@ class CatDetailPanel(QWidget):
         gl.setStyleSheet("color:#7ac; font-size:12px; font-weight:bold;")
         name_row.addWidget(nl); name_row.addWidget(gl); name_row.addStretch()
         id_col.addLayout(name_row)
+
         id_col.addWidget(QLabel(cat.room_display or "—", styleSheet=_META_STYLE))
 
         # Stats: compact grid with shared Base / Mod / Total row labels.
@@ -4988,6 +5476,7 @@ class FamilyTreeBrowserView(QWidget):
         self._search.setPlaceholderText(_tr("family_tree.search_placeholder"))
         lv.addWidget(self._search)
         self._list = QListWidget()
+        self._list.setIconSize(QSize(60, 20))
         lv.addWidget(self._list, 1)
         root.addWidget(left)
 
@@ -5062,6 +5551,9 @@ class FamilyTreeBrowserView(QWidget):
                 label += f"  [{STATUS_ABBREV.get(cat.status, cat.status)}]"
             item = QListWidgetItem(label)
             item.setData(Qt.UserRole, cat.db_key)
+            icon = _make_tag_icon(_cat_tags(cat), dot_size=10, spacing=3)
+            if not icon.isNull():
+                item.setIcon(icon)
             self._list.addItem(item)
 
         if self._list.count() == 0:
@@ -5116,6 +5608,9 @@ class FamilyTreeBrowserView(QWidget):
             bg = "#1d2f4a" if highlight else "#131326"
             border = "#3b5f95" if highlight else "#252545"
             btn = QPushButton(f"{c.name}\n{line2}")
+            icon = _make_tag_icon(_cat_tags(c), dot_size=14, spacing=4)
+            if not icon.isNull():
+                btn.setIcon(icon)
             btn.setStyleSheet(
                 f"QPushButton {{ color:#ddd; font-size:10px; padding:7px 10px;"
                 f" background:{bg}; border:1px solid {border}; border-radius:6px; }}"
@@ -5303,6 +5798,7 @@ class SafeBreedingView(QWidget):
         self._search = QLineEdit()
         lv.addWidget(self._search)
         self._list = QListWidget()
+        self._list.setIconSize(QSize(60, 20))
         lv.addWidget(self._list, 1)
         root.addWidget(left)
 
@@ -5315,6 +5811,7 @@ class SafeBreedingView(QWidget):
         self._summary = QLabel("")
         self._summary.setStyleSheet("color:#666; font-size:11px;")
         self._table = QTableWidget(0, 4)
+        self._table.setIconSize(QSize(60, 20))
         self._table.verticalHeader().setVisible(False)
         self._table.setSelectionMode(QAbstractItemView.SingleSelection)
         self._table.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -5403,6 +5900,9 @@ class SafeBreedingView(QWidget):
                 text += f"  [{_tr('safe_breeding.list.must')}]"
             item = QListWidgetItem(text)
             item.setData(Qt.UserRole, cat.db_key)
+            icon = _make_tag_icon(_cat_tags(cat), dot_size=10, spacing=3)
+            if not icon.isNull():
+                item.setIcon(icon)
             if cat.is_blacklisted:
                 item.setForeground(QBrush(QColor(170, 100, 100)))
             if cat.must_breed:
@@ -5490,6 +5990,9 @@ class SafeBreedingView(QWidget):
                 tag, col = _tr("safe_breeding.tag.not_inbred"), QColor(98, 194, 135)
 
             name_item = QTableWidgetItem(f"{other.name} ({other.gender_display})")
+            icon = _make_tag_icon(_cat_tags(other), dot_size=14, spacing=4)
+            if not icon.isNull():
+                name_item.setIcon(icon)
             rel_item = QTableWidgetItem(f"{risk_pct}%")
             shared_item = QTableWidgetItem(str(shared))
             risk_item = QTableWidgetItem(tag)
@@ -5538,6 +6041,7 @@ class BreedingPartnersView(QWidget):
         root.addWidget(self._search)
 
         self._table = QTableWidget(0, 5)
+        self._table.setIconSize(QSize(60, 20))
         self._table.setHorizontalHeaderLabels([
             _tr("breeding_partners.table.cat_a"),
             _tr("breeding_partners.table.cat_b"),
@@ -5612,9 +6116,17 @@ class BreedingPartnersView(QWidget):
                 mismatch_count += 1
             status_text = _tr("breeding_partners.status.same_room") if same_room else _tr("breeding_partners.status.mismatch")
             status_color = QColor(98, 194, 135) if same_room else QColor(216, 181, 106)
+            item_a = QTableWidgetItem(f"{pair['cat_a'].name} ({pair['cat_a'].gender_display})")
+            icon_a = _make_tag_icon(_cat_tags(pair['cat_a']), dot_size=14, spacing=4)
+            if not icon_a.isNull():
+                item_a.setIcon(icon_a)
+            item_b = QTableWidgetItem(f"{pair['cat_b'].name} ({pair['cat_b'].gender_display})")
+            icon_b = _make_tag_icon(_cat_tags(pair['cat_b']), dot_size=14, spacing=4)
+            if not icon_b.isNull():
+                item_b.setIcon(icon_b)
             items = [
-                QTableWidgetItem(f"{pair['cat_a'].name} ({pair['cat_a'].gender_display})"),
-                QTableWidgetItem(f"{pair['cat_b'].name} ({pair['cat_b'].gender_display})"),
+                item_a,
+                item_b,
                 QTableWidgetItem(str(pair["room_a"])),
                 QTableWidgetItem(str(pair["room_b"])),
                 QTableWidgetItem(status_text),
@@ -5841,6 +6353,7 @@ class RoomOptimizerView(QWidget):
         
         # Results table
         self._table = QTableWidget(0, 6)
+        self._table.setIconSize(QSize(60, 20))
         self._table.setHorizontalHeaderLabels([
             _tr("room_optimizer.table.room"),
             _tr("room_optimizer.table.cats"),
@@ -6182,7 +6695,7 @@ class RoomOptimizerView(QWidget):
         if prefer_high_libido:
             filter_info.append("prefer high libido")
         if avoid_lovers:
-            filter_info.append("avoid lovers")
+            filter_info.append("keep lovers together")
         filter_str = f"  |  Filters: {', '.join(filter_info)}" if filter_info else ""
 
         self._summary.setText(
@@ -6233,6 +6746,11 @@ class RoomOptimizerWorker(QThread):
         pair_eval_cache: dict[tuple[int, int], tuple[bool, str, float]] = {}
         hater_key_map = {cat.db_key: {o.db_key for o in getattr(cat, "haters", [])} for cat in alive_cats}
         lover_key_map = {cat.db_key: {o.db_key for o in getattr(cat, "lovers", [])} for cat in alive_cats}
+        # Cats that have at least one mutual lover (love is reciprocated)
+        has_mutual_lover = {
+            cat.db_key for cat in alive_cats
+            if any(cat.db_key in lover_key_map.get(o.db_key, set()) for o in getattr(cat, "lovers", []))
+        }
 
         def _pair_key(a, b):
             ak, bk = a.db_key, b.db_key
@@ -6256,13 +6774,6 @@ class RoomOptimizerWorker(QThread):
                 score += sum(_trait_or_default(c.libido) for c in cats) / len(cats)
             return score
 
-        def _is_lover_conflict(a, b):
-            if not avoid_lovers:
-                return False
-            la = lover_key_map.get(a.db_key, set())
-            lb = lover_key_map.get(b.db_key, set())
-            return (la and b.db_key not in la) or (lb and a.db_key not in lb)
-
         def _pair_eval(a, b):
             key = _pair_key(a, b)
             cached = pair_eval_cache.get(key)
@@ -6271,8 +6782,6 @@ class RoomOptimizerWorker(QThread):
             ok, reason = can_breed(a, b)
             if ok and _is_hater_conflict(a, b):
                 ok, reason = False, "These cats hate each other"
-            if ok and _is_lover_conflict(a, b):
-                ok, reason = False, "One or both cats already have a lover"
             if ok:
                 if cache is not None and cache.ready:
                     risk = cache.risk_pct.get(cache._pair_key(a.db_key, b.db_key), 0.0)
@@ -6284,7 +6793,7 @@ class RoomOptimizerWorker(QThread):
             return pair_eval_cache[key]
 
         def _room_conflict(a, b):
-            if _is_hater_conflict(a, b) or _is_lover_conflict(a, b):
+            if _is_hater_conflict(a, b):
                 return True
             ok, _, risk = _pair_eval(a, b)
             return ok and risk > max_risk
@@ -6325,7 +6834,7 @@ class RoomOptimizerWorker(QThread):
                 return rd["males"] + rd["females"] + rd["unknown"]
 
             def _preferred_rooms(cat):
-                if avoid_lovers:
+                if not avoid_lovers:
                     return list(all_rooms)
                 lover_rooms = [r for r in all_rooms if any(_is_mutual_lover_pair(cat, ec) for ec in _room_cats(r))]
                 return lover_rooms + [r for r in all_rooms if r not in lover_rooms]
@@ -6434,7 +6943,7 @@ class RoomOptimizerWorker(QThread):
                                 trait_bonus += wf * 2.5
                 quality = (avg_base_stats + complementarity_bonus) * (1.0 - risk / 200.0) - variance_penalty + personality_bonus + trait_bonus
                 must_breed_bonus = 1000 if (cat_a.must_breed or cat_b.must_breed) else 0
-                lover_bonus = 0.0 if avoid_lovers else (500.0 if _is_mutual_lover_pair(cat_a, cat_b) else 0.0)
+                lover_bonus = 500.0 if (avoid_lovers and _is_mutual_lover_pair(cat_a, cat_b)) else 0.0
                 pairs_with_scores.append({
                     "cat_a": cat_a, "cat_b": cat_b, "risk": risk,
                     "avg_stats": avg_base_stats, "quality": quality,
@@ -6468,7 +6977,7 @@ class RoomOptimizerWorker(QThread):
                         preferred = sorted(
                             priority_rooms,
                             key=lambda r: (
-                                avoid_lovers or not any(_is_mutual_lover_pair(cat, ec) for ec in room_assignments[r]),
+                                not avoid_lovers or not any(_is_mutual_lover_pair(cat, ec) for ec in room_assignments[r]),
                                 len(room_assignments[r]),
                             ),
                         )
@@ -6497,13 +7006,15 @@ class RoomOptimizerWorker(QThread):
                 needs_move = c.status != "In House" or c.room_display != assigned_room_label
                 locator_data.append({
                     "name": c.name, "gender_display": c.gender_display,
-                    "db_key": c.db_key,
+                    "db_key": c.db_key, "tags": list(_cat_tags(c)),
                     "age": c.age if c.age is not None else c.db_key,
                     "current_room": current, "assigned_room": assigned_room_label,
                     "room_order": room_idx, "needs_move": needs_move,
                 })
 
         # Build per-room display data (no Qt objects)
+        # Use can_breed() instead of _pair_eval() so that relationship
+        # preferences (lover/hater filters) don't suppress the pair count.
         room_rows = []
         for room in all_rooms:
             cats_in_room = room_assignments[room]
@@ -6511,12 +7022,19 @@ class RoomOptimizerWorker(QThread):
             room_pairs = []
             for i, a in enumerate(cats_in_room):
                 for b in cats_in_room[i+1:]:
-                    ok, _, risk = _pair_eval(a, b)
+                    ok, _ = can_breed(a, b)
                     if ok:
+                        if cache is not None and cache.ready:
+                            risk = cache.risk_pct.get(cache._pair_key(a.db_key, b.db_key), 0.0)
+                        else:
+                            risk = risk_percent(a, b)
                         stat_ranges = {s: (min(a.base_stats[s], b.base_stats[s]), max(a.base_stats[s], b.base_stats[s])) for s in STAT_NAMES}
                         room_pairs.append({
                             "cat_a": f"{a.name} ({a.gender_display})",
                             "cat_b": f"{b.name} ({b.gender_display})",
+                            "is_lovers": _is_mutual_lover_pair(a, b),
+                            "cat_a_has_lover": a.db_key in has_mutual_lover,
+                            "cat_b_has_lover": b.db_key in has_mutual_lover,
                             "risk": risk,
                             "avg_stats": (stat_sum[a.db_key] + stat_sum[b.db_key]) / 2,
                             "stat_ranges": stat_ranges,
@@ -6535,6 +7053,7 @@ class RoomOptimizerWorker(QThread):
         excluded_rows = [
             {
                 "name": f"{c.name} ({c.gender_display})",
+                "tags": list(_cat_tags(c)),
                 "stats": dict(c.base_stats), "sum": _cat_base_sum(c),
                 "traits": {
                     "aggression": _trait_label_from_value("aggression", c.aggression) or "unknown",
@@ -6591,6 +7110,7 @@ class RoomOptimizerCatLocator(QWidget):
         root.addWidget(self._summary)
 
         self._table = QTableWidget(0, 5)
+        self._table.setIconSize(QSize(60, 20))
         self._table.setHorizontalHeaderLabels([
             _tr("room_optimizer.locator.table.cat"),
             _tr("room_optimizer.locator.table.age"),
@@ -6650,6 +7170,9 @@ class RoomOptimizerCatLocator(QWidget):
         for row, info in enumerate(all_assignments):
             name_item = QTableWidgetItem(f"{info['name']} ({info['gender_display']})")
             name_item.setData(Qt.UserRole, info.get("db_key"))
+            icon = _make_tag_icon(info.get("tags", []))
+            if not icon.isNull():
+                name_item.setIcon(icon)
             name_item.setForeground(QColor("#5b9bd5"))
             name_item.setToolTip(_tr("room_optimizer.locator.tooltip.jump_to_cat"))
 
@@ -6773,10 +7296,11 @@ class RoomOptimizerDetailPanel(QWidget):
         self._current_data: Optional[dict] = None
         self._navigate_to_cat_callback = None  # Callback to navigate to a cat by name
 
-        self._pairs_table = QTableWidget(0, 13)
+        self._pairs_table = QTableWidget(0, 14)
         self._pairs_table.setHorizontalHeaderLabels([
             _tr("room_optimizer.detail.table.cat_a"),
             _tr("room_optimizer.detail.table.cat_b"),
+            "\u2665",
             "STR", "DEX", "CON", "INT", "SPD", "CHA", "LCK",
             _tr("room_optimizer.detail.table.sum"),
             _tr("room_optimizer.detail.table.avg"),
@@ -6792,16 +7316,17 @@ class RoomOptimizerDetailPanel(QWidget):
         hh = self._pairs_table.horizontalHeader()
         hh.setSectionResizeMode(0, QHeaderView.Interactive)
         hh.setSectionResizeMode(1, QHeaderView.Interactive)
-        for col in range(2, 13):
+        for col in range(2, 14):
             hh.setSectionResizeMode(col, QHeaderView.Interactive)
         self._pairs_table.setColumnWidth(0, 120)
         self._pairs_table.setColumnWidth(1, 120)
-        for col in range(2, 9):
+        self._pairs_table.setColumnWidth(2, 24)
+        for col in range(3, 10):
             self._pairs_table.setColumnWidth(col, 40)
-        self._pairs_table.setColumnWidth(9, 60)
-        self._pairs_table.setColumnWidth(10, 50)
-        self._pairs_table.setColumnWidth(11, 75)
-        self._pairs_table.setColumnWidth(12, 50)
+        self._pairs_table.setColumnWidth(10, 60)
+        self._pairs_table.setColumnWidth(11, 50)
+        self._pairs_table.setColumnWidth(12, 75)
+        self._pairs_table.setColumnWidth(13, 50)
         self._pairs_table.setStyleSheet("""
             QTableWidget {
                 background:#0d0d1c; alternate-background-color:#131326;
@@ -6865,6 +7390,7 @@ class RoomOptimizerDetailPanel(QWidget):
         self._pairs_table.setHorizontalHeaderLabels([
             _tr("room_optimizer.detail.table.cat_a"),
             _tr("room_optimizer.detail.table.cat_b"),
+            "\u2665",
             "STR", "DEX", "CON", "INT", "SPD", "CHA", "LCK",
             _tr("room_optimizer.detail.table.sum"),
             _tr("room_optimizer.detail.table.avg"),
@@ -6886,7 +7412,7 @@ class RoomOptimizerDetailPanel(QWidget):
         if col not in (0, 1):
             return
 
-        cat_name = item.text()
+        cat_name = item.text().replace(" \u2665", "")
         if not cat_name or not self._navigate_to_cat_callback:
             return
 
@@ -6906,15 +7432,20 @@ class RoomOptimizerDetailPanel(QWidget):
 
     @staticmethod
     def _apply_best_pairs_filter(pairs: list[dict]) -> list[dict]:
-        """Greedy non-overlapping pair selection. pairs must be pre-sorted best-first."""
+        """Greedy non-overlapping pair selection. Lover pairs take priority."""
+        # Sort lover pairs first so they get picked before rank-based pairs
+        sorted_pairs = sorted(enumerate(pairs), key=lambda ip: (not ip[1].get("is_lovers"), ip[0]))
+        sorted_pairs = [p for _, p in sorted_pairs]
         used = set()
         result = []
-        for pair in pairs:
+        for pair in sorted_pairs:
             a, b = pair["cat_a"], pair["cat_b"]
             if a not in used and b not in used:
                 result.append(pair)
                 used.add(a)
                 used.add(b)
+        # Re-sort by original rank for display
+        result.sort(key=lambda p: p.get("_original_rank", 0))
         return result
 
     @staticmethod
@@ -6962,6 +7493,9 @@ class RoomOptimizerDetailPanel(QWidget):
             self._excluded_table.setRowCount(len(excluded_cat_rows))
             for row_idx, cat_row in enumerate(excluded_cat_rows):
                 name_item = QTableWidgetItem(cat_row["name"])
+                icon = _make_tag_icon(cat_row.get("tags", []))
+                if not icon.isNull():
+                    name_item.setIcon(icon)
                 self._excluded_table.setItem(row_idx, 0, name_item)
                 for stat_col, stat in enumerate(STAT_NAMES, start=1):
                     value = int(cat_row["stats"].get(stat, 0))
@@ -7015,8 +7549,14 @@ class RoomOptimizerDetailPanel(QWidget):
         self._pairs_table.setRowCount(len(pairs))
         for i, pair in enumerate(pairs, 1):
             # Cat A and B items with hyperlink styling
-            cat_a_item = QTableWidgetItem(pair['cat_a'])
-            cat_b_item = QTableWidgetItem(pair['cat_b'])
+            cat_a_text = pair['cat_a']
+            cat_b_text = pair['cat_b']
+            if pair.get("cat_a_has_lover"):
+                cat_a_text += " \u2665"
+            if pair.get("cat_b_has_lover"):
+                cat_b_text += " \u2665"
+            cat_a_item = QTableWidgetItem(cat_a_text)
+            cat_b_item = QTableWidgetItem(cat_b_text)
             # Style as hyperlinks
             hyperlink_color = QColor(0x5b9bd5)  # Blue
             cat_a_item.setForeground(QBrush(hyperlink_color))
@@ -7063,12 +7603,19 @@ class RoomOptimizerDetailPanel(QWidget):
 
             self._pairs_table.setItem(i - 1, 0, cat_a_item)
             self._pairs_table.setItem(i - 1, 1, cat_b_item)
-            for j, item in enumerate(stat_items, 2):
+            # Lovers indicator column
+            lover_item = QTableWidgetItem("\u2665" if pair.get("is_lovers") else "")
+            lover_item.setTextAlignment(Qt.AlignCenter)
+            if pair.get("is_lovers"):
+                lover_item.setForeground(QBrush(QColor(220, 100, 120)))
+                lover_item.setToolTip("Mutual lovers")
+            self._pairs_table.setItem(i - 1, 2, lover_item)
+            for j, item in enumerate(stat_items, 3):
                 self._pairs_table.setItem(i - 1, j, item)
-            self._pairs_table.setItem(i - 1, 9, sum_item)
-            self._pairs_table.setItem(i - 1, 10, avg_item)
-            self._pairs_table.setItem(i - 1, 11, risk_item)
-            self._pairs_table.setItem(i - 1, 12, rank_item)
+            self._pairs_table.setItem(i - 1, 10, sum_item)
+            self._pairs_table.setItem(i - 1, 11, avg_item)
+            self._pairs_table.setItem(i - 1, 12, risk_item)
+            self._pairs_table.setItem(i - 1, 13, rank_item)
 
 
 class PerfectPlannerDetailPanel(QWidget):
@@ -7277,6 +7824,9 @@ class PerfectPlannerDetailPanel(QWidget):
             self._excluded_table.setRowCount(len(rows))
             for row_idx, cat_row in enumerate(rows):
                 name_item = QTableWidgetItem(cat_row["name"])
+                icon = _make_tag_icon(cat_row.get("tags", []))
+                if not icon.isNull():
+                    name_item.setIcon(icon)
                 self._excluded_table.setItem(row_idx, 0, name_item)
                 for stat_col, stat in enumerate(STAT_NAMES, start=1):
                     value = int(cat_row["stats"].get(stat, 0))
@@ -7515,6 +8065,7 @@ class PerfectCatPlannerView(QWidget):
         self._splitter.setStyleSheet("QSplitter::handle:vertical { background:#1e1e38; }")
 
         self._table = QTableWidget(0, 6)
+        self._table.setIconSize(QSize(60, 20))
         self._table.setHorizontalHeaderLabels([
             _tr("perfect_planner.table.stage"),
             _tr("perfect_planner.table.goal"),
@@ -7723,9 +8274,6 @@ class PerfectCatPlannerView(QWidget):
             if ok and _is_hater_conflict(cat_a, cat_b):
                 ok = False
                 reason = "These cats hate each other"
-            if ok and _is_lover_conflict(cat_a, cat_b):
-                ok = False
-                reason = "One or both cats already have a lover"
             if ok:
                 if cache is not None and cache.ready:
                     risk = cache.risk_pct.get(cache._pair_key(cat_a.db_key, cat_b.db_key), 0.0)
@@ -8174,6 +8722,7 @@ class PerfectCatPlannerView(QWidget):
                 "excluded_cat_rows": [
                     {
                         "name": f"{cat.name} ({cat.gender_display})",
+                        "tags": list(_cat_tags(cat)),
                         "stats": dict(cat.base_stats),
                         "sum": _cat_base_sum(cat),
                         "traits": {
@@ -8207,7 +8756,7 @@ class PerfectCatPlannerView(QWidget):
                     locator_cats[cat.db_key] = {
                         "name": cat.name,
                         "gender_display": cat.gender_display,
-                        "db_key": cat.db_key,
+                        "db_key": cat.db_key, "tags": list(_cat_tags(cat)),
                         "age": cat.age if cat.age is not None else cat.db_key,
                         "current_room": current,
                         "assigned_room": pair_label,
@@ -8225,7 +8774,7 @@ class PerfectCatPlannerView(QWidget):
                     locator_cats[cat.db_key] = {
                         "name": cat.name,
                         "gender_display": cat.gender_display,
-                        "db_key": cat.db_key,
+                        "db_key": cat.db_key, "tags": list(_cat_tags(cat)),
                         "age": cat.age if cat.age is not None else cat.db_key,
                         "current_room": current,
                         "assigned_room": f"Rotation {idx + 1}",
@@ -8395,6 +8944,7 @@ class CalibrationView(QWidget):
         root.addLayout(actions)
 
         self._table = QTableWidget(0, 24)
+        self._table.setIconSize(QSize(60, 20))
         self._table.setHorizontalHeaderLabels([
             "Name", "Status", "Gender\nToken", "Pre-G\nU32s", "Parsed\nG", "Override\nG",
             "Default\nSexuality", "Sexuality",
@@ -8588,6 +9138,9 @@ class CalibrationView(QWidget):
 
             name_item = self._readonly_item(cat.name or "?")
             name_item.setData(Qt.UserRole, cat)
+            icon = _make_tag_icon(_cat_tags(cat), dot_size=10, spacing=3)
+            if not icon.isNull():
+                name_item.setIcon(icon)
             self._table.setItem(row, self.COL_NAME, name_item)
             self._table.setItem(row, self.COL_STATUS, self._readonly_item(cat.status))
             self._table.setItem(row, self.COL_TOKEN, self._readonly_item(getattr(cat, "gender_token", "") or ""))
@@ -8975,6 +9528,7 @@ class MutationDisorderPlannerView(QWidget):
         left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.setSpacing(4)
         self._cat_table = QTableWidget(0, 7)
+        self._cat_table.setIconSize(QSize(60, 20))
         self._cat_table.setHorizontalHeaderLabels([
             _tr("mutation_planner.table.name"),
             _tr("mutation_planner.table.gender"),
@@ -9452,12 +10006,18 @@ class MutationDisorderPlannerView(QWidget):
         for row, (score, a, b, covered, uncovered, penalized, pair_risk) in enumerate(show_pairs):
             a_item = QTableWidgetItem(f"{a.name} ({a.gender_display})")
             a_item.setData(Qt.UserRole, a.db_key)
+            a_icon = _make_tag_icon(_cat_tags(a), dot_size=14, spacing=4)
+            if not a_icon.isNull():
+                a_item.setIcon(a_icon)
             a_item.setForeground(QColor("#5b9bd5"))
             a_item.setToolTip(_tr("mutation_planner.tooltip.jump_to_cat"))
             pair_table.setItem(row, 0, a_item)
 
             b_item = QTableWidgetItem(f"{b.name} ({b.gender_display})")
             b_item.setData(Qt.UserRole, b.db_key)
+            b_icon = _make_tag_icon(_cat_tags(b), dot_size=14, spacing=4)
+            if not b_icon.isNull():
+                b_item.setIcon(b_icon)
             b_item.setForeground(QColor("#5b9bd5"))
             b_item.setToolTip(_tr("mutation_planner.tooltip.jump_to_cat"))
             pair_table.setItem(row, 1, b_item)
@@ -9721,6 +10281,9 @@ class MutationDisorderPlannerView(QWidget):
         for row, cat in enumerate(cats):
             name_item = QTableWidgetItem(cat.name)
             name_item.setData(Qt.UserRole, id(cat))
+            icon = _make_tag_icon(_cat_tags(cat), dot_size=10, spacing=3)
+            if not icon.isNull():
+                name_item.setIcon(icon)
             self._cat_table.setItem(row, 0, name_item)
 
             gender_item = QTableWidgetItem(cat.gender_display if hasattr(cat, 'gender_display') else cat.gender)
@@ -10105,11 +10668,12 @@ class MainWindow(QMainWindow):
         self._base_header_height = 46
         self._base_search_width = 180
         self._base_col_widths = {
-            COL_NAME: 130,
+            COL_NAME: 160,
             COL_GEN: _W_GEN,
             COL_STAT: _W_STATUS,
             COL_BL: 34,
             COL_MB: 34,
+            COL_PIN: 34,
             COL_SUM: 38,
             COL_ABIL: 180,
             COL_MUTS: 155,
@@ -10676,8 +11240,20 @@ class MainWindow(QMainWindow):
         self._bulk_actions_layout = QHBoxLayout(bulk_container)
         self._bulk_actions_layout.setContentsMargins(0, 0, 0, 0)
         self._bulk_actions_layout.setSpacing(8)
+        self._bulk_pin_btn = QPushButton()
+        self._bulk_pin_btn.setCheckable(True)
+        self._bulk_pin_btn.setMinimumWidth(90)
+        self._bulk_pin_btn.setStyleSheet(
+            "QPushButton { background:#2a3a2a; color:#c8dcc8; border:1px solid #4a6a4a;"
+            " border-radius:4px; padding:4px 10px; font-size:11px; font-weight:bold; }"
+            "QPushButton:hover { background:#3a4a3a; }"
+            "QPushButton:pressed { background:#1e2e1e; }"
+            "QPushButton:checked { background:#3a5a3a; border:1px solid #5a8a5a; }")
+        self._set_bulk_toggle_label(self._bulk_pin_btn, _tr("bulk.pin", default="Pin"), False)
+        self._bulk_pin_btn.clicked.connect(self._toggle_pin_filtered_cats)
         self._bulk_actions_layout.addWidget(self._bulk_must_breed_btn)
         self._bulk_actions_layout.addWidget(self._bulk_blacklist_btn)
+        self._bulk_actions_layout.addWidget(self._bulk_pin_btn)
         self._search = QLineEdit()
         self._search.setPlaceholderText(_tr("header.search_placeholder"))
         self._search.setClearButtonEnabled(True)
@@ -10686,11 +11262,34 @@ class MainWindow(QMainWindow):
             "QLineEdit { background:#0d0d1c; color:#ccc; border:1px solid #2a2a4a;"
             " border-radius:4px; padding:3px 8px; font-size:12px; }"
             "QLineEdit:focus { border-color:#3a3a7a; }")
+        self._pin_toggle = QPushButton(_tr("header.pin_toggle", default="📌"))
+        self._pin_toggle.setCheckable(True)
+        self._pin_toggle.setToolTip(_tr("header.pin_toggle_tooltip", default="Show only pinned cats"))
+        self._pin_toggle.setStyleSheet(
+            "QPushButton { background:#1a1a32; color:#888; border:1px solid #2a2a4a;"
+            " border-radius:4px; padding:3px 8px; font-size:12px; min-width:28px; }"
+            "QPushButton:hover { background:#222244; }"
+            "QPushButton:checked { background:#2a2a5a; color:#eee; border-color:#4a4a8a; }")
+        self._pin_toggle.toggled.connect(self._on_pin_toggle)
+
+        self._tags_btn = QPushButton("Tags")
+        self._tags_btn.setToolTip("Apply tags to selected cats")
+        self._tags_btn.setStyleSheet(
+            "QPushButton { background:#1a1a32; color:#aaa; border:1px solid #2a2a4a;"
+            " border-radius:4px; padding:3px 10px; font-size:11px; font-weight:bold; }"
+            "QPushButton:hover { background:#252545; color:#ddd; }"
+            "QPushButton::menu-indicator { image:none; }")
+        self._tags_btn.clicked.connect(self._show_tags_menu)
+
         hb.addWidget(self._header_lbl)
         hb.addWidget(self._count_lbl)
         hb.addStretch()
         hb.addWidget(bulk_container)
         hb.addSpacing(10)
+        hb.addWidget(self._tags_btn)
+        hb.addSpacing(4)
+        hb.addWidget(self._pin_toggle)
+        hb.addSpacing(4)
         hb.addWidget(self._search)
         hb.addSpacing(12)
         hb.addWidget(self._summary_lbl)
@@ -10725,7 +11324,6 @@ class MainWindow(QMainWindow):
         self._table.setWordWrap(False)
         # Checkbox columns are toggled explicitly in _on_table_clicked.
         self._table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-
         hh = self._table.horizontalHeader()
         hh.setStretchLastSection(False)  # we control stretch manually
 
@@ -10733,6 +11331,8 @@ class MainWindow(QMainWindow):
         # doesn't eat the blank space that should sit at the right edge.
         hh.setSectionResizeMode(COL_NAME, QHeaderView.Interactive)
         self._table.setColumnWidth(COL_NAME, self._base_col_widths[COL_NAME])
+        self._name_tag_delegate = NameTagDelegate(self._table)
+        self._table.setItemDelegateForColumn(COL_NAME, self._name_tag_delegate)
 
         # Room: size to content so it adapts to room name length
         hh.setSectionResizeMode(COL_ROOM, QHeaderView.ResizeToContents)
@@ -10743,6 +11343,7 @@ class MainWindow(QMainWindow):
             (COL_STAT, _W_STATUS),
             (COL_BL, 34),
             (COL_MB, 34),
+            (COL_PIN, 34),
             (COL_SUM, 38),
             (COL_AGG, _W_TRAIT),
             (COL_LIB, _W_TRAIT),
@@ -10893,7 +11494,7 @@ class MainWindow(QMainWindow):
             self._safe_breeding_view.select_cat(focus)
 
     def _on_table_clicked(self, proxy_index: QModelIndex):
-        if not proxy_index.isValid() or proxy_index.column() not in (COL_BL, COL_MB):
+        if not proxy_index.isValid() or proxy_index.column() not in (COL_BL, COL_MB, COL_PIN):
             return
         src_index = self._proxy_model.mapToSource(proxy_index)
         if not src_index.isValid():
@@ -10963,10 +11564,13 @@ class MainWindow(QMainWindow):
             else:
                 self._bulk_actions_layout.addWidget(self._bulk_must_breed_btn)
                 self._bulk_actions_layout.addWidget(self._bulk_blacklist_btn)
+            self._bulk_actions_layout.addWidget(self._bulk_pin_btn)
         if hasattr(self, "_bulk_blacklist_btn"):
             self._bulk_blacklist_btn.setVisible(visible)
         if hasattr(self, "_bulk_must_breed_btn"):
             self._bulk_must_breed_btn.setVisible(visible)
+        if hasattr(self, "_bulk_pin_btn"):
+            self._bulk_pin_btn.setVisible(visible)
         if not visible:
             return
         if alive_view:
@@ -10982,6 +11586,12 @@ class MainWindow(QMainWindow):
             self._bulk_must_breed_btn.setEnabled(True)
             self._bulk_must_breed_btn.setToolTip(_tr("bulk.toggle_must_breed.tooltip"))
             self._bulk_must_breed_btn.blockSignals(False)
+            self._bulk_pin_btn.blockSignals(True)
+            self._bulk_pin_btn.setCheckable(False)
+            self._bulk_pin_btn.setText(_tr("bulk.toggle_pin", default="Toggle Pin"))
+            self._bulk_pin_btn.setEnabled(True)
+            self._bulk_pin_btn.setToolTip(_tr("bulk.toggle_pin.tooltip", default="Toggle pin for selected cats"))
+            self._bulk_pin_btn.blockSignals(False)
             return
         cats = self._visible_filtered_cats()
         all_blocked = bool(cats) and all(cat.is_blacklisted for cat in cats)
@@ -11014,6 +11624,14 @@ class MainWindow(QMainWindow):
             self._set_bulk_toggle_label(self._bulk_must_breed_btn, _tr("bulk.must_breed"), all_must_breed)
             self._bulk_must_breed_btn.setToolTip("")
         self._bulk_must_breed_btn.blockSignals(False)
+        all_pinned = bool(cats) and all(cat.is_pinned for cat in cats)
+        self._bulk_pin_btn.setCheckable(True)
+        self._bulk_pin_btn.blockSignals(True)
+        self._bulk_pin_btn.setChecked(all_pinned)
+        self._bulk_pin_btn.setEnabled(True)
+        self._set_bulk_toggle_label(self._bulk_pin_btn, _tr("bulk.pin", default="Pin"), all_pinned)
+        self._bulk_pin_btn.setToolTip("")
+        self._bulk_pin_btn.blockSignals(False)
 
     def _toggle_blacklist_filtered_cats(self):
         room_key = None
@@ -11101,11 +11719,46 @@ class MainWindow(QMainWindow):
             state_text = _tr("common.on", default="on") if target_state else _tr("common.off", default="off")
             self.statusBar().showMessage(_tr("bulk.status.turned_must_breed", default="Turned must breed {state} for {count} cats in the current view", state=state_text, count=changed))
 
+    def _toggle_pin_filtered_cats(self):
+        room_key = None
+        if self._active_btn is not None:
+            for key, btn in self._room_btns.items():
+                if btn is self._active_btn:
+                    room_key = key
+                    break
+        alive_view = room_key is None
+        if alive_view:
+            cats = self._selected_cats()
+            if not cats:
+                self.statusBar().showMessage(_tr("bulk.status.select_toggle_pin", default="Select cats first, then click Toggle Pin"))
+                return
+            changed = 0
+            for cat in cats:
+                cat.is_pinned = not cat.is_pinned
+                changed += 1
+            self._emit_bulk_toggle_refresh()
+            self.statusBar().showMessage(_tr("bulk.status.toggled_pin", default="Toggled pin for {count} selected cats", count=changed))
+            return
+        target_state = self._bulk_pin_btn.isChecked()
+        changed = 0
+        for cat in self._visible_filtered_cats():
+            if cat.is_pinned == target_state:
+                continue
+            cat.is_pinned = target_state
+            changed += 1
+        self._refresh_bulk_view_buttons()
+        if changed == 0:
+            self.statusBar().showMessage(_tr("bulk.status.no_pin_change", default="No cats in view needed a pin change"))
+            return
+        self._emit_bulk_toggle_refresh()
+        state_text = _tr("common.on", default="on") if target_state else _tr("common.off", default="off")
+        self.statusBar().showMessage(_tr("bulk.status.turned_pin", default="Turned pin {state} for {count} cats in the current view", state=state_text, count=changed))
+
     def _emit_bulk_toggle_refresh(self):
         if self._source_model.rowCount() == 0:
             return
         top_left = self._source_model.index(0, COL_BL)
-        bottom_right = self._source_model.index(max(0, self._source_model.rowCount() - 1), COL_MB)
+        bottom_right = self._source_model.index(max(0, self._source_model.rowCount() - 1), COL_PIN)
         self._source_model.dataChanged.emit(
             top_left,
             bottom_right,
@@ -11302,6 +11955,8 @@ class MainWindow(QMainWindow):
             self._calibration_view.hide()
         if hasattr(self, "_mutation_planner_view") and self._mutation_planner_view is not None:
             self._mutation_planner_view.hide()
+        if hasattr(self, "_perfect_planner_view") and self._perfect_planner_view is not None:
+            self._perfect_planner_view.hide()
         if self._breeding_partners_view is not None:
             self._breeding_partners_view.set_cats(self._cats)
             self._breeding_partners_view.show()
@@ -11519,10 +12174,223 @@ class MainWindow(QMainWindow):
         gone   = sum(1 for c in self._cats if c.status == "Gone")
         self._summary_lbl.setText(_tr("header.summary", placed=placed, adv=adv, gone=gone))
 
+    def _on_pin_toggle(self, checked: bool):
+        self._proxy_model.set_pinned_only(checked)
+        self._update_count()
+
+    def _show_tags_menu(self):
+        """Show dropdown menu to apply/remove tags on selected cats."""
+        selected_cats = self._get_selected_cats()
+        menu = QMenu(self)
+        menu.setStyleSheet(
+            "QMenu { background:#1a1a32; color:#ddd; border:1px solid #2a2a4a; padding:4px; }"
+            "QMenu::item { padding:4px 16px; }"
+            "QMenu::item:selected { background:#252545; }"
+            "QMenu::separator { height:1px; background:#2a2a4a; margin:4px 8px; }"
+        )
+
+        if not _TAG_DEFS:
+            no_tags = menu.addAction("No tags defined — open Manage Tags")
+            no_tags.triggered.connect(self._open_tag_manager)
+        else:
+            header = menu.addAction("Apply Tags")
+            header.setEnabled(False)
+            menu.addSeparator()
+
+            if not selected_cats:
+                hint = menu.addAction("Select cats first, then apply tags")
+                hint.setEnabled(False)
+                menu.addSeparator()
+
+            for td in _TAG_DEFS:
+                tid = td["id"]
+                label = td["name"] if td["name"] else ""
+                # Show check if ALL selected cats have this tag
+                all_have = bool(selected_cats) and all(tid in _cat_tags(c) for c in selected_cats)
+                action = menu.addAction(f"  \u25CF  {label}")
+                action.setCheckable(True)
+                action.setChecked(all_have)
+                # Color the dot via rich icon
+                pix = QPixmap(12, 12)
+                pix.fill(Qt.transparent)
+                p = QPainter(pix)
+                p.setRenderHint(QPainter.Antialiasing)
+                p.setBrush(QBrush(QColor(td["color"])))
+                p.setPen(Qt.NoPen)
+                p.drawEllipse(1, 1, 10, 10)
+                p.end()
+                action.setIcon(QIcon(pix))
+                action.triggered.connect(
+                    lambda checked, tag_id=tid: self._apply_tag_to_selection(tag_id, checked)
+                )
+
+            menu.addSeparator()
+            clear_action = menu.addAction("Clear all tags from selection")
+            clear_action.setEnabled(bool(selected_cats))
+            clear_action.triggered.connect(self._clear_tags_from_selection)
+
+            # ── Filter section ──
+            menu.addSeparator()
+            filter_label = menu.addAction("Show only:")
+            filter_label.setEnabled(False)
+
+            current_filter = self._proxy_model._tag_filter
+            show_all = menu.addAction("All cats")
+            show_all.setCheckable(True)
+            show_all.setChecked(not current_filter)
+            show_all.triggered.connect(self._clear_tag_filter)
+
+            for td in _TAG_DEFS:
+                tid = td["id"]
+                label = td["name"] if td["name"] else "\u25CF"
+                is_active = tid in current_filter
+                pix = QPixmap(12, 12)
+                pix.fill(Qt.transparent)
+                p = QPainter(pix)
+                p.setRenderHint(QPainter.Antialiasing)
+                p.setBrush(QBrush(QColor(td["color"])))
+                p.setPen(Qt.NoPen)
+                p.drawEllipse(1, 1, 10, 10)
+                p.end()
+                check_mark = "\u2713 " if is_active else "  "
+                fa = menu.addAction(QIcon(pix), f"{check_mark}{label}")
+                fa.setCheckable(True)
+                fa.setChecked(is_active)
+                fa.triggered.connect(
+                    lambda checked, tag_id=tid: self._toggle_tag_filter(tag_id, checked)
+                )
+
+        menu.addSeparator()
+        manage = menu.addAction("Manage Tags\u2026")
+        manage.triggered.connect(self._open_tag_manager)
+
+        menu.exec(self._tags_btn.mapToGlobal(
+            self._tags_btn.rect().bottomLeft()))
+
+    def _get_selected_cats(self) -> list:
+        """Get currently selected cats from the main table."""
+        rows = set()
+        for idx in self._table.selectionModel().selectedRows():
+            src = self._proxy_model.mapToSource(idx)
+            rows.add(src.row())
+        return [c for r in rows if (c := self._source_model.cat_at(r)) is not None]
+
+    def _apply_tag_to_selection(self, tag_id: str, add: bool):
+        """Add or remove a tag from all selected cats."""
+        cats = self._get_selected_cats()
+        if not cats:
+            return
+        _TAG_ICON_CACHE.clear()
+        _TAG_PIX_CACHE.clear()
+        for c in cats:
+            current = list(getattr(c, 'tags', None) or [])
+            if add and tag_id not in current:
+                current.append(tag_id)
+            elif not add and tag_id in current:
+                current.remove(tag_id)
+            c.tags = current
+        # Refresh name column for affected rows
+        for row in range(self._source_model.rowCount()):
+            cat = self._source_model.cat_at(row)
+            if cat in cats:
+                idx = self._source_model.index(row, COL_NAME)
+                self._source_model.dataChanged.emit(idx, idx, [Qt.DisplayRole])
+        if self._current_save:
+            _save_tags(self._current_save, self._cats)
+        if self._detail and self._detail._current_cats:
+            self._detail.show_cats(self._detail._current_cats)
+
+    def _clear_tags_from_selection(self):
+        """Remove all tags from selected cats."""
+        cats = self._get_selected_cats()
+        if not cats:
+            return
+        _TAG_ICON_CACHE.clear()
+        _TAG_PIX_CACHE.clear()
+        for c in cats:
+            c.tags = []
+        for row in range(self._source_model.rowCount()):
+            cat = self._source_model.cat_at(row)
+            if cat in cats:
+                idx = self._source_model.index(row, COL_NAME)
+                self._source_model.dataChanged.emit(idx, idx, [Qt.DisplayRole])
+        if self._current_save:
+            _save_tags(self._current_save, self._cats)
+        if self._detail and self._detail._current_cats:
+            self._detail.show_cats(self._detail._current_cats)
+
+    def _tag_filtered_cats(self) -> list:
+        """Return cats filtered by the active tag filter, or all cats if no filter."""
+        f = self._proxy_model._tag_filter
+        if not f:
+            return self._cats
+        return [c for c in self._cats if set(_cat_tags(c)) & f]
+
+    def _toggle_tag_filter(self, tag_id: str, checked: bool):
+        """Toggle a single tag in the filter set."""
+        f = set(self._proxy_model._tag_filter)
+        if checked:
+            f.add(tag_id)
+        else:
+            f.discard(tag_id)
+        self._proxy_model.set_tag_filter(f)
+        self._update_count()
+        self._refresh_views_for_tag_filter()
+        # Visual indicator on the Tags button when filtering
+        if f:
+            self._tags_btn.setStyleSheet(
+                "QPushButton { background:#2a3a2a; color:#8c8; border:1px solid #4a6a4a;"
+                " border-radius:4px; padding:3px 10px; font-size:11px; font-weight:bold; }"
+                "QPushButton:hover { background:#3a5a3a; color:#afa; }"
+                "QPushButton::menu-indicator { image:none; }")
+        else:
+            self._tags_btn.setStyleSheet(
+                "QPushButton { background:#1a1a32; color:#aaa; border:1px solid #2a2a4a;"
+                " border-radius:4px; padding:3px 10px; font-size:11px; font-weight:bold; }"
+                "QPushButton:hover { background:#252545; color:#ddd; }"
+                "QPushButton::menu-indicator { image:none; }")
+
+    def _refresh_views_for_tag_filter(self):
+        """Push tag-filtered cat list to secondary views."""
+        filtered = self._tag_filtered_cats()
+        if self._room_optimizer_view is not None:
+            self._room_optimizer_view.set_cats(filtered)
+        if self._safe_breeding_view is not None:
+            self._safe_breeding_view.set_cats(filtered)
+        if self._breeding_partners_view is not None:
+            self._breeding_partners_view.set_cats(filtered)
+        if self._perfect_planner_view is not None:
+            self._perfect_planner_view.set_cats(filtered)
+
+    def _clear_tag_filter(self):
+        """Remove all tag filters."""
+        self._proxy_model.set_tag_filter(set())
+        self._update_count()
+        self._refresh_views_for_tag_filter()
+        self._tags_btn.setStyleSheet(
+            "QPushButton { background:#1a1a32; color:#aaa; border:1px solid #2a2a4a;"
+            " border-radius:4px; padding:3px 10px; font-size:11px; font-weight:bold; }"
+            "QPushButton:hover { background:#252545; color:#ddd; }"
+            "QPushButton::menu-indicator { image:none; }")
+
+    def _open_tag_manager(self):
+        dlg = TagManagerDialog(self)
+        dlg.exec()
+        _TAG_ICON_CACHE.clear()
+        _TAG_PIX_CACHE.clear()
+        # Repaint table without invalidating selection
+        self._table.viewport().update()
+        if self._detail and self._detail._current_cats:
+            self._detail.show_cats(self._detail._current_cats)
+        if self._current_save:
+            _save_tags(self._current_save, self._cats)
+
     def _on_blacklist_changed(self):
         if self._current_save:
             _save_blacklist(self._current_save, self._cats)
             _save_must_breed(self._current_save, self._cats)
+            _save_pinned(self._current_save, self._cats)
+            _save_tags(self._current_save, self._cats)
         self._refresh_bulk_view_buttons()
         if self._safe_breeding_view is not None:
             self._safe_breeding_view.set_cats(self._cats)
@@ -12041,6 +12909,7 @@ class SaveSelectorDialog(QDialog):
         vb.addWidget(title)
 
         self._list = QListWidget()
+        self._list.setIconSize(QSize(60, 20))
         for path in saves:
             name = os.path.basename(path)
             folder = os.path.basename(os.path.dirname(os.path.dirname(path)))
