@@ -8,6 +8,7 @@ a = Analysis(
         ('../locales/en.json', '.'),
         ('../locales/ru.json', '.'),
         ('../locales/zh_CN.json', '.'),
+        ('../locales/pl.json', '.'),
     ],
     hiddenimports=[
         'lz4.frame',
