@@ -171,6 +171,7 @@ _SUPPORTED_LANGUAGES = {
     "en": "language.english",
     "zh_CN": "language.zh_cn",
     "ru": "language.ru",
+    "pl": "language.pl",
 }
 _LOCALE_CACHE: dict[str, dict[str, str]] = {}
 _LOCALE_LOGGED: set[str] = set()
