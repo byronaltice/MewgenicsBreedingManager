@@ -47,7 +47,7 @@ from PySide6.QtGui import (
 
 # ── Imports from extracted modules ─────────────────────────────────────────────
 from save_parser import (
-    BinaryReader, Cat, parse_save, find_save_files,
+    BinaryReader, Cat, parse_save,
     STAT_NAMES, can_breed, risk_percent, kinship_coi,
     get_all_ancestors, get_parents, get_grandparents,
     find_common_ancestors, shared_ancestor_counts,
@@ -73,30 +73,10 @@ from breeding import (
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-_JUNK_STRINGS = frozenset({"none", "null", "", "defaultmove", "default_move"})
 _ACCESSIBILITY_MIN_FONT_PX = 12
 _ACCESSIBILITY_MIN_FONT_PT = 10.0
 _FONT_SIZE_RE = re.compile(r"(font-size\s*:\s*)(\d+)(px)")
 
-def _valid_str(s) -> bool:
-    """Reject None, empty, and game filler strings like 'none' or 'defaultmove'."""
-    return bool(s) and s.strip().lower() not in _JUNK_STRINGS
-
-def _normalize_gender(raw_gender: Optional[str]) -> str:
-    """
-    Normalize save-data gender variants to app-level values:
-      - maleX   -> "male"
-      - femaleX -> "female"
-      - spidercat (ditto-like) -> "?"
-    """
-    g = (raw_gender or "").strip().lower()
-    if g.startswith("male"):
-        return "male"
-    if g.startswith("female"):
-        return "female"
-    if g == "spidercat":
-        return "?"
-    return "?"
 
 def _with_min_font_px(stylesheet: str, min_px: int = _ACCESSIBILITY_MIN_FONT_PX) -> str:
     """Clamp stylesheet font-size declarations to an accessible minimum."""
@@ -174,7 +154,6 @@ def _app_dir() -> str:
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
-STAT_NAMES = ["STR", "DEX", "CON", "INT", "SPD", "CHA", "LCK"]
 
 APPDATA_SAVE_DIR = os.path.join(
     os.environ.get("APPDATA", ""),
@@ -208,10 +187,10 @@ STAT_COLORS = {
 }
 
 ROOM_DISPLAY = {
-    "Floor1_Large":   "Ground Floor Left",
-    "Floor1_Small":   "Ground Floor Right",
-    "Floor2_Large":   "Second Floor Right",
-    "Floor2_Small":   "Second Floor Left",
+    "Floor1_Large":   "1F Left",
+    "Floor1_Small":   "1F Right",
+    "Floor2_Large":   "2F Right",
+    "Floor2_Small":   "2F Left",
     "Attic":          "Attic",
 }
 
@@ -223,9 +202,6 @@ ROOM_COLORS = {
     "Attic":          QColor(120, 100, 180),   # purple
 }
 
-EXCEPTIONAL_SUM_THRESHOLD = 40
-DONATION_SUM_THRESHOLD = 34
-DONATION_MAX_TOP_STAT = 6
 
 # Full status → abbreviated display in table cell
 STATUS_ABBREV = {
@@ -948,6 +924,39 @@ def _set_optimizer_flag(name: str, value: bool):
     data["optimizer_flags"] = flags
     _save_app_config(data)
 
+
+def _default_room_priority_config() -> list[dict]:
+    """Default room priority: all rooms as Breeding, last one as Fallback."""
+    keys = list(ROOM_KEYS)
+    return [
+        {"room": k, "type": "breeding" if i < len(keys) - 1 else "fallback"}
+        for i, k in enumerate(keys)
+    ]
+
+
+def _load_room_priority_config() -> list[dict]:
+    try:
+        data = _load_app_config()
+        cfg = data.get("room_priority_config", [])
+        if isinstance(cfg, list) and cfg:
+            valid = [s for s in cfg if isinstance(s, dict)
+                     and s.get("room") in ROOM_KEYS
+                     and s.get("type") in ("breeding", "fallback")]
+            if valid:
+                return valid
+    except Exception:
+        pass
+    return _default_room_priority_config()
+
+
+def _save_room_priority_config(config: list[dict]):
+    try:
+        data = _load_app_config()
+        data["room_priority_config"] = config
+        _save_app_config(data)
+    except Exception:
+        pass
+
 _STAT_LABELS = {
     "str": "STR",
     "con": "CON",
@@ -1341,123 +1350,6 @@ def _mutation_effect_lines(cat: "Cat") -> list[str]:
     return lines
 
 
-# ── Binary reader ─────────────────────────────────────────────────────────────
-
-class BinaryReader:
-    def __init__(self, data, pos=0):
-        self.data = data
-        self.pos  = pos
-
-    def u32(self):
-        v = struct.unpack_from('<I', self.data, self.pos)[0]
-        self.pos += 4
-        return v
-
-    def i32(self):
-        v = struct.unpack_from('<i', self.data, self.pos)[0]
-        self.pos += 4
-        return v
-
-    def u64(self):
-        lo, hi = struct.unpack_from('<II', self.data, self.pos)
-        self.pos += 8
-        return lo + hi * 4_294_967_296
-
-    def f64(self):
-        v = struct.unpack_from('<d', self.data, self.pos)[0]
-        self.pos += 8
-        return v
-
-    def str(self):
-        start = self.pos
-        try:
-            length = self.u64()
-            if length < 0 or length > 10_000:
-                self.pos = start
-                return None
-            s = self.data[self.pos:self.pos + int(length)].decode('utf-8', errors='ignore')
-            self.pos += int(length)
-            return s
-        except Exception:
-            self.pos = start
-            return None
-
-    def utf16str(self):
-        char_count = self.u64()
-        byte_len   = int(char_count * 2)
-        s = self.data[self.pos:self.pos + byte_len].decode('utf-16le', errors='ignore')
-        self.pos += byte_len
-        return s
-
-    def skip(self, n):
-        self.pos += n
-
-    def seek(self, n):
-        self.pos = n
-
-    def remaining(self):
-        return len(self.data) - self.pos
-
-
-# ── Parent UID scanner ────────────────────────────────────────────────────────
-
-def _scan_blob_for_parent_uids(raw: bytes, uid_set: frozenset, self_uid: int) -> tuple[int, int]:
-    """
-    Scan the decompressed blob byte-by-byte looking for two consecutive u64
-    values (4-byte aligned) that are in uid_set and are not self_uid.
-    Parent UIDs appear early in the blob so we only scan the first 1 KB.
-    Returns (parent_a_uid, parent_b_uid), each 0 if not found.
-    """
-    if not uid_set:
-        return 0, 0
-    limit = min(1024, len(raw) - 16)
-    i = 12  # skip breed_id(4) + own uid(8)
-    while i <= limit - 16:
-        lo1, hi1 = struct.unpack_from('<II', raw, i)
-        v1 = lo1 + hi1 * 4_294_967_296
-        if v1 in uid_set and v1 != self_uid:
-            lo2, hi2 = struct.unpack_from('<II', raw, i + 8)
-            v2 = lo2 + hi2 * 4_294_967_296
-            if v2 in uid_set and v2 != self_uid:
-                return v1, v2          # both parents found
-            if v2 == 0:
-                return v1, 0           # one parent (other unknown)
-        i += 4  # u64-aligned steps
-    return 0, 0
-
-
-# ── Visual mutation table ─────────────────────────────────────────────────────
-
-_VISUAL_MUTATION_FIELDS = [
-    ("fur", 0, "fur", "texture", "fur", "Fur"),
-    ("body", 3, "body", "body", "body", "Body"),
-    ("head", 8, "head", "head", "head", "Head"),
-    ("tail", 13, "tail", "tail", "tail", "Tail"),
-    ("leg_L", 18, "legs", "legs", "legs", "Left Leg"),
-    ("leg_R", 23, "legs", "legs", "legs", "Right Leg"),
-    ("arm_L", 28, "arms", "legs", "legs", "Left Arm"),
-    ("arm_R", 33, "arms", "legs", "legs", "Right Arm"),
-    ("eye_L", 38, "eyes", "eyes", "eyes", "Left Eye"),
-    ("eye_R", 43, "eyes", "eyes", "eyes", "Right Eye"),
-    ("eyebrow_L", 48, "eyebrows", "eyebrows", "eyebrows", "Left Eyebrow"),
-    ("eyebrow_R", 53, "eyebrows", "eyebrows", "eyebrows", "Right Eyebrow"),
-    ("ear_L", 58, "ears", "ears", "ears", "Left Ear"),
-    ("ear_R", 63, "ears", "ears", "ears", "Right Ear"),
-    ("mouth", 68, "mouth", "mouth", "mouth", "Mouth"),
-]
-
-_VISUAL_MUTATION_PART_LABELS = {
-    "fur": "Fur",
-    "body": "Body",
-    "head": "Head",
-    "tail": "Tail",
-    "legs": "Leg",
-    "arms": "Arm",
-    "eyes": "Eye",
-    "eyebrows": "Eyebrow",
-    "ears": "Ear",
-    "mouth": "Mouth",
-}
 
 
 def _parse_mutation_gon(content: str, game_strings: dict[str, str], category: str) -> dict[int, tuple[str, str]]:
@@ -1486,7 +1378,6 @@ def _parse_mutation_gon(content: str, game_strings: dict[str, str], category: st
         """Parse a single mutation block into (display_name, stat_desc)."""
         name_match = re.search(r'//\s*(.+)', block)
         raw_name = name_match.group(1).strip().title() if name_match else f"Mutation {slot_id}"
-        # Trim parenthetical dev comments, e.g., "No Eyes (Frame 703, ...)" → "No Eyes"
         raw_name = re.sub(r'\s*\(.*', '', raw_name).strip() or raw_name
         csv_key = f"{csv_prefix}{slot_id}_DESC"
         if csv_key in game_strings:
@@ -1502,8 +1393,6 @@ def _parse_mutation_gon(content: str, game_strings: dict[str, str], category: st
             stat_desc = ", ".join(stats)
         result[slot_id] = (raw_name, stat_desc)
 
-    # ── Main numeric IDs (300+) ──────────────────────────────────────────
-    # IDs < 300 are base appearance variants, not mutations — skip them.
     idx = 0
     while idx < len(content):
         match = re.search(r'(?<!\w)(\d{3,})\s*\{', content[idx:])
@@ -1515,19 +1404,13 @@ def _parse_mutation_gon(content: str, game_strings: dict[str, str], category: st
             continue
         _block_to_entry(slot_id, block)
 
-    # ── Special -2 entry ("completely missing part" birth defect) ────────
-    # The GON files use `-2 {` for body parts that are entirely absent.
-    # In the save's visual-mutation T table this is stored as the u32
-    # value 0xFFFFFFFE (unsigned representation of -2).
     m2_match = re.search(r'(?<!\w)-2\s*\{', content)
     if m2_match:
         block, _ = _extract_block(m2_match.end())
-        # Try the game-string key "MUTATION_EYES_M2_DESC" etc.
         csv_key_m2 = f"{csv_prefix}M2_DESC"
         if csv_key_m2 in game_strings:
             name_match = re.search(r'//\s*(.+)', block)
             raw_name = name_match.group(1).strip().title() if name_match else "Missing Part"
-            # Trim parenthetical dev comments from the name
             raw_name = re.sub(r'\s*\(.*', '', raw_name).strip() or raw_name
             stat_desc = _resolve_game_string(game_strings[csv_key_m2], game_strings).strip().rstrip(".")
             result[0xFFFFFFFE] = (raw_name, stat_desc)
@@ -1575,996 +1458,6 @@ def _load_visual_mut_data() -> dict[str, dict[int, tuple[str, str]]]:
 
 _VISUAL_MUT_DATA = {}
 _reload_game_data()
-
-
-def _read_visual_mutation_entries(table: list[int]) -> list[dict[str, object]]:
-    fallback_names = load_visual_mutation_names()
-    entries: list[dict[str, object]] = []
-    for slot_key, table_index, group_key, gpak_category, fallback_part, slot_label in _VISUAL_MUTATION_FIELDS:
-        mutation_id = table[table_index] if table_index < len(table) else 0
-        if mutation_id in (0, 0xFFFF_FFFF):
-            continue
-
-        # IDs < 300 are base appearance variants (normal cat looks), not mutations.
-        # Actual mutations start at 300; birth defects are in the 700-706 range.
-        # 0xFFFFFFFE (-2 as u32) = "completely missing part" birth defect.
-        display_name = ""
-        detail = ""
-        gpak_info = _VISUAL_MUT_DATA.get(gpak_category, {}).get(mutation_id)
-        if gpak_info:
-            raw_name, stat_desc = gpak_info
-            if re.match(r'^Mutation \d+$', raw_name):
-                display_name = f"{_VISUAL_MUTATION_PART_LABELS.get(group_key, slot_label)} Mutation"
-            else:
-                display_name = raw_name
-            detail = stat_desc
-        else:
-            fallback_name = fallback_names.get((fallback_part, mutation_id))
-            if fallback_name is None:
-                if mutation_id < 300:
-                    continue
-                if mutation_id == 0xFFFF_FFFE:
-                    fallback_name = f"No {_VISUAL_MUTATION_PART_LABELS.get(group_key, slot_label)}"
-                else:
-                    fallback_name = f"{_VISUAL_MUTATION_PART_LABELS.get(group_key, slot_label)} {mutation_id}"
-            display_name = fallback_name
-
-        is_defect = (700 <= mutation_id <= 706) or mutation_id == 0xFFFF_FFFE
-
-        display_name = str(display_name).strip() or f"{slot_label} {mutation_id}"
-        entries.append({
-            "slot_key": slot_key,
-            "slot_label": slot_label,
-            "group_key": group_key,
-            "part_label": _VISUAL_MUTATION_PART_LABELS.get(group_key, slot_label),
-            "mutation_id": mutation_id,
-            "name": display_name,
-            "detail": str(detail).strip(),
-            "is_defect": is_defect,
-        })
-    return entries
-
-
-def _visual_mutation_chip_items(entries: list[dict[str, object]]) -> list[tuple[str, str, bool]]:
-    """Return [(display_text, tooltip, is_defect), ...] from visual mutation entries."""
-    grouped: dict[tuple[str, int], list[dict[str, object]]] = {}
-    order: list[tuple[str, int]] = []
-    for entry in entries:
-        key = (str(entry["group_key"]), int(entry["mutation_id"]))
-        if key not in grouped:
-            grouped[key] = []
-            order.append(key)
-        grouped[key].append(entry)
-
-    groups: list[dict[str, object]] = []
-    for key in order:
-        items = grouped[key]
-        slot_labels = [str(item["slot_label"]) for item in items]
-        name = str(items[0]["name"])
-        mutation_id = int(items[0]["mutation_id"])
-        part_label = str(items[0]["part_label"])
-        detail = str(items[0]["detail"]).strip()
-        is_defect = bool(items[0].get("is_defect", False))
-        title_label = part_label if len(slot_labels) > 1 else str(items[0]["slot_label"])
-        kind = "Birth Defect" if is_defect else "Mutation"
-        id_str = "-2" if mutation_id == 0xFFFF_FFFE else str(mutation_id)
-        tooltip = f"{title_label} {kind} (ID {id_str})\n{name}"
-        if detail:
-            tooltip = f"{tooltip}\n{detail}"
-        if len(slot_labels) > 1:
-            tooltip = f"{tooltip}\nAffects: {', '.join(slot_labels)}"
-        groups.append({
-            "text": name,
-            "tooltip": tooltip,
-            "slot_labels": slot_labels,
-            "is_defect": is_defect,
-        })
-
-    text_counts: dict[str, int] = {}
-    for group in groups:
-        text = str(group["text"])
-        text_counts[text] = text_counts.get(text, 0) + 1
-
-    chip_items: list[tuple[str, str, bool]] = []
-    for group in groups:
-        text = str(group["text"])
-        if text_counts[text] > 1:
-            text = f"{text} ({' / '.join(group['slot_labels'])})"
-        chip_items.append((text, str(group["tooltip"]), bool(group["is_defect"])))
-    return chip_items
-
-
-def _appearance_group_names(cat: 'Cat', group_key: str) -> list[str]:
-    entries = getattr(cat, "visual_mutation_entries", []) or []
-    names: list[str] = []
-    seen: set[str] = set()
-    for entry in entries:
-        if str(entry.get("group_key")) != group_key:
-            continue
-        name = str(entry.get("name", "")).strip()
-        if name and name not in seen:
-            seen.add(name)
-            names.append(name)
-    if names:
-        return names
-    if group_key in {"fur", "body", "head"}:
-        return [f"Base {_VISUAL_MUTATION_PART_LABELS.get(group_key, group_key).title()}"]
-    return []
-
-
-def _appearance_preview_text(a_names: list[str], b_names: list[str]) -> str:
-    if not a_names and not b_names:
-        return "No distinct appearance data"
-    a_text = " / ".join(a_names) if a_names else "Base"
-    b_text = " / ".join(b_names) if b_names else "Base"
-    if set(a_names) == set(b_names):
-        return f"Likely {a_text}"
-    return f"Probabilistic: {a_text} or {b_text}"
-
-
-def _stimulation_inheritance_weight(stimulation: float) -> float:
-    stim = max(0.0, min(100.0, float(stimulation)))
-    return (1.0 + 0.01 * stim) / (2.0 + 0.01 * stim)
-
-
-def _inheritance_candidates(
-    a_items: list[str],
-    b_items: list[str],
-    stimulation: float,
-    display_fn=None,
-) -> tuple[list[tuple[str, str]], float, float]:
-    share_a = _stimulation_inheritance_weight(stimulation)
-    share_b = 1.0 - share_a
-    odds: dict[str, float] = {}
-    tips: dict[str, list[str]] = {}
-
-    def _add(items: list[str], share: float, source_name: str):
-        if not items:
-            return
-        per_item = share / len(items)
-        for raw in items:
-            key = str(raw)
-            odds[key] = odds.get(key, 0.0) + per_item
-            tips.setdefault(key, []).append(f"{source_name}: {per_item * 100:.0f}%")
-
-    _add(a_items, share_a, "Parent A")
-    _add(b_items, share_b, "Parent B")
-
-    ordered = sorted(odds.items(), key=lambda kv: (-kv[1], (display_fn(kv[0]) if display_fn else kv[0]).lower()))
-    chips: list[tuple[str, str]] = []
-    for key, prob in ordered:
-        label = display_fn(key) if display_fn else key
-        chips.append((f"{label} {prob * 100:.0f}%", "\n".join(tips.get(key, []))))
-    return chips, share_a, share_b
-
-
-def _trait_inheritance_probabilities(
-    a: 'Cat', b: 'Cat', stimulation: float,
-) -> list[tuple[str, str, float, str]]:
-    """
-    Calculate per-trait inheritance probabilities using game formulas.
-    Returns list of (display_name, category, probability, source_detail).
-
-    Game formulas (from PurpleMyst's research):
-    - Abilities: base_chance = 0.2 + 0.025 * stim, then diluted by pool size
-    - Passives: base_chance = 0.05 + 0.01 * stim, then diluted by pool size
-    - SkillShare+ parent: 100% for passives from that parent
-    - Mutations: 80% base inheritance, favored by stimulation
-    """
-    stim = max(0.0, min(100.0, float(stimulation)))
-    favor_weight = _stimulation_inheritance_weight(stim)
-    results: list[tuple[str, str, float, str]] = []
-
-    a_has_skillshare = any(p.lower() in ("skillshare", "skillshare+", "skillshareplus")
-                          for p in (a.passive_abilities or []))
-    b_has_skillshare = any(p.lower() in ("skillshare", "skillshare+", "skillshareplus")
-                          for p in (b.passive_abilities or []))
-
-    # ── Active abilities ──
-    ability_base = 0.2 + 0.025 * stim
-    a_abilities = list(a.abilities or [])
-    b_abilities = list(b.abilities or [])
-    seen: dict[str, tuple[float, str]] = {}
-    b_keys = {x.lower() for x in b_abilities}
-    a_keys = {x.lower() for x in a_abilities}
-
-    for ab in a_abilities:
-        key = ab.lower()
-        prob_a = ability_base * favor_weight / len(a_abilities)
-        if key in b_keys:
-            prob_b = ability_base * (1.0 - favor_weight) / len(b_abilities)
-            prob = min(1.0, prob_a + prob_b)
-            seen[key] = (prob, f"Both parents ({prob*100:.0f}%)")
-        else:
-            seen[key] = (prob_a, f"From {a.name} ({prob_a*100:.0f}%)")
-
-    for ab in b_abilities:
-        key = ab.lower()
-        if key not in seen:
-            prob_b = ability_base * (1.0 - favor_weight) / len(b_abilities)
-            seen[key] = (prob_b, f"From {b.name} ({prob_b*100:.0f}%)")
-
-    for key, (prob, detail) in seen.items():
-        display = key
-        for ab in a_abilities + b_abilities:
-            if ab.lower() == key:
-                display = ab
-                break
-        results.append((display, "ability", prob, detail))
-
-    # ── Passive abilities ──
-    passive_base = 0.05 + 0.01 * stim
-    a_passives = list(a.passive_abilities or [])
-    b_passives = list(b.passive_abilities or [])
-    seen_p: dict[str, tuple[float, str]] = {}
-    b_pkeys = {x.lower() for x in b_passives}
-
-    for pa in a_passives:
-        key = pa.lower()
-        if a_has_skillshare:
-            prob = 1.0
-            seen_p[key] = (prob, f"SkillShare+ from {a.name} (100%)")
-        else:
-            prob_a = passive_base * favor_weight / len(a_passives)
-            if key in b_pkeys:
-                prob_b = 1.0 if b_has_skillshare else passive_base * (1.0 - favor_weight) / len(b_passives)
-                prob = min(1.0, prob_a + prob_b)
-                seen_p[key] = (prob, f"Both parents ({prob*100:.0f}%)")
-            else:
-                seen_p[key] = (prob_a, f"From {a.name} ({prob_a*100:.0f}%)")
-
-    for pa in b_passives:
-        key = pa.lower()
-        if key not in seen_p:
-            if b_has_skillshare:
-                seen_p[key] = (1.0, f"SkillShare+ from {b.name} (100%)")
-            else:
-                prob_b = passive_base * (1.0 - favor_weight) / len(b_passives)
-                seen_p[key] = (prob_b, f"From {b.name} ({prob_b*100:.0f}%)")
-
-    for key, (prob, detail) in seen_p.items():
-        results.append((_mutation_display_name(key), "passive", prob, detail))
-
-    # ── Mutations (visual) ──
-    mutation_base = 0.80
-    a_mutations = list(a.mutations or [])
-    b_mutations = list(b.mutations or [])
-    seen_m: dict[str, tuple[float, str]] = {}
-    b_mkeys = {x.lower() for x in b_mutations}
-
-    for mut in a_mutations:
-        key = mut.lower()
-        if key in b_mkeys:
-            seen_m[key] = (mutation_base, f"Both parents ({mutation_base*100:.0f}%)")
-        else:
-            prob = mutation_base * favor_weight
-            seen_m[key] = (prob, f"From {a.name} ({prob*100:.0f}%)")
-
-    for mut in b_mutations:
-        key = mut.lower()
-        if key not in seen_m:
-            prob = mutation_base * (1.0 - favor_weight)
-            seen_m[key] = (prob, f"From {b.name} ({prob*100:.0f}%)")
-
-    for key, (prob, detail) in seen_m.items():
-        results.append((_mutation_display_name(key), "mutation", prob, detail))
-
-    results.sort(key=lambda x: (-x[2], x[0].lower()))
-    return results
-
-
-# ── Cat ───────────────────────────────────────────────────────────────────────
-
-class Cat:
-    # parent_a / parent_b are resolved after the full save is loaded
-    parent_a: Optional['Cat'] = None
-    parent_b: Optional['Cat'] = None
-    generation: int = 0   # generation depth: 0=stray, 1=child of strays, etc.
-    is_blacklisted: bool = False  # exclude from breeding calculations
-    must_breed: bool = False  # prioritize in breeding optimization
-    is_pinned: bool = False  # user-pinned for tracking
-    passive_abilities: list[str]
-
-    def __init__(self, blob: bytes, cat_key: int, house_info: dict, adventure_keys: set, current_day: Optional[int] = None):
-        uncomp_size = struct.unpack('<I', blob[:4])[0]
-        raw = lz4.block.decompress(blob[4:], uncompressed_size=uncomp_size)
-        r   = BinaryReader(raw)
-        self._raw = raw   # kept for parent-UID blob scan in parse_save
-
-        self.db_key = cat_key
-
-        # Location / status
-        if cat_key in adventure_keys:
-            self.status = "Adventure"
-            self.room   = "Adventure"
-        elif cat_key in house_info:
-            self.status = "In House"
-            self.room   = house_info[cat_key]
-        else:
-            self.status = "Gone"
-            self.room   = ""
-
-        # Blob fields
-        self.breed_id = r.u32()
-        self._uid_int = r.u64()            # cat's own unique id (seed)
-        self.unique_id = hex(self._uid_int)
-        self.name = r.utf16str()
-
-        # Optional post-name tag string (empty for most cats). Some fields below
-        # are anchored to the byte immediately after this string.
-        self.name_tag = r.str() or ""
-        personality_anchor = r.pos
-
-        # Possible parent UIDs — fixed-position attempt.
-        # parse_save will run a blob scan as a fallback if these don't resolve.
-        self._parent_uid_a = r.u64()
-        self._parent_uid_b = r.u64()
-
-        self.collar = r.str() or ""
-        r.u32()
-
-        r.skip(64)
-        T = [r.u32() for _ in range(72)]
-        self.body_parts = {"texture": T[0], "bodyShape": T[3], "headShape": T[8]}
-        self.visual_mutation_slots = {
-            slot_key: T[table_index]
-            for slot_key, table_index, *_ in _VISUAL_MUTATION_FIELDS
-            if table_index < len(T)
-        }
-        visual_entries = _read_visual_mutation_entries(T)
-        visual_items = _visual_mutation_chip_items(visual_entries)
-        self.visual_mutation_entries = visual_entries
-        self.visual_mutation_ids = [int(entry["mutation_id"]) for entry in visual_entries
-                                    if not entry.get("is_defect")]
-        # Separate normal mutations from birth defects
-        visual_display_names = [text for text, _, is_def in visual_items if not is_def]
-        defect_display_names = [text for text, _, is_def in visual_items if is_def]
-
-        self.gender_token_fields = tuple(r.u32() for _ in range(3))
-        raw_gender = r.str()
-        self.gender_token = (raw_gender or "").strip().lower()
-        # Authoritative sex enum near the name block:
-        #   0 = male, 1 = female, 2 = undefined/both (ditto-like)
-        # This byte follows the optional post-name tag string, so use the
-        # tag-aware anchor (personality_anchor), not name_end + fixed offset.
-        sex_code = raw[personality_anchor] if personality_anchor < len(raw) else None
-        gender_from_code = {0: "male", 1: "female", 2: "?"}.get(sex_code)
-        if gender_from_code:
-            self.gender = gender_from_code
-            self.gender_source = "sex_code"
-        else:
-            self.gender = _normalize_gender(raw_gender)
-            self.gender_source = "token_fallback"
-        r.f64()
-
-        self.stat_base = [r.u32() for _ in range(7)]
-        self.stat_mod  = [r.i32() for _ in range(7)]
-        self.stat_sec  = [r.i32() for _ in range(7)]
-
-        self.base_stats  = {n: self.stat_base[i] for i, n in enumerate(STAT_NAMES)}
-        self.total_stats = {n: self.stat_base[i] + self.stat_mod[i] + self.stat_sec[i]
-                            for i, n in enumerate(STAT_NAMES)}
-
-        # Personality stats (age, aggression, libido, inbredness).
-        # Libido and inbredness are doubles anchored after the post-name tag string.
-        # Age is stored as creation_day at offset (blob_len - 103), then calculated as (current_day - creation_day).
-        self.age         = None
-        self.aggression  = None   # None = unknown
-        self.libido      = None
-        self.inbredness  = None
-        def _read_personality(offset: int) -> Optional[float]:
-            i = personality_anchor + offset
-            if i + 8 > len(raw):
-                return None
-            try:
-                v = struct.unpack_from('<d', raw, i)[0]
-            except Exception:
-                return None
-            if not math.isfinite(v) or not (0.0 <= v <= 1.0):
-                return None
-            return float(v)
-
-        self.libido = _read_personality(32)
-        self.inbredness = _read_personality(40)
-        self.aggression = _read_personality(64)
-
-        # Parsed baseline values (before any manual calibration overrides).
-        # NOTE: parsed_age is set after age extraction below.
-        self.parsed_gender = self.gender
-        self.parsed_aggression = self.aggression
-        self.parsed_libido = self.libido
-        self.parsed_inbredness = self.inbredness
-
-        # Relationship slots: direct db_key references relative to the byte
-        # immediately after the optional post-name tag string.
-        self._lover_uids = _read_db_key_candidates(raw, self.db_key, (48,), base_offset=personality_anchor)
-        self._hater_uids = _read_db_key_candidates(raw, self.db_key, (72,), base_offset=personality_anchor)
-        self.lovers:   list['Cat'] = []
-        self.haters:   list['Cat'] = []
-        self.children: list['Cat'] = []   # direct offspring; assigned by parse_save
-
-        # ── Ability run — anchored on "DefaultMove" ─────────────────────────
-        # The ability block is a u64-length-prefixed ASCII identifier run.
-        # Structure (from open-source editor research):
-        #   items[0]  = "DefaultMove"  (active slot 1 default)
-        #   items[1-5] = active abilities 2-6
-        #   items[6-9] = padding / unknown slots
-        #   items[10]  = Passive1 mutation  (e.g. "Sturdy", "Longshot")
-        #   After run:  u32 tier, then 3 × [u64 id][u32 tier] tail entries
-        #               = Passive2, Disorder1, Disorder2
-        curr = r.pos
-        run_start = -1
-        for i in range(curr, min(curr + 600, len(raw) - 19)):
-            lo = struct.unpack_from('<I', raw, i)[0]
-            hi = struct.unpack_from('<I', raw, i + 4)[0]
-            if hi != 0 or not (1 <= lo <= 96):
-                continue
-            try:
-                cand = raw[i + 8: i + 8 + lo].decode('ascii')
-                if cand == 'DefaultMove':
-                    run_start = i
-                    break
-            except Exception:
-                continue
-
-        if run_start != -1:
-            r.seek(run_start)
-            # Read the full run until a non-identifier is encountered
-            run_items: list[str] = []
-            for _ in range(32):
-                saved = r.pos
-                item = r.str()
-                if item is None or not _IDENT_RE.match(item):
-                    r.seek(saved)
-                    break
-                run_items.append(item)
-
-            # Active abilities: items[1-5] (skip DefaultMove at [0])
-            self.abilities = [x for x in run_items[1:6] if _valid_str(x)]
-
-            # Passive1 is in run_items[10] (if the run is long enough)
-            passives: list[str] = []
-            for ri in run_items[10:]:
-                if _valid_str(ri):
-                    passives.append(ri)
-
-            # After run: [u32 tier][string][u32 tier][string]...
-            # Passive1 tier, then Passive2, Disorder1, Disorder2 each with tier.
-            # Skip Passive1's tier first, then read 3 more string+tier pairs.
-            try:
-                r.u32()   # passive1 tier — discard
-            except Exception:
-                pass
-
-            # Tail slots: index 0 = Passive2, indices 1–2 = Disorder1/Disorder2.
-            # Passive2 goes into passives; disorders are kept separate so they
-            # don't appear twice in the UI (once as ● passive, once as ⚠ disorder).
-            disorders: list[str] = []
-            for tail_idx in range(3):
-                try:
-                    item = r.str()
-                except Exception:
-                    break
-                if item is not None and _IDENT_RE.match(item) and _valid_str(item):
-                    if tail_idx == 0:
-                        if item not in passives:
-                            passives.append(item)
-                    else:
-                        disorders.append(item)
-                try:
-                    r.u32()
-                except Exception:
-                    break
-
-            self.passive_abilities = passives
-            self.disorders = disorders
-            self.equipment = []   # equipment parsing requires separate byte-marker logic
-
-        else:
-            # Fallback: old heuristic scan for any uppercase-starting ASCII string
-            found = -1
-            for i in range(curr, min(curr + 500, len(raw) - 9)):
-                length = struct.unpack_from('<I', raw, i)[0]
-                if (0 < length < 64
-                        and struct.unpack_from('<I', raw, i + 4)[0] == 0
-                        and 65 <= raw[i + 8] <= 90):
-                    found = i
-                    break
-            if found != -1:
-                r.seek(found)
-
-            self.abilities = [a for a in [r.str() for _ in range(6)] if _valid_str(a)]
-            self.equipment = [s for s in [r.str() for _ in range(4)] if _valid_str(s)]
-
-            self.passive_abilities = []
-            self.disorders = []
-            first = r.str()
-            if _valid_str(first):
-                self.passive_abilities.append(first)
-            for _ in range(13):
-                if r.remaining() < 12:
-                    break
-                flag = r.u32()
-                if flag == 0:
-                    break
-                p = r.str()
-                if _valid_str(p):
-                    self.passive_abilities.append(p)
-
-        self.mutations = visual_display_names
-        self.mutation_chip_items = [(text, tip) for text, tip, is_def in visual_items if not is_def]
-        self.defects = defect_display_names
-        self.defect_chip_items = [(text, tip) for text, tip, is_def in visual_items if is_def]
-
-        # Extract age from creation_day stored near the end of the blob (around blob_len - 103).
-        # Search a small window around the typical offset to handle varying blob structures.
-        if current_day is not None:
-            try:
-                # Try positions from blob_len-100 to blob_len-110, preferring closer to -103
-                for offset_from_end in [103, 102, 104, 101, 105, 100, 106, 107, 108, 109, 110]:
-                    pos = len(raw) - offset_from_end
-                    if pos + 4 > len(raw) or pos < 0:
-                        continue
-                    creation_day = struct.unpack_from('<I', raw, pos)[0]
-                    # Valid creation_day should be between 0 and current_day
-                    if 0 <= creation_day <= current_day:
-                        age = current_day - creation_day
-                        # Accept if age is reasonable (0-100)
-                        if 0 <= age <= 100:
-                            self.age = age
-                            break
-            except Exception:
-                pass
-
-        self.parsed_age = self.age
-        self.sexuality: str = "straight"  # bi / gay / straight — defaults to straight
-
-        # Legacy token fallback is already handled above when sex_code is unavailable.
-
-    # ── Display helpers ────────────────────────────────────────────────────
-
-    @property
-    def room_display(self) -> str:
-        if not self.room or self.room == "Adventure":
-            return self.room or ""
-        return ROOM_DISPLAY.get(self.room, self.room)
-
-    @property
-    def gender_display(self) -> str:
-        g = (self.gender or "").strip().lower()
-        if g.startswith("male"):   return "M"
-        if g.startswith("female"): return "F"
-        return "?"
-
-    @property
-    def can_move(self) -> bool:
-        return self.status == "In House"
-
-    @property
-    def short_name(self) -> str:
-        """First word of name for compact displays."""
-        return self.name.split()[0] if self.name else "?"
-
-
-# ── Ancestry helpers ──────────────────────────────────────────────────────────
-
-def get_all_ancestors(cat: Optional[Cat], depth: int = 6) -> set:
-    """Return all ancestor Cat objects up to `depth` generations."""
-    if cat is None or depth <= 0:
-        return set()
-    ancestors: set[Cat] = set()
-    seen: set[int] = {id(cat)}
-    stack: list[tuple[Cat, int]] = [(cat, 0)]
-    while stack:
-        node, dist = stack.pop()
-        if dist >= depth:
-            continue
-        for parent in (node.parent_a, node.parent_b):
-            if parent is None:
-                continue
-            pid = id(parent)
-            if pid in seen:
-                continue
-            seen.add(pid)
-            ancestors.add(parent)
-            stack.append((parent, dist + 1))
-    return ancestors
-
-
-def _ancestor_depths(cat: Optional[Cat], max_depth: int = 8) -> dict[Cat, int]:
-    """
-    Return a map of ancestor -> generational distance (minimum).
-    Includes `cat` itself at depth 0, then parents at depth 1, etc.
-    """
-    if cat is None:
-        return {}
-    from collections import deque
-    depths: dict[Cat, int] = {cat: 0}
-    frontier: deque = deque([(cat, 0)])
-    while frontier:
-        cur, d = frontier.popleft()
-        if d >= max_depth:
-            continue
-        for parent in (cur.parent_a, cur.parent_b):
-            if parent is None:
-                continue
-            nd = d + 1
-            prev = depths.get(parent)
-            if prev is None or nd < prev:
-                depths[parent] = nd
-                frontier.append((parent, nd))
-    return depths
-
-
-def _ancestor_paths(start: Optional['Cat'], max_steps: int = 12) -> dict['Cat', list[tuple['Cat', ...]]]:
-    """
-    For each reachable ancestor, return all unique upward paths from `start`
-    to that ancestor (inclusive). Paths never repeat the same cat.
-    """
-    if start is None:
-        return {}
-    paths: dict[Cat, list[tuple[Cat, ...]]] = {}
-    stack: list[tuple[Cat, tuple[Cat, ...], frozenset[int]]] = [(start, (start,), frozenset({id(start)}))]
-    while stack:
-        node, path, seen = stack.pop()
-        paths.setdefault(node, []).append(path)
-        steps = len(path) - 1
-        if steps >= max_steps:
-            continue
-        for parent in (node.parent_a, node.parent_b):
-            if parent is None:
-                continue
-            pid = id(parent)
-            if pid in seen:
-                continue
-            stack.append((parent, path + (parent,), seen | frozenset({pid})))
-    return paths
-
-
-def _build_ancestor_paths_batch(
-    cats: list['Cat'],
-    max_steps: int = 12,
-) -> dict[int, dict['Cat', list[tuple['Cat', ...]]]]:
-    """
-    Compute ancestor paths for all cats using a shared memo keyed by id(cat).
-
-    Processes cats in ascending generation order so each parent's paths are
-    already in the memo when a child is processed.  This avoids re-traversing
-    shared ancestry sub-trees: instead of O(n × 2^depth) work the total is
-    proportional to the unique paths in the pedigree graph.
-
-    Returns: {db_key: ancestor_paths_dict}
-    """
-    # Sort ascending by generation so founders (gen 0) come first.
-    ordered = sorted(cats, key=lambda c: c.generation)
-
-    # memo maps id(cat) -> that cat's ancestor-paths dict
-    memo: dict[int, dict['Cat', list[tuple['Cat', ...]]]] = {}
-
-    result: dict[int, dict['Cat', list[tuple['Cat', ...]]]] = {}
-
-    for cat in ordered:
-        # Start: cat reaches itself with a length-1 path
-        paths: dict['Cat', list[tuple['Cat', ...]]] = {cat: [(cat,)]}
-
-        for parent in (cat.parent_a, cat.parent_b):
-            if parent is None:
-                continue
-            parent_paths = memo.get(id(parent))
-            if parent_paths is None:
-                # Parent absent from the ordered list (e.g. status "Gone") —
-                # fall back to on-demand computation and cache it.
-                parent_paths = _ancestor_paths(parent, max_steps)
-                memo[id(parent)] = parent_paths
-
-            for anc, path_list in parent_paths.items():
-                for path in path_list:
-                    # New path would be (cat,) + path; its step count = len(path).
-                    if len(path) >= max_steps:
-                        continue
-                    new_path = (cat,) + path
-                    paths.setdefault(anc, []).append(new_path)
-
-        memo[id(cat)] = paths
-        result[cat.db_key] = paths
-
-    return result
-
-
-def raw_coi(a: Optional['Cat'], b: Optional['Cat'], max_steps: int = 12) -> float:
-    """
-    Raw Coefficient of Inbreeding between two cats:
-      sum(0.5 ** (n + 1)) over all valid paths through common ancestors,
-    where n = total edge count from A up to ancestor and down to B.
-    """
-    if a is None or b is None:
-        return 0.0
-    pa = _ancestor_paths(a, max_steps=max_steps)
-    pb = _ancestor_paths(b, max_steps=max_steps)
-    common = set(pa.keys()) & set(pb.keys())
-    if not common:
-        return 0.0
-    coi = 0.0
-    for anc in common:
-        for path_a in pa[anc]:
-            set_a = {id(x) for x in path_a}
-            sa = len(path_a) - 1
-            for path_b in pb[anc]:
-                # Valid full path cannot pass through the same cat twice
-                # (except the common ancestor itself).
-                overlap = (set_a & {id(x) for x in path_b}) - {id(anc)}
-                if overlap:
-                    continue
-                sb = len(path_b) - 1
-                coi += 0.5 ** (sa + sb + 1)
-    return coi
-
-
-def _raw_coi_from_paths(
-    pa: dict['Cat', list[tuple['Cat', ...]]],
-    pb: dict['Cat', list[tuple['Cat', ...]]],
-) -> float:
-    common = set(pa.keys()) & set(pb.keys())
-    if not common:
-        return 0.0
-    coi = 0.0
-    for anc in common:
-        for path_a in pa[anc]:
-            set_a = {id(x) for x in path_a}
-            sa = len(path_a) - 1
-            for path_b in pb[anc]:
-                overlap = (set_a & {id(x) for x in path_b}) - {id(anc)}
-                if overlap:
-                    continue
-                sb = len(path_b) - 1
-                coi += 0.5 ** (sa + sb + 1)
-    return coi
-
-
-_MIN_CONTRIB = 1e-10  # prune ancestors with contribution < 2^-33 (depth > 33)
-
-def _ancestor_contributions(cat: Optional['Cat'], max_depth: int = 14) -> dict['Cat', float]:
-    """
-    For each reachable ancestor, return the sum of (0.5 ** depth) over every
-    path from *cat* to that ancestor.  This is a compact float per ancestor
-    instead of a list of full path tuples, and supports O(|common ancestors|)
-    COI calculation via _coi_from_contribs().
-    """
-    if cat is None:
-        return {}
-    contribs: dict['Cat', float] = {}
-    stack: list[tuple['Cat', int, float]] = [(cat, 0, 1.0)]
-    while stack:
-        node, depth, prob = stack.pop()
-        contribs[node] = contribs.get(node, 0.0) + prob
-        if depth >= max_depth:
-            continue
-        half_prob = prob * 0.5
-        if half_prob < _MIN_CONTRIB:
-            continue
-        for parent in (node.parent_a, node.parent_b):
-            if parent is not None:
-                stack.append((parent, depth + 1, half_prob))
-    return contribs
-
-
-def _build_ancestor_contribs_batch(
-    cats: list['Cat'],
-    max_depth: int = 14,
-) -> dict[int, dict['Cat', float]]:
-    """
-    Batch-compute ancestor contribution dicts for all cats using a shared memo
-    (same memoisation strategy as _build_ancestor_paths_batch, but storing
-    floats instead of path tuples).  O(unique edges in pedigree graph) total
-    instead of O(n × 2^depth).
-
-    Returns: {db_key: {ancestor: float}}
-    """
-    ordered = sorted(cats, key=lambda c: c.generation)
-    memo: dict[int, dict['Cat', float]] = {}
-    result: dict[int, dict['Cat', float]] = {}
-
-    for cat in ordered:
-        contribs: dict['Cat', float] = {cat: 1.0}
-
-        for parent in (cat.parent_a, cat.parent_b):
-            if parent is None:
-                continue
-            pc = memo.get(id(parent))
-            if pc is None:
-                pc = _ancestor_contributions(parent, max_depth)
-                memo[id(parent)] = pc
-            for anc, prob in pc.items():
-                new_prob = prob * 0.5
-                if new_prob < _MIN_CONTRIB:
-                    continue
-                contribs[anc] = contribs.get(anc, 0.0) + new_prob
-
-        memo[id(cat)] = contribs
-        # Exclude self from result so COI computation doesn't count a cat as
-        # its own ancestor.  Memo keeps self for correct child propagation.
-        result[cat.db_key] = {k: v for k, v in contribs.items() if k is not cat}
-
-    return result
-
-
-def _coi_from_contribs(
-    ca: dict['Cat', float],
-    cb: dict['Cat', float],
-) -> float:
-    """
-    Compute raw COI from two ancestor-contribution dicts.
-
-    COI ≈ 0.5 × Σ_{A in common} ca[A] × cb[A]
-
-    This approximates the full Wright path-coefficient formula without the
-    path-overlap exclusion check.  For typical (non-extreme) pedigrees the
-    result is identical; for heavily line-bred animals it may slightly
-    overestimate, but for the UI's purposes (percentage risk) this is fine.
-    Time: O(|common ancestors|), no path objects created.
-    """
-    if not ca or not cb:
-        return 0.0
-    coi = 0.0
-    # Iterate over the smaller dict
-    if len(ca) > len(cb):
-        ca, cb = cb, ca
-    for anc, prob_a in ca.items():
-        prob_b = cb.get(anc)
-        if prob_b is not None:
-            coi += prob_a * prob_b
-    return coi * 0.5
-
-
-_KINSHIP_CYCLE = object()  # sentinel for cycle detection
-
-
-def _kinship(a: Optional['Cat'], b: Optional['Cat'],
-             memo: dict[tuple[int, int], float]) -> float:
-    """
-    Memoised kinship coefficient between two cats.
-
-    f(a, a) = (1 + F_a) / 2   where F_a = f(a.sire, a.dam)
-    f(a, b) = (f(younger.sire, other) + f(younger.dam, other)) / 2
-
-    Mathematically equivalent to Wright's path-coefficient COI but runs in
-    O(unique ancestor pairs) instead of O(2^depth).
-    """
-    if a is None or b is None:
-        return 0.0
-    ia, ib = id(a), id(b)
-    key = (ia, ib) if ia <= ib else (ib, ia)
-    cached = memo.get(key)
-    if cached is not None:
-        return 0.0 if cached is _KINSHIP_CYCLE else cached
-    memo[key] = _KINSHIP_CYCLE  # mark in-progress to detect cycles
-    if a is b:
-        result = (1.0 + _kinship(a.parent_a, a.parent_b, memo)) / 2.0
-    else:
-        # Recurse on the younger cat's parents (higher generation number)
-        if a.generation > b.generation:
-            result = (_kinship(a.parent_a, b, memo) + _kinship(a.parent_b, b, memo)) / 2.0
-        else:
-            result = (_kinship(a, b.parent_a, memo) + _kinship(a, b.parent_b, memo)) / 2.0
-    memo[key] = result
-    return result
-
-
-def kinship_coi(a: Optional['Cat'], b: Optional['Cat'],
-                memo: Optional[dict] = None) -> float:
-    """
-    COI of a hypothetical offspring of a × b, using memoised kinship.
-    Pass a shared *memo* dict across multiple calls for O(1) amortised lookups.
-    """
-    if a is None or b is None:
-        return 0.0
-    if memo is None:
-        memo = {}
-    return _kinship(a, b, memo)
-
-
-def _malady_breakdown(coi: float) -> tuple[float, float, float]:
-    """
-    Return (disorder_chance, part_defect_chance, combined_chance) from game logic.
-    - Disorder: base 2%, scales above 0.20 CoI — chance of birth defect disorder
-    - Part defect: 0 below 0.05 CoI, then 1.5×CoI — chance of mutated part defects
-    - Combined: union probability of at least one occurring
-    """
-    disorder = 0.02 + 0.4 * min(max(coi - 0.20, 0.0), 1.0)
-    defect = min(1.5 * coi, 1.0) if coi > 0.05 else 0.0
-    combined = 1.0 - (1.0 - disorder) * (1.0 - defect)
-    return disorder, defect, combined
-
-
-def _combined_malady_chance(coi: float) -> float:
-    """
-    Probability that AT LEAST ONE birth defect occurs, from game logic.
-    Combines disorder chance (base 2%, scales above 0.20 CoI) with
-    part-defect chance (0 below 0.05 CoI, then 1.5×CoI).
-    """
-    return _malady_breakdown(coi)[2]
-
-
-def risk_percent(a: Optional['Cat'], b: Optional['Cat'],
-                 memo: Optional[dict] = None) -> float:
-    """Combined birth-defect probability as a percentage, clamped to [0, 100]."""
-    coi = kinship_coi(a, b, memo)
-    return max(0.0, min(100.0, _combined_malady_chance(coi) * 100.0))
-
-
-def find_common_ancestors(a: Cat, b: Cat) -> list[Cat]:
-    """Return cats that appear in both ancestry trees."""
-    return list(get_all_ancestors(a) & get_all_ancestors(b))
-
-
-def shared_ancestor_counts(a: Cat, b: Cat, recent_depth: int = 3, max_depth: int = 8) -> tuple[int, int]:
-    """
-    Return (total_shared, recent_shared) common ancestor counts.
-    recent_shared counts ancestors where both cats are within `recent_depth`
-    generations of that ancestor (used for inbreeding-risk checks).
-    """
-    da = _ancestor_depths(a, max_depth=max_depth)
-    db = _ancestor_depths(b, max_depth=max_depth)
-    common = set(da.keys()) & set(db.keys())
-    if not common:
-        return 0, 0
-    recent_shared = sum(1 for anc in common if da[anc] <= recent_depth and db[anc] <= recent_depth)
-    return len(common), recent_shared
-
-
-def get_parents(cat: Cat) -> list[Cat]:
-    return [p for p in (cat.parent_a, cat.parent_b) if p is not None]
-
-
-def get_grandparents(cat: Cat) -> list[Cat]:
-    gp = []
-    for p in get_parents(cat):
-        gp.extend(get_parents(p))
-    return gp
-
-
-def can_breed(a: Cat, b: Cat) -> tuple[bool, str]:
-    """Return (ok, reason). reason is non-empty only when ok is False."""
-    if a is b:
-        return False, "Cannot pair a cat with itself"
-    ga = (a.gender or "?").strip().lower()
-    gb = (b.gender or "?").strip().lower()
-
-    # Sexuality check — gay cats only pair with same gender, straight with opposite, bi with either.
-    sa = (getattr(a, "sexuality", None) or "straight").lower()
-    sb = (getattr(b, "sexuality", None) or "straight").lower()
-    if ga != "?" and gb != "?":
-        same_gender = ga == gb
-        if sa == "gay" and not same_gender:
-            return False, f"{a.name} is gay — needs same-gender partner"
-        if sb == "gay" and not same_gender:
-            return False, f"{b.name} is gay — needs same-gender partner"
-        if sa == "straight" and same_gender:
-            return False, f"{a.name} is straight — needs opposite-gender partner"
-        if sb == "straight" and same_gender:
-            return False, f"{b.name} is straight — needs opposite-gender partner"
-
-    # Spidercat/unknown cats ('?') are allowed to pair with any gender.
-    if ga == "?" or gb == "?":
-        return True, ""
-    # Bi cats can pair with any known gender.
-    if sa == "bi" or sb == "bi":
-        return True, ""
-    # Gay cats confirmed same gender above — allow.
-    if sa == "gay" or sb == "gay":
-        return True, ""
-    if ga != gb and {ga, gb} == {"male", "female"}:
-        return True, ""
-    # Same known sex (no sexuality override)
-    if ga == "female" and gb == "female":
-        return False, "Both cats are female — cannot produce offspring"
-    if ga == "male" and gb == "male":
-        return False, "Both cats are male — cannot produce offspring"
-    return False, "Cats have incompatible genders — cannot produce offspring"
-
-
-def _is_hater_pair(a: 'Cat', b: 'Cat') -> bool:
-    return b in getattr(a, 'haters', []) or a in getattr(b, 'haters', [])
 
 
 # ── Breeding cache (background pre-computation) ─────────────────────────────
@@ -2837,6 +1730,44 @@ class SaveLoadWorker(QThread):
         })
 
 
+class QuickRoomRefreshWorker(QThread):
+    """Fast path: re-reads only house_state/adventure_state to update room assignments.
+
+    If the set of cat keys in the DB has changed (birth/death), emits needs_full_reload
+    instead so the caller can fall back to a full SaveLoadWorker parse.
+    """
+    room_patch = Signal(object)      # dict[int, tuple[str, str]]  db_key → (room, status)
+    needs_full_reload = Signal()
+
+    def __init__(self, path: str, expected_keys: set, parent=None):
+        super().__init__(parent)
+        self._path = path
+        self._expected_keys = expected_keys
+
+    def run(self):
+        try:
+            conn = sqlite3.connect(f"file:{self._path}?mode=ro", uri=True)
+            live_keys = {row[0] for row in conn.execute("SELECT key FROM cats").fetchall()}
+            if live_keys != self._expected_keys:
+                conn.close()
+                self.needs_full_reload.emit()
+                return
+            house = _get_house_info(conn)
+            adv = _get_adventure_keys(conn)
+            conn.close()
+            patch: dict[int, tuple[str, str]] = {}
+            for key in live_keys:
+                if key in adv:
+                    patch[key] = ("Adventure", "Adventure")
+                elif key in house:
+                    patch[key] = (house[key], "In House")
+                else:
+                    patch[key] = ("", "Gone")
+            self.room_patch.emit(patch)
+        except Exception:
+            self.needs_full_reload.emit()
+
+
 # ── Compatibility check ───────────────────────────────────────────────────────
 
 def _compatibility(focus: 'Cat', other: 'Cat') -> str:
@@ -2860,215 +1791,6 @@ def _compatibility(focus: 'Cat', other: 'Cat') -> str:
         return 'risky'
     return 'ok'
 
-
-# ── Save-file helpers ─────────────────────────────────────────────────────────
-
-def _get_house_info(conn) -> dict:
-    row = conn.execute("SELECT data FROM files WHERE key = 'house_state'").fetchone()
-    if not row or len(row[0]) < 8:
-        return {}
-    data  = row[0]
-    count = struct.unpack_from('<I', data, 4)[0]
-    pos   = 8
-    result = {}
-    for _ in range(count):
-        if pos + 8 > len(data):
-            break
-        cat_key  = struct.unpack_from('<I', data, pos)[0]
-        pos += 8
-        room_len = struct.unpack_from('<I', data, pos)[0]
-        pos += 8
-        room_name = ""
-        if room_len > 0:
-            room_name = data[pos:pos + room_len].decode('ascii', errors='ignore')
-            pos += room_len
-        pos += 24
-        result[cat_key] = room_name
-    return result
-
-
-def _get_unlocked_house_rooms(conn) -> list[str]:
-    row = conn.execute("SELECT data FROM files WHERE key = 'house_unlocks'").fetchone()
-    if not row or not row[0]:
-        return []
-
-    # The blob includes ASCII unlock identifiers even though its binary layout
-    # is awkward to parse directly. We only need the unlock names that map to
-    # actual house rooms.
-    tokens = {
-        m.group(0).decode("ascii", errors="ignore")
-        for m in re.finditer(rb"[A-Za-z][A-Za-z0-9_]+", row[0])
-    }
-    unlocked = set()
-
-    if tokens & {"Default", "House3", "MediumHouse", "LargeHouse"}:
-        unlocked.add("Floor1_Large")
-    if tokens & {"House3", "MediumHouse_SmallRoom", "LargeHouse"}:
-        unlocked.add("Floor1_Small")
-    if "SmallHouse_Attic" in tokens:
-        unlocked.add("Attic")
-    if tokens & {"MediumHouse", "LargeHouse_Floor2Large"}:
-        unlocked.add("Floor2_Large")
-    if "LargeHouse_Floor2Small" in tokens:
-        unlocked.add("Floor2_Small")
-
-    return [room for room in ROOM_DISPLAY.keys() if room in unlocked]
-
-
-def _get_adventure_keys(conn) -> set:
-    keys = set()
-    try:
-        row = conn.execute("SELECT data FROM files WHERE key = 'adventure_state'").fetchone()
-        if not row or len(row[0]) < 8:
-            return keys
-        data  = row[0]
-        count = struct.unpack_from('<I', data, 4)[0]
-        pos   = 8
-        for _ in range(count):
-            if pos + 8 > len(data):
-                break
-            val = struct.unpack_from('<Q', data, pos)[0]
-            pos += 8
-            cat_key = (val >> 32) & 0xFFFF_FFFF
-            if cat_key:
-                keys.add(cat_key)
-    except Exception:
-        pass
-    return keys
-
-
-def _parse_pedigree(conn) -> dict:
-    """
-    Parse the pedigree blob from the files table.
-    Each 32-byte entry: u64 cat_key, u64 parent_a_key, u64 parent_b_key, u64 extra.
-    0xFFFFFFFFFFFFFFFF means null/unknown for parent fields.
-
-    Returns ped_map: db_key -> (parent_a_db_key | None, parent_b_db_key | None).
-
-    NOTE: children are NOT derived from this map because the pedigree blob
-    appears to store more than just direct parent-child pairs (possibly full
-    lineage chains), which causes circular references when used for children.
-    Children are instead computed bottom-up from resolved parent fields.
-    """
-    try:
-        row = conn.execute("SELECT data FROM files WHERE key='pedigree'").fetchone()
-        if not row:
-            return {}
-        data = row[0]
-    except Exception:
-        return {}
-
-    NULL = 0xFFFF_FFFF_FFFF_FFFF
-    MAX_KEY = 1_000_000   # anything larger is a legacy UID or garbage
-    ped_map: dict = {}
-
-    # Entries start at offset 8 (after a single u64 header), stride 32
-    for pos in range(8, len(data) - 31, 32):
-        cat_k, pa_k, pb_k, extra = struct.unpack_from('<QQQQ', data, pos)
-        if cat_k == 0 or cat_k == NULL or cat_k > MAX_KEY:
-            continue
-        pa = int(pa_k) if pa_k != NULL and 0 < pa_k <= MAX_KEY else None
-        pb = int(pb_k) if pb_k != NULL and 0 < pb_k <= MAX_KEY else None
-        cat_key = int(cat_k)
-
-        existing = ped_map.get(cat_key)
-        if existing is None:
-            # No entry yet — take whatever we have
-            ped_map[cat_key] = (pa, pb)
-        elif existing[0] is None or existing[1] is None:
-            # Existing entry is incomplete — upgrade if this one is better
-            if pa is not None and pb is not None:
-                ped_map[cat_key] = (pa, pb)
-
-    return ped_map
-
-
-def parse_save(path: str) -> tuple[list, list, list[str]]:
-    conn  = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
-    house = _get_house_info(conn)
-    unlocked_house_rooms = _get_unlocked_house_rooms(conn)
-    adv   = _get_adventure_keys(conn)
-    rows  = conn.execute("SELECT key, data FROM cats").fetchall()
-    ped_map = _parse_pedigree(conn)
-    current_day_row = conn.execute("SELECT data FROM properties WHERE key='current_day'").fetchone()
-    current_day = current_day_row[0] if current_day_row else None
-    conn.close()
-
-    cats, errors = [], []
-    for key, blob in rows:
-        try:
-            cats.append(Cat(blob, key, house, adv, current_day))
-        except Exception as e:
-            errors.append((key, str(e)))
-
-    key_to_cat: dict = {c.db_key: c for c in cats}
-
-    for cat in cats:
-        # Pedigree db_key lookup — only assigns a parent if that cat is still
-        # present in the save.  If the real parents are gone (dead/sold), we
-        # leave parent_a/parent_b as None rather than falling back to an
-        # unreliable blob-UID scan that picks up wrong living cats.
-        pa: Optional[Cat] = None
-        pb: Optional[Cat] = None
-        if cat.db_key in ped_map:
-            pa_k, pb_k = ped_map[cat.db_key]
-            pa = key_to_cat.get(pa_k)
-            pb = key_to_cat.get(pb_k)
-            # Sanity: a cat cannot be its own parent
-            if pa is cat: pa = None
-            if pb is cat: pb = None
-        cat.parent_a = pa
-        cat.parent_b = pb
-
-        cat.lovers = []
-        for key in getattr(cat, "_lover_uids", []):
-            other = key_to_cat.get(key)
-            if other is not None and other is not cat and other not in cat.lovers:
-                cat.lovers.append(other)
-
-        cat.haters = []
-        for key in getattr(cat, "_hater_uids", []):
-            other = key_to_cat.get(key)
-            if other is not None and other is not cat and other not in cat.haters:
-                cat.haters.append(other)
-
-    # Build children bottom-up from the now-resolved parent fields.
-    # This avoids the circular-reference problem in the pedigree blob.
-    for cat in cats:
-        cat.children = []
-    for cat in cats:
-        for parent in (cat.parent_a, cat.parent_b):
-            if parent is not None and cat not in parent.children:
-                parent.children.append(cat)
-
-    # Compute generation depth safely (iterative; handles cycles)
-    # Strays: generation 0
-    for c in cats:
-        c.generation = 0 if (c.parent_a is None and c.parent_b is None) else -1
-
-    # Relaxation: propagate parent generations downward until stable
-    for _ in range(len(cats) + 1):
-        changed = False
-        for c in cats:
-            pa_g = c.parent_a.generation if c.parent_a is not None else -1
-            pb_g = c.parent_b.generation if c.parent_b is not None else -1
-
-            # If at least one parent has a known generation, we can set this cat's generation.
-            if pa_g >= 0 or pb_g >= 0:
-                g = max(pa_g, pb_g) + 1
-                if c.generation != g:
-                    c.generation = g
-                    changed = True
-
-        if not changed:
-            break
-
-    # Any remaining -1 are part of cycles or disconnected-from-stray components; default them to 0.
-    for c in cats:
-        if c.generation < 0:
-            c.generation = 0
-
-    return cats, errors, unlocked_house_rooms
 
 
 def find_save_files() -> list[str]:
@@ -4107,6 +2829,7 @@ class RoomFilterModel(QSortFilterProxyModel):
         self._name_filter = ""
         self._pinned_only = False
         self._tag_filter: set[str] = set()  # empty = show all
+        self._sort_columns: list[tuple[int, Qt.SortOrder]] = []  # list of (column, order) for multi-column sort
         self.setSortRole(Qt.UserRole)
 
     def set_room(self, key):
@@ -4124,6 +2847,16 @@ class RoomFilterModel(QSortFilterProxyModel):
     def set_tag_filter(self, tag_ids: set[str]):
         self._tag_filter = tag_ids
         self.invalidate()
+
+    def set_sort_columns(self, columns: list[tuple[int, Qt.SortOrder]]):
+        """Set multi-column sort order. columns is a list of (column_index, order) tuples."""
+        self._sort_columns = columns
+        self.invalidate()
+
+    def sort(self, column: int, order: Qt.SortOrder):
+        """Override sort to clear multi-column sort when user clicks a column header."""
+        self._sort_columns = []
+        super().sort(column, order)
 
     def _matches_text_filter(self, cat: Cat) -> bool:
         if not self._name_filter:
@@ -4176,6 +2909,41 @@ class RoomFilterModel(QSortFilterProxyModel):
         if self._room == "__adventure__":
             return cat.status == "Adventure"
         return cat.room == self._room
+
+    def lessThan(self, left_index, right_index):
+        """Compare two rows for sorting, supporting multi-column sort."""
+        if not self._sort_columns:
+            # Fall back to default single-column sort
+            return super().lessThan(left_index, right_index)
+
+        # Multi-column sort: compare by each column in order
+        for col, order in self._sort_columns:
+            left_data = self.sourceModel().data(self.sourceModel().index(left_index.row(), col), Qt.UserRole)
+            right_data = self.sourceModel().data(self.sourceModel().index(right_index.row(), col), Qt.UserRole)
+
+            # Handle None/empty values
+            left_val = left_data if left_data is not None else ""
+            right_val = right_data if right_data is not None else ""
+
+            # Try numeric comparison for numbers, string comparison for strings
+            if isinstance(left_val, (int, float)) and isinstance(right_val, (int, float)):
+                if left_val != right_val:
+                    result = left_val < right_val
+                    if order == Qt.DescendingOrder:
+                        result = not result
+                    return result
+            else:
+                # String comparison (case-insensitive)
+                left_str = str(left_val).lower() if left_val else ""
+                right_str = str(right_val).lower() if right_val else ""
+                if left_str != right_str:
+                    result = left_str < right_str
+                    if order == Qt.DescendingOrder:
+                        result = not result
+                    return result
+
+        # All columns equal, maintain original order
+        return False
 
 
 # ── Detail / breeding panel widgets ──────────────────────────────────────────
@@ -6166,6 +4934,229 @@ class BreedingPartnersView(QWidget):
         ])
 
 
+# ── Room Priority Panel ───────────────────────────────────────────────────────
+
+class RoomPriorityPanel(QWidget):
+    """Compact horizontal panel for ordering rooms as Breeding or Fallback."""
+    configChanged = Signal()
+
+    _SS_BTN = (
+        "QPushButton { background:#1a1a32; color:#888; border:1px solid #2a2a4a;"
+        " border-radius:3px; padding:1px 5px; font-size:10px; }"
+        "QPushButton:hover { background:#252545; color:#ddd; }"
+    )
+    _SS_BREED = (
+        "QPushButton { background:#1f4a2a; color:#8fe0a0; border:1px solid #2f7a4a;"
+        " border-radius:3px; padding:2px 8px; font-size:10px; font-weight:bold; }"
+        "QPushButton:hover { background:#2f6a3a; }"
+    )
+    _SS_FALLBACK = (
+        "QPushButton { background:#4a2a3a; color:#e08898; border:1px solid #7a3a5a;"
+        " border-radius:3px; padding:2px 8px; font-size:10px; font-weight:bold; }"
+        "QPushButton:hover { background:#5a3a4a; }"
+    )
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        outer = QHBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(8)
+
+        lbl = QLabel("Room Priority:")
+        lbl.setStyleSheet("color:#888; font-size:11px; font-weight:bold;")
+        outer.addWidget(lbl)
+
+        self._slots: list[dict] = []
+        self._slots_widget = QWidget()
+        self._slots_layout = QHBoxLayout(self._slots_widget)
+        self._slots_layout.setContentsMargins(0, 0, 0, 0)
+        self._slots_layout.setSpacing(6)
+        self._slots_layout.addStretch()
+
+        scroll = QScrollArea()
+        scroll.setWidget(self._slots_widget)
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setFixedHeight(38)
+        scroll.setStyleSheet(
+            "QScrollArea { border: none; background: transparent; }"
+            "QWidget#qt_scrollarea_viewport { background: transparent; }"
+            "QScrollBar:horizontal { height: 5px; background: #0d0d1a; }"
+            "QScrollBar::handle:horizontal { background: #2a2a4a; border-radius: 2px; }"
+        )
+        outer.addWidget(scroll, 1)
+
+        self._add_btn = QPushButton("+ Add Room")
+        self._add_btn.setStyleSheet(self._SS_BTN)
+        self._add_btn.clicked.connect(lambda: self._add_slot())
+        outer.addWidget(self._add_btn)
+
+        for slot in _load_room_priority_config():
+            self._add_slot(slot["room"], slot["type"], emit=False)
+
+    def _add_slot(self, room: str = None, slot_type: str = "breeding", emit: bool = True):
+        if len(self._slots) >= 5:
+            return
+        used = {s["combo"].currentData() for s in self._slots}
+        if room is None:
+            room = next((k for k in ROOM_DISPLAY if k not in used), next(iter(ROOM_DISPLAY), None))
+        if room is None:
+            return
+
+        w = QWidget()
+        w.setAutoFillBackground(True)
+        row = QHBoxLayout(w)
+        row.setContentsMargins(4, 2, 4, 2)
+        row.setSpacing(2)
+
+        # Color swatch (thin accent bar on the left)
+        swatch = QLabel()
+        swatch.setFixedSize(6, 20)
+        row.addWidget(swatch)
+
+        combo = QComboBox()
+        combo.setFixedWidth(80)
+        combo.setStyleSheet(
+            "QComboBox { background:#1a1a32; color:#ddd; border:1px solid #2a2a4a;"
+            " padding:2px 4px; font-size:10px; border-radius:3px; }"
+            "QComboBox::drop-down { border:none; }"
+            "QComboBox QAbstractItemView { background:#101023; color:#ddd;"
+            " selection-background-color:#252545; }"
+        )
+        for key, disp in ROOM_DISPLAY.items():
+            combo.addItem(disp, key)
+        idx = combo.findData(room)
+        if idx >= 0:
+            combo.setCurrentIndex(idx)
+        row.addWidget(combo)
+
+        is_fallback = (slot_type == "fallback")
+        type_btn = QPushButton("Fallback" if is_fallback else "Breeding")
+        type_btn.setCheckable(True)
+        type_btn.setChecked(is_fallback)
+        type_btn.setFixedWidth(62)
+        type_btn.setStyleSheet(self._SS_FALLBACK if is_fallback else self._SS_BREED)
+        row.addWidget(type_btn)
+
+        up_btn = QPushButton("◀")
+        up_btn.setFixedWidth(20)
+        up_btn.setStyleSheet(self._SS_BTN)
+        row.addWidget(up_btn)
+
+        dn_btn = QPushButton("▶")
+        dn_btn.setFixedWidth(20)
+        dn_btn.setStyleSheet(self._SS_BTN)
+        row.addWidget(dn_btn)
+
+        rm_btn = QPushButton("×")
+        rm_btn.setFixedWidth(20)
+        rm_btn.setStyleSheet(
+            "QPushButton { background:#3a1a1a; color:#e08080; border:1px solid #5a2a2a;"
+            " border-radius:3px; font-size:10px; }"
+            "QPushButton:hover { background:#5a2a2a; }"
+        )
+        row.addWidget(rm_btn)
+
+        slot = {"combo": combo, "type_btn": type_btn, "widget": w, "swatch": swatch}
+        self._slots.append(slot)
+        self._slots_layout.insertWidget(self._slots_layout.count() - 1, w)
+
+        def _update_swatch(_s=slot):
+            key = _s["combo"].currentData()
+            color = ROOM_COLORS.get(key, QColor(80, 80, 100))
+            r, g, b = color.red(), color.green(), color.blue()
+            # Thin swatch bar: full color
+            _s["swatch"].setStyleSheet(
+                f"background-color: rgb({r},{g},{b}); border-radius: 2px;"
+            )
+            # Box background: heavily dimmed tint
+            _s["widget"].setStyleSheet(
+                f"QWidget {{ background-color: rgb({max(18,r//5)},{max(18,g//5)},{max(18,b//5)});"
+                " border-radius: 4px; }"
+            )
+
+        def _on_type(checked, _s=slot):
+            _s["type_btn"].setText("Fallback" if checked else "Breeding")
+            _s["type_btn"].setStyleSheet(self._SS_FALLBACK if checked else self._SS_BREED)
+            self._on_changed()
+
+        type_btn.toggled.connect(_on_type)
+        combo.currentIndexChanged.connect(lambda _: (_update_swatch(), self._on_changed()))
+        up_btn.clicked.connect(lambda checked=False, _s=slot: self._move(-1, _s))
+        dn_btn.clicked.connect(lambda checked=False, _s=slot: self._move(+1, _s))
+        rm_btn.clicked.connect(lambda checked=False, _s=slot: self._remove(_s))
+
+        _update_swatch()
+        self._add_btn.setEnabled(len(self._slots) < 5)
+
+        if emit:
+            self._on_changed()
+
+    def _move(self, direction: int, slot: dict):
+        if slot not in self._slots:
+            return
+        i = self._slots.index(slot)
+        j = i + direction
+        if not (0 <= j < len(self._slots)):
+            return
+        a, b = self._slots[i], self._slots[j]
+        a_room, b_room = a["combo"].currentData(), b["combo"].currentData()
+        a_fb, b_fb = a["type_btn"].isChecked(), b["type_btn"].isChecked()
+        for s in (a, b):
+            s["combo"].blockSignals(True)
+            s["type_btn"].blockSignals(True)
+        a["combo"].setCurrentIndex(a["combo"].findData(b_room))
+        b["combo"].setCurrentIndex(b["combo"].findData(a_room))
+        a["type_btn"].setChecked(b_fb)
+        b["type_btn"].setChecked(a_fb)
+        for s in (a, b):
+            s["combo"].blockSignals(False)
+            s["type_btn"].blockSignals(False)
+            is_fb = s["type_btn"].isChecked()
+            s["type_btn"].setText("Fallback" if is_fb else "Breeding")
+            s["type_btn"].setStyleSheet(self._SS_FALLBACK if is_fb else self._SS_BREED)
+            key = s["combo"].currentData()
+            color = ROOM_COLORS.get(key, QColor(80, 80, 100))
+            r, g, b = color.red(), color.green(), color.blue()
+            s["swatch"].setStyleSheet(
+                f"background-color: rgb({r},{g},{b}); border-radius: 2px;"
+            )
+            s["widget"].setStyleSheet(
+                f"QWidget {{ background-color: rgb({max(18,r//5)},{max(18,g//5)},{max(18,b//5)});"
+                " border-radius: 4px; }"
+            )
+        self._on_changed()
+
+    def _remove(self, slot: dict):
+        if slot not in self._slots:
+            return
+        self._slots.remove(slot)
+        self._slots_layout.removeWidget(slot["widget"])
+        slot["widget"].deleteLater()
+        self._add_btn.setEnabled(len(self._slots) < 5)
+        self._on_changed()
+
+    def _on_changed(self):
+        _save_room_priority_config(self.get_config())
+        self.configChanged.emit()
+
+    def get_config(self) -> list[dict]:
+        return [
+            {"room": s["combo"].currentData(),
+             "type": "fallback" if s["type_btn"].isChecked() else "breeding"}
+            for s in self._slots
+        ]
+
+    def set_config(self, config: list[dict]):
+        for s in list(self._slots):
+            self._slots_layout.removeWidget(s["widget"])
+            s["widget"].deleteLater()
+        self._slots = []
+        for slot in config:
+            self._add_slot(slot.get("room"), slot.get("type", "breeding"), emit=False)
+
+
 # ── Room Optimizer View ───────────────────────────────────────────────────────
 
 class RoomOptimizerView(QWidget):
@@ -6207,7 +5198,7 @@ class RoomOptimizerView(QWidget):
 
         root = QVBoxLayout(self)
         root.setContentsMargins(12, 12, 12, 12)
-        root.setSpacing(12)
+        root.setSpacing(8)
 
         # Header
         header = QHBoxLayout()
@@ -6221,6 +5212,11 @@ class RoomOptimizerView(QWidget):
         header.addWidget(self._title)
         header.addWidget(self._summary, 1)  # stretch=1 to fill space
         root.addLayout(header)
+
+        # Room priority panel
+        self._room_priority_panel = RoomPriorityPanel()
+        self._room_priority_panel.setStyleSheet("background:transparent;")
+        root.addWidget(self._room_priority_panel)
 
         # Controls
         controls_wrap = QScrollArea()
@@ -6555,6 +5551,7 @@ class RoomOptimizerView(QWidget):
             "mode_family": self._mode_toggle_btn.isChecked(),
             "planner_traits": list(self._planner_traits),
             "available_rooms": list(getattr(self, "_available_rooms", [])),
+            "room_config": self._room_priority_panel.get_config(),
         }
 
         self._optimize_btn.setEnabled(False)
@@ -6742,7 +5739,15 @@ class RoomOptimizerWorker(QThread):
         prefer_low_aggression = p["prefer_low_aggression"]
         prefer_high_libido = p["prefer_high_libido"]
         mode_family = p["mode_family"]
-        configured_rooms = [room for room in p.get("available_rooms", []) if room in ROOM_DISPLAY]
+        raw_room_config = p.get("room_config", [])
+        room_config = [s for s in raw_room_config
+                       if isinstance(s, dict) and s.get("room") in ROOM_DISPLAY
+                       and s.get("type") in ("breeding", "fallback")]
+        # configured_rooms: order from room_config if provided, else fall back to available_rooms param
+        if room_config:
+            configured_rooms = [s["room"] for s in room_config]
+        else:
+            configured_rooms = [room for room in p.get("available_rooms", []) if room in ROOM_DISPLAY]
 
         if min_stats > 0:
             alive_cats = [c for c in alive_cats if sum(c.base_stats.values()) >= min_stats]
@@ -6826,18 +5831,23 @@ class RoomOptimizerWorker(QThread):
         if not available_rooms:
             available_rooms = list(ROOM_DISPLAY.keys())
 
+        # Build breeding/fallback room lists from room_config (or fall back to available_rooms order)
+        if room_config:
+            breeding_rooms = [s["room"] for s in room_config if s["type"] == "breeding" and s["room"] in set(available_rooms)]
+            fallback_rooms  = [s["room"] for s in room_config if s["type"] == "fallback"  and s["room"] in set(available_rooms)]
+        else:
+            breeding_rooms = available_rooms[:-1] if len(available_rooms) > 1 else list(available_rooms)
+            fallback_rooms  = [available_rooms[-1]] if available_rooms else [next(iter(ROOM_DISPLAY))]
+        if not breeding_rooms:
+            breeding_rooms = available_rooms[:-1] if len(available_rooms) > 1 else list(available_rooms)
+        if not fallback_rooms:
+            fallback_rooms = [available_rooms[-1]] if available_rooms else [next(iter(ROOM_DISPLAY))]
+        fallback_rooms_set = set(fallback_rooms)
+        all_rooms = breeding_rooms + fallback_rooms
+
         if mode_family:
-            n_priority = max(len(available_rooms) - 1, 1)
-            priority_rooms = [f"Priority {i+1}" for i in range(n_priority)]
-            fallback_room = "Fallback"
-            all_rooms = priority_rooms + [fallback_room]
             max_cats_per_room = 6
             family_assignments = {room: {"males": [], "females": [], "unknown": []} for room in all_rooms}
-            # Map Priority labels to actual rooms for locator output
-            actual_room_map = {}
-            for i, priority in enumerate(priority_rooms):
-                actual_room_map[priority] = available_rooms[i] if i < len(available_rooms) else available_rooms[0]
-            actual_room_map[fallback_room] = available_rooms[-1] if available_rooms else list(ROOM_DISPLAY.keys())[0]
 
             def _room_cats(room_key):
                 rd = family_assignments[room_key]
@@ -6905,13 +5915,6 @@ class RoomOptimizerWorker(QThread):
             room_assignments = {room: _room_cats(room) for room in all_rooms}
 
         else:
-            # Reserve one unlocked room as fallback (non-breeding overflow),
-            # and use the rest as breeding rooms. If unlock metadata is
-            # missing, fall back to whatever rooms are currently occupied.
-            n_priority = max(len(available_rooms) - 1, 1)
-            priority_rooms = [f"Priority {i+1}" for i in range(n_priority)]
-            fallback_room = "Fallback"
-            all_rooms = priority_rooms + [fallback_room]
             room_assignments = {room: [] for room in all_rooms}
 
             candidate_pairs = (
@@ -6923,8 +5926,18 @@ class RoomOptimizerWorker(QThread):
 
             stimulation = 50.0
             better_stat_chance = (1.0 + 0.01 * stimulation) / (2.0 + 0.01 * stimulation)
+
+            # When avoid_lovers is on: cats with mutual lovers may ONLY breed with
+            # their specific lover. Any other pairing is excluded; if their lover
+            # pair can't form (incompatible, risk too high) they go to fallback.
+            lover_locked: set[int] = has_mutual_lover if avoid_lovers else set()
+
             pairs_with_scores = []
             for cat_a, cat_b in candidate_pairs:
+                # If either cat is lover-locked, the pair must be their mutual lover pair
+                if avoid_lovers and (cat_a.db_key in lover_locked or cat_b.db_key in lover_locked):
+                    if not _is_mutual_lover_pair(cat_a, cat_b):
+                        continue
                 ok, _, risk = _pair_eval(cat_a, cat_b)
                 if not ok or risk > max_risk:
                     continue
@@ -6953,7 +5966,8 @@ class RoomOptimizerWorker(QThread):
                                 trait_bonus += wf * 2.5
                 quality = (avg_base_stats + complementarity_bonus) * (1.0 - risk / 200.0) - variance_penalty + personality_bonus + trait_bonus
                 must_breed_bonus = 1000 if (cat_a.must_breed or cat_b.must_breed) else 0
-                lover_bonus = 500.0 if (avoid_lovers and _is_mutual_lover_pair(cat_a, cat_b)) else 0.0
+                # Lover pairs still get priority in ordering
+                lover_bonus = 500.0 if _is_mutual_lover_pair(cat_a, cat_b) else 0.0
                 pairs_with_scores.append({
                     "cat_a": cat_a, "cat_b": cat_b, "risk": risk,
                     "avg_stats": avg_base_stats, "quality": quality,
@@ -6969,7 +5983,7 @@ class RoomOptimizerWorker(QThread):
                 if a.db_key in assigned_cats or b.db_key in assigned_cats:
                     continue
                 placed = False
-                for room in priority_rooms:
+                for room in breeding_rooms:
                     rc = room_assignments[room]
                     if len(rc) >= max_per_room:
                         continue
@@ -6985,7 +5999,7 @@ class RoomOptimizerWorker(QThread):
                         if cat.db_key in assigned_cats:
                             continue
                         preferred = sorted(
-                            priority_rooms,
+                            breeding_rooms,
                             key=lambda r: (
                                 not avoid_lovers or not any(_is_mutual_lover_pair(cat, ec) for ec in room_assignments[r]),
                                 len(room_assignments[r]),
@@ -6998,19 +6012,15 @@ class RoomOptimizerWorker(QThread):
                                 assigned_cats.add(cat.db_key)
                                 break
 
-            for cat in all_cats:
-                if cat.db_key not in assigned_cats:
-                    room_assignments[fallback_room].append(cat)
+            # Distribute remaining cats across fallback rooms in round-robin order
+            unassigned = [c for c in all_cats if c.db_key not in assigned_cats]
+            for i, cat in enumerate(unassigned):
+                room_assignments[fallback_rooms[i % len(fallback_rooms)]].append(cat)
 
-        # Build locator data
+        # Build locator data (all_rooms now contains actual room keys in all modes)
         locator_data = []
         for room_idx, room in enumerate(all_rooms):
-            if mode_family:
-                # Map Priority label to actual room for display
-                actual_room = actual_room_map.get(room, room)
-                assigned_room_label = ROOM_DISPLAY.get(actual_room, actual_room)
-            else:
-                assigned_room_label = ROOM_DISPLAY.get(room, room)
+            assigned_room_label = ROOM_DISPLAY.get(room, room)
             for c in room_assignments[room]:
                 current = c.room_display or c.status or "?"
                 needs_move = c.status != "In House" or c.room_display != assigned_room_label
@@ -7019,6 +6029,7 @@ class RoomOptimizerWorker(QThread):
                     "db_key": c.db_key, "tags": list(_cat_tags(c)),
                     "age": c.age if c.age is not None else c.db_key,
                     "current_room": current, "assigned_room": assigned_room_label,
+                    "assigned_room_key": room,
                     "room_order": room_idx, "needs_move": needs_move,
                 })
 
@@ -7057,7 +6068,7 @@ class RoomOptimizerWorker(QThread):
                 "room": room, "room_label": ROOM_DISPLAY.get(room, room),
                 "cat_names": cat_names, "pairs": room_pairs,
                 "avg_stats": avg_stats, "avg_risk": avg_risk,
-                "is_fallback": room == fallback_room,
+                "is_fallback": room in fallback_rooms_set,
             })
 
         excluded_rows = [
@@ -7203,18 +6214,24 @@ class RoomOptimizerCatLocator(QWidget):
 
             # Color row background by current room
             current_room_display = info["current_room"]
-            row_bg = QColor(40, 34, 16)  # default brown
+            row_bg = QColor(40, 34, 16)  # default
             for room_key, room_display in ROOM_DISPLAY.items():
                 if room_display == current_room_display and room_key in ROOM_COLORS:
-                    room_color = ROOM_COLORS[room_key]
-                    row_bg = QColor(
-                        max(20, room_color.red() // 3),
-                        max(20, room_color.green() // 3),
-                        max(20, room_color.blue() // 3)
-                    )
+                    c = ROOM_COLORS[room_key]
+                    row_bg = QColor(max(20, c.red()//3), max(20, c.green()//3), max(20, c.blue()//3))
                     break
-            for it in (name_item, age_item, current_item, assigned_item):
+            for it in (name_item, age_item, current_item):
                 it.setBackground(QBrush(row_bg))
+
+            # Color "Move To" cell by assigned room
+            assigned_key = info.get("assigned_room_key", "")
+            if assigned_key in ROOM_COLORS:
+                ac = ROOM_COLORS[assigned_key]
+                assigned_bg = QColor(max(20, ac.red()//3), max(20, ac.green()//3), max(20, ac.blue()//3))
+                assigned_item.setBackground(QBrush(assigned_bg))
+                assigned_item.setForeground(QBrush(QColor(ac.red(), ac.green(), ac.blue())))
+            else:
+                assigned_item.setBackground(QBrush(row_bg))
 
             needs_move = info.get("needs_move", False)
             if needs_move:
@@ -8344,6 +7361,8 @@ class PerfectCatPlannerView(QWidget):
 
         evaluated_pairs = []
         for cat_a, cat_b in candidate_pairs:
+            if _is_lover_conflict(cat_a, cat_b):
+                continue
             ok, _, risk = _pair_eval(cat_a, cat_b)
             if not ok or risk > max_risk:
                 continue
@@ -8760,7 +7779,13 @@ class PerfectCatPlannerView(QWidget):
         room_order_counter = 0
         for idx, pair in enumerate(selected_pairs):
             pair_label = f"Pair {idx + 1}"
-            for cat in (pair["cat_a"], pair["cat_b"]):
+            cat_a, cat_b = pair["cat_a"], pair["cat_b"]
+            room_a = cat_a.room_display or cat_a.status or "?"
+            room_b = cat_b.room_display or cat_b.status or "?"
+            # Pair needs to move if the two cats aren't already in the same room together
+            pair_needs_move = (cat_a.status != "In House" or cat_b.status != "In House"
+                               or room_a != room_b)
+            for cat in (cat_a, cat_b):
                 if cat.db_key not in locator_cats:
                     current = cat.room_display or cat.status or "?"
                     locator_cats[cat.db_key] = {
@@ -8771,7 +7796,7 @@ class PerfectCatPlannerView(QWidget):
                         "current_room": current,
                         "assigned_room": pair_label,
                         "room_order": room_order_counter,
-                        "needs_move": False,
+                        "needs_move": pair_needs_move,
                     }
             room_order_counter += 1
         # Add rotation candidates
@@ -8789,7 +7814,7 @@ class PerfectCatPlannerView(QWidget):
                         "current_room": current,
                         "assigned_room": f"Rotation {idx + 1}",
                         "room_order": room_order_counter,
-                        "needs_move": False,
+                        "needs_move": cat.status != "In House",
                     }
                     room_order_counter += 1
         self._cat_locator.show_assignments(list(locator_cats.values()))
@@ -8920,12 +7945,19 @@ class CalibrationView(QWidget):
         self._reload_btn = QPushButton()
         self._export_btn = QPushButton()
         self._import_btn = QPushButton()
+        self._clear_overrides_btn = QPushButton()
+        self._clear_overrides_btn.setStyleSheet(
+            "QPushButton { background:#3a2a2a; color:#e0a0a0; border:1px solid #5a3a3a; "
+            "border-radius:4px; padding:6px 10px; font-size:11px; }"
+            "QPushButton:hover { background:#4a3a3a; color:#ffb0b0; }"
+        )
         self._status = QLabel("")
         self._status.setStyleSheet("color:#8d8da8; font-size:11px;")
         actions.addWidget(self._save_btn)
         actions.addWidget(self._reload_btn)
         actions.addWidget(self._export_btn)
         actions.addWidget(self._import_btn)
+        actions.addWidget(self._clear_overrides_btn)
         actions.addSpacing(16)
 
         self._bulk_label = QLabel()
@@ -9013,6 +8045,7 @@ class CalibrationView(QWidget):
         self._reload_btn.clicked.connect(self._reload_clicked)
         self._export_btn.clicked.connect(self._export_clicked)
         self._import_btn.clicked.connect(self._import_clicked)
+        self._clear_overrides_btn.clicked.connect(self._clear_overrides_clicked)
 
     def retranslate_ui(self):
         self._title_label.setText(_tr("calibration.title"))
@@ -9021,6 +8054,7 @@ class CalibrationView(QWidget):
         self._reload_btn.setText(_tr("calibration.reload"))
         self._export_btn.setText(_tr("calibration.export"))
         self._import_btn.setText(_tr("calibration.import"))
+        self._clear_overrides_btn.setText(_tr("calibration.clear_overrides", default="Clear Overrides"))
         self._bulk_label.setText(_tr("calibration.bulk_edit_selected"))
         self._search_label.setText(_tr("calibration.search"))
         self._search_input.setPlaceholderText(_tr("calibration.search_placeholder"))
@@ -9370,6 +8404,39 @@ class CalibrationView(QWidget):
         )
         self.calibrationChanged.emit()
 
+    def _clear_overrides_clicked(self):
+        """Clear all manual calibration overrides for all cats."""
+        if not self._cats:
+            self._status.setText(_tr("calibration.status.no_save_loaded"))
+            return
+
+        reply = QMessageBox.question(
+            self,
+            _tr("calibration.confirm_clear_title", default="Clear All Overrides?"),
+            _tr(
+                "calibration.confirm_clear_message",
+                default="This will clear all manual calibration overrides (age, aggression, libido, inbreeding, stats, sexuality) for all cats. This cannot be undone until you reload. Continue?"
+            ),
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if reply != QMessageBox.Yes:
+            return
+
+        # Clear overrides for all cats
+        for cat in self._cats:
+            cat.age = cat.parsed_age
+            cat.aggression = cat.parsed_aggression
+            cat.libido = cat.parsed_libido
+            cat.inbredness = cat.parsed_inbredness
+            cat.base_stats = dict(cat.parsed_stats) if cat.parsed_stats else {}
+            cat.sexuality = cat.parsed_sexuality
+
+        # Refresh the UI
+        self.set_context(self._save_path, self._cats)
+        self._status.setText(_tr("calibration.status.overrides_cleared"))
+        self.calibrationChanged.emit()
+
     def _on_bulk_apply_sexuality(self):
         """Apply sexuality to all selected rows."""
         selected_rows = sorted(set(idx.row() for idx in self._table.selectedIndexes()))
@@ -9417,6 +8484,8 @@ def _cat_has_trait(cat: 'Cat', category: str, trait_key: str) -> bool:
         return any(m.lower() == trait_key for m in (cat.mutations or []))
     elif category == "passive":
         return any(p.lower() == trait_key for p in (cat.passive_abilities or []))
+    elif category == "disorder":
+        return any(d.lower() == trait_key for d in (cat.disorders or []))
     elif category == "ability":
         return any(a.lower() == trait_key for a in (cat.abilities or []))
     return False
@@ -9699,6 +8768,7 @@ class MutationDisorderPlannerView(QWidget):
         # Collect all traits across all alive cats, grouped by category
         mutations: dict[str, str] = {}   # raw -> display
         passives: dict[str, str] = {}
+        disorders: dict[str, str] = {}
         abilities: dict[str, str] = {}
 
         for cat in self._cats:
@@ -9712,6 +8782,10 @@ class MutationDisorderPlannerView(QWidget):
                 key = p.lower()
                 if key not in passives:
                     passives[key] = _mutation_display_name(p)
+            for d in (cat.disorders or []):
+                key = d.lower()
+                if key not in disorders:
+                    disorders[key] = _mutation_display_name(d)
             for a in (cat.abilities or []):
                 key = a.lower()
                 if key not in abilities:
@@ -9726,6 +8800,10 @@ class MutationDisorderPlannerView(QWidget):
         for key in sorted(passives, key=lambda k: passives[k]):
             self._trait_items_master.append(
                 (f"[Passive/Disorder] {passives[key]}", ("passive", key))
+            )
+        for key in sorted(disorders, key=lambda k: disorders[k]):
+            self._trait_items_master.append(
+                (f"[Passive/Disorder] {disorders[key]}", ("disorder", key))
             )
         for key in sorted(abilities, key=lambda k: abilities[k]):
             self._trait_items_master.append(
@@ -10670,6 +9748,7 @@ class MainWindow(QMainWindow):
         self._breeding_cache: Optional[BreedingCache] = None
         self._cache_worker: Optional[BreedingCacheWorker] = None
         self._save_load_worker: Optional[SaveLoadWorker] = None
+        self._quick_refresh_worker: Optional[QuickRoomRefreshWorker] = None
         self._prev_parent_keys: dict[int, tuple] = {}
         self._zoom_percent: int = 100
         self._font_size_offset: int = 0   # pt offset applied on top of zoom
@@ -11526,6 +10605,17 @@ class MainWindow(QMainWindow):
         btn.setChecked(True)
         self._active_btn = btn
         self._proxy_model.set_room(room_key)
+
+        # Set multi-column sort for donation candidates and exceptional breeders
+        if room_key in ("__donation__", "__exceptional__"):
+            self._proxy_model.set_sort_columns([
+                (COL_ROOM, Qt.AscendingOrder),
+                (COL_AGE, Qt.AscendingOrder),
+                (COL_NAME, Qt.AscendingOrder),
+            ])
+        else:
+            self._proxy_model.set_sort_columns([])
+
         self._refresh_bulk_view_buttons(room_key)
         self._update_header(room_key)
         self._update_count()
@@ -12724,8 +11814,49 @@ class MainWindow(QMainWindow):
             self.load_save(self._current_save)
 
     def _on_file_changed(self, path: str):
-        if path == self._current_save:
+        if path != self._current_save:
+            return
+        # If cats are already loaded and no full reload is running, try the fast path.
+        if self._cats and self._save_load_worker is None:
+            self._start_quick_room_refresh()
+        else:
             self._reload()
+
+    def _start_quick_room_refresh(self):
+        if self._quick_refresh_worker is not None:
+            self._quick_refresh_worker.quit()
+            self._quick_refresh_worker.wait(200)
+            self._quick_refresh_worker = None
+        expected = {c.db_key for c in self._cats}
+        w = QuickRoomRefreshWorker(self._current_save, expected, parent=self)
+        w.room_patch.connect(self._on_room_patch)
+        w.needs_full_reload.connect(self._reload)
+        self._quick_refresh_worker = w
+        w.start()
+
+    def _on_room_patch(self, patch: dict):
+        self._quick_refresh_worker = None
+        for cat in self._cats:
+            entry = patch.get(cat.db_key)
+            if entry is not None:
+                cat.room, cat.status = entry
+        # Lightweight repaint — no model rebuild, no ancestry recompute
+        self._source_model.layoutChanged.emit()
+        self._rebuild_room_buttons(self._cats)
+        self._refresh_filter_button_counts()
+        if self._tree_view is not None and self._tree_view.isVisible():
+            self._tree_view.set_cats(self._cats)
+        if self._safe_breeding_view is not None and self._safe_breeding_view.isVisible():
+            self._safe_breeding_view.set_cats(self._cats)
+        if self._breeding_partners_view is not None and self._breeding_partners_view.isVisible():
+            self._breeding_partners_view.set_cats(self._cats)
+        if self._room_optimizer_view is not None and self._room_optimizer_view.isVisible():
+            self._room_optimizer_view.set_cats(self._cats)
+        if self._perfect_planner_view is not None and self._perfect_planner_view.isVisible():
+            self._perfect_planner_view.set_cats(self._cats)
+        if self._calibration_view is not None and self._calibration_view.isVisible():
+            self._calibration_view.set_context(self._current_save, self._cats)
+        self.statusBar().showMessage(_tr("status.rooms_refreshed", default="Room locations updated."))
 
     def _open_tree_browser(self):
         _save_current_view("tree")

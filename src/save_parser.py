@@ -28,10 +28,10 @@ _IDENT_RE = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')
 STAT_NAMES = ["STR", "DEX", "CON", "INT", "SPD", "CHA", "LCK"]
 
 ROOM_DISPLAY = {
-    "Floor1_Large":   "Ground Floor Left",
-    "Floor1_Small":   "Ground Floor Right",
-    "Floor2_Large":   "Second Floor Right",
-    "Floor2_Small":   "Second Floor Left",
+    "Floor1_Large":   "1st FL L",
+    "Floor1_Small":   "1st FL R",
+    "Floor2_Large":   "2nd FL R",
+    "Floor2_Small":   "2nd FL L",
     "Attic":          "Attic",
 }
 
@@ -40,6 +40,14 @@ ROOM_KEYS = tuple(ROOM_DISPLAY.keys())
 EXCEPTIONAL_SUM_THRESHOLD = 40
 DONATION_SUM_THRESHOLD = 34
 DONATION_MAX_TOP_STAT = 6
+
+# Sexuality thresholds for the raw [0.0, 1.0] float stored at personality_anchor+40.
+# The float encodes same-sex attraction: ~0.0 = straight, ~0.5 = bisexual, ~1.0 = gay.
+# These cutoffs are a best guess derived from one save file (2026-03-21) and may need
+# adjustment if edge cases surface in other saves.
+# Observed distribution: straight cluster 0.00-0.10, bi spread 0.13-0.90, gay cluster 0.90-1.00.
+_SEXUALITY_BI_THRESHOLD  = 0.1   # raw value >= this → at least bi (below = straight)
+_SEXUALITY_GAY_THRESHOLD = 0.9   # raw value >= this → gay
 
 
 def _valid_str(s) -> bool:
@@ -378,6 +386,7 @@ class Cat:
     generation: int = 0   # generation depth: 0=stray, 1=child of strays, etc.
     is_blacklisted: bool = False  # exclude from breeding calculations
     must_breed: bool = False  # prioritize in breeding optimization
+    is_pinned: bool = False  # user-pinned for tracking
     tags: list[str] = None  # user-assigned tag IDs for organization
     passive_abilities: list[str]
 
@@ -459,6 +468,7 @@ class Cat:
         self.base_stats  = {n: self.stat_base[i] for i, n in enumerate(STAT_NAMES)}
         self.total_stats = {n: self.stat_base[i] + self.stat_mod[i] + self.stat_sec[i]
                             for i, n in enumerate(STAT_NAMES)}
+        self.parsed_stats = dict(self.base_stats)
 
         # Personality stats (age, aggression, libido, inbredness).
         self.age         = None
@@ -479,7 +489,12 @@ class Cat:
             return float(v)
 
         self.libido = _read_personality(32)
-        self.inbredness = _read_personality(40)
+        # Offset +40 stores the cat's sexuality as a [0.0, 1.0] float:
+        # ~0.0 = straight, ~0.5 = bisexual, ~1.0 = gay.
+        # This field was previously (incorrectly) labeled inbredness in the parser;
+        # true inbredness is derived from ancestry (COI) and applied in parse_save.
+        _sexuality_raw = _read_personality(40)
+        self.inbredness = _sexuality_raw   # kept for COI override detection; overwritten in parse_save
         self.aggression = _read_personality(64)
 
         # Parsed baseline values (before any manual calibration overrides).
@@ -612,7 +627,15 @@ class Cat:
                 logger.debug("Cat %s: age extraction failed", cat_key, exc_info=True)
 
         self.parsed_age = self.age
-        self.sexuality: str = "straight"
+
+        # Derive sexuality string from the raw float at personality_anchor+40.
+        if _sexuality_raw is None or _sexuality_raw < _SEXUALITY_BI_THRESHOLD:
+            self.sexuality: str = "straight"
+        elif _sexuality_raw >= _SEXUALITY_GAY_THRESHOLD:
+            self.sexuality = "gay"
+        else:
+            self.sexuality = "bi"
+        self.parsed_sexuality = self.sexuality
 
     # ── Display helpers ────────────────────────────────────────────────────
 
