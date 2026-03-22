@@ -1,2 +1,3 @@
 PySide6
 lz4
+openpyxl

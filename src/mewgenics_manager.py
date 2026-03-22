@@ -7842,12 +7842,31 @@ class PerfectCatPlannerView(QWidget):
 # ── Sidebar helpers ───────────────────────────────────────────────────────────
 
 
+class _SortKeyItem(QTableWidgetItem):
+    """QTableWidgetItem that sorts by an integer key stored in Qt.UserRole."""
+    def __lt__(self, other: QTableWidgetItem) -> bool:
+        a = self.data(Qt.UserRole)
+        b = other.data(Qt.UserRole)
+        if a is None and b is None:
+            return self.text() < other.text()
+        if a is None:
+            return True
+        if b is None:
+            return False
+        return a < b
+
+
 class CalibrationView(QWidget):
     """
     In-app calibration editor for parser-sensitive fields.
     Edits are saved to <save>.calibration.json and applied to app logic.
     """
     calibrationChanged = Signal()
+
+    # Sort order for combo columns (lower = first when ascending)
+    _GENDER_SORT    = {"": 0, "male": 1, "female": 2, "?": 3}
+    _SEXUALITY_SORT = {"": 0, "straight": 1, "bi": 2, "gay": 3}
+    _TRAIT_SORT     = {"": 0, "not": 1, "slightly": 2, "moderately": 3, "highly": 4}
 
     COL_NAME = 0
     COL_STATUS = 1
@@ -7982,6 +8001,14 @@ class CalibrationView(QWidget):
         self._bulk_apply_btn.clicked.connect(self._on_bulk_apply_sexuality)
         actions.addWidget(self._bulk_apply_btn)
 
+        self._deselect_btn = QPushButton(_tr("calibration.deselect_all", default="Deselect All"))
+        self._deselect_btn.setStyleSheet(
+            "QPushButton { background:#1a1a32; color:#888; border:1px solid #2a2a4a; "
+            "border-radius:4px; padding:4px 10px; font-size:10px; }"
+            "QPushButton:hover { background:#252545; color:#ddd; }"
+        )
+        actions.addWidget(self._deselect_btn)
+
         actions.addStretch()
         actions.addWidget(self._status)
         root.addLayout(actions)
@@ -8047,6 +8074,7 @@ class CalibrationView(QWidget):
         self._export_btn.clicked.connect(self._export_clicked)
         self._import_btn.clicked.connect(self._import_clicked)
         self._clear_overrides_btn.clicked.connect(self._clear_overrides_clicked)
+        self._deselect_btn.clicked.connect(self._table.clearSelection)
 
     def retranslate_ui(self):
         self._title_label.setText(_tr("calibration.title"))
@@ -8056,12 +8084,14 @@ class CalibrationView(QWidget):
         self._export_btn.setText(_tr("calibration.export"))
         self._import_btn.setText(_tr("calibration.import"))
         self._clear_overrides_btn.setText(_tr("calibration.clear_overrides", default="Clear Overrides"))
+        self._deselect_btn.setText(_tr("calibration.deselect_all", default="Deselect All"))
         self._bulk_label.setText(_tr("calibration.bulk_edit_selected"))
         self._search_label.setText(_tr("calibration.search"))
         self._search_input.setPlaceholderText(_tr("calibration.search_placeholder"))
         current_value = self._bulk_sexuality_combo.currentData()
         self._bulk_sexuality_combo.blockSignals(True)
         self._bulk_sexuality_combo.clear()
+        self._bulk_sexuality_combo.addItem(_tr("calibration.sexuality.clear", default="— clear —"), "")
         self._bulk_sexuality_combo.addItem(_tr("calibration.sexuality.straight"), "straight")
         self._bulk_sexuality_combo.addItem(_tr("calibration.sexuality.gay"), "gay")
         self._bulk_sexuality_combo.addItem(_tr("calibration.sexuality.bi"), "bi")
@@ -8086,6 +8116,7 @@ class CalibrationView(QWidget):
             _tr("calibration.table.parsed_libido"),
             _tr("calibration.table.override_libido"),
             _tr("calibration.table.parsed_inbr"),
+            _tr("calibration.table.calc_inbr", default="Calc\nInbr"),
             _tr("calibration.table.override_inbr"),
             "STR", "DEX", "CON", "INT", "SPD", "CHA", "LCK",
         ])
@@ -8134,6 +8165,13 @@ class CalibrationView(QWidget):
         idx = combo.findText((value or "").strip().lower(), Qt.MatchFixedString)
         combo.setCurrentIndex(idx if idx >= 0 else 0)
         return combo
+
+    @staticmethod
+    def _make_sort_item(sort_key: int) -> "_SortKeyItem":
+        item = _SortKeyItem()
+        item.setData(Qt.UserRole, sort_key)
+        item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+        return item
 
     @staticmethod
     def _sexuality_combo(value: str) -> QComboBox:
@@ -8191,35 +8229,50 @@ class CalibrationView(QWidget):
             self._table.setItem(row, self.COL_TOKEN, self._readonly_item(getattr(cat, "gender_token", "") or ""))
             self._table.setItem(row, self.COL_TOKEN_FIELDS, self._readonly_item(self._fmt_gender_token_fields(cat)))
             self._table.setItem(row, self.COL_PARSED_G, self._readonly_item((getattr(cat, "parsed_gender", cat.gender) or "?")))
-            self._table.setCellWidget(row, self.COL_OVR_G, self._gender_combo(str(ov.get("gender", "") or "")))
-            self._table.setItem(row, self.COL_DEFAULT_SEXUALITY, self._readonly_item("straight"))
-            self._table.setCellWidget(row, self.COL_OVR_SEXUALITY, self._sexuality_combo(str(ov.get("sexuality", "") or "")))
+            g_combo = self._gender_combo(str(ov.get("gender", "") or ""))
+            g_sort = self._make_sort_item(self._GENDER_SORT.get((ov.get("gender") or "").lower(), 0))
+            self._table.setCellWidget(row, self.COL_OVR_G, g_combo)
+            self._table.setItem(row, self.COL_OVR_G, g_sort)
+            g_combo.currentIndexChanged.connect(lambda _, c=g_combo, it=g_sort: it.setData(Qt.UserRole, self._GENDER_SORT.get(c.currentText().lower(), 0)))
+
+            self._table.setItem(row, self.COL_DEFAULT_SEXUALITY, self._readonly_item(getattr(cat, "parsed_sexuality", "straight")))
+            sex_val = str(ov.get("sexuality", "") or "")
+            sex_combo = self._sexuality_combo(sex_val)
+            sex_sort = self._make_sort_item(self._SEXUALITY_SORT.get(sex_val, 0))
+            self._table.setCellWidget(row, self.COL_OVR_SEXUALITY, sex_combo)
+            self._table.setItem(row, self.COL_OVR_SEXUALITY, sex_sort)
+            sex_combo.currentIndexChanged.connect(lambda _, c=sex_combo, it=sex_sort: it.setData(Qt.UserRole, self._SEXUALITY_SORT.get(c.currentData() or "", 0)))
 
             self._table.setItem(row, self.COL_PARSED_AGE, self._readonly_item(self._fmt(getattr(cat, "parsed_age", None))))
             self._table.setItem(row, self.COL_OVR_AGE, self._editable_item(self._fmt(ov.get("age"))))
             self._table.setItem(row, self.COL_PARSED_AGG, self._readonly_item(self._fmt(getattr(cat, "parsed_aggression", None))))
-            self._table.setCellWidget(
-                row,
-                self.COL_OVR_AGG,
-                self._trait_combo(_CALIBRATION_TRAIT_OPTIONS["aggression"], _trait_label_from_value("aggression", ov.get("aggression"))),
-            )
+            agg_val = _trait_label_from_value("aggression", ov.get("aggression"))
+            agg_combo = self._trait_combo(_CALIBRATION_TRAIT_OPTIONS["aggression"], agg_val)
+            agg_sort = self._make_sort_item(self._TRAIT_SORT.get(agg_val, 0))
+            self._table.setCellWidget(row, self.COL_OVR_AGG, agg_combo)
+            self._table.setItem(row, self.COL_OVR_AGG, agg_sort)
+            agg_combo.currentIndexChanged.connect(lambda _, c=agg_combo, it=agg_sort: it.setData(Qt.UserRole, self._TRAIT_SORT.get(c.currentText(), 0)))
+
             self._table.setItem(row, self.COL_PARSED_LIB, self._readonly_item(self._fmt(getattr(cat, "parsed_libido", None))))
-            self._table.setCellWidget(
-                row,
-                self.COL_OVR_LIB,
-                self._trait_combo(_CALIBRATION_TRAIT_OPTIONS["libido"], _trait_label_from_value("libido", ov.get("libido"))),
-            )
+            lib_val = _trait_label_from_value("libido", ov.get("libido"))
+            lib_combo = self._trait_combo(_CALIBRATION_TRAIT_OPTIONS["libido"], lib_val)
+            lib_sort = self._make_sort_item(self._TRAIT_SORT.get(lib_val, 0))
+            self._table.setCellWidget(row, self.COL_OVR_LIB, lib_combo)
+            self._table.setItem(row, self.COL_OVR_LIB, lib_sort)
+            lib_combo.currentIndexChanged.connect(lambda _, c=lib_combo, it=lib_sort: it.setData(Qt.UserRole, self._TRAIT_SORT.get(c.currentText(), 0)))
+
             self._table.setItem(row, self.COL_PARSED_INB, self._readonly_item(self._fmt(getattr(cat, "parsed_inbredness", None))))
             # Computed COI from ancestry (set by CatTableModel.load)
             calc_inb = cat.inbredness if cat.inbredness != cat.parsed_inbredness else None
             calc_label = _trait_label_from_value("inbredness", calc_inb) if calc_inb is not None else ""
             calc_text = f"{calc_inb:.3f} ({calc_label})" if calc_inb is not None else "—"
             self._table.setItem(row, self.COL_CALC_INB, self._readonly_item(calc_text))
-            self._table.setCellWidget(
-                row,
-                self.COL_OVR_INB,
-                self._trait_combo(_CALIBRATION_TRAIT_OPTIONS["inbredness"], _trait_label_from_value("inbredness", ov.get("inbredness"))),
-            )
+            inb_val = _trait_label_from_value("inbredness", ov.get("inbredness"))
+            inb_combo = self._trait_combo(_CALIBRATION_TRAIT_OPTIONS["inbredness"], inb_val)
+            inb_sort = self._make_sort_item(self._TRAIT_SORT.get(inb_val, 0))
+            self._table.setCellWidget(row, self.COL_OVR_INB, inb_combo)
+            self._table.setItem(row, self.COL_OVR_INB, inb_sort)
+            inb_combo.currentIndexChanged.connect(lambda _, c=inb_combo, it=inb_sort: it.setData(Qt.UserRole, self._TRAIT_SORT.get(c.currentText(), 0)))
 
             # Add base stats override columns
             for i, stat_name in enumerate(STAT_NAMES):
@@ -8424,7 +8477,13 @@ class CalibrationView(QWidget):
         if reply != QMessageBox.Yes:
             return
 
-        # Clear overrides for all cats
+        # Wipe persisted overrides so set_context reloads clean
+        if self._save_path:
+            cal_data = _load_calibration_data(self._save_path)
+            cal_data["overrides"] = {}
+            _save_calibration_data(self._save_path, cal_data)
+
+        # Reset cat attributes to parsed values
         for cat in self._cats:
             cat.age = cat.parsed_age
             cat.aggression = cat.parsed_aggression
@@ -8446,17 +8505,23 @@ class CalibrationView(QWidget):
             return
 
         sexuality = str(self._bulk_sexuality_combo.currentData() or "")
+        sm = self._table.selectionModel()
+        sm.blockSignals(True)
         for row in selected_rows:
             widget = self._table.cellWidget(row, self.COL_OVR_SEXUALITY)
             if isinstance(widget, QComboBox):
+                widget.blockSignals(True)
                 idx = widget.findData(sexuality)
                 widget.setCurrentIndex(idx if idx >= 0 else 0)
+                widget.blockSignals(False)
+        sm.blockSignals(False)
 
         self._save_clicked()
+        sexuality_label = _tr("calibration.sexuality.clear", default="— clear —") if not sexuality else _tr(f"calibration.sexuality.{sexuality}")
         self._status.setText(
             _tr(
                 "calibration.status.applied",
-                sexuality=_tr(f"calibration.sexuality.{sexuality}"),
+                sexuality=sexuality_label,
                 count=len(selected_rows),
             )
         )
@@ -9850,6 +9915,13 @@ class MainWindow(QMainWindow):
         clear_cache.setToolTip(_tr("menu.file.clear_breeding_cache.tooltip"))
         clear_cache.triggered.connect(self._clear_breeding_cache)
         fm.addAction(clear_cache)
+
+        fm.addSeparator()
+
+        export_action = QAction(_tr("menu.file.export_cats", default="Export Cats…"), self)
+        export_action.setShortcut("Ctrl+E")
+        export_action.triggered.connect(self._export_cats)
+        fm.addAction(export_action)
 
         fm.addSeparator()
 
@@ -11809,6 +11881,95 @@ class MainWindow(QMainWindow):
             parent = self._loading_overlay.parentWidget()
             if parent:
                 self._loading_overlay.setGeometry(0, 0, parent.width(), parent.height())
+
+    def _export_cats(self):
+        if not self._cats:
+            QMessageBox.information(self, _tr("export.title", default="Export"), _tr("export.no_save", default="No save loaded."))
+            return
+
+        base = os.path.splitext(self._current_save)[0] if self._current_save else "cats"
+        path, _ = QFileDialog.getSaveFileName(
+            self, _tr("export.dialog_title", default="Export Cats"),
+            base,
+            "CSV (*.csv);;Excel (*.xlsx)"
+        )
+        if not path:
+            return
+
+        base_stat_headers  = ["Base " + s for s in STAT_NAMES]
+        actual_stat_headers = ["Actual " + s for s in STAT_NAMES]
+        headers = (
+            ["Name", "Status", "Room", "Age", "Gender", "Sexuality", "Generation"]
+            + base_stat_headers + ["Base Sum"]
+            + actual_stat_headers + ["Actual Sum"]
+            + ["Abilities", "Mutations", "Aggression", "Libido", "Inbreeding",
+               "Pinned", "Blacklisted", "Must Breed", "Parent A", "Parent B"]
+        )
+
+        def _trait(val, field):
+            if val is None:
+                return ""
+            return _trait_label_from_value(field, val)
+
+        rows = []
+        for cat in self._cats:
+            base_vals   = [cat.base_stats.get(s, 0) for s in STAT_NAMES]
+            actual_vals = [cat.total_stats.get(s, 0) for s in STAT_NAMES]
+            row = (
+                [
+                    cat.name,
+                    cat.status or "",
+                    cat.room_display,
+                    str(cat.age) if cat.age is not None else "",
+                    cat.gender or "",
+                    cat.sexuality or "",
+                    str(cat.generation),
+                ]
+                + [str(v) for v in base_vals] + [str(sum(base_vals))]
+                + [str(v) for v in actual_vals] + [str(sum(actual_vals))]
+                + [
+                    "; ".join(cat.abilities or []),
+                    "; ".join(cat.mutations or []),
+                    _trait(cat.aggression, "aggression"),
+                    _trait(cat.libido, "libido"),
+                    _trait(cat.inbredness, "inbredness"),
+                    "Yes" if getattr(cat, "is_pinned", False) else "No",
+                    "Yes" if getattr(cat, "is_blacklisted", False) else "No",
+                    "Yes" if getattr(cat, "must_breed", False) else "No",
+                    cat.parent_a.name if cat.parent_a else "",
+                    cat.parent_b.name if cat.parent_b else "",
+                ]
+            )
+            rows.append(row)
+
+        ext = os.path.splitext(path)[1].lower()
+
+        if ext == ".xlsx":
+            try:
+                import openpyxl
+                from openpyxl.styles import Font
+            except ImportError:
+                QMessageBox.critical(self, _tr("export.title", default="Export"), "openpyxl is not installed. Install it with: pip install openpyxl")
+                return
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.title = "Cats"
+            ws.append(headers)
+            for cell in ws[1]:
+                cell.font = Font(bold=True)
+            for row in rows:
+                ws.append(row)
+            wb.save(path)
+        else:
+            if not path.lower().endswith(".csv"):
+                path += ".csv"
+            import csv
+            with open(path, "w", newline="", encoding="utf-8") as f:
+                writer = csv.writer(f)
+                writer.writerow(headers)
+                writer.writerows(rows)
+
+        QMessageBox.information(self, _tr("export.title", default="Export"), f"Exported {len(rows)} cats to:\n{path}")
 
     def _reload(self):
         if self._current_save:
