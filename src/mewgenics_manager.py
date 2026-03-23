@@ -5844,7 +5844,7 @@ class RoomOptimizerWorker(QThread):
         if not fallback_rooms:
             fallback_rooms = [available_rooms[-1]] if available_rooms else [next(iter(ROOM_DISPLAY))]
         fallback_rooms_set = set(fallback_rooms)
-        all_rooms = breeding_rooms + fallback_rooms
+        all_rooms = list(dict.fromkeys(breeding_rooms + fallback_rooms))
 
         if mode_family:
             max_cats_per_room = 6
