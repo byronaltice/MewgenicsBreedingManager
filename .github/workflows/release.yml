@@ -58,13 +58,13 @@ jobs:
 
     steps:
     - name: Download Windows artifact
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v5
       with:
         name: MewgenicsManager-windows
         path: release-assets/windows
 
     - name: Download Linux artifact
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v5
       with:
         name: MewgenicsManager-linux
         path: release-assets/linux
@@ -73,4 +73,9 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ github.token }}
       run: |
-        gh release create "${{ github.ref_name }}" release-assets/windows/*.zip release-assets/linux/*.zip --generate-notes
+        TAG="${{ github.ref_name }}"
+        if gh release view "$TAG" >/dev/null 2>&1; then
+          gh release upload "$TAG" release-assets/windows/*.zip release-assets/linux/*.zip --clobber
+        else
+          gh release create "$TAG" release-assets/windows/*.zip release-assets/linux/*.zip --generate-notes
+        fi
