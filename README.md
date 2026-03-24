@@ -1,307 +1,234 @@
 # Mewgenics Breeding Manager
 
-External roster, breeding, and planning tool for [Mewgenics](https://store.steampowered.com/app/686060/Mewgenics/).
+Your breeding lab for [Mewgenics](https://store.steampowered.com/app/686060/Mewgenics/).
 
-It reads your save, shows the cats in a sortable live table, and adds planning views for safe breeding, room assignment, lineage, and long-term perfect-stat progression.
+Current release: `v4.0.0`
 
-## What It Does
+Track your cats, compare pairings, plan perfect lines, and keep your best breeders organized without doing the math by hand.
 
-- Live-loads Mewgenics saves and refreshes when the save changes
-- Shows all cats with base stats, abilities, mutations, relationships, and lineage context
-- Compares breeding pairs with offspring stat ranges, inheritance odds, and breakpoint hints
-- Parses lovers and haters and uses them in optimizer logic
-- Loads ability and mutation descriptions from `resources.gpak` when available
-- Helps plan toward perfect 7-base-stat lines with staged pairing guidance
+## Why Use It
+
+- See your whole roster in one live, sortable table
+- Compare breeding pairs with expected offspring stats and inheritance odds
+- Plan safe pairings with real inbreeding risk calculations
+- Build long-term perfect-stat lines with the `Perfect 7` planner
+- Keep lovers, haters, room assignments, and lineage in view
+- Read ability and mutation descriptions directly from the game data when available
+
+## What’s New
+
+- Refactored parser, scorer, and optimizer logic out of the main UI file
+- Shared breeding engine now powers safe breeding, partners, planning, and optimization
+- Perfect 7 planning now respects sexuality, including gay and bi-compatible cats
+- Eternal Youth cats are excluded from the donation pool
+- Linux/Proton save and game-data support
+- Versioned release builds driven by the shared [`VERSION`](VERSION) file
 
 ---
 
 <p align="center">
-<a href="#main-roster">Main Roster</a> | <a href="#single-cat-detail-view">Single Cat View</a> | <a href="#breeding-comparison-view">Breeding Comparison</a> | <a href="#room-optimizer">Room Optimizer</a> | <a href="#perfect-7-planner">Perfect 7 Planner</a> | <a href="#mutation--disorder-breeding-planner">Mutation & Disorder Planner</a> | <a href="#family-tree-view">Family Tree</a> | <a href="#safe-breeding-view">Safe Breeding</a> | <a href="#breeding-partners-view">Breeding Partners</a> | <a href="#exceptional-cats-view">Exceptional Cats</a> | <a href="#donation-candidates-view">Donation Cats</a> | <a href="#calibration-view">Calibration</a>
+<a href="#main-roster">Main Roster</a> |
+<a href="#single-cat-view">Single Cat View</a> |
+<a href="#breeding-comparison-view">Breeding Comparison</a> |
+<a href="#room-optimizer">Room Optimizer</a> |
+<a href="#perfect-7-planner">Perfect 7 Planner</a> |
+<a href="#mutation--disorder-planner">Mutation & Disorder Planner</a> |
+<a href="#safe-breeding">Safe Breeding</a> |
+<a href="#breeding-partners">Breeding Partners</a> |
+<a href="#family-tree">Family Tree</a> |
+<a href="#exceptional-cats">Exceptional Cats</a> |
+<a href="#donation-candidates">Donation Candidates</a> |
+<a href="#calibration">Calibration</a>
 </p>
 
 ---
 
-## Main Features
-
-### Main Roster
+## Main Roster
 
 ![Home Screen](Sceenshots/Home%20Screen.png)
 
-- Sortable and searchable table for your cats
-- Click `BL` and `MB` cells directly to toggle breeding blacklist and must-breed priority
-- `Risk%` can show inbreeding risk relative to the selected cat
-- `[EXC]` exceptional breeder
-- `[DON]` donation candidate
+Your command center.
 
-Current documented thresholds:
+- Search and sort your entire roster
+- Mark breeding blacklist and must-breed cats with one click
+- See inbreeding risk at a glance
+- Spot exceptional breeders and donation candidates instantly
 
+Current thresholds:
 - Exceptional breeder: base stat sum `>= 40`
-- Donation candidate heuristic:
-  - base stat sum `<= 34`, and/or
-  - top base stat `<= 6`, and/or
-  - high aggression
-  - must-breed and exceptional cats are excluded from donation marking
+- Donation candidate: low total power, weak top stat, or high aggression
+- Must-breed, exceptional, and Eternal Youth cats are excluded from donation marking
 
-### Single Cat Detail View
+## Single Cat View
 
 ![Single Cat View](Sceenshots/Single%20Cat%20View.png)
 
-- Base / mod / total stat grid
-- Ability chips with inline effect descriptions
-- Mutation chips with inline effect descriptions
-- Equipment
-- Parents / grandparents
-- Lovers / haters
-- Include-in-breeding and must-breed controls
+Everything you need on one screen.
 
-### Breeding Comparison View
+- Stats
+- Abilities and passives
+- Mutations
+- Equipment
+- Lovers, haters, parents, and grandparents
+- Breeding controls
+
+## Breeding Comparison View
 
 ![Breeding Comparison View](Sceenshots/Breeding%20Cats%20View.png)
 
-Select two compatible cats to open pair mode.
+Compare two cats and see what the pairing can produce.
 
-It shows:
+- Offspring stat ranges
+- Expected values
+- Trait inheritance odds
+- Stimulation-adjusted weighting
+- Breakpoint hints for pushing stats to 7
+- Visual and body-part preview
 
-- parent base stats
-- offspring stat ranges
-- inherited trait ranges
-- ability / passive inheritance estimates
-- stimulation-adjusted source weighting
-- breakpoint hints:
-  - locked 7s
-  - stats that can hit 7 now
-  - one-step-off stats
-  - stalled stats
-- appearance preview from parsed visual/body data
-
-### Room Optimizer
+## Room Optimizer
 
 ![Room Optimizer](Sceenshots/Room%20Optimizer.png)
 
-Optimizer for room placement and pair-quality planning.
+Put the right cats in the right place.
 
-Current controls include:
+- Optimize room placement
+- Respect lovers and haters
+- Keep family separation available when you want it
+- Minimize variance or prefer stronger pair quality
+- Tune for aggression or libido if that matters to your setup
 
-- minimum base stat sum
-- maximum inbreeding risk
-- mode toggle for pair quality vs family separation
-- `Minimize Variance`
-- `Avoid Lovers`
-- `Prefer Low Aggression`
-- `Prefer High Libido`
-
-Current behavior includes:
-
-- avoids hater conflicts
-- can avoid lover conflicts
-- prefers mutual lovers when appropriate
-- uses parsed lovers / haters during placement
-- shows per-room pair breakdowns with projected offspring ranges
-
-### Perfect 7 Planner
+## Perfect 7 Planner
 
 ![Perfect 7 Planner](Sceenshots/Perfect%207%20Planner.png)
 
-Dedicated long-term planner for building perfect cats.
+Plan the long game.
 
-This is separate from the Room Optimizer because it plans across generations instead of just placing current cats into rooms.
+This view helps you build perfect cats across generations instead of just picking the next good pairing.
 
-Controls:
+- Start with the best foundation pairs
+- Separate children cleanly
+- Rotate and outcross when needed
+- Finish with a stable maintenance plan
 
-- minimum base stat sum
-- maximum inbreeding risk
-- number of starting pairs
-- stimulation
-- avoid lovers
-- prefer low aggression
-- prefer high libido
+The planner now:
+- respects sexuality compatibility
+- allows gay same-sex pairings when they are valid
+- allows bi-compatible cats to pair broadly
+- blocks straight same-sex pairs
 
-Output is staged:
-
-1. foundation pairs to start with
-2. child separation guidance
-3. rotation / outcross guidance
-4. finish-and-maintain guidance
-
-Stage 1 and Stage 3 show pair grids with:
-
-- parent stats
-- offspring ranges
-- expected values
-- breakpoint-oriented reasoning
-
-### Mutation & Disorder Breeding Planner
+## Mutation & Disorder Planner
 
 ![Mutation & Disorder Breeding Planner](Sceenshots/Mutation%20and%20Disorder%20Breeding%20Planner.png)
 
-Dedicated view for planning breeding around specific mutations, disorders, and passives.
+Target a specific trait and work backward from there.
 
-Features:
+- Find every carrier of a mutation, passive, disorder, or ability
+- Compare carrier pairs
+- Review inheritance odds
+- Track inbreeding risk alongside trait odds
+- Filter by room and stimulation
 
-- **Target Trait dropdown** with search filtering — select a mutation, passive/disorder, or ability to plan for
-- Shows all carriers of the selected trait with name, gender, age, and room
-- Explains inheritance mechanics for the trait type (mutations, passives/disorders, abilities each inherit differently)
-- Recommends breeding pairs prioritizing carrier x carrier matches, with inbreeding warnings
-- **Pair comparison mode** — Ctrl+click two cats to see full breeding outcome analysis:
-  - disorder inheritance odds (15% flat per parent, ~27.75% if both carry it)
-  - birth defect risk based on inbreeding coefficient
-  - visual mutation inheritance per body part with stimulation weighting
-  - passive and spell inheritance odds
-  - stat inheritance comparison with better-stat weighting
-  - lineage info with grandparent passives
-- Room filter and stimulation slider adjust all displayed odds
-
-Note: the save data does not distinguish passives from disorders — all `passive_abilities` entries are shown together. Refer to in-game knowledge to identify which are disorders.
-
-### Safe Breeding View
+## Safe Breeding
 
 ![Safe Breeding](Sceenshots/Safe%20Breeding.png)
 
-Ranks valid partners for the selected cat by breeding safety.
+Get the safest partner suggestions for a selected cat.
 
-Shows:
+- Inbreeding risk
+- Shared ancestors
+- Clear risk labels
 
-- partner
-- inbreeding risk
-- shared ancestors
-- plain-language inbreeding labels
-
-### Breeding Partners View
+## Breeding Partners
 
 ![Breeding Partners](Sceenshots/Breeding%20Partners.png)
 
-Dedicated view for mutual-lover pairs.
+See bonded pairs and keep them together.
 
 Useful for:
-
-- seeing who is bonded
+- finding mutual lovers
 - spotting room mismatches
-- keeping breeding partners together
+- planning around favorite pairings
 
-### Family Tree View
+## Family Tree
 
 ![Family Tree View](Sceenshots/Family%20Tree%20View.png)
 
-Visual lineage browser for a selected cat.
+Explore lineage at a glance.
 
-Shows:
+- Parents
+- Grandparents
+- Children
+- Grandchildren
 
-- self
-- parents / grandparents
-- children / grandchildren
-
-### Exceptional Cats view
+## Exceptional Cats
 
 ![Exceptional Cats](Sceenshots/Exceptional%20Cats.png)
 
-Sidebar filter for viewing cats marked as exceptional breeders.
+Quick filter for your strongest breeders.
 
-Threshold:
-
-- base stat sum `>= 40`
-
-### Donation Candidates View
+## Donation Candidates
 
 ![Donation Candidates](Sceenshots/Donation%20Candidates.png)
 
-Sidebar filter for viewing cats marked as donation candidates.
+Quick filter for cats that are likely safe to donate or retire.
 
-Heuristic for donation marking:
+Eternal Youth cats are excluded.
 
-- base stat sum `<= 34`, and/or
-- top base stat `<= 6`, and/or
-- high aggression
-- must-breed and exceptional cats are excluded from donation marking
-
-### Calibration View
+## Calibration
 
 ![Calibration](Sceenshots/Calibration.png)
 
-Per-save parser override editor for alive cats.
+For parser tuning and save overrides.
 
-Can override:
+- Override gender, age, aggression, libido, inbredness, and base stats
+- Save and reload calibration data
+- Export and import calibration JSON
 
-- gender
-- age
-- aggression
-- libido
-- inbredness
-- base stats
+## Built For
 
-Also exposes parser-research fields such as:
+- Players who want better breeding decisions
+- Players chasing perfect stat lines
+- Players managing large rosters
+- Players who want a clearer view of risk, lineage, and partner quality
 
-- voice token
-- pre-gender `u32` values
+## Architecture
 
-Supports:
-
-- save
-- reload
-- export calibration JSON
-- import calibration JSON
-
-### Locations Settings
-
-`Settings -> Locations...` lets you inspect and change:
-
-- game install folder / `resources.gpak`
-- save root directory
-
-The app first checks common Steam install paths, then other discovered locations, then prompts when it still cannot find the game data.
-
-## Mutation / Ability Support
-
-The app now parses and displays:
-
-- active abilities
-- passive abilities
-- visual mutations
-- relationship data
-
-When `resources.gpak` is available, it also loads:
-
-- ability descriptions
-- passive descriptions
-- mutation descriptions
-
-The visual mutation parser uses slot-aware extraction rather than the old generic placeholder approach, so mutation output should now match the game much more closely.
-
-## Save / Parser Notes
-
-The parser currently includes support for:
-
-- room / alive / gone state
-- parents and child links
-- lovers / haters
-- visual mutation slots
-- personality fields:
-  - aggression
-  - libido
-  - inbredness
-- calibration overrides
-
-Ongoing parser-research tooling is included under:
-
-- [tools/field_mapper/README.md](tools/field_mapper/README.md)
-
-That toolkit supports bulk save ingestion, CSV labeling, and reverse-engineering workflows for unresolved fields like sexuality/gayness.
+The app is split into focused layers:
+- `src/save_parser.py` for save parsing and cat data
+- `src/breeding.py` for shared compatibility and scoring
+- `src/room_optimizer/` for room placement and optimization
+- `src/mewgenics_manager.py` for the UI and orchestration
 
 ## Requirements
 
-- Python 3.11+
+- Python 3.14
 - [PySide6](https://pypi.org/project/PySide6/)
 - [lz4](https://pypi.org/project/lz4/)
 
-## Installation
+## Install
 
 ```bash
 git clone https://github.com/frankieg33/MewgenicsBreedingManager
 cd MewgenicsBreedingManager
 pip install -r requirements.txt
-python mewgenics_manager.py
+python src/mewgenics_manager.py
 ```
 
-On Windows you can also build a standalone executable with `build.bat`.
+On Windows, you can also build a standalone executable with `build.bat`.
+On Linux, use `build.sh`.
+
+## Versioning
+
+Release builds use the shared [`VERSION`](VERSION) file.
+
+For `v4.0.0`, the packaged archive is named:
+
+```text
+MewgenicsManager-4.0.0-windows.zip
+MewgenicsManager-4.0.0-linux.zip
+```
+
+GitHub Actions also publishes these as release assets automatically for `v*` tags.
 
 ## Usage
 
@@ -311,44 +238,37 @@ By default the app looks for saves under:
 %APPDATA%\Glaiel Games\Mewgenics\<SteamID>\saves\
 ```
 
-Useful controls:
+It also supports common Linux/Proton save layouts and Steam install paths.
 
+Handy controls:
 - `File -> Open Save File...`
 - `F5` reload
 - `Settings -> Show Family Tree & Inbreeding`
 - `Settings -> Locations...`
-- `Ctrl+=`, `Ctrl+-`, `Ctrl+0` for zoom
+- `Ctrl+=`, `Ctrl+-`, `Ctrl+0` zoom
 
-## Inbreeding / Risk Calculation
+## Inbreeding Risk
 
-`Risk%` is based on Wright's Coefficient of Inbreeding (COI), computed from the family tree using a recursive kinship coefficient rather than the game's stored inbredness value.
+The app uses Wright’s Coefficient of Inbreeding instead of trusting the stored inbredness value.
 
-High level:
+In short:
+1. it walks the family tree
+2. it computes kinship recursively
+3. it converts COI into birth-defect risk
 
-1. Build the full ancestor graph for each cat
-2. Compute `_kinship(parent_a, parent_b)` recursively with memoization
-3. Derive birth defect risk from the COI using the game's disorder + part-defect probability formula
+Risk labels:
+- not inbred: `<= 0.10`
+- slightly: `<= 0.25`
+- moderately: `<= 0.50`
+- highly: `> 0.50`
 
-Inbredness labels use COI thresholds: not (≤0.10), slightly (≤0.25), moderately (≤0.50), highly (>0.50). Strays with no parents always show as not inbred.
+## Notes
 
-## Known Limits
-
-- Some parser-derived fields are still under active research
-- Sexuality / gayness is not fully mapped yet
-- Ability / mutation text quality depends on available game data
-
-## Changelog
-
-1.7.0 lots of new features. perfect 7 planner. added a filter for exceptional cats and for donation candidates. performance optimization. lots of suggestions from [Daedmano](https://www.nexusmods.com/profile/Deadmano).
-1.6.0 fixed mutations and a few other bugs. thanks to [byronaltice](https://github.com/frankieg33/MewgenicsBreedingManager/pull/32).
-1.5.0 tagged cats in game are now taken into account, which should fix gender going forward.
-1.4.0 added an override ability for gender
-1.3.1 added a blacklist to the room optimization view
-1.3.0 added detail to the room optimizer
-1.2.0 added a room optimizer thanks to [ICaxapI](https://github.com/ICaxapI)
-1.1.0 updated the gender logic thanks to [heartskingu](https://github.com/frankieg33/MewgenicsBreedingManager/pull/1)
+- Some parser fields are still under active research
+- Ability and mutation text quality depends on available game data
+- Future game updates may change labels or path handling
 
 ## Credits
 
 - Save parsing research based on [pzx521521/mewgenics-save-editor](https://github.com/pzx521521/mewgenics-save-editor)
-- Additional community save-format research and issue reports from players and mod users
+- Community reports and reverse-engineering help from players and mod users

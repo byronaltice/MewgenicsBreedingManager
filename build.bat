@@ -5,6 +5,7 @@ set "DIST_ROOT=dist"
 set "APP_DIR_OUT=%DIST_ROOT%\MewgenicsManager"
 set "APP_EXE_OUT=%DIST_ROOT%\MewgenicsManager.exe"
 set "VERSION_FILE=VERSION"
+set "OS_SUFFIX=windows"
 
 if exist "%VERSION_FILE%" (
     set /p VERSION=<"%VERSION_FILE%"
@@ -12,7 +13,7 @@ if exist "%VERSION_FILE%" (
     set "VERSION=dev"
 )
 if not defined VERSION set "VERSION=dev"
-set "APP_ZIP_OUT=%DIST_ROOT%\MewgenicsManager-%VERSION%.zip"
+set "APP_ZIP_OUT=%DIST_ROOT%\MewgenicsManager-%VERSION%-%OS_SUFFIX%.zip"
 
 echo Installing / updating dependencies...
 pip install -r requirements.txt
@@ -20,7 +21,7 @@ pip install pyinstaller
 
 echo.
 echo Cleaning previous build output...
-if exist "%DIST_ROOT%\MewgenicsManager-*.zip" del /F /Q "%DIST_ROOT%\MewgenicsManager-*.zip" >nul 2>nul
+if exist "%APP_ZIP_OUT%" del /F /Q "%APP_ZIP_OUT%" >nul 2>nul
 if exist "%APP_DIR_OUT%" (
     attrib -R /S /D "%APP_DIR_OUT%\*" >nul 2>nul
     rmdir /S /Q "%APP_DIR_OUT%"
