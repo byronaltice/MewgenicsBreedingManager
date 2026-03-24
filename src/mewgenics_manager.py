@@ -15,6 +15,7 @@ import csv
 import json
 import datetime
 import platform
+import random
 import lz4.block
 import os
 import math
@@ -6623,10 +6624,10 @@ class PerfectCatPlannerView(QWidget):
         btn.setText(_tr("bulk.label_template", label=label, state=state))
 
     @staticmethod
-    def _bind_persistent_toggle(btn: QPushButton, label_key: str, key: str):
-        PerfectCatPlannerView._set_toggle_button_label(btn, _tr(label_key))
+    def _bind_persistent_toggle(btn: QPushButton, label_key: str, key: str, *, default: Optional[str] = None):
+        PerfectCatPlannerView._set_toggle_button_label(btn, _tr(label_key, default=default))
         btn.toggled.connect(lambda checked: _set_optimizer_flag(key, checked))
-        btn.toggled.connect(lambda _: PerfectCatPlannerView._set_toggle_button_label(btn, _tr(label_key)))
+        btn.toggled.connect(lambda _: PerfectCatPlannerView._set_toggle_button_label(btn, _tr(label_key, default=default)))
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -6738,6 +6739,28 @@ class PerfectCatPlannerView(QWidget):
         )
         self._plan_btn.clicked.connect(self._calculate_plan)
         controls.addWidget(self._plan_btn)
+
+        controls.addSpacing(12)
+
+        self._deep_optimize_btn = QPushButton()
+        self._deep_optimize_btn.setCheckable(True)
+        self._deep_optimize_btn.setChecked(_saved_optimizer_flag("perfect_planner_use_sa", False))
+        self._deep_optimize_btn.setToolTip(_tr("perfect_planner.more_depth_tooltip", default="Use simulated annealing for a slower, deeper search."))
+        self._deep_optimize_btn.setStyleSheet(
+            "QPushButton { background:#2a2a5a; color:#bbbbee; border:1px solid #4a4a8a; "
+            "border-radius:4px; padding:6px 12px; font-size:11px; font-weight:bold; }"
+            "QPushButton:hover { background:#3a3a6a; color:#ddd; }"
+            "QPushButton:checked { background:#4a4a7a; color:#f0f0ff; border-color:#6a6a9a; }"
+            "QPushButton:pressed { background:#202048; }"
+            "QPushButton:disabled { background:#1a1a32; color:#555; border-color:#2a2a4a; }"
+        )
+        self._bind_persistent_toggle(
+            self._deep_optimize_btn,
+            "perfect_planner.more_depth",
+            "perfect_planner_use_sa",
+            default="More Depth",
+        )
+        controls.addWidget(self._deep_optimize_btn)
 
         controls.addSpacing(12)
 
@@ -6854,6 +6877,8 @@ class PerfectCatPlannerView(QWidget):
         self._stimulation_label.setText(_tr("perfect_planner.stimulation"))
         self._stimulation_input.setToolTip(_tr("perfect_planner.stimulation_tooltip"))
         self._plan_btn.setText(_tr("perfect_planner.build_plan"))
+        self._set_toggle_button_label(self._deep_optimize_btn, _tr("perfect_planner.more_depth", default="More Depth"))
+        self._deep_optimize_btn.setToolTip(_tr("perfect_planner.more_depth_tooltip", default="Use simulated annealing for a slower, deeper search."))
         self._table.setHorizontalHeaderLabels([
             _tr("perfect_planner.table.stage"),
             _tr("perfect_planner.table.goal"),
@@ -6896,6 +6921,127 @@ class PerfectCatPlannerView(QWidget):
     def set_cache(self, cache: Optional['BreedingCache']):
         self._cache = cache
 
+    def _run_sa_refinement(self, evaluated_pairs: list[dict], selected_pairs: list[dict], starter_pairs: int) -> list[dict]:
+        """
+        Refine greedy perfect-planner pair picks using simulated annealing.
+
+        The SA pass only works with pairs that already satisfy hard constraints:
+        sexuality compatibility and max-risk filtering are enforced before this
+        method is called.
+        """
+        if len(selected_pairs) < 2:
+            return sorted(selected_pairs, key=lambda pair: pair["score"], reverse=True)
+
+        pair_by_id = {pair["pair_index"]: pair for pair in evaluated_pairs}
+        if len(pair_by_id) < 2:
+            return sorted(selected_pairs, key=lambda pair: pair["score"], reverse=True)
+
+        def _state_key(pair_ids: list[int]) -> tuple[int, ...]:
+            return tuple(sorted(pair_ids))
+
+        def _state_pairs(pair_ids: list[int]) -> list[dict]:
+            return [pair_by_id[pid] for pid in pair_ids if pid in pair_by_id]
+
+        def _state_score(pair_ids: list[int]) -> float:
+            pairs = _state_pairs(pair_ids)
+            if not pairs:
+                return float("-inf")
+            score = sum(pair["score"] for pair in pairs)
+            score += len(pairs) * 1000.0
+            return score
+
+        def _cats_for_state(pair_ids: list[int], skip_index: Optional[int] = None) -> set[int]:
+            used: set[int] = set()
+            for idx, pid in enumerate(pair_ids):
+                if skip_index is not None and idx == skip_index:
+                    continue
+                pair = pair_by_id.get(pid)
+                if pair is None:
+                    continue
+                used.add(pair["cat_a"].db_key)
+                used.add(pair["cat_b"].db_key)
+            return used
+
+        def _candidate_pool(blocked_pair_ids: set[int], used_cats: set[int]) -> list[int]:
+            candidates: list[int] = []
+            for pair in evaluated_pairs:
+                pid = pair["pair_index"]
+                if pid in blocked_pair_ids:
+                    continue
+                cat_ids = {pair["cat_a"].db_key, pair["cat_b"].db_key}
+                if cat_ids & used_cats:
+                    continue
+                candidates.append(pid)
+            return candidates
+
+        def _neighbor(pair_ids: list[int]) -> Optional[list[int]]:
+            if not pair_ids:
+                return None
+
+            if len(pair_ids) < starter_pairs and random.random() < 0.35:
+                used_cats = _cats_for_state(pair_ids)
+                blocked = set(pair_ids)
+                candidates = _candidate_pool(blocked, used_cats)
+                if candidates:
+                    new_ids = pair_ids[:] + [random.choice(candidates)]
+                    return list(_state_key(new_ids))
+
+            if len(pair_ids) > 1 and random.random() < 0.15:
+                drop_idx = random.randrange(len(pair_ids))
+                new_ids = pair_ids[:drop_idx] + pair_ids[drop_idx + 1:]
+                return list(_state_key(new_ids))
+
+            replace_idx = random.randrange(len(pair_ids))
+            used_cats = _cats_for_state(pair_ids, skip_index=replace_idx)
+            blocked = set(pair_ids)
+            blocked.discard(pair_ids[replace_idx])
+            candidates = _candidate_pool(blocked, used_cats)
+            if not candidates:
+                return None
+            new_ids = pair_ids[:]
+            new_ids[replace_idx] = random.choice(candidates)
+            return list(_state_key(new_ids))
+
+        current_ids = list(_state_key([pair["pair_index"] for pair in selected_pairs]))
+        current_score = _state_score(current_ids)
+        best_ids = current_ids[:]
+        best_score = current_score
+
+        positive_deltas: list[float] = []
+        probe_ids = current_ids[:]
+        probe_score = current_score
+        for _ in range(48):
+            neighbor_ids = _neighbor(probe_ids)
+            if neighbor_ids is None:
+                break
+            neighbor_score = _state_score(neighbor_ids)
+            if neighbor_score > probe_score:
+                positive_deltas.append(neighbor_score - probe_score)
+            probe_ids = neighbor_ids
+            probe_score = neighbor_score
+
+        avg_delta = sum(positive_deltas) / len(positive_deltas) if positive_deltas else 1.0
+        temperature = max(1.0, -avg_delta / math.log(0.8))
+
+        while temperature > 0.1:
+            for _ in range(48):
+                neighbor_ids = _neighbor(current_ids)
+                if neighbor_ids is None:
+                    continue
+                neighbor_score = _state_score(neighbor_ids)
+                delta = neighbor_score - current_score
+                if delta > 0 or math.exp(delta / temperature) > random.random():
+                    current_ids = neighbor_ids
+                    current_score = neighbor_score
+                    if current_score > best_score:
+                        best_ids = current_ids[:]
+                        best_score = current_score
+            temperature *= 0.9
+
+        refined = _state_pairs(best_ids)
+        refined.sort(key=lambda pair: pair["score"], reverse=True)
+        return refined
+
     def _calculate_plan(self):
         excluded_keys = getattr(self, "_excluded_keys", set())
         alive_cats = [c for c in self._cats if c.status != "Gone" and c.db_key not in excluded_keys]
@@ -6917,6 +7063,7 @@ class PerfectCatPlannerView(QWidget):
 
         starter_pairs = int(self._starter_pairs_input.value())
         stimulation = float(self._stimulation_input.value())
+        use_sa = self._deep_optimize_btn.isChecked()
         avoid_lovers = self._avoid_lovers_checkbox.isChecked()
         prefer_low_aggression = self._prefer_low_aggression_checkbox.isChecked()
         prefer_high_libido = self._prefer_high_libido_checkbox.isChecked()
@@ -6977,7 +7124,7 @@ class PerfectCatPlannerView(QWidget):
         candidate_pairs = [(cat_a, cat_b) for i, cat_a in enumerate(alive_cats) for cat_b in alive_cats[i + 1:]]
 
         evaluated_pairs = []
-        for cat_a, cat_b in candidate_pairs:
+        for pair_index, (cat_a, cat_b) in enumerate(candidate_pairs):
             if not planner_pair_allows_breeding(cat_a, cat_b):
                 continue
             factors = _score_pair_cached(cat_a, cat_b, stimulation)
@@ -7005,6 +7152,7 @@ class PerfectCatPlannerView(QWidget):
             )
 
             evaluated_pairs.append({
+                "pair_index": pair_index,
                 "cat_a": cat_a,
                 "cat_b": cat_b,
                 "risk": factors.risk,
@@ -7035,6 +7183,9 @@ class PerfectCatPlannerView(QWidget):
             used_keys.add(cat_b.db_key)
             if len(selected_pairs) >= starter_pairs:
                 break
+
+        if use_sa and len(selected_pairs) >= 2:
+            selected_pairs = self._run_sa_refinement(evaluated_pairs, selected_pairs, starter_pairs)
 
         if not selected_pairs:
             self._table.setRowCount(0)
@@ -7453,11 +7604,12 @@ class PerfectCatPlannerView(QWidget):
                     pairs=len(selected_pairs),
                     alive=len(alive_cats),
                     excluded=len(excluded_cats),
-                )
+                ) + f" · {'SA' if use_sa else 'greedy'}"
             )
         else:
             self._summary.setText(
                 _tr("perfect_planner.status.planned", pairs=len(selected_pairs), alive=len(alive_cats))
+                + f" · {'SA' if use_sa else 'greedy'}"
             )
 
         if stage_rows:
@@ -9471,6 +9623,12 @@ class MainWindow(QMainWindow):
         self._build_ui()
         self._build_menu()
         self._apply_zoom()
+
+        # App version label in the lower-left status bar area.
+        self._version_lbl = QLabel(f"v{APP_VERSION}")
+        self._version_lbl.setStyleSheet("color:#666; font-size:10px; padding:0 8px 0 6px;")
+        self._version_lbl.setToolTip(f"Application version: {APP_VERSION}")
+        self.statusBar().addWidget(self._version_lbl)
 
         # Progress bar for breeding cache computation
         self._cache_progress = QProgressBar()
