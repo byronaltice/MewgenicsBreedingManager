@@ -6,7 +6,10 @@ Run with: pytest tests/ -v
 import struct
 import sys
 import os
+import shutil
+import zipfile
 from types import SimpleNamespace
+from uuid import uuid4
 
 import pytest
 
@@ -18,6 +21,7 @@ sys.path.insert(0, _proj_root)
 
 from save_parser import (
     BinaryReader,
+    GameData,
     _choose_age_from_creation_days,
     _valid_str,
     _normalize_gender,
@@ -38,6 +42,8 @@ from save_parser import (
     _malady_breakdown,
     _combined_malady_chance,
     _is_hater_pair,
+    _parse_furniture_entry,
+    summarize_furniture_room,
     shared_ancestor_counts,
     STAT_NAMES,
 )
@@ -294,6 +300,98 @@ class TestScanBlobForParentUids:
             blob, frozenset({5000}), self_uid=5000
         )
         assert result == (0, 0)
+
+
+class TestFurnitureParser:
+    def test_parse_furniture_entry_reads_item_room_and_tail(self):
+        blob = (
+            struct.pack('<I', 1)
+            + struct.pack('<Q', len(b'set_80s_table'))
+            + b'set_80s_table'
+            + struct.pack('<4I', 0, 0, 12, 0)
+            + b'Floor1_Large'
+            + struct.pack('<5i', -3, -9, 1, 1, 1)
+        )
+
+        item = _parse_furniture_entry(blob, 1)
+
+        assert item.key == 1
+        assert item.version == 1
+        assert item.item_name == 'set_80s_table'
+        assert item.room == 'Floor1_Large'
+        assert item.room_display == '1st FL L'
+        assert item.header_fields == (0, 0, 12, 0)
+        assert item.placement_fields == (-3, -9, 1, 1, 1)
+        assert item.is_placed is True
+        assert item.room_name_len == 12
+
+    def test_parse_save_reads_furniture_table(self):
+        source_path = os.path.join(_proj_root, 'tools', 'saves', '21cats.sav')
+        cleanup_path = None
+        if not os.path.exists(source_path):
+            zip_path = os.path.join(_proj_root, 'tools', 'saves', 'saves.zip')
+            if not os.path.exists(zip_path):
+                pytest.skip('No sample save available for furniture parsing test')
+            cleanup_dir = os.path.join(_proj_root, 'tmp', f'_codex_test_write_{uuid4().hex}')
+            os.makedirs(cleanup_dir, exist_ok=True)
+            cleanup_path = os.path.join(cleanup_dir, '21cats.sav')
+            with zipfile.ZipFile(zip_path) as zf:
+                with zf.open('21cats.sav') as src, open(cleanup_path, 'wb') as dst:
+                    dst.write(src.read())
+            source_path = cleanup_path
+
+        try:
+            save = parse_save(source_path)
+        finally:
+            if cleanup_path and os.path.exists(cleanup_path):
+                os.remove(cleanup_path)
+            if cleanup_path:
+                shutil.rmtree(os.path.dirname(cleanup_path), ignore_errors=True)
+
+        assert len(save.furniture) == 31
+        assert save.furniture[0].item_name == 'set_80s_table'
+        assert save.furniture[0].room == 'Floor1_Large'
+        assert len(save.furniture_by_room['Floor1_Large']) == 15
+        assert len(save.unplaced_furniture) == 1
+        assert save.unplaced_furniture[0].item_name == 'small_picture_cat'
+
+    def test_parse_furniture_catalog_reads_effects(self):
+        gpak_path = os.path.join('D:\\Games\\Mewgenics', 'resources.gpak')
+        if not os.path.exists(gpak_path):
+            pytest.skip('No game pack available for furniture catalog test')
+
+        game_data = GameData.from_gpak(gpak_path)
+        catalog = game_data.furniture_data
+
+        assert catalog['set_80s_table'].effects['Comfort'] == 2
+        assert catalog['special_appealidol'].effects['Appeal'] == 5
+        assert catalog['poop'].effects['Comfort'] == -2
+        assert catalog['poop'].effects['Health'] == -2
+        assert catalog['special_fightidol'].effects['Comfort'] == -5
+        assert catalog['set_monster_table2'].effects['Evolution'] == 1
+
+    def test_room_summary_applies_overcrowding_to_comfort(self):
+        gpak_path = os.path.join('D:\\Games\\Mewgenics', 'resources.gpak')
+        if not os.path.exists(gpak_path):
+            pytest.skip('No game pack available for room summary test')
+
+        source_path = os.path.join(_proj_root, 'tools', 'saves', '23.sav')
+        if not os.path.exists(source_path):
+            pytest.skip('No sample save available for furniture summary test')
+
+        save = parse_save(source_path)
+        catalog = GameData.from_gpak(gpak_path).furniture_data
+        items = save.furniture_by_room['Floor2_Large']
+        summary = summarize_furniture_room(items, catalog, cat_count=42)
+
+        assert summary.furniture_count == 20
+        assert summary.raw_effects['Appeal'] == 6.0
+        assert summary.raw_effects['Comfort'] == 24.0
+        assert summary.raw_effects['Stimulation'] == -3.0
+        assert summary.raw_effects['Health'] == 7.0
+        assert summary.raw_effects['Evolution'] == 0.0
+        assert summary.crowd_penalty == 38
+        assert summary.effective_effects['Comfort'] == -14.0
 
 
 # ── Breeding compatibility tests ─────────────────────────────────────────────

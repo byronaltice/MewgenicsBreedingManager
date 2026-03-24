@@ -20,10 +20,13 @@ import mewgenics_manager as mm
 from mewgenics_manager import (
     BreedingCache,
     _apply_calibration_data,
+    _effective_thresholds_for_cats,
     _learn_gender_token_map,
     _load_calibration_data,
+    _load_threshold_preferences,
     _load_gender_overrides,
     _save_calibration_data,
+    _save_threshold_preferences,
 )
 
 
@@ -60,8 +63,8 @@ def _make_cat(
 
 @contextmanager
 def _workspace_temp_dir():
-    base = _proj_root / "_codex_test_runs"
-    base.mkdir(exist_ok=True)
+    base = _proj_root / "tmp" / "_codex_test_runs"
+    base.mkdir(parents=True, exist_ok=True)
     path = base / uuid4().hex
     path.mkdir()
     try:
@@ -218,6 +221,34 @@ def test_breeding_cache_round_trip():
         assert loaded.get_risk(cat_a, cat_b) == 12.5
         assert loaded.get_shared(cat_a, cat_b) == (3, 1)
         assert BreedingCache.load_from_disk(str(save_path), "bogus-signature") is None
+
+
+def test_threshold_preferences_round_trip_and_curve_math(monkeypatch):
+    with _workspace_temp_dir() as td:
+        config_path = td / "settings.json"
+        monkeypatch.setattr(mm, "APPDATA_CONFIG_DIR", str(td))
+        monkeypatch.setattr(mm, "APP_CONFIG_PATH", str(config_path))
+
+        prefs = {
+            "exceptional_sum_threshold": 40,
+            "donation_sum_threshold": 34,
+            "donation_max_top_stat": 6,
+            "adaptive_enabled": True,
+            "adaptive_reference_avg_sum": 28.0,
+            "adaptive_curve_strength": 0.2,
+        }
+        assert _save_threshold_preferences(prefs)
+        assert _load_threshold_preferences() == prefs
+
+        cats = [
+            _make_cat("0x1", "A", base_stats={stat: 6 for stat in mm.STAT_NAMES}),
+            _make_cat("0x2", "B", base_stats={stat: 4 for stat in mm.STAT_NAMES}),
+        ]
+
+        exceptional, donation, top_stat, avg_sum = _effective_thresholds_for_cats(prefs, cats)
+
+        assert avg_sum == 35.0
+        assert (exceptional, donation, top_stat) == (40, 34, 6)
 
 
 def test_start_breeding_cache_uses_save_signature_for_disk_lookup(monkeypatch):

@@ -104,7 +104,7 @@
   "header.filter.pinned": "Przypięte koty",
   "header.filter.gone": "Odeszłe",
   "header.filter.adventure": "Na przygodzie",
-  "header.count": "  {visible} / {total} kotów",
+  "header.count": "  {visible} / {total} kotów  |  Suma: {visible_sum}",
   "header.summary": "Dom: {placed}  |  Przygoda: {adv}  |  Odeszłe: {gone}",
   "header.search_placeholder": "Szukaj kotów, zdolności, mutacji…",
   "header.pin_toggle_tooltip": "Pokazuj tylko przypięte koty",

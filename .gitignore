@@ -32,3 +32,6 @@ desktop.ini
 
 # Screenshots / local assets
 # screenshot.png intentionally tracked for README
+
+# Repo-local scratch space
+tmp/

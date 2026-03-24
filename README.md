@@ -55,8 +55,9 @@ Your command center.
 - Spot exceptional breeders and donation candidates instantly
 
 Current thresholds:
-- Exceptional breeder: base stat sum `>= 40`
+- Exceptional breeder: base stat sum `>= 40` by default
 - Donation candidate: low total power, weak top stat, or high aggression
+- Adjust both thresholds from `Settings -> Donation / Exceptional Thresholds…`
 - Must-breed, exceptional, and Eternal Youth cats are excluded from donation marking
 
 ## Single Cat View

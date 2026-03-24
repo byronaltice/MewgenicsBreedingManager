@@ -11,6 +11,9 @@ import lz4.block
 import re
 import os
 import math
+import csv
+import io
+import html
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -37,6 +40,15 @@ ROOM_DISPLAY = {
 }
 
 ROOM_KEYS = tuple(ROOM_DISPLAY.keys())
+
+FURNITURE_ROOM_STAT_KEYS = ("Appeal", "Comfort", "Stimulation", "Health", "Evolution")
+FURNITURE_ROOM_STAT_LABELS = {
+    "Appeal": "Appeal",
+    "Comfort": "Comfort",
+    "Stimulation": "Stimulation",
+    "Health": "Health",
+    "Evolution": "Mutation",
+}
 
 EXCEPTIONAL_SUM_THRESHOLD = 40
 DONATION_SUM_THRESHOLD = 34
@@ -80,6 +92,8 @@ class SaveData:
     cats: list["Cat"]
     errors: list[tuple[int, str]]
     unlocked_house_rooms: list[str]
+    furniture: list["FurnitureItem"] = field(default_factory=list)
+    furniture_data: dict[str, "FurnitureDefinition"] = field(default_factory=dict)
 
     def as_tuple(self) -> tuple[list["Cat"], list[tuple[int, str]], list[str]]:
         return self.cats, self.errors, self.unlocked_house_rooms
@@ -92,6 +106,80 @@ class SaveData:
 
     def __getitem__(self, index: int):
         return self.as_tuple()[index]
+
+    @property
+    def furniture_by_room(self) -> dict[str, list["FurnitureItem"]]:
+        grouped: dict[str, list[FurnitureItem]] = {}
+        for item in self.furniture:
+            grouped.setdefault(item.room, []).append(item)
+        return grouped
+
+    @property
+    def placed_furniture(self) -> list["FurnitureItem"]:
+        return [item for item in self.furniture if item.room]
+
+    @property
+    def unplaced_furniture(self) -> list["FurnitureItem"]:
+        return [item for item in self.furniture if not item.room]
+
+
+@dataclass(slots=True)
+class FurnitureItem:
+    """Parsed furniture record from the save's furniture table."""
+
+    key: int
+    version: int
+    item_name: str
+    room: str
+    header_fields: tuple[int, int, int, int]
+    placement_fields: tuple[int, ...]
+    trailing_bytes: bytes = field(default=b"", repr=False, compare=False)
+
+    @property
+    def room_display(self) -> str:
+        return ROOM_DISPLAY.get(self.room, self.room or "Unplaced")
+
+    @property
+    def is_placed(self) -> bool:
+        return bool(self.room)
+
+    @property
+    def room_name_len(self) -> int:
+        return int(self.header_fields[2]) if len(self.header_fields) >= 3 else 0
+
+
+@dataclass(slots=True)
+class FurnitureDefinition:
+    """Parsed furniture metadata and stat effects from the game pack."""
+
+    item_name: str
+    display_name: str
+    description: str
+    effects: dict[str, float] = field(default_factory=dict)
+    properties: dict[str, object] = field(default_factory=dict)
+
+    @property
+    def stat_effects(self) -> dict[str, float]:
+        return {k: v for k, v in self.effects.items() if k in FURNITURE_ROOM_STAT_KEYS}
+
+
+@dataclass(slots=True)
+class FurnitureRoomSummary:
+    """Computed room furniture summary used by the furniture view."""
+
+    room: str
+    cat_count: int
+    furniture_count: int
+    items: tuple["FurnitureItem", ...]
+    raw_effects: dict[str, float]
+    effective_effects: dict[str, float]
+    all_effects: dict[str, float]
+    crowd_penalty: int = 0
+    dead_body_penalty: int = 0
+
+    @property
+    def room_display(self) -> str:
+        return ROOM_DISPLAY.get(self.room, self.room or "Unplaced")
 
 
 # ── Visual mutation table ─────────────────────────────────────────────────────
@@ -145,6 +233,7 @@ class GameData:
     """Resource-backed lookup tables used by parser helpers."""
 
     visual_mutation_data: dict[str, dict[int, tuple[str, str]]] = field(default_factory=dict)
+    furniture_data: dict[str, "FurnitureDefinition"] = field(default_factory=dict)
 
     @classmethod
     def from_gpak(cls, gpak_path: str | None) -> "GameData":
@@ -168,15 +257,29 @@ class GameData:
                     offset += size
 
                 game_strings = _load_gpak_text_strings(f, file_offsets)
+                furniture_strings = _load_gpak_csv_strings(
+                    f,
+                    file_offsets,
+                    "data/text/furniture.csv",
+                    key_column="KEY",
+                    value_column="en",
+                )
                 result: dict[str, dict[int, tuple[str, str]]] = {}
+                furniture_data: dict[str, FurnitureDefinition] = {}
                 for fname, (foff, fsz) in file_offsets.items():
                     if not (fname.startswith("data/mutations/") and fname.endswith(".gon")):
-                        continue
-                    category = fname.split("/")[-1].replace(".gon", "")
-                    f.seek(foff)
-                    content = f.read(fsz).decode("utf-8", errors="replace")
-                    result[category] = _parse_mutation_gon(content, game_strings, category)
-                return cls(result)
+                        if fname != "data/furniture_effects.gon":
+                            continue
+                    if fname.startswith("data/mutations/") and fname.endswith(".gon"):
+                        category = fname.split("/")[-1].replace(".gon", "")
+                        f.seek(foff)
+                        content = f.read(fsz).decode("utf-8", errors="replace")
+                        result[category] = _parse_mutation_gon(content, game_strings, category)
+                    elif fname == "data/furniture_effects.gon":
+                        f.seek(foff)
+                        content = f.read(fsz).decode("utf-8", errors="replace")
+                        furniture_data = _parse_furniture_gon(content, furniture_strings)
+                return cls(result, furniture_data)
         except Exception:
             return cls()
 
@@ -207,6 +310,44 @@ def _load_gpak_text_strings(file_obj, file_offsets: dict[str, tuple[int, int]]) 
             if key:
                 game_strings[key] = value
     return game_strings
+
+
+def _load_gpak_csv_strings(
+    file_obj,
+    file_offsets: dict[str, tuple[int, int]],
+    target_name: str,
+    key_column: str = "KEY",
+    value_column: str = "en",
+) -> dict[str, str]:
+    """Read one CSV file from the game pack and return a key->column mapping."""
+    entry = file_offsets.get(target_name)
+    if entry is None:
+        return {}
+
+    offset, size = entry
+    file_obj.seek(offset)
+    text = file_obj.read(size).decode("utf-8-sig", errors="replace")
+    reader = csv.DictReader(io.StringIO(text))
+    if not reader.fieldnames:
+        return {}
+
+    values: dict[str, str] = {}
+    for row in reader:
+        key = (row.get(key_column) or "").strip()
+        if not key:
+            continue
+        value = (row.get(value_column) or "").strip()
+        if not value:
+            for column in reader.fieldnames:
+                if column in {key_column, "notes"}:
+                    continue
+                candidate = (row.get(column) or "").strip()
+                if candidate:
+                    value = candidate
+                    break
+        if value:
+            values[key] = html.unescape(value)
+    return values
 
 
 def _resolve_game_string(value: str, game_strings: dict[str, str]) -> str:
@@ -283,6 +424,134 @@ def _parse_mutation_gon(content: str, game_strings: dict[str, str], category: st
             _block_to_entry(0xFFFFFFFE, block)
 
     return result
+
+
+def _iter_gon_blocks(content: str):
+    """Yield (block_name, block_body) for top-level brace blocks in a GON file."""
+    idx = 0
+    pattern = re.compile(r"(?m)^([A-Za-z0-9_]+)\s*\{")
+    while idx < len(content):
+        match = pattern.search(content, idx)
+        if not match:
+            return
+        name = match.group(1)
+        brace_start = content.find("{", match.start())
+        if brace_start < 0:
+            return
+        depth = 0
+        pos = brace_start
+        while pos < len(content):
+            ch = content[pos]
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    yield name, content[brace_start + 1:pos]
+                    idx = pos + 1
+                    break
+            pos += 1
+        else:
+            return
+
+
+def _coerce_furniture_value(value: str) -> object:
+    text = value.strip()
+    if text.lower() in {"true", "false"}:
+        return text.lower() == "true"
+    try:
+        if "." in text:
+            return float(text)
+        return int(text)
+    except Exception:
+        return text
+
+
+def _parse_furniture_gon(content: str, furniture_strings: dict[str, str]) -> dict[str, FurnitureDefinition]:
+    """Parse furniture definitions from the game's furniture_effects.gon file."""
+    definitions: dict[str, FurnitureDefinition] = {}
+
+    for item_name, block in _iter_gon_blocks(content):
+        properties: dict[str, object] = {}
+        effects: dict[str, float] = {}
+        name_key = ""
+        desc_key = ""
+
+        for raw_line in block.splitlines():
+            line = raw_line.split("//", 1)[0].strip()
+            if not line:
+                continue
+            parts = line.split()
+            if len(parts) < 2:
+                continue
+            key = parts[0]
+            value = " ".join(parts[1:]).strip()
+            coerced = _coerce_furniture_value(value)
+            properties[key] = coerced
+            if key == "name":
+                name_key = value
+            elif key == "desc":
+                desc_key = value
+            elif isinstance(coerced, (int, float)):
+                effects[key] = float(coerced)
+
+        display_name = html.unescape(furniture_strings.get(name_key, "")).strip()
+        if not display_name:
+            display_name = item_name.replace("_", " ").strip().title()
+        description = html.unescape(furniture_strings.get(desc_key, "")).strip()
+        definitions[item_name] = FurnitureDefinition(
+            item_name=item_name,
+            display_name=display_name,
+            description=description,
+            effects=effects,
+            properties=properties,
+        )
+
+    return definitions
+
+
+def _format_furniture_effect_value(value: float) -> str:
+    number = float(value)
+    if number.is_integer():
+        number = int(number)
+    return f"{number:+g}"
+
+
+def summarize_furniture_room(
+    items: list[FurnitureItem],
+    definitions: dict[str, FurnitureDefinition] | None = None,
+    room: str | None = None,
+    cat_count: int = 0,
+    dead_bodies: int = 0,
+) -> FurnitureRoomSummary:
+    """Summarize the furniture effects for a single room."""
+    raw_effects = {key: 0.0 for key in FURNITURE_ROOM_STAT_KEYS}
+    all_effects: dict[str, float] = {}
+    for item in items:
+        definition = definitions.get(item.item_name) if definitions else None
+        effects = definition.effects if definition is not None else {}
+        for key, value in effects.items():
+            all_effects[key] = all_effects.get(key, 0.0) + float(value)
+            if key in raw_effects:
+                raw_effects[key] += float(value)
+
+    crowd_penalty = max(0, int(cat_count) - 4)
+    effective_effects = dict(raw_effects)
+    effective_effects["Comfort"] -= crowd_penalty
+    if dead_bodies:
+        effective_effects["Health"] -= dead_bodies
+
+    return FurnitureRoomSummary(
+        room=room if room is not None else (items[0].room if items else ""),
+        cat_count=int(cat_count),
+        furniture_count=len(items),
+        items=tuple(items),
+        raw_effects=raw_effects,
+        effective_effects=effective_effects,
+        all_effects=all_effects,
+        crowd_penalty=crowd_penalty,
+        dead_body_penalty=int(dead_bodies),
+    )
 
 
 def _read_visual_mutation_entries(table: list[int]) -> list[dict[str, object]]:
@@ -1293,6 +1562,65 @@ def _is_hater_pair(a: 'Cat', b: 'Cat') -> bool:
 
 # ── Save-file helpers ─────────────────────────────────────────────────────────
 
+def _parse_furniture_entry(blob: bytes, key: int) -> FurnitureItem:
+    """Parse a single row from the furniture table."""
+    if len(blob) < 12 + 16:
+        raise ValueError("Furniture blob too short")
+
+    version = struct.unpack_from("<I", blob, 0)[0]
+    item_name_len = struct.unpack_from("<Q", blob, 4)[0]
+    item_name_start = 12
+    item_name_end = item_name_start + int(item_name_len)
+    if item_name_end > len(blob):
+        raise ValueError("Furniture item name overruns blob")
+
+    item_name = blob[item_name_start:item_name_end].decode("utf-8", errors="ignore")
+
+    header_start = item_name_end
+    header_end = header_start + 16
+    if header_end > len(blob):
+        raise ValueError("Furniture room header overruns blob")
+
+    header_fields = struct.unpack_from("<4I", blob, header_start)
+    room_name_len = int(header_fields[2])
+    room_start = header_end
+    room_end = room_start + room_name_len
+    if room_end > len(blob):
+        raise ValueError("Furniture room name overruns blob")
+
+    room = blob[room_start:room_end].decode("utf-8", errors="ignore")
+
+    tail_start = room_end
+    placement_fields: list[int] = []
+    while tail_start + 4 <= len(blob):
+        placement_fields.append(struct.unpack_from("<i", blob, tail_start)[0])
+        tail_start += 4
+
+    return FurnitureItem(
+        key=int(key),
+        version=version,
+        item_name=item_name,
+        room=room,
+        header_fields=header_fields,
+        placement_fields=tuple(placement_fields),
+        trailing_bytes=blob[tail_start:],
+    )
+
+
+def _get_furniture_items(conn) -> list[FurnitureItem]:
+    try:
+        rows = conn.execute("SELECT key, data FROM furniture ORDER BY key").fetchall()
+    except Exception:
+        return []
+
+    items: list[FurnitureItem] = []
+    for key, blob in rows:
+        try:
+            items.append(_parse_furniture_entry(blob, int(key)))
+        except Exception:
+            logger.warning("Failed to parse furniture key=%s", key, exc_info=True)
+    return items
+
 def _get_house_info(conn) -> dict:
     row = conn.execute("SELECT data FROM files WHERE key = 'house_state'").fetchone()
     if not row or len(row[0]) < 8:
@@ -1405,6 +1733,7 @@ def parse_save(path: str) -> SaveData:
     house = _get_house_info(conn)
     unlocked_house_rooms = _get_unlocked_house_rooms(conn)
     adv   = _get_adventure_keys(conn)
+    furniture = _get_furniture_items(conn)
     rows  = conn.execute("SELECT key, data FROM cats").fetchall()
     ped_map = _parse_pedigree(conn)
     current_day_row = conn.execute("SELECT data FROM properties WHERE key='current_day'").fetchone()
@@ -1480,7 +1809,12 @@ def parse_save(path: str) -> SaveData:
         if c.generation < 0:
             c.generation = 0
 
-    return SaveData(cats=cats, errors=errors, unlocked_house_rooms=unlocked_house_rooms)
+    return SaveData(
+        cats=cats,
+        errors=errors,
+        unlocked_house_rooms=unlocked_house_rooms,
+        furniture=furniture,
+    )
 
 
 def find_save_files(root_dir: str) -> list[str]:

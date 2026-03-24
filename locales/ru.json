@@ -104,7 +104,7 @@
   "header.filter.pinned": "Закреплённые коты",
   "header.filter.gone": "Ушедшие",
   "header.filter.adventure": "В приключении",
-  "header.count": "{visible} / {total} котов",
+  "header.count": "{visible} / {total} котов  |  Сумма: {visible_sum}",
   "header.summary": "Дома: {placed}  |  Приключается: {adv}  |  Выбыл: {gone}",
   "header.search_placeholder": "Поиск котов, способностей, мутаций…",
   "header.pin_toggle_tooltip": "Показать только закреплённых котов",

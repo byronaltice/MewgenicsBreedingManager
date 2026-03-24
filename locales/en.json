@@ -104,7 +104,7 @@
   "header.filter.pinned": "Pinned Cats",
   "header.filter.gone": "Gone",
   "header.filter.adventure": "On Adventure",
-  "header.count": "  {visible} / {total} cats",
+  "header.count": "  {visible} / {total} cats  |  Sum: {visible_sum}",
   "header.summary": "House: {placed}  |  Away: {adv}  |  Gone: {gone}",
   "header.search_placeholder": "Search cats, abilities, mutations…",
   "header.pin_toggle_tooltip": "Show only pinned cats",

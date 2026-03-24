@@ -1,6 +1,7 @@
 import os
 import sys
 import uuid
+import shutil
 from types import SimpleNamespace
 from pathlib import Path
 
@@ -103,12 +104,13 @@ def qt_app():
 
 @pytest.fixture()
 def planner_config(monkeypatch):
-    scratch_root = Path(_proj_root) / "_codex_test_write"
-    config_path = scratch_root / f"planner-settings-{uuid.uuid4().hex}.json"
+    scratch_root = Path(_proj_root) / "tmp" / f"_codex_test_write_{uuid.uuid4().hex}"
+    scratch_root.mkdir(parents=True, exist_ok=True)
+    config_path = scratch_root / "planner-settings.json"
     monkeypatch.setattr(mm, "APPDATA_CONFIG_DIR", str(scratch_root))
     monkeypatch.setattr(mm, "APP_CONFIG_PATH", str(config_path))
     yield config_path
-    config_path.unlink(missing_ok=True)
+    shutil.rmtree(scratch_root, ignore_errors=True)
 
 
 def test_selected_offspring_config_round_trip(planner_config):

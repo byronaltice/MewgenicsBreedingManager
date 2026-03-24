@@ -10,11 +10,11 @@ Requirements: pip install PySide6 lz4
 import sys
 import re
 import html
+import json
 import struct
 import sqlite3
 import csv
 import hashlib
-import json
 import datetime
 import platform
 import random
@@ -36,12 +36,12 @@ from PySide6.QtWidgets import (
     QLineEdit, QListWidget, QListWidgetItem, QScrollArea, QToolButton,
     QTableWidget, QTableWidgetItem, QStyledItemDelegate, QStyle, QStyleOptionViewItem,
     QTextBrowser,
-    QComboBox, QMessageBox, QSpinBox, QProgressBar, QTabWidget, QMenu,
+    QComboBox, QCheckBox, QMessageBox, QSpinBox, QDoubleSpinBox, QProgressBar, QTabWidget, QMenu,
 )
 from PySide6.QtCore import (
     Qt, QAbstractTableModel, QModelIndex, QSortFilterProxyModel,
     QFileSystemWatcher, QItemSelectionModel, QSize, Signal, QRegularExpression, QTimer,
-    QThread,
+    QThread, QByteArray,
 )
 from PySide6.QtGui import (
     QColor, QBrush, QAction, QActionGroup, QPalette, QFont, QKeySequence, QFontMetrics,
@@ -51,6 +51,7 @@ from PySide6.QtGui import (
 # ── Imports from extracted modules ─────────────────────────────────────────────
 from save_parser import (
     BinaryReader, Cat, parse_save,
+    FurnitureItem, FurnitureDefinition, FurnitureRoomSummary, summarize_furniture_room,
     STAT_NAMES, can_breed, risk_percent, kinship_coi,
     get_all_ancestors, get_parents, get_grandparents,
     find_common_ancestors, shared_ancestor_counts,
@@ -69,6 +70,7 @@ from save_parser import (
     _resolve_game_string,
     _malady_breakdown, _combined_malady_chance,
     ROOM_KEYS, EXCEPTIONAL_SUM_THRESHOLD, DONATION_SUM_THRESHOLD, DONATION_MAX_TOP_STAT,
+    FURNITURE_ROOM_STAT_KEYS, FURNITURE_ROOM_STAT_LABELS,
 )
 
 from breeding import (
@@ -594,6 +596,145 @@ def _save_app_config(data: dict):
         pass
 
 
+_THRESHOLD_CONFIG_KEY = "threshold_preferences"
+_THRESHOLD_DEFAULTS = {
+    "exceptional_sum_threshold": int(EXCEPTIONAL_SUM_THRESHOLD),
+    "donation_sum_threshold": int(DONATION_SUM_THRESHOLD),
+    "donation_max_top_stat": int(DONATION_MAX_TOP_STAT),
+    "adaptive_enabled": False,
+    "adaptive_reference_avg_sum": 28.0,
+    "adaptive_curve_strength": 0.2,
+}
+
+_THRESHOLD_PREFERENCES = dict(_THRESHOLD_DEFAULTS)
+
+
+def _coerce_int(value, default: int, min_value: int | None = None, max_value: int | None = None) -> int:
+    try:
+        result = int(float(value))
+    except (TypeError, ValueError):
+        result = default
+    if min_value is not None:
+        result = max(min_value, result)
+    if max_value is not None:
+        result = min(max_value, result)
+    return result
+
+
+def _coerce_float(value, default: float, min_value: float | None = None, max_value: float | None = None) -> float:
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        result = default
+    if min_value is not None:
+        result = max(min_value, result)
+    if max_value is not None:
+        result = min(max_value, result)
+    return result
+
+
+def _coerce_bool(value, default: bool = False) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"true", "1", "yes", "on"}:
+            return True
+        if lowered in {"false", "0", "no", "off"}:
+            return False
+    if value is None:
+        return default
+    return bool(value)
+
+
+def _normalize_threshold_preferences(data: dict | None) -> dict:
+    data = data if isinstance(data, dict) else {}
+    return {
+        "exceptional_sum_threshold": _coerce_int(
+            data.get("exceptional_sum_threshold"),
+            _THRESHOLD_DEFAULTS["exceptional_sum_threshold"],
+            min_value=0,
+        ),
+        "donation_sum_threshold": _coerce_int(
+            data.get("donation_sum_threshold"),
+            _THRESHOLD_DEFAULTS["donation_sum_threshold"],
+            min_value=0,
+        ),
+        "donation_max_top_stat": _coerce_int(
+            data.get("donation_max_top_stat"),
+            _THRESHOLD_DEFAULTS["donation_max_top_stat"],
+            min_value=0,
+        ),
+        "adaptive_enabled": _coerce_bool(
+            data.get("adaptive_enabled"),
+            _THRESHOLD_DEFAULTS["adaptive_enabled"],
+        ),
+        "adaptive_reference_avg_sum": _coerce_float(
+            data.get("adaptive_reference_avg_sum"),
+            _THRESHOLD_DEFAULTS["adaptive_reference_avg_sum"],
+            min_value=0.0,
+        ),
+        "adaptive_curve_strength": _coerce_float(
+            data.get("adaptive_curve_strength"),
+            _THRESHOLD_DEFAULTS["adaptive_curve_strength"],
+            min_value=0.0,
+        ),
+    }
+
+
+def _load_threshold_preferences() -> dict:
+    data = _load_app_config()
+    prefs = _normalize_threshold_preferences(data.get(_THRESHOLD_CONFIG_KEY))
+    return prefs
+
+
+def _save_threshold_preferences(prefs: dict) -> bool:
+    normalized = _normalize_threshold_preferences(prefs)
+    data = _load_app_config()
+    data[_THRESHOLD_CONFIG_KEY] = normalized
+    _save_app_config(data)
+    return True
+
+
+def _effective_thresholds_for_cats(
+    prefs: dict | None = None,
+    cats: list[Cat] | None = None,
+) -> tuple[int, int, int, float]:
+    prefs = _normalize_threshold_preferences(prefs or _THRESHOLD_PREFERENCES)
+    alive = [cat for cat in (cats or []) if getattr(cat, "status", None) != "Gone"]
+    avg_sum = sum(_cat_base_sum(cat) for cat in alive) / len(alive) if alive else 0.0
+    exceptional = prefs["exceptional_sum_threshold"]
+    donation = prefs["donation_sum_threshold"]
+    if prefs["adaptive_enabled"] and alive:
+        delta = avg_sum - prefs["adaptive_reference_avg_sum"]
+        shift = int(round(delta * prefs["adaptive_curve_strength"] * 0.25))
+        exceptional = max(0, exceptional + shift)
+        donation = max(0, donation + shift)
+    return exceptional, donation, prefs["donation_max_top_stat"], avg_sum
+
+
+def _apply_threshold_preferences(prefs: dict | None = None, cats: list[Cat] | None = None):
+    global _THRESHOLD_PREFERENCES, EXCEPTIONAL_SUM_THRESHOLD, DONATION_SUM_THRESHOLD, DONATION_MAX_TOP_STAT
+    normalized = _normalize_threshold_preferences(prefs or _load_threshold_preferences())
+    _THRESHOLD_PREFERENCES = normalized
+    EXCEPTIONAL_SUM_THRESHOLD, DONATION_SUM_THRESHOLD, DONATION_MAX_TOP_STAT, _ = _effective_thresholds_for_cats(normalized, cats)
+
+
+def _current_threshold_summary(cats: list[Cat] | None = None) -> dict:
+    exceptional, donation, top_stat, avg_sum = _effective_thresholds_for_cats(_THRESHOLD_PREFERENCES, cats)
+    return {
+        "exceptional": exceptional,
+        "donation": donation,
+        "top_stat": top_stat,
+        "avg_sum": avg_sum,
+        "adaptive_enabled": bool(_THRESHOLD_PREFERENCES.get("adaptive_enabled")),
+        "adaptive_reference_avg_sum": float(_THRESHOLD_PREFERENCES.get("adaptive_reference_avg_sum", 0.0)),
+        "adaptive_curve_strength": float(_THRESHOLD_PREFERENCES.get("adaptive_curve_strength", 0.0)),
+        "base_exceptional": int(_THRESHOLD_PREFERENCES.get("exceptional_sum_threshold", _THRESHOLD_DEFAULTS["exceptional_sum_threshold"])),
+        "base_donation": int(_THRESHOLD_PREFERENCES.get("donation_sum_threshold", _THRESHOLD_DEFAULTS["donation_sum_threshold"])),
+    }
+
+
 def _cat_uid(cat: Cat) -> str:
     return str(getattr(cat, "unique_id", "") or "").strip().lower()
 
@@ -951,11 +1092,13 @@ _GPAK_PATH = next((p for p in _GPAK_SEARCH_PATHS if os.path.exists(p)), None)
 
 
 def _reload_game_data():
-    global _GPAK_SEARCH_PATHS, _GPAK_PATH, _ABILITY_DESC, _VISUAL_MUT_DATA
+    global _GPAK_SEARCH_PATHS, _GPAK_PATH, _ABILITY_DESC, _VISUAL_MUT_DATA, _FURNITURE_DATA
     _GPAK_SEARCH_PATHS = _candidate_gpak_paths()
     _GPAK_PATH = next((p for p in _GPAK_SEARCH_PATHS if os.path.exists(p)), None)
     _ABILITY_DESC = _load_ability_descriptions()
-    _VISUAL_MUT_DATA = GameData.from_gpak(_GPAK_PATH).visual_mutation_data
+    game_data = GameData.from_gpak(_GPAK_PATH)
+    _VISUAL_MUT_DATA = game_data.visual_mutation_data
+    _FURNITURE_DATA = game_data.furniture_data
     set_visual_mut_data(_VISUAL_MUT_DATA)
 
 
@@ -1007,6 +1150,58 @@ def _save_ui_state(key: str, state: dict):
         _save_app_config(data)
     except Exception:
         pass
+
+
+def _load_splitter_states() -> dict[str, str]:
+    data = _load_app_config()
+    state = data.get("splitter_states", {})
+    return state if isinstance(state, dict) else {}
+
+
+def _save_splitter_states(states: dict[str, str]):
+    try:
+        data = _load_app_config()
+        data["splitter_states"] = states if isinstance(states, dict) else {}
+        _save_app_config(data)
+    except Exception:
+        pass
+
+
+def _restore_splitter_state(splitter: QSplitter):
+    key = splitter.objectName().strip()
+    if not key:
+        return
+    encoded = _load_splitter_states().get(key)
+    if not encoded:
+        return
+    try:
+        splitter.restoreState(QByteArray.fromBase64(encoded.encode("ascii")))
+    except Exception:
+        pass
+
+
+def _save_splitter_state(splitter: QSplitter):
+    key = splitter.objectName().strip()
+    if not key:
+        return
+    try:
+        states = _load_splitter_states()
+        states[key] = splitter.saveState().toBase64().data().decode("ascii")
+        _save_splitter_states(states)
+    except Exception:
+        pass
+
+
+def _bind_splitter_persistence(root: Optional[QWidget]):
+    if root is None:
+        return
+    for splitter in root.findChildren(QSplitter):
+        key = splitter.objectName().strip()
+        if not key or splitter.property("_splitter_persist_bound"):
+            continue
+        splitter.setProperty("_splitter_persist_bound", True)
+        _restore_splitter_state(splitter)
+        splitter.splitterMoved.connect(lambda *_ , s=splitter: _save_splitter_state(s))
 
 
 def _default_room_priority_config() -> list[dict]:
@@ -1203,6 +1398,7 @@ def _load_ability_descriptions() -> dict[str, str]:
 
 
 _ABILITY_DESC: dict[str, str] = {}
+_FURNITURE_DATA: dict[str, FurnitureDefinition] = {}
 
 _MUTATION_DISPLAY_NAMES: dict[str, str] = {
     "twoedarm": "Two-Toed Arm",
@@ -1890,7 +2086,8 @@ class SaveLoadWorker(QThread):
 
     def run(self):
         self.status.emit("Parsing save file…")
-        cats, errors, unlocked_house_rooms = parse_save(self._path)
+        save = parse_save(self._path)
+        cats, errors, unlocked_house_rooms = save
         self.status.emit("Loading blacklist & overrides…")
         _load_blacklist(self._path, cats)
         _load_must_breed(self._path, cats)
@@ -1902,6 +2099,8 @@ class SaveLoadWorker(QThread):
             "cats": cats,
             "errors": errors,
             "unlocked_house_rooms": unlocked_house_rooms,
+            "furniture": save.furniture,
+            "furniture_by_room": save.furniture_by_room,
             "applied_overrides": applied_overrides,
             "override_rows": override_rows,
             "cal_explicit": cal_explicit,
@@ -2451,14 +2650,14 @@ COL_MB    = 6
 COL_PIN   = 7
 STAT_COLS = list(range(8, 15))   # STR … LCK
 COL_SUM   = 15
-COL_ABIL  = 16
-COL_MUTS  = 17
-COL_RELNS = 18
-COL_REL   = 19
-COL_AGG   = 20
-COL_LIB   = 21
-COL_INBRD = 22
-COL_SEXUALITY = 23
+COL_AGG   = 16
+COL_LIB   = 17
+COL_INBRD = 18
+COL_SEXUALITY = 19
+COL_RELNS = 20
+COL_REL   = 21
+COL_ABIL  = 22
+COL_MUTS  = 23
 COL_GEN_DEPTH = 24
 COL_SRC   = 25
 
@@ -2478,14 +2677,14 @@ def _refresh_localized_constants():
         _tr("table.column.pinned"),
     ] + STAT_NAMES + [
         _tr("table.column.sum"),
-        _tr("table.column.abilities"),
-        _tr("table.column.mutations"),
-        _tr("table.column.relations"),
-        _tr("table.column.risk"),
         _tr("table.column.aggression"),
         _tr("table.column.libido"),
         _tr("table.column.inbred"),
         _tr("table.column.sexuality"),
+        _tr("table.column.relations"),
+        _tr("table.column.risk"),
+        _tr("table.column.abilities"),
+        _tr("table.column.mutations"),
         _tr("table.column.generation"),
         _tr("table.column.source"),
     ]
@@ -2495,6 +2694,7 @@ _log_startup_environment()
 _set_current_language(_saved_language())
 _refresh_localized_constants()
 _load_tag_definitions()
+_apply_threshold_preferences(_load_threshold_preferences())
 
 # Fixed pixel widths for narrow columns
 _W_STATUS = 62
@@ -2503,6 +2703,7 @@ _W_GEN    = 28
 _W_RELNS  = 130
 _W_REL    = 68
 _W_TRAIT  = 70
+_W_TRAIT_NARROW = 56
 _ZOOM_MIN = 70
 _ZOOM_MAX = 200
 _ZOOM_STEP = 10
@@ -3482,6 +3683,179 @@ class TagManagerDialog(QDialog):
             btn.clicked.connect(lambda checked, c=color: (self._recolor_tag(tag_id, c), popup.accept()))
             grid.addWidget(btn, i // 4, i % 4)
         popup.exec()
+
+
+class ThresholdPreferencesDialog(QDialog):
+    def __init__(self, parent=None, prefs: dict | None = None, cats: list[Cat] | None = None):
+        super().__init__(parent)
+        self.setModal(True)
+        self.setWindowTitle(_tr("thresholds.title", default="Donation / Exceptional Thresholds"))
+        self.setMinimumWidth(520)
+        self.setStyleSheet(
+            "QDialog { background:#0a0a18; }"
+            "QLabel { color:#cfcfe0; }"
+            "QPushButton { background:#1a1a32; color:#aaa; border:1px solid #2a2a4a; "
+            "border-radius:4px; padding:6px 12px; font-size:11px; }"
+            "QPushButton:hover { background:#252545; color:#ddd; }"
+            "QCheckBox { color:#d8d8e8; }"
+            "QSpinBox, QDoubleSpinBox { background:#0d0d1c; color:#ddd; border:1px solid #2a2a4a; "
+            "border-radius:4px; padding:3px 6px; }"
+        )
+
+        self._cats = list(cats or [])
+        self._prefs = _normalize_threshold_preferences(prefs or _load_threshold_preferences())
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(16, 16, 16, 16)
+        root.setSpacing(12)
+
+        desc = QLabel(_tr(
+            "thresholds.description",
+            default="Edit the donation and exceptional thresholds used by the sidebar filters."
+        ))
+        desc.setWordWrap(True)
+        desc.setStyleSheet("font-size:12px; color:#a8a8c0;")
+        root.addWidget(desc)
+
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(10)
+        grid.setVerticalSpacing(8)
+
+        self._exceptional_spin = QSpinBox()
+        self._exceptional_spin.setRange(0, 999)
+        self._exceptional_spin.setValue(self._prefs["exceptional_sum_threshold"])
+        self._exceptional_spin.valueChanged.connect(self._update_preview)
+
+        self._donation_spin = QSpinBox()
+        self._donation_spin.setRange(0, 999)
+        self._donation_spin.setValue(self._prefs["donation_sum_threshold"])
+        self._donation_spin.valueChanged.connect(self._update_preview)
+
+        self._top_stat_spin = QSpinBox()
+        self._top_stat_spin.setRange(0, 20)
+        self._top_stat_spin.setValue(self._prefs["donation_max_top_stat"])
+        self._top_stat_spin.valueChanged.connect(self._update_preview)
+
+        self._adaptive_check = QCheckBox(_tr(
+            "thresholds.adaptive_toggle",
+            default="Adjust thresholds from the living-cat average",
+        ))
+        self._adaptive_check.setChecked(self._prefs["adaptive_enabled"])
+        self._adaptive_check.toggled.connect(self._update_preview)
+
+        self._reference_spin = QDoubleSpinBox()
+        self._reference_spin.setRange(0.0, 99.0)
+        self._reference_spin.setDecimals(1)
+        self._reference_spin.setSingleStep(0.5)
+        self._reference_spin.setValue(float(self._prefs["adaptive_reference_avg_sum"]))
+        self._reference_spin.valueChanged.connect(self._update_preview)
+
+        self._curve_spin = QDoubleSpinBox()
+        self._curve_spin.setRange(0.0, 5.0)
+        self._curve_spin.setDecimals(2)
+        self._curve_spin.setSingleStep(0.1)
+        self._curve_spin.setValue(float(self._prefs["adaptive_curve_strength"]))
+        self._curve_spin.valueChanged.connect(self._update_preview)
+
+        grid.addWidget(QLabel(_tr("thresholds.exceptional", default="Exceptional threshold")), 0, 0)
+        grid.addWidget(self._exceptional_spin, 0, 1)
+        grid.addWidget(QLabel(_tr("thresholds.donation", default="Donation threshold")), 1, 0)
+        grid.addWidget(self._donation_spin, 1, 1)
+        grid.addWidget(QLabel(_tr("thresholds.donation_top_stat", default="Donation max top stat")), 2, 0)
+        grid.addWidget(self._top_stat_spin, 2, 1)
+        grid.addWidget(self._adaptive_check, 3, 0, 1, 2)
+        grid.addWidget(QLabel(_tr("thresholds.reference_average", default="Reference living average")), 4, 0)
+        grid.addWidget(self._reference_spin, 4, 1)
+        grid.addWidget(QLabel(_tr("thresholds.curve_strength", default="Curve strength")), 5, 0)
+        grid.addWidget(self._curve_spin, 5, 1)
+        root.addLayout(grid)
+
+        self._current_avg_label = QLabel()
+        self._current_avg_label.setWordWrap(True)
+        self._current_avg_label.setStyleSheet("color:#9ea4c6;")
+        root.addWidget(self._current_avg_label)
+
+        self._preview_label = QLabel()
+        self._preview_label.setWordWrap(True)
+        self._preview_label.setStyleSheet("color:#d8d8e8; font-weight:bold;")
+        root.addWidget(self._preview_label)
+
+        button_row = QHBoxLayout()
+        button_row.addStretch(1)
+        cancel_btn = QPushButton(_tr("common.cancel", default="Cancel"))
+        cancel_btn.clicked.connect(self.reject)
+        ok_btn = QPushButton(_tr("common.ok", default="OK"))
+        ok_btn.clicked.connect(self.accept)
+        button_row.addWidget(cancel_btn)
+        button_row.addWidget(ok_btn)
+        root.addLayout(button_row)
+
+        self._adaptive_check.toggled.connect(self._update_adaptive_controls)
+        self._update_adaptive_controls(self._adaptive_check.isChecked())
+        self._update_preview()
+
+    def _update_adaptive_controls(self, enabled: bool):
+        self._reference_spin.setEnabled(enabled)
+        self._curve_spin.setEnabled(enabled)
+
+    def _collect_preferences(self) -> dict:
+        return {
+            "exceptional_sum_threshold": int(self._exceptional_spin.value()),
+            "donation_sum_threshold": int(self._donation_spin.value()),
+            "donation_max_top_stat": int(self._top_stat_spin.value()),
+            "adaptive_enabled": bool(self._adaptive_check.isChecked()),
+            "adaptive_reference_avg_sum": float(self._reference_spin.value()),
+            "adaptive_curve_strength": float(self._curve_spin.value()),
+        }
+
+    def _update_preview(self, *_args):
+        prefs = self._collect_preferences()
+        exceptional, donation, top_stat, avg_sum = _effective_thresholds_for_cats(prefs, self._cats)
+        if self._cats:
+            self._current_avg_label.setText(
+                _tr(
+                    "thresholds.current_average",
+                    default="Living cats average base sum: {avg:.1f}",
+                    avg=avg_sum,
+                )
+            )
+        else:
+            self._current_avg_label.setText(
+                _tr(
+                    "thresholds.no_save_preview",
+                    default="Load a save to preview the curve; the values below will still be saved.",
+                )
+            )
+        if prefs["adaptive_enabled"] and self._cats:
+            self._preview_label.setText(
+                _tr(
+                    "thresholds.preview",
+                    default="Effective now: Exceptional >= {exceptional}, Donation <= {donation}, Donation top stat <= {top_stat}",
+                    exceptional=exceptional,
+                    donation=donation,
+                    top_stat=top_stat,
+                )
+            )
+        elif prefs["adaptive_enabled"]:
+            self._preview_label.setText(
+                _tr(
+                    "thresholds.preview_no_save",
+                    default="Adaptive mode is on, but there is no save loaded yet.",
+                )
+            )
+        else:
+            self._preview_label.setText(
+                _tr(
+                    "thresholds.preview_fixed",
+                    default="Fixed thresholds: Exceptional >= {exceptional}, Donation <= {donation}, Donation top stat <= {top_stat}",
+                    exceptional=exceptional,
+                    donation=donation,
+                    top_stat=top_stat,
+                )
+            )
+
+    def preferences(self) -> dict:
+        return _normalize_threshold_preferences(self._collect_preferences())
 
 
 class CatDetailPanel(QWidget):
@@ -5097,6 +5471,7 @@ class BreedingPartnersView(QWidget):
 
         self._table = QTableWidget(0, 5)
         self._table.setIconSize(QSize(60, 20))
+        self._table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self._table.setHorizontalHeaderLabels([
             _tr("breeding_partners.table.cat_a"),
             _tr("breeding_partners.table.cat_b"),
@@ -5109,10 +5484,17 @@ class BreedingPartnersView(QWidget):
         self._table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self._table.setSortingEnabled(False)
         hh = self._table.horizontalHeader()
-        for col in range(4):
-            hh.setSectionResizeMode(col, QHeaderView.Stretch)
+        hh.setStretchLastSection(False)
+        hh.setSectionResizeMode(0, QHeaderView.Interactive)
+        hh.setSectionResizeMode(1, QHeaderView.Interactive)
+        hh.setSectionResizeMode(2, QHeaderView.Interactive)
+        hh.setSectionResizeMode(3, QHeaderView.Interactive)
         hh.setSectionResizeMode(4, QHeaderView.Interactive)
-        self._table.setColumnWidth(4, 120)
+        self._table.setColumnWidth(0, 150)
+        self._table.setColumnWidth(1, 150)
+        self._table.setColumnWidth(2, 100)
+        self._table.setColumnWidth(3, 100)
+        self._table.setColumnWidth(4, 100)
         root.addWidget(self._table, 1)
 
         self._search.textChanged.connect(self._refresh_table)
@@ -5480,6 +5862,129 @@ class RoomOptimizerView(QWidget):
         self._mode_toggle_btn.setText(_tr(key))
         self._mode_toggle_btn.setToolTip(_tr("room_optimizer.mode_tooltip"))
 
+    @staticmethod
+    def _style_room_action_button(btn: QPushButton, background: str, border: str, hover_background: str):
+        btn.setCheckable(False)
+        btn.setMinimumWidth(110)
+        btn.setStyleSheet(
+            "QPushButton { "
+            f"background:{background}; color:#f1f1f1; border:1px solid {border}; "
+            "border-radius:4px; padding:4px 10px; font-size:11px; font-weight:bold; }"
+            f"QPushButton:hover {{ background:{hover_background}; }}"
+            "QPushButton:pressed { background:#1a1a1a; }"
+        )
+
+    def _set_room_action_button_texts(self):
+        self._must_breed_action_btn.setText(_tr("bulk.toggle_must_breed"))
+        self._must_breed_action_btn.setToolTip(_tr("bulk.toggle_must_breed.tooltip"))
+        self._breeding_block_action_btn.setText(_tr("bulk.toggle_breeding_block"))
+        self._breeding_block_action_btn.setToolTip(_tr("bulk.toggle_breeding_block.tooltip"))
+        self._pin_action_btn.setText(_tr("bulk.toggle_pin", default="Toggle Pin"))
+        self._pin_action_btn.setToolTip(_tr("bulk.toggle_pin.tooltip", default="Toggle pin for selected cats"))
+
+    def _current_room_data(self) -> Optional[dict]:
+        selected_ranges = self._table.selectedRanges()
+        if not selected_ranges:
+            return None
+        row = selected_ranges[0].topRow()
+        room_item = self._table.item(row, 0)
+        if room_item is None:
+            return None
+        data = room_item.data(Qt.UserRole)
+        return data if isinstance(data, dict) else None
+
+    def _room_cats_from_data(self, data: Optional[dict]) -> list[Cat]:
+        if not data:
+            return []
+        cat_keys: list[int] = []
+        for key in data.get("cat_keys", []) or []:
+            try:
+                cat_keys.append(int(key))
+            except (TypeError, ValueError):
+                continue
+        if not cat_keys and data.get("room") == "Excluded":
+            for row in data.get("excluded_cat_rows", []) or []:
+                try:
+                    cat_keys.append(int(row.get("db_key")))
+                except (TypeError, ValueError):
+                    continue
+        if not cat_keys:
+            wanted_names = {
+                str(name).split(" (", 1)[0]
+                for name in (data.get("cats", []) or [])
+                if name
+            }
+            if not wanted_names:
+                return []
+            return [cat for cat in self._cats if cat.name in wanted_names]
+        lookup = {cat.db_key: cat for cat in self._cats}
+        seen: set[int] = set()
+        cats: list[Cat] = []
+        for key in cat_keys:
+            if key in seen:
+                continue
+            seen.add(key)
+            cat = lookup.get(key)
+            if cat is not None:
+                cats.append(cat)
+        return cats
+
+    def _refresh_main_model(self):
+        mw = self.window()
+        source_model = getattr(mw, "_source_model", None)
+        if source_model is None or source_model.rowCount() == 0:
+            return
+        top_left = source_model.index(0, COL_BL)
+        bottom_right = source_model.index(max(0, source_model.rowCount() - 1), COL_PIN)
+        source_model.dataChanged.emit(
+            top_left,
+            bottom_right,
+            [Qt.DisplayRole, Qt.CheckStateRole, Qt.ToolTipRole],
+        )
+        source_model.blacklistChanged.emit()
+
+    def _apply_room_action(self, action: str):
+        cats = self._room_cats_from_data(self._current_room_data())
+        mw = self.window()
+        status_bar = mw.statusBar() if hasattr(mw, "statusBar") else None
+        if not cats:
+            if status_bar is not None:
+                status_bar.showMessage("Select a room first, then click a room action.")
+            return
+
+        changed = 0
+        for cat in cats:
+            if action == "must_breed":
+                cat.must_breed = not cat.must_breed
+                if cat.must_breed:
+                    cat.is_blacklisted = False
+            elif action == "breeding_block":
+                cat.is_blacklisted = not cat.is_blacklisted
+                if cat.is_blacklisted:
+                    cat.must_breed = False
+            elif action == "pin":
+                cat.is_pinned = not cat.is_pinned
+            changed += 1
+
+        self._refresh_main_model()
+        self._refresh_room_action_buttons()
+
+        if action == "must_breed":
+            if status_bar is not None:
+                status_bar.showMessage(_tr("bulk.status.toggled_must_breed", default="Toggled must breed for {count} selected cats", count=changed))
+        elif action == "breeding_block":
+            if status_bar is not None:
+                status_bar.showMessage(_tr("bulk.status.toggled_breeding_block", default="Toggled breeding block for {count} selected cats", count=changed))
+        else:
+            if status_bar is not None:
+                status_bar.showMessage(_tr("bulk.status.toggled_pin", default="Toggled pin for {count} selected cats", count=changed))
+
+    def _refresh_room_action_buttons(self):
+        cats = self._room_cats_from_data(self._current_room_data())
+        enabled = bool(cats)
+        for btn in (self._must_breed_action_btn, self._breeding_block_action_btn, self._pin_action_btn):
+            btn.setEnabled(enabled)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setStyleSheet(
@@ -5499,6 +6004,7 @@ class RoomOptimizerView(QWidget):
         self._available_rooms: list[str] = list(ROOM_DISPLAY.keys())
         self._session_state: dict = _load_ui_state("room_optimizer_state")
         self._restoring_session_state = False
+        self._selected_room_data: Optional[dict] = None
 
         root = QVBoxLayout(self)
         root.setContentsMargins(12, 12, 12, 12)
@@ -5678,8 +6184,48 @@ class RoomOptimizerView(QWidget):
         controls_wrap.setWidget(controls_box)
         root.addWidget(controls_wrap)
 
+        room_actions_box = QWidget()
+        room_actions = QHBoxLayout(room_actions_box)
+        room_actions.setContentsMargins(0, 0, 0, 0)
+        room_actions.setSpacing(8)
+
+        self._must_breed_action_btn = QPushButton()
+        RoomOptimizerView._style_room_action_button(
+            self._must_breed_action_btn,
+            "#3b355f",
+            "#5d58a0",
+            "#49417a",
+        )
+        self._must_breed_action_btn.clicked.connect(lambda: self._apply_room_action("must_breed"))
+        room_actions.addWidget(self._must_breed_action_btn)
+
+        self._breeding_block_action_btn = QPushButton()
+        RoomOptimizerView._style_room_action_button(
+            self._breeding_block_action_btn,
+            "#5a2d22",
+            "#8b4c3e",
+            "#6c382a",
+        )
+        self._breeding_block_action_btn.clicked.connect(lambda: self._apply_room_action("breeding_block"))
+        room_actions.addWidget(self._breeding_block_action_btn)
+
+        self._pin_action_btn = QPushButton()
+        RoomOptimizerView._style_room_action_button(
+            self._pin_action_btn,
+            "#2a3a2a",
+            "#4a6a4a",
+            "#3a4a3a",
+        )
+        self._pin_action_btn.setMinimumWidth(90)
+        self._pin_action_btn.clicked.connect(lambda: self._apply_room_action("pin"))
+        room_actions.addWidget(self._pin_action_btn)
+
+        room_actions.addStretch()
+        root.addWidget(room_actions_box)
+
         # Splitter to hold table and details pane
         self._splitter = QSplitter(Qt.Vertical)
+        self._splitter.setObjectName("room_optimizer_splitter")
         self._splitter.setStyleSheet("QSplitter::handle:vertical { background:#1e1e38; }")
         
         # Results table
@@ -5693,13 +6239,14 @@ class RoomOptimizerView(QWidget):
             _tr("room_optimizer.table.risk"),
             _tr("room_optimizer.table.details"),
         ])
+        self._set_room_action_button_texts()
         if hasattr(self, "_details_pane") and self._details_pane is not None:
             self._details_pane.retranslate_ui()
         if hasattr(self, "_cat_locator") and self._cat_locator is not None:
             self._cat_locator.retranslate_ui()
         self._table.verticalHeader().setVisible(False)
-        self._table.verticalHeader().setDefaultSectionSize(20)
-        self._table.verticalHeader().setMinimumSectionSize(18)
+        self._table.verticalHeader().setDefaultSectionSize(28)
+        self._table.verticalHeader().setMinimumSectionSize(24)
         self._table.setSelectionMode(QAbstractItemView.SingleSelection)
         self._table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self._table.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -5713,9 +6260,14 @@ class RoomOptimizerView(QWidget):
         hh.setSectionResizeMode(3, QHeaderView.Interactive)
         hh.setSectionResizeMode(4, QHeaderView.Interactive)
         hh.setSectionResizeMode(5, QHeaderView.Stretch)
-        self._table.setColumnWidth(2, 100)
-        self._table.setColumnWidth(3, 90)
-        self._table.setColumnWidth(4, 70)
+        self._table.setColumnWidth(2, 112)
+        self._table.setColumnWidth(3, 100)
+        self._table.setColumnWidth(4, 80)
+        self._table.setStyleSheet(
+            self._table.styleSheet()
+            + "QTableWidget::item { padding:4px 8px; }"
+            + "QHeaderView::section { padding:5px 8px; }"
+        )
         self._table.itemSelectionChanged.connect(self._on_table_selection_changed)
 
         self._splitter.addWidget(self._table)
@@ -5747,6 +6299,7 @@ class RoomOptimizerView(QWidget):
         _enforce_min_font_in_widget_tree(self)
         self.retranslate_ui()
         self._restore_session_state()
+        self._refresh_room_action_buttons()
 
     def _on_optimizer_mode_toggled(self, enabled: bool):
         self._set_mode_button_text(enabled)
@@ -5765,14 +6318,22 @@ class RoomOptimizerView(QWidget):
     def _on_table_selection_changed(self):
         selected_ranges = self._table.selectedRanges()
         if not selected_ranges:
+            self._selected_room_data = None
             self._details_pane.show_room(None)
+            self._refresh_room_action_buttons()
             return
 
         row = selected_ranges[0].topRow()
         room_item = self._table.item(row, 0)
         if room_item:
             details_data = room_item.data(Qt.UserRole)
-            self._details_pane.show_room(details_data if isinstance(details_data, dict) else None)
+            self._selected_room_data = details_data if isinstance(details_data, dict) else None
+            self._details_pane.show_room(self._selected_room_data)
+            self._refresh_room_action_buttons()
+        else:
+            self._selected_room_data = None
+            self._details_pane.show_room(None)
+            self._refresh_room_action_buttons()
 
     def set_cats(self, cats: list[Cat], excluded_keys: set[int] = None):
         self._cats = cats
@@ -5960,6 +6521,8 @@ class RoomOptimizerView(QWidget):
 
         if "error" in result:
             self._table.setRowCount(0)
+            self._selected_room_data = None
+            self._refresh_room_action_buttons()
             self._summary.setText(_tr("room_optimizer.status.error", message=result["error"]))
             return
 
@@ -5977,7 +6540,9 @@ class RoomOptimizerView(QWidget):
 
         self._cat_locator.show_assignments(locator_data)
         self._table.setRowCount(0)
+        self._selected_room_data = None
         self._details_pane.show_room(None)
+        self._refresh_room_action_buttons()
 
         row_idx = 0
         total_pairs = 0
@@ -5986,6 +6551,7 @@ class RoomOptimizerView(QWidget):
         for room_data in room_rows:
             room_label = room_data["room_label"]
             cat_names = room_data["cat_names"]
+            cat_keys = room_data.get("cat_keys", [])
             room_pairs = room_data["pairs"]
             avg_stats = room_data["avg_stats"]
             avg_risk = room_data["avg_risk"]
@@ -6037,6 +6603,7 @@ class RoomOptimizerView(QWidget):
             room_item.setData(Qt.UserRole, {
                 "room": room_label,
                 "cats": cat_names,
+                "cat_keys": cat_keys,
                 "total_pairs": len(room_pairs),
                 "avg_stats": avg_stats,
                 "avg_risk": avg_risk,
@@ -6054,6 +6621,7 @@ class RoomOptimizerView(QWidget):
 
         if excluded_rows:
             excluded_names = [r["name"] for r in excluded_rows]
+            excluded_keys = [r.get("db_key") for r in excluded_rows if r.get("db_key") is not None]
             self._table.insertRow(row_idx)
             excluded_room_item = QTableWidgetItem("Excluded")
             excluded_room_item.setTextAlignment(Qt.AlignCenter)
@@ -6061,6 +6629,7 @@ class RoomOptimizerView(QWidget):
             excluded_room_item.setData(Qt.UserRole, {
                 "room": "Excluded",
                 "cats": excluded_names,
+                "cat_keys": excluded_keys,
                 "total_pairs": 0,
                 "avg_stats": 0.0,
                 "avg_risk": 0.0,
@@ -6214,6 +6783,7 @@ class RoomOptimizerWorker(QThread):
                 "room": room.key,
                 "room_label": assigned_room_label,
                 "cat_names": cat_names,
+                "cat_keys": [c.db_key for c in assignment.cats],
                 "pairs": room_pairs,
                 "avg_stats": avg_stats,
                 "avg_risk": avg_risk,
@@ -6223,6 +6793,7 @@ class RoomOptimizerWorker(QThread):
         excluded_rows = [
             {
                 "name": f"{c.name} ({c.gender_display})",
+                "db_key": c.db_key,
                 "tags": list(_cat_tags(c)),
                 "stats": dict(c.base_stats),
                 "sum": _cat_base_sum(c),
@@ -8549,6 +9120,7 @@ class PerfectCatPlannerView(QWidget):
         root.addWidget(controls_wrap)
 
         self._splitter = QSplitter(Qt.Vertical)
+        self._splitter.setObjectName("perfect_planner_main_splitter")
         self._splitter.setStyleSheet("QSplitter::handle:vertical { background:#1e1e38; }")
         self._selected_stage_row = 0
         self._plan_refresh_timer = QTimer(self)
@@ -8586,6 +9158,7 @@ class PerfectCatPlannerView(QWidget):
 
         self._details_pane = PerfectPlannerDetailPanel()
         self._bottom_splitter = QSplitter(Qt.Horizontal)
+        self._bottom_splitter.setObjectName("perfect_planner_bottom_splitter")
         self._bottom_splitter.setStyleSheet("QSplitter::handle:horizontal { background:#1e1e38; }")
         self._bottom_splitter.addWidget(self._details_pane)
 
@@ -8618,7 +9191,9 @@ class PerfectCatPlannerView(QWidget):
         self._bottom_splitter.addWidget(self._bottom_tabs)
         self._bottom_splitter.setSizes([520, 760])
         self._splitter.addWidget(self._bottom_splitter)
-        self._splitter.setSizes([110, 610])
+        self._splitter.setSizes([200, 520])
+        self._splitter.splitterMoved.connect(lambda *_: self._save_session_state())
+        self._bottom_splitter.splitterMoved.connect(lambda *_: self._save_session_state())
         root.addWidget(self._splitter, 1)
 
         self.retranslate_ui()
@@ -8753,6 +9328,8 @@ class PerfectCatPlannerView(QWidget):
             "avoid_lovers": bool(self._avoid_lovers_checkbox.isChecked()),
             "prefer_low_aggression": bool(self._prefer_low_aggression_checkbox.isChecked()),
             "prefer_high_libido": bool(self._prefer_high_libido_checkbox.isChecked()),
+            "splitter_sizes": list(self._splitter.sizes()) if hasattr(self, "_splitter") else [],
+            "bottom_splitter_sizes": list(self._bottom_splitter.sizes()) if hasattr(self, "_bottom_splitter") else [],
         })
         if has_run is not None:
             state["has_run"] = bool(has_run)
@@ -8779,6 +9356,18 @@ class PerfectCatPlannerView(QWidget):
             self._avoid_lovers_checkbox.setChecked(bool(state.get("avoid_lovers", False)))
             self._prefer_low_aggression_checkbox.setChecked(bool(state.get("prefer_low_aggression", True)))
             self._prefer_high_libido_checkbox.setChecked(bool(state.get("prefer_high_libido", True)))
+            splitter_sizes = state.get("splitter_sizes", [])
+            if isinstance(splitter_sizes, list) and len(splitter_sizes) == 2:
+                self._splitter.setSizes([
+                    max(10, int(splitter_sizes[0] or 0)),
+                    max(10, int(splitter_sizes[1] or 0)),
+                ])
+            bottom_splitter_sizes = state.get("bottom_splitter_sizes", [])
+            if isinstance(bottom_splitter_sizes, list) and len(bottom_splitter_sizes) == 2:
+                self._bottom_splitter.setSizes([
+                    max(10, int(bottom_splitter_sizes[0] or 0)),
+                    max(10, int(bottom_splitter_sizes[1] or 0)),
+                ])
         finally:
             self._restoring_session_state = False
 
@@ -10470,6 +11059,7 @@ class MutationDisorderPlannerView(QWidget):
 
         # Main splitter: cat table left, outcome panel right
         splitter = QSplitter(Qt.Horizontal)
+        splitter.setObjectName("mutation_planner_main_splitter")
         splitter.setStyleSheet("QSplitter::handle { background:#26264a; width:3px; }")
 
         # Left: cat table
@@ -10513,6 +11103,7 @@ class MutationDisorderPlannerView(QWidget):
 
         # Right: vertical splitter with selected traits (top) + outcome (bottom)
         right_splitter = QSplitter(Qt.Vertical)
+        right_splitter.setObjectName("mutation_planner_right_splitter")
         right_splitter.setStyleSheet("QSplitter::handle { background:#26264a; height:3px; }")
 
         # -- Selected traits panel --
@@ -11705,6 +12296,547 @@ class MutationDisorderPlannerView(QWidget):
         layout.addStretch()
 
 
+class FurnitureView(QWidget):
+    """Dedicated view for furniture placement and current room stat totals."""
+
+    _ROOM_ORDER = {
+        "Attic": 0,
+        "Floor2_Large": 1,
+        "Floor2_Small": 2,
+        "Floor1_Large": 3,
+        "Floor1_Small": 4,
+    }
+
+    _STAT_ACCENTS = {
+        "Appeal": "#d8b25e",
+        "Comfort": "#68c7cf",
+        "Stimulation": "#8f8fff",
+        "Health": "#6fb07a",
+        "Evolution": "#d96fb4",
+    }
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setStyleSheet(
+            "QWidget { background:#0a0a18; }"
+            "QLabel { color:#bbb; }"
+            "QLineEdit { background:#0d0d1c; color:#ccc; border:1px solid #2a2a4a;"
+            " border-radius:4px; padding:4px 8px; }"
+            "QTableWidget { background:#101023; color:#ddd; border:1px solid #26264a; }"
+            "QHeaderView::section { background:#151532; color:#7d8bb0; border:none; padding:4px; font-weight:bold; }"
+            "QTextBrowser { background:#0d0d1c; color:#ddd; border:1px solid #26264a; border-radius:6px; padding:10px; }"
+            "QFrame#furnitureStatCard { background:#111124; border:1px solid #26264a; border-radius:8px; }"
+            "QLabel#furnitureStatTitle { color:#9ca6c7; font-size:10px; font-weight:bold; }"
+            "QLabel#furnitureStatValue { color:#f3f3ff; font-size:18px; font-weight:bold; }"
+        )
+        self._cats: list[Cat] = []
+        self._furniture: list[FurnitureItem] = []
+        self._furniture_by_room: dict[str, list[FurnitureItem]] = {}
+        self._furniture_data: dict[str, FurnitureDefinition] = {}
+        self._room_summaries: list[FurnitureRoomSummary] = []
+        self._house_raw = {key: 0.0 for key in FURNITURE_ROOM_STAT_KEYS}
+        self._house_effective = {key: 0.0 for key in FURNITURE_ROOM_STAT_KEYS}
+        self._session_state: dict = _load_ui_state("furniture_state")
+        self._restoring_session_state = False
+        self._selected_room_key = ""
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(12, 12, 12, 12)
+        root.setSpacing(8)
+
+        header = QHBoxLayout()
+        self._title = QLabel()
+        self._title.setStyleSheet("color:#ddd; font-size:18px; font-weight:bold;")
+        self._subtitle = QLabel()
+        self._subtitle.setStyleSheet("color:#666; font-size:11px;")
+        self._subtitle.setWordWrap(True)
+        self._subtitle.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        header.addWidget(self._title)
+        header.addStretch()
+        header.addWidget(self._subtitle, 1)
+        root.addLayout(header)
+
+        cards = QHBoxLayout()
+        cards.setSpacing(8)
+        self._card_title_labels: dict[str, QLabel] = {}
+        self._card_value_labels: dict[str, QLabel] = {}
+        self._card_note_labels: dict[str, QLabel] = {}
+        for stat in FURNITURE_ROOM_STAT_KEYS:
+            accent = self._STAT_ACCENTS[stat]
+            card = QFrame()
+            card.setObjectName("furnitureStatCard")
+            card.setStyleSheet(f"QFrame#furnitureStatCard {{ border-color:{accent}; }}")
+            card_layout = QVBoxLayout(card)
+            card_layout.setContentsMargins(10, 8, 10, 8)
+            card_layout.setSpacing(2)
+
+            title = QLabel()
+            title.setObjectName("furnitureStatTitle")
+            title.setStyleSheet(f"QLabel#furnitureStatTitle {{ color:{accent}; }}")
+            value = QLabel("0")
+            value.setObjectName("furnitureStatValue")
+            note = QLabel("")
+            note.setStyleSheet("color:#8d8da8; font-size:10px;")
+            note.setWordWrap(True)
+
+            card_layout.addWidget(title)
+            card_layout.addWidget(value)
+            card_layout.addWidget(note)
+            cards.addWidget(card, 1)
+
+            self._card_title_labels[stat] = title
+            self._card_value_labels[stat] = value
+            self._card_note_labels[stat] = note
+        root.addLayout(cards)
+
+        self._note = QLabel(
+            _tr(
+                "furniture.note.comfort_penalty",
+                default="Comfort includes the -1 per cat above 4 room penalty.",
+            )
+        )
+        self._note.setStyleSheet("color:#8d8da8; font-size:11px;")
+        self._note.setWordWrap(True)
+        root.addWidget(self._note)
+
+        search_row = QHBoxLayout()
+        search_row.setSpacing(8)
+        self._search_label = QLabel()
+        self._search_label.setStyleSheet("color:#888; font-size:11px;")
+        search_row.addWidget(self._search_label)
+        self._search = QLineEdit()
+        self._search.setClearButtonEnabled(True)
+        self._search.setStyleSheet(
+            "QLineEdit { background:#0d0d1c; color:#ccc; border:1px solid #2a2a4a;"
+            " border-radius:4px; padding:4px 8px; }"
+        )
+        self._search.textChanged.connect(self._refresh_table)
+        self._search.textChanged.connect(lambda _: self._save_session_state())
+        search_row.addWidget(self._search, 1)
+        root.addLayout(search_row)
+
+        splitter = QSplitter(Qt.Horizontal)
+        splitter.setStyleSheet("QSplitter::handle { background:#1e1e38; }")
+
+        self._table = QTableWidget(0, 10)
+        self._table.setIconSize(QSize(60, 20))
+        self._table.setHorizontalHeaderLabels([
+            _tr("furniture.table.room", default="Room"),
+            _tr("furniture.table.cats", default="Cats"),
+            _tr("furniture.table.pieces", default="Pieces"),
+            _tr("furniture.table.appeal", default="Appeal"),
+            _tr("furniture.table.comfort_raw", default="Comfort Raw"),
+            _tr("furniture.table.crowd", default="Crowd"),
+            _tr("furniture.table.comfort", default="Comfort"),
+            _tr("furniture.table.stimulation", default="Stimulation"),
+            _tr("furniture.table.health", default="Health"),
+            _tr("furniture.table.mutation", default="Mutation"),
+        ])
+        self._table.verticalHeader().setVisible(False)
+        self._table.setSelectionMode(QAbstractItemView.SingleSelection)
+        self._table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self._table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self._table.setSortingEnabled(False)
+        self._table.itemSelectionChanged.connect(self._on_selection_changed)
+        hh = self._table.horizontalHeader()
+        hh.setStretchLastSection(True)
+        hh.setSectionResizeMode(0, QHeaderView.Stretch)
+        for col in (1, 2):
+            hh.setSectionResizeMode(col, QHeaderView.ResizeToContents)
+        for col in (3, 4, 5, 6, 7, 8, 9):
+            hh.setSectionResizeMode(col, QHeaderView.Interactive)
+        for col, width in {
+            1: 50, 2: 60, 3: 68, 4: 84, 5: 58, 6: 84, 7: 88, 8: 70, 9: 76,
+        }.items():
+            self._table.setColumnWidth(col, width)
+
+        self._browser = QTextBrowser()
+        self._browser.setOpenExternalLinks(False)
+        self._browser.setFrameShape(QFrame.NoFrame)
+        self._browser.setStyleSheet(
+            "QTextBrowser { background:#0d0d1c; color:#ddd; border:1px solid #26264a; border-radius:6px; padding:10px; }"
+            "QTextBrowser h2 { color:#f0f0ff; margin-top: 4px; margin-bottom: 8px; }"
+            "QTextBrowser h3 { color:#c9d6ff; margin-top: 12px; margin-bottom: 4px; }"
+            "QTextBrowser table { border-collapse: collapse; margin-top: 4px; margin-bottom: 8px; }"
+            "QTextBrowser td { padding: 2px 8px 2px 0; vertical-align: top; }"
+            "QTextBrowser ul { margin-left: 18px; }"
+            "QTextBrowser li { margin-bottom: 4px; }"
+            "QTextBrowser .muted { color:#8d8da8; }"
+        )
+
+        splitter.addWidget(self._table)
+        splitter.addWidget(self._browser)
+        splitter.setSizes([540, 700])
+        root.addWidget(splitter, 1)
+
+        _enforce_min_font_in_widget_tree(self)
+        self.retranslate_ui()
+        self._browser.setHtml(self._build_empty_html())
+
+    def set_context(self, cats: list[Cat], furniture: list[FurnitureItem], furniture_data: dict[str, FurnitureDefinition] | None = None):
+        self._cats = cats or []
+        self._furniture = furniture or []
+        self._furniture_data = furniture_data or {}
+        self._furniture_by_room = {}
+        for item in self._furniture:
+            self._furniture_by_room.setdefault(item.room or "", []).append(item)
+        self._build_room_summaries()
+        self._refresh_table()
+        self._restore_session_state()
+
+    def retranslate_ui(self):
+        self._title.setText(_tr("furniture.title", default="Furniture"))
+        self._search_label.setText(_tr("furniture.search.label", default="Search:"))
+        self._search.setPlaceholderText(_tr("furniture.search.placeholder", default="Search rooms or furniture…"))
+        self._table.setHorizontalHeaderLabels([
+            _tr("furniture.table.room", default="Room"),
+            _tr("furniture.table.cats", default="Cats"),
+            _tr("furniture.table.pieces", default="Pieces"),
+            _tr("furniture.table.appeal", default="Appeal"),
+            _tr("furniture.table.comfort_raw", default="Comfort Raw"),
+            _tr("furniture.table.crowd", default="Crowd"),
+            _tr("furniture.table.comfort", default="Comfort"),
+            _tr("furniture.table.stimulation", default="Stimulation"),
+            _tr("furniture.table.health", default="Health"),
+            _tr("furniture.table.mutation", default="Mutation"),
+        ])
+        for stat in FURNITURE_ROOM_STAT_KEYS:
+            self._card_title_labels[stat].setText(
+                _tr(f"furniture.stat.{stat.lower()}", default=FURNITURE_ROOM_STAT_LABELS[stat])
+            )
+        self._refresh_cards()
+        self._refresh_table()
+
+    def _save_session_state(self):
+        if self._restoring_session_state:
+            return
+        _save_ui_state("furniture_state", {
+            "selected_room": self._selected_room_key,
+            "search": self._search.text().strip(),
+        })
+
+    def _restore_session_state(self):
+        state = self._session_state
+        self._restoring_session_state = True
+        try:
+            search = str(state.get("search", "") or "")
+            if search != self._search.text():
+                self._search.blockSignals(True)
+                self._search.setText(search)
+                self._search.blockSignals(False)
+            self._selected_room_key = str(state.get("selected_room", "") or "")
+        finally:
+            self._restoring_session_state = False
+
+    @staticmethod
+    def _fmt(value: float) -> str:
+        number = float(value)
+        if number == 0:
+            return "0"
+        if number.is_integer():
+            return f"{int(number):+d}"
+        return f"{number:+.1f}".rstrip("0").rstrip(".")
+
+    @staticmethod
+    def _stat_brush(value: float) -> QBrush:
+        if value > 0:
+            return QBrush(QColor(98, 194, 135))
+        if value < 0:
+            return QBrush(QColor(216, 120, 120))
+        return QBrush(QColor(160, 160, 175))
+
+    def _room_sort_key(self, room: str):
+        if not room:
+            return (99, "")
+        if room in self._ROOM_ORDER:
+            return (self._ROOM_ORDER[room], room)
+        return (50, room.lower())
+
+    def _build_room_summaries(self):
+        cat_counts: dict[str, int] = {}
+        for cat in self._cats:
+            if cat.status == "In House" and cat.room:
+                cat_counts[cat.room] = cat_counts.get(cat.room, 0) + 1
+
+        rooms = list(self._ROOM_ORDER.keys())
+        seen = set(rooms)
+        for room in self._furniture_by_room:
+            if room and room not in seen:
+                rooms.append(room)
+                seen.add(room)
+        if "" in self._furniture_by_room:
+            rooms.append("")
+
+        summaries: list[FurnitureRoomSummary] = []
+        for room in rooms:
+            items = self._furniture_by_room.get(room, [])
+            summaries.append(
+                summarize_furniture_room(
+                    items,
+                    self._furniture_data,
+                    room=room,
+                    cat_count=cat_counts.get(room, 0),
+                )
+            )
+
+        summaries.sort(key=lambda s: self._room_sort_key(s.room))
+        self._room_summaries = summaries
+
+        for key in FURNITURE_ROOM_STAT_KEYS:
+            self._house_raw[key] = 0.0
+            self._house_effective[key] = 0.0
+        for summary in summaries:
+            if not summary.room:
+                continue
+            for key in FURNITURE_ROOM_STAT_KEYS:
+                self._house_raw[key] += summary.raw_effects.get(key, 0.0)
+                self._house_effective[key] += summary.effective_effects.get(key, 0.0)
+
+    def _refresh_cards(self):
+        values = {
+            "Appeal": self._house_raw.get("Appeal", 0.0),
+            "Comfort": self._house_effective.get("Comfort", 0.0),
+            "Stimulation": self._house_raw.get("Stimulation", 0.0),
+            "Health": self._house_effective.get("Health", 0.0),
+            "Evolution": self._house_raw.get("Evolution", 0.0),
+        }
+        notes = {
+            "Appeal": _tr("furniture.card.appeal_note", default="House-wide furniture appeal."),
+            "Comfort": _tr("furniture.card.comfort_note", default="After room crowding penalties."),
+            "Stimulation": _tr("furniture.card.stimulation_note", default="Affects inherited item quality."),
+            "Health": _tr("furniture.card.health_note", default="After dead-body penalties."),
+            "Evolution": _tr("furniture.card.mutation_note", default="Mutation chance total."),
+        }
+        for stat in FURNITURE_ROOM_STAT_KEYS:
+            self._card_value_labels[stat].setText(self._fmt(values.get(stat, 0.0)))
+            self._card_note_labels[stat].setText(notes[stat])
+
+    def _refresh_table(self):
+        self._refresh_cards()
+        query = self._search.text().strip().lower()
+        visible: list[FurnitureRoomSummary] = []
+        for summary in self._room_summaries:
+            haystack = " ".join([
+                summary.room.lower(),
+                summary.room_display.lower(),
+                *[
+                    part
+                    for item in summary.items
+                    for part in [
+                        item.item_name.lower(),
+                        (self._furniture_data.get(item.item_name).display_name.lower() if self._furniture_data.get(item.item_name) else ""),
+                        (self._furniture_data.get(item.item_name).description.lower() if self._furniture_data.get(item.item_name) and self._furniture_data.get(item.item_name).description else ""),
+                    ]
+                ],
+            ])
+            if not query or query in haystack:
+                visible.append(summary)
+
+        self._table.setRowCount(len(visible))
+        selected_row = None
+        for row, summary in enumerate(visible):
+            room_label = summary.room_display if summary.room else _tr("furniture.room.unplaced", default="Unplaced")
+            texts = [
+                room_label,
+                str(summary.cat_count),
+                str(summary.furniture_count),
+                self._fmt(summary.raw_effects.get("Appeal", 0.0)),
+                self._fmt(summary.raw_effects.get("Comfort", 0.0)),
+                self._fmt(-summary.crowd_penalty if summary.crowd_penalty else 0.0),
+                self._fmt(summary.effective_effects.get("Comfort", 0.0)),
+                self._fmt(summary.raw_effects.get("Stimulation", 0.0)),
+                self._fmt(summary.effective_effects.get("Health", 0.0)),
+                self._fmt(summary.raw_effects.get("Evolution", 0.0)),
+            ]
+            for col, text in enumerate(texts):
+                item = QTableWidgetItem(text)
+                item.setData(Qt.UserRole, {
+                    "room": summary.room,
+                    "room_display": room_label,
+                    "summary": summary,
+                })
+                if col >= 3:
+                    if col == 3:
+                        brush = self._stat_brush(summary.raw_effects.get("Appeal", 0.0))
+                    elif col == 4:
+                        brush = self._stat_brush(summary.raw_effects.get("Comfort", 0.0))
+                    elif col == 5:
+                        brush = self._stat_brush(-summary.crowd_penalty if summary.crowd_penalty else 0.0)
+                    elif col == 6:
+                        brush = self._stat_brush(summary.effective_effects.get("Comfort", 0.0))
+                    elif col == 7:
+                        brush = self._stat_brush(summary.raw_effects.get("Stimulation", 0.0))
+                    elif col == 8:
+                        brush = self._stat_brush(summary.effective_effects.get("Health", 0.0))
+                    elif col == 9:
+                        brush = self._stat_brush(summary.raw_effects.get("Evolution", 0.0))
+                    else:
+                        brush = QBrush(QColor(160, 160, 175))
+                    item.setForeground(brush)
+                if col == 0 and not summary.room:
+                    item.setForeground(QBrush(QColor(160, 160, 175)))
+                self._table.setItem(row, col, item)
+
+            if self._selected_room_key and summary.room == self._selected_room_key:
+                selected_row = row
+            elif selected_row is None and row == 0:
+                selected_row = 0
+
+        if selected_row is not None and self._table.rowCount():
+            self._table.selectRow(selected_row)
+        elif self._table.rowCount() == 0:
+            self._browser.setHtml(self._build_empty_html())
+
+        self._subtitle.setText(
+            _tr(
+                "furniture.subtitle",
+                default="{rooms} rooms | {items} pieces | {unplaced} unplaced",
+                rooms=len([s for s in self._room_summaries if s.room]),
+                items=len(self._furniture),
+                unplaced=len(self._furniture_by_room.get("", [])),
+            )
+        )
+
+    def _on_selection_changed(self):
+        selected = self._table.selectedRanges()
+        if not selected:
+            self._selected_room_key = ""
+            self._browser.setHtml(self._build_empty_html())
+            self._save_session_state()
+            return
+
+        row = selected[0].topRow()
+        item = self._table.item(row, 0)
+        if item is None:
+            return
+        data = item.data(Qt.UserRole)
+        if not isinstance(data, dict):
+            return
+        summary = data.get("summary")
+        if not isinstance(summary, FurnitureRoomSummary):
+            return
+        self._selected_room_key = str(data.get("room", "") or "")
+        self._browser.setHtml(self._build_room_html(summary))
+        self._save_session_state()
+
+    def _build_empty_html(self) -> str:
+        return """
+        <html>
+          <body style="font-family:Segoe UI, Arial, sans-serif; line-height:1.45;">
+            <h2>Furniture</h2>
+            <p class="muted">Load a save with furniture to inspect room stats.</p>
+          </body>
+        </html>
+        """
+
+    def _effect_spans(self, effects: dict[str, float]) -> str:
+        if not effects:
+            return '<span class="muted">No stat effects</span>'
+        parts: list[str] = []
+        for key in FURNITURE_ROOM_STAT_KEYS:
+            value = effects.get(key, 0.0)
+            if not value:
+                continue
+            label = FURNITURE_ROOM_STAT_LABELS[key]
+            parts.append(
+                f'<span style="color:{self._STAT_ACCENTS[key]}; font-weight:bold;">'
+                f'{html.escape(label)} {self._fmt(value)}</span>'
+            )
+        for key, value in sorted(effects.items(), key=lambda kv: kv[0].lower()):
+            if key in FURNITURE_ROOM_STAT_KEYS or not value:
+                continue
+            parts.append(
+                f'<span style="color:#a8a8bd;">{html.escape(key)} {self._fmt(value)}</span>'
+            )
+        return ", ".join(parts)
+
+    def _build_room_html(self, summary: FurnitureRoomSummary) -> str:
+        title = summary.room_display if summary.room else _tr("furniture.room.unplaced", default="Unplaced")
+        note = _tr(
+            "furniture.detail.unplaced_note",
+            default="Unplaced items do not contribute to room stats until they are assigned to a room.",
+        ) if not summary.room else _tr(
+            "furniture.detail.room_note",
+            default="Comfort is reduced by one for every cat above four in the room.",
+        )
+
+        rows = []
+        for key in FURNITURE_ROOM_STAT_KEYS:
+            raw = summary.raw_effects.get(key, 0.0)
+            effective = summary.effective_effects.get(key, 0.0)
+            current = effective if key in ("Comfort", "Health") else raw
+            rows.append(
+                "<tr>"
+                f"<td style='color:{self._STAT_ACCENTS[key]}; font-weight:bold;'>{html.escape(FURNITURE_ROOM_STAT_LABELS[key])}</td>"
+                f"<td>{html.escape(self._fmt(raw))}</td>"
+                f"<td>{html.escape(self._fmt(current))}</td>"
+                "</tr>"
+            )
+
+        grouped: dict[str, dict[str, object]] = {}
+        order: list[str] = []
+        for item in summary.items:
+            group = grouped.get(item.item_name)
+            if group is None:
+                definition = self._furniture_data.get(item.item_name)
+                group = {
+                    "count": 0,
+                    "definition": definition,
+                    "effects": definition.effects if definition is not None else {},
+                }
+                grouped[item.item_name] = group
+                order.append(item.item_name)
+            group["count"] = int(group["count"]) + 1
+
+        order.sort(key=lambda key: (
+            self._furniture_data.get(key).display_name.lower() if self._furniture_data.get(key) else key.lower()
+        ))
+
+        furniture_rows = []
+        for item_name in order:
+            group = grouped[item_name]
+            definition = group["definition"]
+            count = int(group["count"])
+            display = definition.display_name if definition is not None else item_name.replace("_", " ").title()
+            desc = definition.description if definition is not None else ""
+            effects = group["effects"] if isinstance(group["effects"], dict) else {}
+            effect_text = self._effect_spans(effects)
+            furniture_rows.append(
+                "<li>"
+                f"<strong>{html.escape(display)} × {count}</strong>"
+                + (f"<div class='muted'>{html.escape(desc)}</div>" if desc else "")
+                + f"<div>{effect_text}</div>"
+                "</li>"
+            )
+
+        stats_html = "".join(rows)
+        furniture_html = "".join(furniture_rows) if furniture_rows else "<li class='muted'>No furniture in this room.</li>"
+
+        return f"""
+        <html>
+          <body style="font-family:Segoe UI, Arial, sans-serif; line-height:1.45;">
+            <h2>{html.escape(title)}</h2>
+            <p class="muted">{html.escape(note)}</p>
+            <p>
+              <strong>Cats:</strong> {summary.cat_count}
+              &nbsp;&nbsp; <strong>Pieces:</strong> {summary.furniture_count}
+              &nbsp;&nbsp; <strong>Crowd penalty:</strong> -{summary.crowd_penalty}
+            </p>
+            <table>
+              <tr>
+                <td></td>
+                <td class="muted"><strong>Raw</strong></td>
+                <td class="muted"><strong>Current</strong></td>
+              </tr>
+              {stats_html}
+            </table>
+            <h3>Furniture</h3>
+            <ul>{furniture_html}</ul>
+          </body>
+        </html>
+        """
+
+
 # ── Main window ───────────────────────────────────────────────────────────────
 
 class MainWindow(QMainWindow):
@@ -11721,6 +12853,9 @@ class MainWindow(QMainWindow):
 
         self._current_save = None
         self._cats: list[Cat] = []
+        self._furniture = []
+        self._furniture_by_room = {}
+        self._furniture_data: dict[str, FurnitureDefinition] = dict(_FURNITURE_DATA)
         self._room_btns: dict = {}
         self._active_btn = None
         self._show_lineage: bool = False
@@ -11730,6 +12865,7 @@ class MainWindow(QMainWindow):
         self._room_optimizer_view: Optional[RoomOptimizerView] = None
         self._perfect_planner_view: Optional[PerfectCatPlannerView] = None
         self._calibration_view: Optional[CalibrationView] = None
+        self._furniture_view: Optional[FurnitureView] = None
         self._breeding_cache: Optional[BreedingCache] = None
         self._cache_worker: Optional[BreedingCacheWorker] = None
         self._save_load_worker: Optional[SaveLoadWorker] = None
@@ -11754,9 +12890,9 @@ class MainWindow(QMainWindow):
             COL_RELNS: _W_RELNS,
             COL_REL: _W_REL,
             COL_AGE: 34,
-            COL_AGG: _W_TRAIT,
-            COL_LIB: _W_TRAIT,
-            COL_INBRD: _W_TRAIT,
+            COL_AGG: _W_TRAIT_NARROW,
+            COL_LIB: _W_TRAIT_NARROW,
+            COL_INBRD: _W_TRAIT_NARROW,
             COL_SEXUALITY: _W_TRAIT,
             **{c: _W_STAT for c in STAT_COLS},
         }
@@ -11853,6 +12989,10 @@ class MainWindow(QMainWindow):
         locations_action = QAction(_tr("menu.settings.locations"), self)
         locations_action.triggered.connect(self._open_locations_dialog)
         sm.addAction(locations_action)
+
+        self._thresholds_action = QAction(_tr("menu.settings.thresholds", default="Donation / Exceptional Thresholds…"), self)
+        self._thresholds_action.triggered.connect(self._open_threshold_preferences_dialog)
+        sm.addAction(self._thresholds_action)
 
         sm.addSeparator()
         self._language_menu = sm.addMenu(_tr("language.menu"))
@@ -12042,6 +13182,24 @@ class MainWindow(QMainWindow):
         dlg.resize(640, 260)
         dlg.exec()
 
+    def _open_threshold_preferences_dialog(self):
+        dlg = ThresholdPreferencesDialog(self, _load_threshold_preferences(), self._cats)
+        if dlg.exec() != QDialog.Accepted:
+            return
+        prefs = dlg.preferences()
+        _save_threshold_preferences(prefs)
+        self._refresh_threshold_runtime(self._cats)
+        room_key = None
+        if self._active_btn is not None:
+            for key, btn in self._room_btns.items():
+                if btn is self._active_btn:
+                    room_key = key
+                    break
+        self._refresh_threshold_sensitive_ui(room_key)
+        self.statusBar().showMessage(
+            _tr("status.thresholds_saved", default="Threshold preferences saved")
+        )
+
     # ── Layout ────────────────────────────────────────────────────────────
 
     def _build_ui(self):
@@ -12052,6 +13210,7 @@ class MainWindow(QMainWindow):
         rl.setSpacing(0)
 
         hs = QSplitter(Qt.Horizontal)
+        hs.setObjectName("main_window_sidebar_splitter")
         rl.addWidget(hs)
         hs.addWidget(self._build_sidebar())
         hs.addWidget(self._build_content())
@@ -12062,6 +13221,7 @@ class MainWindow(QMainWindow):
         # Snapshot all stylesheet font sizes before any offset is applied,
         # so _apply_font_offset_to_tree always scales from the true originals.
         _apply_font_offset_to_tree(central, 0)
+        _bind_splitter_persistence(self)
 
     # ── Sidebar ────────────────────────────────────────────────────────────
 
@@ -12095,22 +13255,16 @@ class MainWindow(QMainWindow):
         vb.addWidget(self._btn_all)
         self._room_btns[None] = self._btn_all
 
-        self._btn_exceptional = _sidebar_btn(f"{_tr('sidebar.button.exceptional')}  (>= {EXCEPTIONAL_SUM_THRESHOLD})")
-        self._btn_exceptional.setToolTip(
-            f"Exceptional breeders: base stat sum >= {EXCEPTIONAL_SUM_THRESHOLD}."
-        )
+        self._btn_exceptional = _sidebar_btn("")
+        self._btn_exceptional.setToolTip("")
         self._btn_exceptional.clicked.connect(
             lambda: self._filter("__exceptional__", self._btn_exceptional)
         )
         vb.addWidget(self._btn_exceptional)
         self._room_btns["__exceptional__"] = self._btn_exceptional
 
-        self._btn_donation = _sidebar_btn(f"{_tr('sidebar.button.donation_candidates')}  (<= {DONATION_SUM_THRESHOLD})")
-        self._btn_donation.setToolTip(
-            "Donation candidates use documented heuristics: "
-            f"base stat sum <= {DONATION_SUM_THRESHOLD}, "
-            f"top stat <= {DONATION_MAX_TOP_STAT}, and/or high aggression."
-        )
+        self._btn_donation = _sidebar_btn("")
+        self._btn_donation.setToolTip("")
         self._btn_donation.clicked.connect(
             lambda: self._filter("__donation__", self._btn_donation)
         )
@@ -12145,6 +13299,9 @@ class MainWindow(QMainWindow):
         self._btn_calibration = _sidebar_btn(_tr("sidebar.button.calibration"))
         self._btn_calibration.clicked.connect(self._open_calibration_view)
         vb.addWidget(self._btn_calibration)
+        self._btn_furniture_view = _sidebar_btn(_tr("sidebar.button.furniture", default="Furniture"))
+        self._btn_furniture_view.clicked.connect(self._open_furniture_view)
+        vb.addWidget(self._btn_furniture_view)
 
         vb.addWidget(_hsep())
         self._rooms_section_label = sl(_tr("sidebar.section.rooms"))
@@ -12185,6 +13342,7 @@ class MainWindow(QMainWindow):
                          "QPushButton:hover { background:#222244; }")
         self._reload_btn.clicked.connect(self._reload)
         vb.addWidget(self._reload_btn)
+        self._refresh_filter_button_counts()
         return w
 
     def _rebuild_room_buttons(self, cats: list[Cat]):
@@ -12230,6 +13388,51 @@ class MainWindow(QMainWindow):
         self._btn_breeding_partners_view.setText(_tr("sidebar.button.breeding_partners"))
         self._btn_tree_view.setText(_tr("sidebar.button.family_tree_view"))
         self._btn_calibration.setText(_tr("sidebar.button.calibration"))
+        self._btn_furniture_view.setText(_tr("sidebar.button.furniture", default="Furniture"))
+        self._update_threshold_button_copy()
+
+    def _update_threshold_button_copy(self):
+        if not hasattr(self, "_btn_exceptional") or not hasattr(self, "_btn_donation"):
+            return
+        summary = _current_threshold_summary(self._cats)
+        exceptional = summary["exceptional"]
+        donation = summary["donation"]
+        top_stat = summary["top_stat"]
+        avg_sum = summary["avg_sum"]
+        base_exceptional = summary["base_exceptional"]
+        base_donation = summary["base_donation"]
+        adaptive = summary["adaptive_enabled"]
+        if adaptive:
+            self._btn_exceptional.setToolTip(
+                "Exceptional breeders follow the living-cat average curve: "
+                f"base {base_exceptional}, reference avg {summary['adaptive_reference_avg_sum']:.1f}, "
+                f"curve {summary['adaptive_curve_strength']:.2f}, current avg {avg_sum:.1f} -> {exceptional}."
+            )
+            self._btn_donation.setToolTip(
+                "Donation candidates follow the living-cat average curve: "
+                f"base {base_donation}, reference avg {summary['adaptive_reference_avg_sum']:.1f}, "
+                f"curve {summary['adaptive_curve_strength']:.2f}, current avg {avg_sum:.1f} -> {donation}, "
+                f"top stat cap {top_stat}."
+            )
+        else:
+            self._btn_exceptional.setToolTip(
+                f"Exceptional breeders: base stat sum >= {exceptional}."
+            )
+            self._btn_donation.setToolTip(
+                "Donation candidates use documented heuristics: "
+                f"base stat sum <= {donation}, "
+                f"top stat <= {top_stat}, and/or high aggression."
+            )
+
+    def _refresh_threshold_runtime(self, cats: list[Cat] | None = None):
+        _apply_threshold_preferences(_load_threshold_preferences(), cats if cats is not None else self._cats)
+
+    def _refresh_threshold_sensitive_ui(self, room_key=None):
+        if hasattr(self, "_proxy_model"):
+            self._proxy_model.invalidate()
+        self._refresh_filter_button_counts()
+        self._refresh_bulk_view_buttons(room_key)
+        self._update_count()
 
     def _retranslate_ui(self):
         current_room_key = next((key for key, btn in self._room_btns.items() if btn is self._active_btn), None)
@@ -12267,6 +13470,10 @@ class MainWindow(QMainWindow):
             self._mutation_planner_view.retranslate_ui()
         if self._calibration_view is not None:
             self._calibration_view.retranslate_ui()
+        if self._furniture_view is not None:
+            self._furniture_view.retranslate_ui()
+        if hasattr(self, "_thresholds_action"):
+            self._thresholds_action.setText(_tr("menu.settings.thresholds", default="Donation / Exceptional Thresholds…"))
 
     def _change_language(self, language: str):
         if language not in _SUPPORTED_LANGUAGES or language == _current_language():
@@ -12383,6 +13590,7 @@ class MainWindow(QMainWindow):
 
         # Vertical splitter: table on top, detail panel on bottom (user-resizable)
         vs = QSplitter(Qt.Vertical)
+        vs.setObjectName("main_window_detail_splitter")
         vs.setHandleWidth(4)
         vs.setStyleSheet("QSplitter::handle:vertical { background:#1e1e38; }")
         self._detail_splitter = vs
@@ -12431,9 +13639,9 @@ class MainWindow(QMainWindow):
             (COL_MB, 34),
             (COL_PIN, 34),
             (COL_SUM, 38),
-            (COL_AGG, _W_TRAIT),
-            (COL_LIB, _W_TRAIT),
-            (COL_INBRD, _W_TRAIT),
+            (COL_AGG, _W_TRAIT_NARROW),
+            (COL_LIB, _W_TRAIT_NARROW),
+            (COL_INBRD, _W_TRAIT_NARROW),
             (COL_SEXUALITY, _W_TRAIT),
         ] + [(c, _W_STAT) for c in STAT_COLS]:
             hh.setSectionResizeMode(col, QHeaderView.Interactive)
@@ -12524,6 +13732,9 @@ class MainWindow(QMainWindow):
         self._mutation_planner_view = MutationDisorderPlannerView(self)
         self._mutation_planner_view.hide()
         vb.addWidget(self._mutation_planner_view, 1)
+        self._furniture_view = FurnitureView(self)
+        self._furniture_view.hide()
+        vb.addWidget(self._furniture_view, 1)
         # Wire planner to optimizer so traits can be imported
         self._room_optimizer_view.set_planner_view(self._mutation_planner_view)
         # Allow cat locator tables to navigate to cat in Alive Cats view
@@ -12941,6 +14152,8 @@ class MainWindow(QMainWindow):
             self._calibration_view.hide()
         if hasattr(self, "_mutation_planner_view") and self._mutation_planner_view is not None:
             self._mutation_planner_view.hide()
+        if hasattr(self, "_furniture_view") and self._furniture_view is not None:
+            self._furniture_view.hide()
         if hasattr(self, "_header"):
             self._header.show()
         if hasattr(self, "_table_view_container"):
@@ -12959,6 +14172,8 @@ class MainWindow(QMainWindow):
             self._btn_calibration.setChecked(False)
         if hasattr(self, "_btn_mutation_planner"):
             self._btn_mutation_planner.setChecked(False)
+        if hasattr(self, "_btn_furniture_view"):
+            self._btn_furniture_view.setChecked(False)
 
     def _show_tree_view(self):
         if self._active_btn is not None:
@@ -12980,6 +14195,8 @@ class MainWindow(QMainWindow):
             self._calibration_view.hide()
         if hasattr(self, "_mutation_planner_view") and self._mutation_planner_view is not None:
             self._mutation_planner_view.hide()
+        if hasattr(self, "_furniture_view") and self._furniture_view is not None:
+            self._furniture_view.hide()
         if self._tree_view is not None:
             self._tree_view.set_cats(self._cats)
             self._tree_view.show()
@@ -12997,6 +14214,8 @@ class MainWindow(QMainWindow):
             self._btn_calibration.setChecked(False)
         if hasattr(self, "_btn_mutation_planner"):
             self._btn_mutation_planner.setChecked(False)
+        if hasattr(self, "_btn_furniture_view"):
+            self._btn_furniture_view.setChecked(False)
 
     def _show_safe_breeding_view(self):
         if self._active_btn is not None:
@@ -13018,6 +14237,8 @@ class MainWindow(QMainWindow):
             self._calibration_view.hide()
         if hasattr(self, "_mutation_planner_view") and self._mutation_planner_view is not None:
             self._mutation_planner_view.hide()
+        if hasattr(self, "_furniture_view") and self._furniture_view is not None:
+            self._furniture_view.hide()
         if self._safe_breeding_view is not None:
             self._safe_breeding_view.set_cats(self._cats)
             self._safe_breeding_view.show()
@@ -13035,6 +14256,8 @@ class MainWindow(QMainWindow):
             self._btn_calibration.setChecked(False)
         if hasattr(self, "_btn_mutation_planner"):
             self._btn_mutation_planner.setChecked(False)
+        if hasattr(self, "_btn_furniture_view"):
+            self._btn_furniture_view.setChecked(False)
 
     def _show_breeding_partners_view(self):
         if self._active_btn is not None:
@@ -13056,6 +14279,8 @@ class MainWindow(QMainWindow):
             self._mutation_planner_view.hide()
         if hasattr(self, "_perfect_planner_view") and self._perfect_planner_view is not None:
             self._perfect_planner_view.hide()
+        if hasattr(self, "_furniture_view") and self._furniture_view is not None:
+            self._furniture_view.hide()
         if self._breeding_partners_view is not None:
             self._breeding_partners_view.set_cats(self._cats)
             self._breeding_partners_view.show()
@@ -13073,6 +14298,8 @@ class MainWindow(QMainWindow):
             self._btn_calibration.setChecked(False)
         if hasattr(self, "_btn_mutation_planner"):
             self._btn_mutation_planner.setChecked(False)
+        if hasattr(self, "_btn_furniture_view"):
+            self._btn_furniture_view.setChecked(False)
 
     def _show_room_optimizer_view(self):
         if self._active_btn is not None:
@@ -13094,6 +14321,8 @@ class MainWindow(QMainWindow):
             self._perfect_planner_view.hide()
         if hasattr(self, "_mutation_planner_view") and self._mutation_planner_view is not None:
             self._mutation_planner_view.hide()
+        if hasattr(self, "_furniture_view") and self._furniture_view is not None:
+            self._furniture_view.hide()
         if self._room_optimizer_view is not None:
             self._room_optimizer_view.set_cats(self._cats)
             self._room_optimizer_view.show()
@@ -13111,6 +14340,8 @@ class MainWindow(QMainWindow):
             self._btn_calibration.setChecked(False)
         if hasattr(self, "_btn_mutation_planner"):
             self._btn_mutation_planner.setChecked(False)
+        if hasattr(self, "_btn_furniture_view"):
+            self._btn_furniture_view.setChecked(False)
 
     def _show_perfect_planner_view(self):
         if self._active_btn is not None:
@@ -13132,6 +14363,8 @@ class MainWindow(QMainWindow):
             self._calibration_view.hide()
         if hasattr(self, "_mutation_planner_view") and self._mutation_planner_view is not None:
             self._mutation_planner_view.hide()
+        if hasattr(self, "_furniture_view") and self._furniture_view is not None:
+            self._furniture_view.hide()
         if self._perfect_planner_view is not None:
             self._perfect_planner_view.set_cats(self._cats)
             self._perfect_planner_view.show()
@@ -13149,6 +14382,8 @@ class MainWindow(QMainWindow):
             self._btn_calibration.setChecked(False)
         if hasattr(self, "_btn_mutation_planner"):
             self._btn_mutation_planner.setChecked(False)
+        if hasattr(self, "_btn_furniture_view"):
+            self._btn_furniture_view.setChecked(False)
 
     def _show_calibration_view(self):
         if self._active_btn is not None:
@@ -13186,6 +14421,8 @@ class MainWindow(QMainWindow):
             self._btn_calibration.setChecked(True)
         if hasattr(self, "_btn_mutation_planner"):
             self._btn_mutation_planner.setChecked(False)
+        if hasattr(self, "_btn_furniture_view"):
+            self._btn_furniture_view.setChecked(False)
         if hasattr(self, "_mutation_planner_view") and self._mutation_planner_view is not None:
             self._mutation_planner_view.hide()
 
@@ -13209,6 +14446,8 @@ class MainWindow(QMainWindow):
             self._perfect_planner_view.hide()
         if hasattr(self, "_calibration_view") and self._calibration_view is not None:
             self._calibration_view.hide()
+        if hasattr(self, "_furniture_view") and self._furniture_view is not None:
+            self._furniture_view.hide()
         if self._mutation_planner_view is not None:
             self._mutation_planner_view.set_cats(self._cats)
             self._mutation_planner_view.show()
@@ -13226,6 +14465,51 @@ class MainWindow(QMainWindow):
             self._btn_calibration.setChecked(False)
         if hasattr(self, "_btn_mutation_planner"):
             self._btn_mutation_planner.setChecked(True)
+        if hasattr(self, "_btn_furniture_view"):
+            self._btn_furniture_view.setChecked(False)
+
+    def _show_furniture_view(self):
+        if self._active_btn is not None:
+            self._active_btn.setChecked(False)
+        self._active_btn = None
+        if hasattr(self, "_header"):
+            self._header.hide()
+        if hasattr(self, "_table_view_container"):
+            self._table_view_container.hide()
+        if hasattr(self, "_tree_view") and self._tree_view is not None:
+            self._tree_view.hide()
+        if hasattr(self, "_safe_breeding_view") and self._safe_breeding_view is not None:
+            self._safe_breeding_view.hide()
+        if hasattr(self, "_breeding_partners_view") and self._breeding_partners_view is not None:
+            self._breeding_partners_view.hide()
+        if hasattr(self, "_room_optimizer_view") and self._room_optimizer_view is not None:
+            self._room_optimizer_view.hide()
+        if hasattr(self, "_perfect_planner_view") and self._perfect_planner_view is not None:
+            self._perfect_planner_view.hide()
+        if hasattr(self, "_calibration_view") and self._calibration_view is not None:
+            self._calibration_view.hide()
+        if hasattr(self, "_mutation_planner_view") and self._mutation_planner_view is not None:
+            self._mutation_planner_view.hide()
+        if self._furniture_view is not None:
+            if self._current_save:
+                self._furniture_view.set_context(self._cats, self._furniture, self._furniture_data)
+            self._furniture_view.show()
+        if hasattr(self, "_btn_tree_view"):
+            self._btn_tree_view.setChecked(False)
+        if hasattr(self, "_btn_safe_breeding_view"):
+            self._btn_safe_breeding_view.setChecked(False)
+        if hasattr(self, "_btn_breeding_partners_view"):
+            self._btn_breeding_partners_view.setChecked(False)
+        if hasattr(self, "_btn_room_optimizer"):
+            self._btn_room_optimizer.setChecked(False)
+        if hasattr(self, "_btn_perfect_planner"):
+            self._btn_perfect_planner.setChecked(False)
+        if hasattr(self, "_btn_calibration"):
+            self._btn_calibration.setChecked(False)
+        if hasattr(self, "_btn_mutation_planner"):
+            self._btn_mutation_planner.setChecked(False)
+        if hasattr(self, "_btn_furniture_view"):
+            self._btn_furniture_view.setChecked(True)
 
     def _navigate_to_cat(self, db_key: int):
         """Switch to Alive Cats view and select the given cat by db_key."""
@@ -13275,7 +14559,8 @@ class MainWindow(QMainWindow):
     def _update_count(self):
         visible = self._proxy_model.rowCount()
         total   = self._source_model.rowCount()
-        self._count_lbl.setText(_tr("header.count", visible=visible, total=total))
+        visible_sum = sum(_cat_base_sum(cat) for cat in self._visible_filtered_cats())
+        self._count_lbl.setText(_tr("header.count", visible=visible, total=total, visible_sum=visible_sum))
 
         placed = sum(1 for c in self._cats if c.status == "In House")
         adv    = sum(1 for c in self._cats if c.status == "Adventure")
@@ -13713,6 +14998,8 @@ class MainWindow(QMainWindow):
             cats = result["cats"]
             errors = result["errors"]
             unlocked_house_rooms = result.get("unlocked_house_rooms", [])
+            furniture = result.get("furniture", [])
+            furniture_by_room = result.get("furniture_by_room", {})
             applied_overrides = result["applied_overrides"]
             override_rows = result["override_rows"]
             cal_explicit = result["cal_explicit"]
@@ -13720,6 +15007,9 @@ class MainWindow(QMainWindow):
             cal_rows = result["cal_rows"]
 
             self._cats = cats
+            self._furniture = furniture
+            self._furniture_by_room = furniture_by_room
+            self._furniture_data = dict(_FURNITURE_DATA)
             self._source_model.set_breeding_cache(None)
             if self._safe_breeding_view is not None:
                 self._safe_breeding_view.set_cache(None)
@@ -13729,12 +15019,15 @@ class MainWindow(QMainWindow):
                 self._room_optimizer_view.set_cache(None)
             if self._perfect_planner_view is not None:
                 self._perfect_planner_view.set_cache(None)
+            self._refresh_threshold_runtime(cats)
             self._source_model.load(cats)
             self._rebuild_room_buttons(cats)
             self._refresh_filter_button_counts()
             self._filter(None, self._btn_all)
             if self._room_optimizer_view is not None:
                 self._room_optimizer_view.set_available_rooms(unlocked_house_rooms)
+            if self._furniture_view is not None:
+                self._furniture_view.set_context(self._cats, self._furniture, self._furniture_data)
             # Only push cats to currently visible views immediately.
             # Hidden views call set_cats themselves when shown via _show_* methods.
             if self._tree_view is not None and self._tree_view.isVisible():
@@ -13949,6 +15242,8 @@ class MainWindow(QMainWindow):
         self._source_model.layoutChanged.emit()
         self._rebuild_room_buttons(self._cats)
         self._refresh_filter_button_counts()
+        if self._furniture_view is not None:
+            self._furniture_view.set_context(self._cats, self._furniture, self._furniture_data)
         if self._tree_view is not None and self._tree_view.isVisible():
             self._tree_view.set_cats(self._cats)
         if self._safe_breeding_view is not None and self._safe_breeding_view.isVisible():
@@ -14005,6 +15300,10 @@ class MainWindow(QMainWindow):
         _save_current_view("mutation_planner")
         self._show_mutation_planner_view()
 
+    def _open_furniture_view(self):
+        _save_current_view("furniture")
+        self._show_furniture_view()
+
     def _restore_current_view(self):
         """Restore the last-used view after a save is loaded."""
         view = _load_current_view()
@@ -14016,6 +15315,7 @@ class MainWindow(QMainWindow):
             "perfect_planner":    self._show_perfect_planner_view,
             "calibration":        self._show_calibration_view,
             "mutation_planner":   self._show_mutation_planner_view,
+            "furniture":          self._show_furniture_view,
         }
         fn = _restore_map.get(view)
         if fn:

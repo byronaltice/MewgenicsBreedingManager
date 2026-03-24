@@ -104,7 +104,7 @@
   "header.filter.pinned": "已固定猫咪",
   "header.filter.gone": "离开",
   "header.filter.adventure": "冒险中",
-  "header.count": "  {visible} / {total} 只猫咪",
+  "header.count": "  {visible} / {total} 只猫咪  |  总和: {visible_sum}",
   "header.summary": "在家: {placed}  |  外出: {adv}  |  离开: {gone}",
   "header.search_placeholder": "搜索猫咪、能力、变异…",
   "header.pin_toggle_tooltip": "仅显示已固定的猫",
