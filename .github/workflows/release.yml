@@ -1,10 +1,8 @@
-name: Build
+name: Release
 
 on:
   push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
+    tags: [ 'v*' ]
 
 permissions:
   contents: read
@@ -51,3 +49,28 @@ jobs:
       with:
         name: MewgenicsManager-${{ matrix.artifact_suffix }}
         path: dist/MewgenicsManager-*.zip
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+    - name: Download Windows artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: MewgenicsManager-windows
+        path: release-assets/windows
+
+    - name: Download Linux artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: MewgenicsManager-linux
+        path: release-assets/linux
+
+    - name: Publish GitHub Release
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      run: |
+        gh release create "${{ github.ref_name }}" release-assets/windows/*.zip release-assets/linux/*.zip --generate-notes
