@@ -185,6 +185,7 @@
   "family_tree.title": "Родословная — {name}",
   "family_tree.cats": "Коты",
   "family_tree.click_hint": "Нажмите на любой блок, чтобы перейти к этому коту.",
+  "family_tree.gen_age": "Поколение {generation} | Возраст {age}",
   "family_tree.no_filter_match": "Нет котов, подходящих под текущий фильтр.",
   "family_tree.no_lineage": "Для этого кота пока нет данных о родословной.",
   "family_tree.more_children": "… и еще {count} детей",

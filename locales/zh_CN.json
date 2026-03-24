@@ -185,6 +185,7 @@
   "family_tree.title": "家谱 — {name}",
   "family_tree.cats": "猫咪",
   "family_tree.click_hint": "点击任意方框跳转到该猫咪。",
+  "family_tree.gen_age": "代数 {generation} | 年龄 {age}",
   "family_tree.no_filter_match": "没有猫咪符合当前筛选条件。",
   "family_tree.no_lineage": "该猫咪暂无已知血统数据。",
   "family_tree.more_children": "… 还有 {count} 个子女",

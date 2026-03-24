@@ -543,55 +543,30 @@ def _scan_blob_for_parent_uids(raw: bytes, uid_set: frozenset, self_uid: int) ->
 
 def _resolve_parent_uids(
     cat: "Cat",
-    uid_set: frozenset,
     ped_map: dict[int, tuple[Optional[int], Optional[int]]],
 ) -> tuple[Optional[int], Optional[int]]:
-    """Resolve parent UIDs using pedigree data, blob hints, and a raw scan fallback."""
+    """Resolve parent IDs from pedigree data only.
+
+    The pedigree blob is the authoritative source. If it does not name a
+    parent, leave that parent unknown rather than guessing from raw blob bytes.
+    """
     pa_k, pb_k = ped_map.get(cat.db_key, (None, None))
-
-    def _valid_uid(value) -> Optional[int]:
-        if value in (None, 0, cat._uid_int):
-            return None
-        try:
-            candidate = int(value)
-        except Exception:
-            return None
-        return candidate if candidate in uid_set else None
-
-    candidates: list[int] = []
-    for raw_uid in (getattr(cat, "_parent_uid_a", 0), getattr(cat, "_parent_uid_b", 0)):
-        cand = _valid_uid(raw_uid)
-        if cand is not None and cand not in candidates:
-            candidates.append(cand)
-
-    if _valid_uid(pa_k) is None and candidates:
-        pa_k = candidates.pop(0)
-    if _valid_uid(pb_k) is None and candidates:
-        next_candidate = candidates.pop(0)
-        if next_candidate != pa_k:
-            pb_k = next_candidate
-
-    if _valid_uid(pa_k) is None or _valid_uid(pb_k) is None:
-        scan_a, scan_b = _scan_blob_for_parent_uids(getattr(cat, "_raw", b""), uid_set, cat._uid_int)
-        scan_candidates = [u for u in (scan_a, scan_b) if u not in (0, cat._uid_int)]
-        if _valid_uid(pa_k) is None:
-            for candidate in scan_candidates:
-                if candidate != pb_k:
-                    pa_k = candidate
-                    break
-        if _valid_uid(pb_k) is None:
-            for candidate in scan_candidates:
-                if candidate != pa_k:
-                    pb_k = candidate
-                    break
-
-    return _valid_uid(pa_k), _valid_uid(pb_k)
+    if pa_k == cat.db_key:
+        pa_k = None
+    if pb_k == cat.db_key:
+        pb_k = None
+    return pa_k, pb_k
 
 
 def _break_pedigree_cycles(cats: list["Cat"]) -> int:
     """Break invalid parent loops so ancestry helpers stay simple downstream."""
     broken = 0
     max_passes = max(1, len(cats))
+
+    def _mark_repair(cat: "Cat"):
+        cat.pedigree_was_repaired = True
+        cat.pedigree_cycle_breaks = getattr(cat, "pedigree_cycle_breaks", 0) + 1
+
     for _ in range(max_passes):
         changed = False
         for cat in sorted(cats, key=lambda c: c.db_key):
@@ -601,6 +576,7 @@ def _break_pedigree_cycles(cats: list["Cat"]) -> int:
                     continue
                 if parent is cat:
                     logger.warning("Breaking self-parent loop for cat %s", cat.db_key)
+                    _mark_repair(cat)
                     setattr(cat, attr, None)
                     broken += 1
                     changed = True
@@ -612,6 +588,7 @@ def _break_pedigree_cycles(cats: list["Cat"]) -> int:
                         parent.db_key,
                         attr,
                     )
+                    _mark_repair(cat)
                     setattr(cat, attr, None)
                     broken += 1
                     changed = True
@@ -795,6 +772,8 @@ class Cat:
         self.lovers:   list['Cat'] = []
         self.haters:   list['Cat'] = []
         self.children: list['Cat'] = []   # direct offspring; assigned by parse_save
+        self.pedigree_was_repaired = False
+        self.pedigree_cycle_breaks = 0
 
         # ── Ability run — anchored on "DefaultMove" ─────────────────────────
         curr = r.pos
@@ -1241,9 +1220,9 @@ def risk_percent(a: Optional['Cat'], b: Optional['Cat'],
     return max(0.0, min(100.0, _combined_malady_chance(coi) * 100.0))
 
 
-def find_common_ancestors(a: Cat, b: Cat) -> list[Cat]:
+def find_common_ancestors(a: Cat, b: Cat, depth: int = 6) -> list[Cat]:
     """Return cats that appear in both ancestry trees."""
-    return list(get_all_ancestors(a) & get_all_ancestors(b))
+    return list(get_all_ancestors(a, depth=depth) & get_all_ancestors(b, depth=depth))
 
 
 def shared_ancestor_counts(a: Cat, b: Cat, recent_depth: int = 3, max_depth: int = 8) -> tuple[int, int]:
@@ -1281,28 +1260,26 @@ def can_breed(a: Cat, b: Cat) -> tuple[bool, str]:
     sa = (getattr(a, "sexuality", None) or "straight").lower()
     sb = (getattr(b, "sexuality", None) or "straight").lower()
 
-    # "bi" sexuality can breed with anyone
-    if sa == "bi" or sb == "bi":
-        if ga != "?" and gb != "?":
-            return True, ""
-
     if ga == "?" or gb == "?":
         return True, ""
 
     if ga != "?" and gb != "?":
         same_gender = ga == gb
-        if sa == "gay" and not same_gender:
-            return False, f"{a.name} is gay — needs same-gender partner"
-        if sb == "gay" and not same_gender:
+        if same_gender:
+            # Same-sex pairs need both cats to allow same-sex breeding.
+            if sa == "straight" or sb == "straight":
+                if sa == "straight":
+                    return False, f"{a.name} is straight — needs opposite-gender partner"
+                return False, f"{b.name} is straight — needs opposite-gender partner"
+            return True, ""
+
+        # Opposite-sex pairs need both cats to allow opposite-sex breeding.
+        if sa == "gay" or sb == "gay":
+            if sa == "gay":
+                return False, f"{a.name} is gay — needs same-gender partner"
             return False, f"{b.name} is gay — needs same-gender partner"
-        if sa == "straight" and same_gender:
-            return False, f"{a.name} is straight — needs opposite-gender partner"
-        if sb == "straight" and same_gender:
-            return False, f"{b.name} is straight — needs opposite-gender partner"
-    if sa == "gay" or sb == "gay":
         return True, ""
-    if ga != gb and {ga, gb} == {"male", "female"}:
-        return True, ""
+
     if ga == "female" and gb == "female":
         return False, "Both cats are female — cannot produce offspring"
     if ga == "male" and gb == "male":
@@ -1443,11 +1420,10 @@ def parse_save(path: str) -> SaveData:
             errors.append((key, str(e)))
 
     key_to_cat: dict = {c.db_key: c for c in cats}
-    uid_set = frozenset(c._uid_int for c in cats if getattr(c, "_uid_int", 0))
 
     for cat in cats:
         pa = pb = None
-        pa_k, pb_k = _resolve_parent_uids(cat, uid_set, ped_map)
+        pa_k, pb_k = _resolve_parent_uids(cat, ped_map)
         if pa_k is not None:
             pa = key_to_cat.get(pa_k)
         if pb_k is not None:

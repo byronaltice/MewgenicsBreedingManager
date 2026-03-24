@@ -14,6 +14,7 @@ from breeding import (
     planner_pair_allows_breeding,
     planner_pair_bias,
     score_pair,
+    tracked_offspring,
 )
 from save_parser import STAT_NAMES
 
@@ -137,3 +138,46 @@ def test_planner_inbreeding_penalty_increases_with_shared_ancestors():
     unrelated_b = _make_cat(9, gender="male")
 
     assert planner_inbreeding_penalty(cousin_a, cousin_b) > planner_inbreeding_penalty(unrelated, unrelated_b)
+
+
+def test_tracked_offspring_returns_shared_children_in_stable_order():
+    child_one = _make_cat(20, gender="female")
+    child_two = _make_cat(21, gender="male")
+    child_three = _make_cat(22, gender="female")
+
+    parent_a = _make_cat(1, gender="male")
+    parent_b = _make_cat(2, gender="female")
+    parent_a.children = [child_two, child_one, child_two, child_three]
+    parent_b.children = [child_one, child_two]
+
+    assert [cat.db_key for cat in tracked_offspring(parent_a, parent_b)] == [21, 20]
+
+
+def test_score_pair_trait_bonus_uses_planner_traits():
+    cat_a = _make_cat(1, gender="male", sexuality="bi")
+    cat_b = _make_cat(2, gender="female", sexuality="straight")
+    cat_a.abilities = ["Fireball"]
+    cat_b.abilities = []
+    cat_a.passive_abilities = []
+    cat_b.passive_abilities = ["Library"]
+    cat_a.mutations = ["Spotted"]
+    cat_b.mutations = []
+    cat_a.disorders = []
+    cat_b.disorders = ["Glitch"]
+
+    factors = score_pair(
+        cat_a,
+        cat_b,
+        hater_key_map={1: set(), 2: set()},
+        lover_key_map={1: set(), 2: set()},
+        avoid_lovers=False,
+        planner_traits=[
+            {"category": "ability", "key": "fireball", "weight": 10},
+            {"category": "passive", "key": "library", "weight": 10},
+            {"category": "mutation", "key": "spotted", "weight": 10},
+            {"category": "disorder", "key": "glitch", "weight": 10},
+        ],
+    )
+
+    assert factors.trait_bonus == 20.0
+    assert factors.quality > 0.0

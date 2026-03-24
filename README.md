@@ -109,6 +109,7 @@ This view helps you build perfect cats across generations instead of just pickin
 - Separate children cleanly
 - Rotate and outcross when needed
 - Finish with a stable maintenance plan
+- Track planned pairs and their offspring outcomes in a dedicated tab
 
 The planner now:
 - respects sexuality compatibility
@@ -181,6 +182,8 @@ Eternal Youth cats are excluded.
 For parser tuning and save overrides.
 
 - Override gender, age, aggression, libido, inbredness, and base stats
+- Aggression and libido are binned as low `< 30%`, average `30-70%`, high `> 70%`
+- Inbredness now includes an `extremely` tier above `80%`
 - Save and reload calibration data
 - Export and import calibration JSON
 
@@ -260,7 +263,8 @@ Risk labels:
 - not inbred: `<= 0.10`
 - slightly: `<= 0.25`
 - moderately: `<= 0.50`
-- highly: `> 0.50`
+- highly: `<= 0.80`
+- extremely: `> 0.80`
 
 ## Notes
 

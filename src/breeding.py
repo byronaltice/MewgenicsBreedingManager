@@ -148,6 +148,36 @@ def is_direct_family_pair(a: Cat, b: Cat, parent_key_map: dict[int, set[int]]) -
     return bool(parents_a & parents_b)
 
 
+def tracked_offspring(a: Cat, b: Cat) -> list[Cat]:
+    """
+    Return the direct offspring already tracked in the save for a breeding pair.
+
+    The result is deduplicated and keeps the order from the first parent that
+    lists the child, which makes the tracker stable across refreshes.
+    """
+    a_children = list(getattr(a, "children", []) or [])
+    b_children = list(getattr(b, "children", []) or [])
+    if not a_children or not b_children:
+        return []
+
+    a_keys = {child.db_key for child in a_children}
+    b_keys = {child.db_key for child in b_children}
+    ordered: list[Cat] = []
+    seen: set[int] = set()
+
+    for child in a_children:
+        if child.db_key in b_keys and child.db_key not in seen:
+            ordered.append(child)
+            seen.add(child.db_key)
+
+    for child in b_children:
+        if child.db_key in a_keys and child.db_key not in seen:
+            ordered.append(child)
+            seen.add(child.db_key)
+
+    return ordered
+
+
 def _cat_has_trait(cat: Cat, category: str, trait_key: str) -> bool:
     if category == "mutation":
         return any(m.lower() == trait_key for m in (cat.mutations or []))

@@ -185,6 +185,7 @@
   "family_tree.title": "Drzewo genealogiczne — {name}",
   "family_tree.cats": "Koty",
   "family_tree.click_hint": "Kliknij dowolne pole, aby przejść do tego kota.",
+  "family_tree.gen_age": "Pokolenie {generation} | Wiek {age}",
   "family_tree.no_filter_match": "Żaden kot nie pasuje do bieżącego filtra.",
   "family_tree.no_lineage": "Brak danych genealogicznych dla tego kota.",
   "family_tree.more_children": "… i {count} więcej potomków",

@@ -21,7 +21,9 @@ from save_parser import (
     _choose_age_from_creation_days,
     _valid_str,
     _normalize_gender,
+    parse_save,
     _scan_blob_for_parent_uids,
+    _resolve_parent_uids,
     can_breed,
     get_parents,
     get_grandparents,
@@ -327,9 +329,16 @@ class TestCanBreed:
         ok, reason = can_breed(a, b)
         assert not ok
 
-    def test_bi_pairs_with_any(self):
+    def test_bi_same_gender_rejected_against_straight(self):
         a = _make_cat(db_key=1, gender="male", sexuality="bi")
         b = _make_cat(db_key=2, gender="male", sexuality="straight")
+        ok, reason = can_breed(a, b)
+        assert not ok
+        assert "straight" in reason.lower()
+
+    def test_bi_opposite_gender_allowed(self):
+        a = _make_cat(db_key=1, gender="male", sexuality="bi")
+        b = _make_cat(db_key=2, gender="female", sexuality="straight")
         ok, _ = can_breed(a, b)
         assert ok
 
@@ -403,6 +412,28 @@ class TestAncestry:
         common = find_common_ancestors(sibling_a, sibling_b)
         assert dad in common
         assert mom in common
+
+    def test_resolve_parent_uids_uses_pedigree_data_only(self):
+        cat = SimpleNamespace(
+            db_key=42,
+            _uid_int=4200,
+            _parent_uid_a=1111,
+            _parent_uid_b=2222,
+            _raw=b"ignored",
+        )
+
+        ped_map = {42: (7, None)}
+
+        assert _resolve_parent_uids(cat, ped_map) == (7, None)
+
+    def test_parse_save_marks_repaired_pedigree(self):
+        cats, errors, rooms = parse_save(os.path.join(_proj_root, "tools", "saves", "23.sav"))
+        chevy = next(cat for cat in cats if cat.db_key == 313)
+
+        assert not errors
+        assert chevy.parent_a is None and chevy.parent_b is None
+        assert chevy.pedigree_was_repaired is True
+        assert chevy.pedigree_cycle_breaks == 2
 
 
 class TestInbreeding:
