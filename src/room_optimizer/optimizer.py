@@ -1,0 +1,634 @@
+"""Room optimization logic for Mewgenics breeding."""
+
+from __future__ import annotations
+
+import math
+import random
+from typing import Iterable
+
+from breeding import PairFactors, is_hater_conflict, is_mutual_lover_pair, score_pair as score_pair_factors
+from save_parser import Cat, ROOM_DISPLAY, STAT_NAMES
+
+from .types import (
+    OptimizationParams,
+    OptimizationResult,
+    OptimizationStats,
+    RoomAssignment,
+    RoomConfig,
+    RoomType,
+    ScoredPair,
+)
+
+def _cat_stats_sum(cat: Cat) -> int:
+    return sum(getattr(cat, "stat_base", []) or cat.base_stats.values())
+
+
+def _has_eternal_youth(cat: Cat) -> bool:
+    return any(d.lower() == "eternalyouth" for d in (getattr(cat, "disorders", None) or []))
+
+
+def _filter_cats(cats: list[Cat], excluded_keys: set[int], min_stats: int) -> list[Cat]:
+    return [
+        c
+        for c in cats
+        if c.status == "In House" and c.db_key not in excluded_keys and _cat_stats_sum(c) >= min_stats
+    ]
+
+
+def _build_lover_hater_maps(cats: Iterable[Cat]) -> tuple[dict[int, set[int]], dict[int, set[int]], set[int]]:
+    hater_key_map = {cat.db_key: {o.db_key for o in getattr(cat, "haters", [])} for cat in cats}
+    lover_key_map = {cat.db_key: {o.db_key for o in getattr(cat, "lovers", [])} for cat in cats}
+    has_mutual_lover = {
+        cat.db_key
+        for cat in cats
+        if any(cat.db_key in lover_key_map.get(o.db_key, set()) for o in getattr(cat, "lovers", []))
+    }
+    return hater_key_map, lover_key_map, has_mutual_lover
+
+
+def build_room_configs(
+    room_config_entries: list[dict] | None,
+    available_rooms: list[str] | None = None,
+) -> list[RoomConfig]:
+    """Convert the UI's room config dicts into explicit room model objects."""
+    entries = [e for e in (room_config_entries or []) if isinstance(e, dict) and e.get("room") in ROOM_DISPLAY]
+
+    if entries:
+        out: list[RoomConfig] = []
+        for entry in entries:
+            key = entry["room"]
+            slot_type = entry.get("type", "breeding")
+            room_type = RoomType.BREEDING if slot_type == "breeding" else RoomType.FALLBACK
+            out.append(
+                RoomConfig(
+                    key=key,
+                    room_type=room_type,
+                    max_cats=6 if room_type == RoomType.BREEDING else None,
+                    base_stim=50.0,
+                )
+            )
+        return out
+
+    ordered = [room for room in (available_rooms or []) if room in ROOM_DISPLAY]
+    if not ordered:
+        ordered = list(ROOM_DISPLAY.keys())
+
+    out: list[RoomConfig] = []
+    for idx, room in enumerate(ordered):
+        room_type = RoomType.BREEDING if idx < max(len(ordered) - 1, 0) else RoomType.FALLBACK
+        out.append(
+            RoomConfig(
+                key=room,
+                room_type=room_type,
+                max_cats=6 if room_type == RoomType.BREEDING else None,
+                base_stim=50.0,
+            )
+        )
+    return out
+
+
+def score_pair(
+    cat_a: Cat,
+    cat_b: Cat,
+    params: OptimizationParams,
+    *,
+    cache=None,
+) -> ScoredPair | None:
+    """Score a pair, returning None if it should not be considered."""
+    factors = score_pair_factors(
+        cat_a,
+        cat_b,
+        hater_key_map=getattr(cache, "hater_key_map", {}) if cache is not None else {},
+        lover_key_map=getattr(cache, "lover_key_map", {}) if cache is not None else {},
+        avoid_lovers=params.avoid_lovers,
+        cache=cache,
+        stimulation=params.stimulation,
+        minimize_variance=params.minimize_variance,
+        prefer_low_aggression=params.prefer_low_aggression,
+        prefer_high_libido=params.prefer_high_libido,
+        planner_traits=params.planner_traits,
+    )
+    if not factors.compatible or factors.risk > params.max_risk:
+        return None
+    return ScoredPair(cat_a=cat_a, cat_b=cat_b, risk=factors.risk, quality=factors.quality)
+
+
+def _generate_pairs(cats: list[Cat]) -> list[tuple[Cat, Cat]]:
+    return [(cats[i], cats[j]) for i in range(len(cats)) for j in range(i + 1, len(cats))]
+
+
+def _filter_lover_exclusivity(
+    pairs: list[tuple[Cat, Cat]],
+    room_cats: list[Cat],
+    lover_key_map: dict[int, set[int]],
+) -> list[tuple[Cat, Cat]]:
+    room_cat_ids = {c.db_key for c in room_cats}
+    lover_lookup = {
+        c.db_key: next(iter(lover_key_map.get(c.db_key, set())), None)
+        for c in room_cats
+        if any(lid in room_cat_ids for lid in lover_key_map.get(c.db_key, set()))
+    }
+
+    filtered = []
+    for a, b in pairs:
+        a_lover = lover_lookup.get(a.db_key)
+        b_lover = lover_lookup.get(b.db_key)
+
+        if a_lover is not None and b.db_key != a_lover:
+            continue
+        if b_lover is not None and a.db_key != b_lover:
+            continue
+        filtered.append((a, b))
+    return filtered
+
+
+def _filter_hater_conflicts(
+    pairs: list[tuple[Cat, Cat]],
+    room_cats: list[Cat],
+    hater_key_map: dict[int, set[int]],
+) -> list[tuple[Cat, Cat]]:
+    filtered = []
+    for a, b in pairs:
+        a_hates_b = b.db_key in hater_key_map.get(a.db_key, set())
+        b_hates_a = a.db_key in hater_key_map.get(b.db_key, set())
+        if a_hates_b or b_hates_a:
+            continue
+        filtered.append((a, b))
+    return filtered
+
+
+def _can_fit_single(room: RoomConfig, current_count: int, cat: Cat | None = None) -> bool:
+    if room.max_cats is None:
+        return True
+    if cat is not None and _has_eternal_youth(cat):
+        return True
+    return (current_count + 1) <= room.max_cats
+
+
+def _best_breeding_room(room_configs: list[RoomConfig]) -> RoomConfig | None:
+    breeding_rooms = [r for r in room_configs if r.room_type == RoomType.BREEDING]
+    if not breeding_rooms:
+        return None
+    return max(breeding_rooms, key=lambda r: r.base_stim)
+
+
+def optimize_room_distribution(
+    cats: list[Cat],
+    room_configs: list[RoomConfig],
+    params: OptimizationParams,
+    *,
+    cache=None,
+    excluded_keys: set[int] | None = None,
+) -> OptimizationResult:
+    """Optimize room assignments using greedy placement plus optional SA refinement."""
+    excluded_keys = excluded_keys or set()
+    filtered_cats = _filter_cats(cats, excluded_keys, params.min_stats)
+
+    if not filtered_cats:
+        return OptimizationResult(
+            rooms=[],
+            excluded_cats=[],
+            stats=OptimizationStats(
+                total_cats=0,
+                assigned_cats=0,
+                total_pairs=0,
+                breeding_rooms_used=0,
+                general_rooms_used=0,
+                avg_pair_quality=0.0,
+                avg_risk_percent=0.0,
+            ),
+        )
+
+    hater_key_map, lover_key_map, has_mutual_lover = _build_lover_hater_maps(filtered_cats)
+    room_lookup = {room.key: room for room in room_configs}
+    room_order = [room.key for room in room_configs]
+    room_assignments: dict[str, list[Cat]] = {room.key: [] for room in room_configs}
+    room_effective_counts: dict[str, int] = {room.key: 0 for room in room_configs}
+    assigned_cats: set[int] = set()
+    ey_cats = [c for c in filtered_cats if _has_eternal_youth(c)]
+    non_ey_cats = [c for c in filtered_cats if c.db_key not in {c2.db_key for c2 in ey_cats}]
+
+    best_ey_room = _best_breeding_room(room_configs)
+    if best_ey_room is not None and ey_cats:
+        room_assignments[best_ey_room.key].extend(ey_cats)
+        assigned_cats.update(c.db_key for c in ey_cats)
+
+    cats_by_id = {c.db_key: c for c in filtered_cats}
+    original_state = {c.db_key: (c.room or "") for c in filtered_cats}
+    pair_factor_cache: dict[tuple[int, int, float], PairFactors] = {}
+
+    def _pair_factor_key(a: Cat, b: Cat, stimulation: float) -> tuple[int, int, float]:
+        return (min(a.db_key, b.db_key), max(a.db_key, b.db_key), float(stimulation))
+
+    def _score_pair_cached(a: Cat, b: Cat, stimulation: float) -> PairFactors:
+        key = _pair_factor_key(a, b, stimulation)
+        if key not in pair_factor_cache:
+            pair_factor_cache[key] = score_pair_factors(
+                a,
+                b,
+                hater_key_map=hater_key_map,
+                lover_key_map=lover_key_map,
+                avoid_lovers=params.avoid_lovers,
+                cache=cache,
+                stimulation=stimulation,
+                minimize_variance=params.minimize_variance,
+                prefer_low_aggression=params.prefer_low_aggression,
+                prefer_high_libido=params.prefer_high_libido,
+                planner_traits=params.planner_traits,
+            )
+        return pair_factor_cache[key]
+
+    def _room_conflict(a: Cat, b: Cat) -> bool:
+        factors = _score_pair_cached(a, b, params.stimulation)
+        return (not factors.compatible) or factors.risk > params.max_risk
+
+    if params.mode_family:
+        max_cats_per_room = 6
+        family_assignments: dict[str, dict[str, list[Cat]]] = {
+            room.key: {"males": [], "females": [], "unknown": []} for room in room_configs
+        }
+
+        def _room_cats(room_key: str) -> list[Cat]:
+            rd = family_assignments[room_key]
+            return rd["males"] + rd["females"] + rd["unknown"]
+
+        def _preferred_rooms(cat: Cat) -> list[str]:
+            if not params.avoid_lovers:
+                return list(room_order)
+            lover_rooms = [r for r in room_order if any(is_mutual_lover_pair(cat, ec, lover_key_map) for ec in _room_cats(r))]
+            return lover_rooms + [r for r in room_order if r not in lover_rooms]
+
+        def _family_group_id(cat: Cat) -> tuple[int, ...] | None:
+            ancestors: list[int] = []
+            for p in (cat.parent_a, cat.parent_b):
+                if p:
+                    ancestors.append(p.db_key)
+                    for gp in (p.parent_a, p.parent_b):
+                        if gp:
+                            ancestors.append(gp.db_key)
+            return tuple(sorted(ancestors)) if ancestors else None
+
+        for cat in ey_cats:
+            room_key = best_ey_room.key if best_ey_room is not None else room_order[0]
+            family_assignments[room_key]["unknown"].append(cat)
+
+        for gender_list, gender_key in (
+            ([c for c in non_ey_cats if (c.gender or "").lower() == "male"], "males"),
+            ([c for c in non_ey_cats if (c.gender or "").lower() == "female"], "females"),
+            ([c for c in non_ey_cats if (c.gender or "") == "?"], "unknown"),
+        ):
+            family_groups: dict[tuple[int, ...] | None, list[Cat]] = {}
+            no_family: list[Cat] = []
+            for cat in gender_list:
+                fid = _family_group_id(cat)
+                (family_groups.setdefault(fid, []) if fid else no_family).append(cat)
+
+            for fid, fcats in family_groups.items():
+                for cat in fcats:
+                    placed = False
+                    for room_key in _preferred_rooms(cat):
+                        rc = _room_cats(room_key)
+                        if len(rc) >= max_cats_per_room:
+                            continue
+                        if any(_family_group_id(ec) == fid or _room_conflict(cat, ec) for ec in rc):
+                            continue
+                        family_assignments[room_key][gender_key].append(cat)
+                        placed = True
+                        break
+                    if not placed:
+                        best_room = min(
+                            (r for r in _preferred_rooms(cat) if len(_room_cats(r)) < max_cats_per_room),
+                            key=lambda r: sum(
+                                _score_pair_cached(cat, ec, params.stimulation).risk
+                                for ec in _room_cats(r)
+                                if not is_hater_conflict(cat, ec, hater_key_map)
+                            ),
+                            default=min(room_order, key=lambda r: len(_room_cats(r))),
+                        )
+                        family_assignments[best_room][gender_key].append(cat)
+
+            for cat in no_family:
+                placed = False
+                for room_key in _preferred_rooms(cat):
+                    rc = _room_cats(room_key)
+                    if len(rc) < max_cats_per_room and not any(_room_conflict(cat, ec) for ec in rc):
+                        family_assignments[room_key][gender_key].append(cat)
+                        placed = True
+                        break
+                if not placed:
+                    best_room = min(
+                        (r for r in _preferred_rooms(cat) if len(_room_cats(r)) < max_cats_per_room),
+                        key=lambda r: sum(
+                            _score_pair_cached(cat, ec, params.stimulation).risk
+                            for ec in _room_cats(r)
+                            if not is_hater_conflict(cat, ec, hater_key_map)
+                        ),
+                        default=min(room_order, key=lambda r: len(_room_cats(r))),
+                    )
+                    family_assignments[best_room][gender_key].append(cat)
+
+        room_assignments = {room_key: _room_cats(room_key) for room_key in room_order}
+
+    else:
+        candidate_pairs = _generate_pairs([c for c in non_ey_cats if c.db_key not in assigned_cats])
+        candidate_pairs = [p for p in candidate_pairs if p[0].db_key not in assigned_cats and p[1].db_key not in assigned_cats]
+
+        lover_locked: set[int] = has_mutual_lover if params.avoid_lovers else set()
+        pairs_with_scores: list[dict] = []
+        for cat_a, cat_b in candidate_pairs:
+            if params.avoid_lovers and (cat_a.db_key in lover_locked or cat_b.db_key in lover_locked):
+                if not is_mutual_lover_pair(cat_a, cat_b, lover_key_map):
+                    continue
+            factors = _score_pair_cached(cat_a, cat_b, params.stimulation)
+            if not factors.compatible or factors.risk > params.max_risk:
+                continue
+            pairs_with_scores.append(
+                {
+                    "cat_a": cat_a,
+                    "cat_b": cat_b,
+                    "risk": factors.risk,
+                    "avg_stats": sum(cat_a.base_stats[s] + cat_b.base_stats[s] for s in STAT_NAMES) / (2 * len(STAT_NAMES)),
+                    "quality": factors.quality,
+                    "must_breed_bonus": factors.must_breed_bonus,
+                    "lover_bonus": factors.lover_bonus,
+                }
+            )
+
+        pairs_with_scores.sort(
+            key=lambda p: (p["must_breed_bonus"], p["lover_bonus"], p["quality"]),
+            reverse=True,
+        )
+
+        for pair in pairs_with_scores:
+            a, b = pair["cat_a"], pair["cat_b"]
+            if a.db_key in assigned_cats or b.db_key in assigned_cats:
+                continue
+            placed = False
+            for room in room_configs:
+                if room.room_type != RoomType.BREEDING:
+                    continue
+                rc = room_assignments[room.key]
+                effective_count = room_effective_counts[room.key]
+                if room.max_cats is not None and effective_count >= room.max_cats:
+                    continue
+                if any(_room_conflict(a, ec) or _room_conflict(b, ec) for ec in rc):
+                    continue
+                if _can_fit_single(room, effective_count, a) and _can_fit_single(room, effective_count + (0 if _has_eternal_youth(a) else 1), b):
+                    rc.extend([a, b])
+                    if not _has_eternal_youth(a):
+                        room_effective_counts[room.key] += 1
+                    if not _has_eternal_youth(b):
+                        room_effective_counts[room.key] += 1
+                    assigned_cats.update([a.db_key, b.db_key])
+                    placed = True
+                    break
+            if not placed:
+                for cat in [a, b]:
+                    if cat.db_key in assigned_cats:
+                        continue
+                    preferred = sorted(
+                        [room.key for room in room_configs if room.room_type == RoomType.BREEDING],
+                        key=lambda r: (
+                            not params.avoid_lovers
+                            or not any(is_mutual_lover_pair(cat, ec, lover_key_map) for ec in room_assignments[r]),
+                            len(room_assignments[r]),
+                        ),
+                    )
+                    for room_key in preferred:
+                        room = room_lookup[room_key]
+                        effective_count = room_effective_counts[room_key]
+                        if room.max_cats is not None and effective_count >= room.max_cats:
+                            continue
+                        if not any(_room_conflict(cat, ec) for ec in room_assignments[room_key]):
+                            if _can_fit_single(room, effective_count, cat):
+                                room_assignments[room_key].append(cat)
+                                if not _has_eternal_youth(cat):
+                                    room_effective_counts[room_key] += 1
+                                assigned_cats.add(cat.db_key)
+                                break
+
+        unassigned = [c for c in non_ey_cats if c.db_key not in assigned_cats]
+        fallback_rooms = [room.key for room in room_configs if room.room_type != RoomType.BREEDING] or [room_order[-1]]
+        for i, cat in enumerate(unassigned):
+            room_assignments[fallback_rooms[i % len(fallback_rooms)]].append(cat)
+            assigned_cats.add(cat.db_key)
+
+        if params.use_sa:
+            room_assignments = _run_sa_refinement(
+                room_assignments=room_assignments,
+                room_configs=room_configs,
+                room_lookup=room_lookup,
+                room_effective_counts=room_effective_counts,
+                original_state=original_state,
+                cats_by_id=cats_by_id,
+                params=params,
+                cache=cache,
+                hater_key_map=hater_key_map,
+                lover_key_map=lover_key_map,
+                pair_factor_cache=pair_factor_cache,
+            )
+
+    room_results: list[RoomAssignment] = []
+    breeding_rooms_used = 0
+    general_rooms_used = 0
+    total_pair_quality = 0.0
+    total_risk = 0.0
+    total_pairs = 0
+
+    for room in room_configs:
+        cats_in_room = room_assignments[room.key]
+        if len(cats_in_room) < 2 and not cats_in_room:
+            continue
+
+        pairs: list[ScoredPair] = []
+        if room.room_type == RoomType.BREEDING and len(cats_in_room) >= 2:
+            for a, b in _generate_pairs(cats_in_room):
+                factors = _score_pair_cached(a, b, room.base_stim)
+                if factors.compatible and factors.risk <= params.max_risk:
+                    pairs.append(ScoredPair(cat_a=a, cat_b=b, risk=factors.risk, quality=factors.quality))
+
+        ey_in_room = [c for c in cats_in_room if _has_eternal_youth(c)]
+        room_results.append(
+            RoomAssignment(
+                room=room,
+                cats=cats_in_room,
+                pairs=pairs,
+                eternal_youth_cats=ey_in_room,
+            )
+        )
+
+        if room.room_type == RoomType.BREEDING:
+            breeding_rooms_used += 1
+        elif room.room_type != RoomType.NONE:
+            general_rooms_used += 1
+
+        total_pairs += len(pairs)
+        for p in pairs:
+            total_pair_quality += p.quality
+            total_risk += p.risk
+
+    avg_quality = total_pair_quality / total_pairs if total_pairs > 0 else 0.0
+    avg_risk = total_risk / total_pairs if total_pairs > 0 else 0.0
+
+    excluded = [c for c in filtered_cats if c.db_key not in assigned_cats]
+    stats = OptimizationStats(
+        total_cats=len(filtered_cats),
+        assigned_cats=len(filtered_cats) - len(excluded),
+        total_pairs=total_pairs,
+        breeding_rooms_used=breeding_rooms_used,
+        general_rooms_used=general_rooms_used,
+        avg_pair_quality=avg_quality,
+        avg_risk_percent=avg_risk,
+    )
+
+    return OptimizationResult(rooms=room_results, excluded_cats=excluded, stats=stats)
+
+
+def _run_sa_refinement(
+    *,
+    room_assignments: dict[str, list[Cat]],
+    room_configs: list[RoomConfig],
+    room_lookup: dict[str, RoomConfig],
+    room_effective_counts: dict[str, int],
+    original_state: dict[int, str],
+    cats_by_id: dict[int, Cat],
+    params: OptimizationParams,
+    cache,
+    hater_key_map: dict[int, set[int]],
+    lover_key_map: dict[int, set[int]],
+    pair_factor_cache: dict[tuple[int, int, float], PairFactors],
+) -> dict[str, list[Cat]]:
+    """Refine the greedy room assignment with simulated annealing."""
+    breeding_rooms = [r for r in room_configs if r.room_type == RoomType.BREEDING]
+    if len(breeding_rooms) < 2:
+        return room_assignments
+
+    fixed_ids = {c.db_key for cats in room_assignments.values() for c in cats if _has_eternal_youth(c)}
+    mutable_ids = [cid for cid in cats_by_id if cid not in fixed_ids]
+    if len(mutable_ids) < 2:
+        return room_assignments
+
+    def _pair_factor_key(a: Cat, b: Cat, stimulation: float) -> tuple[int, int, float]:
+        return (min(a.db_key, b.db_key), max(a.db_key, b.db_key), float(stimulation))
+
+    def _score_pair_cached(a: Cat, b: Cat, stimulation: float) -> PairFactors:
+        key = _pair_factor_key(a, b, stimulation)
+        if key not in pair_factor_cache:
+            pair_factor_cache[key] = score_pair_factors(
+                a,
+                b,
+                hater_key_map=hater_key_map,
+                lover_key_map=lover_key_map,
+                avoid_lovers=params.avoid_lovers,
+                cache=cache,
+                stimulation=stimulation,
+                minimize_variance=params.minimize_variance,
+                prefer_low_aggression=params.prefer_low_aggression,
+                prefer_high_libido=params.prefer_high_libido,
+                planner_traits=params.planner_traits,
+            )
+        return pair_factor_cache[key]
+
+    def _room_cats(room_key: str, state: dict[int, str]) -> list[Cat]:
+        return [cats_by_id[cid] for cid, room in state.items() if room == room_key and cid in cats_by_id]
+
+    def _state_score(state: dict[int, str]) -> float:
+        total_quality = 0.0
+        for room in breeding_rooms:
+            cats_in_room = _room_cats(room.key, state)
+            effective_count = sum(0 if _has_eternal_youth(c) else 1 for c in cats_in_room)
+            if room.max_cats is not None and effective_count > room.max_cats:
+                excess = effective_count - room.max_cats
+                total_quality -= 1000.0 * (excess**2)
+
+            if len(cats_in_room) < 2:
+                continue
+
+            pairs = _generate_pairs(cats_in_room)
+            pairs = _filter_lover_exclusivity(pairs, cats_in_room, lover_key_map)
+            pairs = _filter_hater_conflicts(pairs, cats_in_room, hater_key_map)
+
+            sum_quality = 0.0
+            valid_pairs = 0
+            for a, b in pairs:
+                factors = _score_pair_cached(a, b, room.base_stim)
+                if factors.compatible and factors.risk <= params.max_risk:
+                    sum_quality += factors.quality
+                    valid_pairs += 1
+
+            if valid_pairs:
+                total_possible_pairs = (len(cats_in_room) * (len(cats_in_room) - 1)) / 2.0
+                total_quality += sum_quality / total_possible_pairs
+
+        moved_cats = sum(1 for cid, r in state.items() if r != original_state.get(cid) and r)
+        total_quality -= moved_cats * params.move_penalty_weight
+        return total_quality
+
+    def _neighbor(state: dict[int, str]) -> dict[int, str]:
+        new_state = state.copy()
+        keys = [cid for cid in new_state if cid not in fixed_ids]
+        if not keys:
+            return new_state
+        if random.random() < 0.55 or len(keys) < 2:
+            cat_to_move = random.choice(keys)
+            room_counts: dict[str, int] = {r.key: 0 for r in breeding_rooms}
+            for cid, r_key in new_state.items():
+                if cid in fixed_ids:
+                    continue
+                if r_key in room_counts:
+                    room_counts[r_key] += 1
+
+            valid_rooms = [r.key for r in breeding_rooms if r.key != new_state[cat_to_move]]
+            if not valid_rooms:
+                return new_state
+
+            weights: list[float] = []
+            for room_key in valid_rooms:
+                room = room_lookup[room_key]
+                if room.max_cats is None:
+                    weights.append(1.0)
+                else:
+                    remaining = max(0.1, room.max_cats - room_counts[room_key])
+                    weights.append(remaining)
+            new_state[cat_to_move] = random.choices(valid_rooms, weights=weights, k=1)[0]
+        else:
+            c1, c2 = random.sample(keys, 2)
+            new_state[c1], new_state[c2] = new_state[c2], new_state[c1]
+        return new_state
+
+    state = {cid: room for room_key, cats in room_assignments.items() for cid, room in [(cat.db_key, room_key) for cat in cats]}
+    current_score = _state_score(state)
+    best_state = state.copy()
+    best_score = current_score
+
+    positive_deltas: list[float] = []
+    test_state = state.copy()
+    test_score = current_score
+    for _ in range(50):
+        neighbor = _neighbor(test_state)
+        n_score = _state_score(neighbor)
+        if n_score > test_score:
+            positive_deltas.append(n_score - test_score)
+        test_state = neighbor
+        test_score = n_score
+
+    avg_delta = sum(positive_deltas) / len(positive_deltas) if positive_deltas else 1.0
+    temperature = max(1.0, -avg_delta / math.log(0.8))
+    while temperature > 0.1:
+        for _ in range(params.sa_neighbors_per_temp):
+            neighbor = _neighbor(state)
+            neighbor_score = _state_score(neighbor)
+            delta = neighbor_score - current_score
+            if delta > 0 or math.exp(delta / temperature) > random.random():
+                state = neighbor
+                current_score = neighbor_score
+                if current_score > best_score:
+                    best_state = state.copy()
+                    best_score = current_score
+        temperature *= params.sa_cooling_rate
+
+    refined: dict[str, list[Cat]] = {room.key: [] for room in room_configs}
+    for cid, room_key in best_state.items():
+        if cid in cats_by_id:
+            refined[room_key].append(cats_by_id[cid])
+    return refined

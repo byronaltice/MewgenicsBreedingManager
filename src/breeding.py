@@ -1,15 +1,61 @@
-"""
-Consolidated breeding pair evaluation helpers.
+"""Shared breeding compatibility and scoring helpers."""
 
-Deduplicates logic previously defined as nested functions in both
-RoomOptimizerWorker and PerfectCatPlannerView.
-"""
+from __future__ import annotations
 
 import logging
-from typing import Optional
-from save_parser import Cat, can_breed, risk_percent
+from dataclasses import dataclass
+from typing import Optional, Sequence
+
+from save_parser import (
+    Cat,
+    STAT_NAMES,
+    can_breed,
+    risk_percent,
+    shared_ancestor_counts,
+    _stimulation_inheritance_weight,
+)
 
 logger = logging.getLogger("mewgenics.breeding")
+
+
+@dataclass(slots=True)
+class PairProjection:
+    """Expected offspring stat projection for a breeding pair."""
+
+    expected_stats: dict[str, float]
+    stat_ranges: dict[str, tuple[int, int]]
+    locked_stats: tuple[str, ...]
+    reachable_stats: tuple[str, ...]
+    missing_stats: tuple[str, ...]
+    sum_range: tuple[int, int]
+    avg_expected: float
+    seven_plus_total: float
+    distance_total: float
+
+    def __getitem__(self, key: str):
+        return getattr(self, key)
+
+    def get(self, key: str, default=None):
+        return getattr(self, key, default)
+
+
+@dataclass(slots=True)
+class PairFactors:
+    """Complete score breakdown for a breeding pair."""
+
+    cat_a: Cat
+    cat_b: Cat
+    compatible: bool
+    reason: str
+    risk: float
+    projection: PairProjection
+    complementarity_bonus: float
+    variance_penalty: float
+    personality_bonus: float
+    trait_bonus: float
+    must_breed_bonus: float
+    lover_bonus: float
+    quality: float
 
 
 def pair_key(a: Cat, b: Cat) -> tuple[int, int]:
@@ -18,23 +64,55 @@ def pair_key(a: Cat, b: Cat) -> tuple[int, int]:
     return (ak, bk) if ak < bk else (bk, ak)
 
 
-def is_hater_conflict(a: Cat, b: Cat,
-                      hater_key_map: dict[int, set[int]]) -> bool:
+def planner_pair_bias(a: Cat, b: Cat) -> float:
+    """
+    Heuristic bias for planner suggestions.
+
+    Prefer sexuality-compatible pairs, with a soft bias toward opposite-sex
+    pairs or a cat with unknown/ditto-like gender.
+    """
+    if planner_pair_allows_breeding(a, b):
+        return 10.0
+    return -30.0
+
+
+def planner_pair_allows_breeding(a: Cat, b: Cat) -> bool:
+    """
+    Hard planner rule that follows the game's sexuality compatibility.
+
+    Same-sex pairs are allowed when their sexuality permits it, and straight
+    same-sex pairs remain blocked.
+    """
+    return can_breed(a, b)[0]
+
+
+def planner_inbreeding_penalty(a: Cat, b: Cat) -> float:
+    """
+    Conservative penalty for pairs that share ancestry.
+
+    The perfect planner should strongly prefer unrelated pairs so repeated use
+    does not quietly drift into low-grade inbreeding.
+    """
+    shared_total, shared_recent = shared_ancestor_counts(a, b, recent_depth=3, max_depth=8)
+    return shared_total * 6.0 + shared_recent * 4.0
+
+
+def is_hater_conflict(a: Cat, b: Cat, hater_key_map: dict[int, set[int]]) -> bool:
     """Check if either cat hates the other."""
-    return (b.db_key in hater_key_map.get(a.db_key, set()) or
-            a.db_key in hater_key_map.get(b.db_key, set()))
+    return b.db_key in hater_key_map.get(a.db_key, set()) or a.db_key in hater_key_map.get(b.db_key, set())
 
 
-def is_mutual_lover_pair(a: Cat, b: Cat,
-                         lover_key_map: dict[int, set[int]]) -> bool:
+def is_mutual_lover_pair(a: Cat, b: Cat, lover_key_map: dict[int, set[int]]) -> bool:
     """Check if both cats are mutual lovers."""
-    return (b.db_key in lover_key_map.get(a.db_key, set()) and
-            a.db_key in lover_key_map.get(b.db_key, set()))
+    return b.db_key in lover_key_map.get(a.db_key, set()) and a.db_key in lover_key_map.get(b.db_key, set())
 
 
-def is_lover_conflict(a: Cat, b: Cat,
-                      lover_key_map: dict[int, set[int]],
-                      avoid_lovers: bool) -> bool:
+def is_lover_conflict(
+    a: Cat,
+    b: Cat,
+    lover_key_map: dict[int, set[int]],
+    avoid_lovers: bool,
+) -> bool:
     """Check if pairing conflicts with existing lover relationships."""
     if not avoid_lovers:
         return False
@@ -48,9 +126,7 @@ def trait_or_default(v: Optional[float], default: float = 0.5) -> float:
     return default if v is None else max(0.0, min(1.0, float(v)))
 
 
-def personality_score(cats: list[Cat],
-                      prefer_low_aggression: bool,
-                      prefer_high_libido: bool) -> float:
+def personality_score(cats: list[Cat], prefer_low_aggression: bool, prefer_high_libido: bool) -> float:
     """Score personality traits for a group of cats."""
     score = 0.0
     n = len(cats)
@@ -63,8 +139,7 @@ def personality_score(cats: list[Cat],
     return score
 
 
-def is_direct_family_pair(a: Cat, b: Cat,
-                          parent_key_map: dict[int, set[int]]) -> bool:
+def is_direct_family_pair(a: Cat, b: Cat, parent_key_map: dict[int, set[int]]) -> bool:
     """Check if two cats are parent-child or siblings."""
     parents_a = parent_key_map.get(a.db_key, set())
     parents_b = parent_key_map.get(b.db_key, set())
@@ -73,19 +148,76 @@ def is_direct_family_pair(a: Cat, b: Cat,
     return bool(parents_a & parents_b)
 
 
-def evaluate_pair(a: Cat, b: Cat, *,
-                  hater_key_map: dict[int, set[int]],
-                  lover_key_map: dict[int, set[int]],
-                  avoid_lovers: bool,
-                  cache=None,
-                  parent_key_map: Optional[dict[int, set[int]]] = None,
-                  pair_eval_cache: Optional[dict] = None,
-                  ) -> tuple[bool, str, float]:
+def _cat_has_trait(cat: Cat, category: str, trait_key: str) -> bool:
+    if category == "mutation":
+        return any(m.lower() == trait_key for m in (cat.mutations or []))
+    if category == "passive":
+        return any(p.lower() == trait_key for p in (cat.passive_abilities or []))
+    if category == "disorder":
+        return any(d.lower() == trait_key for d in (cat.disorders or []))
+    if category == "ability":
+        return any(a.lower() == trait_key for a in (cat.abilities or []))
+    return False
+
+
+def pair_projection(cat_a: Cat, cat_b: Cat, stimulation: float = 50.0) -> PairProjection:
+    """Predict offspring stat ranges and expected values for a pair."""
+    better_stat_chance = _stimulation_inheritance_weight(stimulation)
+    expected_stats: dict[str, float] = {}
+    stat_ranges: dict[str, tuple[int, int]] = {}
+    locked_stats: list[str] = []
+    reachable_stats: list[str] = []
+    missing_stats: list[str] = []
+    seven_plus_total = 0.0
+    distance_total = 0.0
+
+    for stat in STAT_NAMES:
+        stat_a = cat_a.base_stats[stat]
+        stat_b = cat_b.base_stats[stat]
+        lo = min(stat_a, stat_b)
+        hi = max(stat_a, stat_b)
+        stat_ranges[stat] = (lo, hi)
+        expected = hi * better_stat_chance + lo * (1.0 - better_stat_chance)
+        expected_stats[stat] = expected
+        distance_total += abs(expected - 7.0)
+        if lo >= 7:
+            locked_stats.append(stat)
+            reachable_stats.append(stat)
+            seven_plus_total += 1.0
+        elif hi >= 7:
+            reachable_stats.append(stat)
+            seven_plus_total += better_stat_chance
+        else:
+            missing_stats.append(stat)
+
+    return PairProjection(
+        expected_stats=expected_stats,
+        stat_ranges=stat_ranges,
+        locked_stats=tuple(locked_stats),
+        reachable_stats=tuple(reachable_stats),
+        missing_stats=tuple(missing_stats),
+        sum_range=(sum(lo for lo, _ in stat_ranges.values()), sum(hi for _, hi in stat_ranges.values())),
+        avg_expected=sum(expected_stats.values()) / len(STAT_NAMES),
+        seven_plus_total=seven_plus_total,
+        distance_total=distance_total,
+    )
+
+
+def evaluate_pair(
+    a: Cat,
+    b: Cat,
+    *,
+    hater_key_map: dict[int, set[int]],
+    lover_key_map: dict[int, set[int]],
+    avoid_lovers: bool,
+    cache=None,
+    parent_key_map: Optional[dict[int, set[int]]] = None,
+    pair_eval_cache: Optional[dict] = None,
+) -> tuple[bool, str, float]:
     """
     Unified pair evaluation. Returns (can_breed, reason, risk_pct).
 
-    Pass parent_key_map to enable direct-family checking (used by
-    PerfectCatPlanner). Pass None to skip it (used by RoomOptimizer).
+    Pass parent_key_map to enable direct-family checking.
     """
     if pair_eval_cache is not None:
         key = pair_key(a, b)
@@ -95,15 +227,17 @@ def evaluate_pair(a: Cat, b: Cat, *,
 
     ok, reason = can_breed(a, b)
 
-    if ok and parent_key_map is not None:
-        if is_direct_family_pair(a, b, parent_key_map):
-            ok, reason = False, "Direct family pair"
+    if ok and parent_key_map is not None and is_direct_family_pair(a, b, parent_key_map):
+        ok, reason = False, "Direct family pair"
 
     if ok and is_hater_conflict(a, b, hater_key_map):
         ok, reason = False, "These cats hate each other"
 
+    if ok and is_lover_conflict(a, b, lover_key_map, avoid_lovers):
+        ok, reason = False, "Lover relationship blocks this pair"
+
     if ok:
-        if cache is not None and cache.ready:
+        if cache is not None and getattr(cache, "ready", False):
             risk = cache.risk_pct.get(cache._pair_key(a.db_key, b.db_key), 0.0)
         else:
             risk = risk_percent(a, b)
@@ -114,3 +248,91 @@ def evaluate_pair(a: Cat, b: Cat, *,
     if pair_eval_cache is not None:
         pair_eval_cache[pair_key(a, b)] = result
     return result
+
+
+def score_pair(
+    a: Cat,
+    b: Cat,
+    *,
+    hater_key_map: Optional[dict[int, set[int]]] = None,
+    lover_key_map: Optional[dict[int, set[int]]] = None,
+    avoid_lovers: bool = False,
+    parent_key_map: Optional[dict[int, set[int]]] = None,
+    pair_eval_cache: Optional[dict] = None,
+    cache=None,
+    stimulation: float = 50.0,
+    minimize_variance: bool = True,
+    prefer_low_aggression: bool = True,
+    prefer_high_libido: bool = True,
+    planner_traits: Optional[Sequence[dict]] = None,
+    must_breed_bonus: float = 1000.0,
+    lover_bonus: float = 500.0,
+) -> PairFactors:
+    """Return a complete score breakdown for a pair."""
+    hater_key_map = hater_key_map or {}
+    lover_key_map = lover_key_map or {}
+    planner_traits = planner_traits or ()
+
+    compatible, reason, risk = evaluate_pair(
+        a,
+        b,
+        hater_key_map=hater_key_map,
+        lover_key_map=lover_key_map,
+        avoid_lovers=avoid_lovers,
+        cache=cache,
+        parent_key_map=parent_key_map,
+        pair_eval_cache=pair_eval_cache,
+    )
+
+    projection = pair_projection(a, b, stimulation=stimulation)
+    complementarity_bonus = sum(0.5 for stat in STAT_NAMES if max(a.base_stats[stat], b.base_stats[stat]) >= 8)
+    variance_penalty = sum(
+        abs(a.base_stats[stat] - b.base_stats[stat]) * 2.0
+        for stat in STAT_NAMES
+        if minimize_variance and abs(a.base_stats[stat] - b.base_stats[stat]) > 2
+    )
+    personality_bonus = personality_score([a, b], prefer_low_aggression, prefer_high_libido) * 2.5
+
+    trait_bonus = 0.0
+    for t in planner_traits:
+        category = str(t.get("category", ""))
+        key = str(t.get("key", ""))
+        wf = float(t.get("weight", 0)) / 10.0
+        if not key:
+            continue
+        a_has = _cat_has_trait(a, category, key)
+        b_has = _cat_has_trait(b, category, key)
+        if a_has or b_has:
+            trait_bonus += wf * 5.0
+            if a_has and b_has:
+                trait_bonus += wf * 2.5
+
+    quality = 0.0
+    must_breed_total = 0.0
+    lover_total = 0.0
+    if compatible:
+        quality = (projection.avg_expected + complementarity_bonus) * (1.0 - risk / 200.0)
+        quality -= variance_penalty
+        quality += personality_bonus + trait_bonus
+        if getattr(a, "must_breed", False) or getattr(b, "must_breed", False):
+            quality += must_breed_bonus
+            must_breed_total = must_breed_bonus
+        if is_mutual_lover_pair(a, b, lover_key_map):
+            quality += lover_bonus
+            lover_total = lover_bonus
+
+    return PairFactors(
+        cat_a=a,
+        cat_b=b,
+        compatible=compatible,
+        reason=reason,
+        risk=risk,
+        projection=projection,
+        complementarity_bonus=complementarity_bonus,
+        variance_penalty=variance_penalty,
+        personality_bonus=personality_bonus,
+        trait_bonus=trait_bonus,
+        must_breed_bonus=must_breed_total,
+        lover_bonus=lover_total,
+        quality=quality,
+    )

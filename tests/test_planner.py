@@ -1,0 +1,139 @@
+import os
+import sys
+from types import SimpleNamespace
+
+_proj_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_src_dir = os.path.join(_proj_root, "src")
+sys.path.insert(0, _src_dir)
+sys.path.insert(0, _proj_root)
+
+from breeding import (
+    evaluate_pair,
+    pair_projection,
+    planner_inbreeding_penalty,
+    planner_pair_allows_breeding,
+    planner_pair_bias,
+    score_pair,
+)
+from save_parser import STAT_NAMES
+
+
+def _make_cat(
+    db_key: int,
+    *,
+    gender: str,
+    sexuality: str = "straight",
+    parent_a=None,
+    parent_b=None,
+    generation: int = 0,
+    aggression: float = 0.2,
+    libido: float = 0.8,
+    stat_seed: int = 6,
+):
+    class _HashableNamespace(SimpleNamespace):
+        def __hash__(self):
+            return hash(self.db_key)
+
+    return _HashableNamespace(
+        db_key=db_key,
+        name=f"Cat{db_key}",
+        gender=gender,
+        sexuality=sexuality,
+        gender_display=gender,
+        status="In House",
+        room="Floor1_Large",
+        room_display="1st FL L",
+        generation=generation,
+        parent_a=parent_a,
+        parent_b=parent_b,
+        must_breed=False,
+        disorders=[],
+        aggression=aggression,
+        libido=libido,
+        base_stats={stat: stat_seed for stat in STAT_NAMES},
+        haters=[],
+        lovers=[],
+    )
+
+
+def test_pair_projection_supports_dict_style_access():
+    cat_a = _make_cat(1, gender="male", sexuality="bi", stat_seed=4)
+    cat_b = _make_cat(2, gender="female", sexuality="straight", stat_seed=8)
+
+    projection = pair_projection(cat_a, cat_b, stimulation=50.0)
+
+    assert projection["avg_expected"] == projection.avg_expected
+    assert projection["sum_range"] == projection.sum_range
+    assert len(projection["expected_stats"]) == len(STAT_NAMES)
+
+
+def test_score_pair_allows_same_sex_bi_pairs_and_blocks_direct_family():
+    cat_a = _make_cat(1, gender="male", sexuality="bi")
+    cat_b = _make_cat(2, gender="male", sexuality="bi")
+
+    factors = score_pair(
+        cat_a,
+        cat_b,
+        hater_key_map={1: set(), 2: set()},
+        lover_key_map={1: set(), 2: set()},
+        avoid_lovers=False,
+    )
+    assert factors.compatible
+    assert factors.quality >= 0.0
+
+    direct_family = score_pair(
+        cat_a,
+        cat_b,
+        hater_key_map={1: set(), 2: set()},
+        lover_key_map={1: set(), 2: set()},
+        avoid_lovers=False,
+        parent_key_map={1: set(), 2: {1}},
+    )
+    assert not direct_family.compatible
+    assert "Direct family" in direct_family.reason
+
+
+def test_evaluate_pair_enforces_lover_blocking():
+    cat_a = _make_cat(1, gender="male", sexuality="bi")
+    cat_b = _make_cat(2, gender="female", sexuality="straight")
+
+    ok, reason, risk = evaluate_pair(
+        cat_a,
+        cat_b,
+        hater_key_map={1: set(), 2: set()},
+        lover_key_map={1: {3}, 2: set()},
+        avoid_lovers=True,
+    )
+
+    assert not ok
+    assert "lover" in reason.lower()
+    assert risk == 0.0
+
+
+def test_planner_pair_bias_prefers_opposite_or_unknown_gender_pairs():
+    male = _make_cat(1, gender="male")
+    female = _make_cat(2, gender="female")
+    unknown = _make_cat(3, gender="?")
+    gay_male_a = _make_cat(4, gender="male", sexuality="gay")
+    gay_male_b = _make_cat(5, gender="male", sexuality="gay")
+
+    assert planner_pair_allows_breeding(male, female)
+    assert planner_pair_allows_breeding(male, unknown)
+    assert planner_pair_allows_breeding(gay_male_a, gay_male_b)
+    assert not planner_pair_allows_breeding(male, male)
+
+    assert planner_pair_bias(male, female) > planner_pair_bias(male, male)
+    assert planner_pair_bias(male, unknown) > planner_pair_bias(male, male)
+
+
+def test_planner_inbreeding_penalty_increases_with_shared_ancestors():
+    grandpa = _make_cat(10, gender="male")
+    grandma = _make_cat(11, gender="female")
+    parent_a = _make_cat(2, gender="female", parent_a=grandpa, parent_b=grandma)
+    parent_b = _make_cat(3, gender="male", parent_a=grandpa, parent_b=grandma)
+    cousin_a = _make_cat(4, gender="female", parent_a=parent_a, parent_b=_make_cat(5, gender="male"))
+    cousin_b = _make_cat(6, gender="male", parent_a=parent_b, parent_b=_make_cat(7, gender="female"))
+    unrelated = _make_cat(8, gender="female")
+    unrelated_b = _make_cat(9, gender="male")
+
+    assert planner_inbreeding_penalty(cousin_a, cousin_b) > planner_inbreeding_penalty(unrelated, unrelated_b)

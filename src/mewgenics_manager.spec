@@ -9,6 +9,7 @@ a = Analysis(
         ('../locales/ru.json', '.'),
         ('../locales/zh_CN.json', '.'),
         ('../locales/pl.json', '.'),
+        ('../VERSION', '.'),
     ],
     hiddenimports=[
         'lz4.frame',
@@ -31,6 +32,7 @@ exe = EXE(
     a.datas,
     [],
     name='MewgenicsManager',
+    onefile=True,
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

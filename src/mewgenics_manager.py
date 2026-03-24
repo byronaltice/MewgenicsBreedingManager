@@ -14,14 +14,13 @@ import sqlite3
 import csv
 import json
 import datetime
+import platform
 import lz4.block
 import os
 import math
 import logging
 from pathlib import Path
 from typing import Optional
-
-from visual_mutation_catalog import load_visual_mutation_names
 
 logger = logging.getLogger("mewgenics")
 
@@ -61,14 +60,28 @@ from save_parser import (
     _appearance_group_names, _appearance_preview_text,
     _stimulation_inheritance_weight, _inheritance_candidates,
     set_visual_mut_data,
+    GameData,
+    _load_gpak_text_strings,
+    _resolve_game_string,
     _malady_breakdown, _combined_malady_chance,
     ROOM_KEYS, EXCEPTIONAL_SUM_THRESHOLD, DONATION_SUM_THRESHOLD, DONATION_MAX_TOP_STAT,
 )
 
 from breeding import (
-    pair_key, is_hater_conflict, is_lover_conflict,
-    is_mutual_lover_pair, trait_or_default, personality_score,
-    is_direct_family_pair, evaluate_pair,
+    pair_projection,
+    is_mutual_lover_pair,
+    planner_inbreeding_penalty,
+    planner_pair_allows_breeding,
+    planner_pair_bias,
+    score_pair as score_pair_factors,
+)
+
+from room_optimizer import (
+    OptimizationParams,
+    RoomConfig,
+    RoomType,
+    build_room_configs,
+    optimize_room_distribution,
 )
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -152,20 +165,47 @@ def _app_dir() -> str:
     return os.path.dirname(os.path.abspath(__file__))
 
 
+def _read_app_version() -> str:
+    """Read the app version from the shared VERSION file."""
+    candidates = [
+        Path(_bundle_dir()) / "VERSION",
+        Path(_app_dir()) / "VERSION",
+        Path(__file__).resolve().parent.parent / "VERSION",
+    ]
+    for path in candidates:
+        try:
+            text = path.read_text(encoding="utf-8").strip()
+        except OSError:
+            continue
+        if text:
+            return text
+    return "dev"
+
+
 # ── Constants ─────────────────────────────────────────────────────────────────
 
-
-APPDATA_SAVE_DIR = os.path.join(
-    os.environ.get("APPDATA", ""),
-    "Glaiel Games", "Mewgenics",
-)
-APPDATA_CONFIG_DIR = os.path.join(
-    os.environ.get("APPDATA", str(Path.home())),
-    "MewgenicsBreedingManager",
-)
+if platform.system() == "Linux":
+    APPDATA_SAVE_DIR = os.path.join(
+        str(Path.home()), ".steam", "steam", "steamapps",
+        "compatdata", "686060", "pfx", "drive_c", "users", "steamuser", "AppData", "Roaming",
+        "Glaiel Games", "Mewgenics",
+    )
+    APPDATA_CONFIG_DIR = os.path.join(
+        str(Path.home()), "MewgenicsBreedingManager",
+    )
+else:
+    APPDATA_SAVE_DIR = os.path.join(
+        os.environ.get("APPDATA", ""),
+        "Glaiel Games", "Mewgenics",
+    )
+    APPDATA_CONFIG_DIR = os.path.join(
+        os.environ.get("APPDATA", str(Path.home())),
+        "MewgenicsBreedingManager",
+    )
 os.makedirs(APPDATA_CONFIG_DIR, exist_ok=True)
 APP_CONFIG_PATH = os.path.join(APPDATA_CONFIG_DIR, "settings.json")
 LOCALES_DIR = os.path.join(_bundle_dir(), "locales")
+APP_VERSION = _read_app_version()
 
 _SUPPORTED_LANGUAGES = {
     "en": "language.english",
@@ -491,6 +531,13 @@ def _steam_library_paths() -> list[str]:
         os.path.join(
             os.environ.get("ProgramFiles", r"C:\Program Files"),
             "Steam",
+            "steamapps",
+            "libraryfolders.vdf",
+        ),
+        os.path.join(
+            str(Path.home()),
+            ".steam",
+            "steam",
             "steamapps",
             "libraryfolders.vdf",
         ),
@@ -888,7 +935,8 @@ def _reload_game_data():
     _GPAK_SEARCH_PATHS = _candidate_gpak_paths()
     _GPAK_PATH = next((p for p in _GPAK_SEARCH_PATHS if os.path.exists(p)), None)
     _ABILITY_DESC = _load_ability_descriptions()
-    _VISUAL_MUT_DATA = _load_visual_mut_data()
+    _VISUAL_MUT_DATA = GameData.from_gpak(_GPAK_PATH).visual_mutation_data
+    set_visual_mut_data(_VISUAL_MUT_DATA)
 
 
 def _set_gpak_path(path: str):
@@ -957,47 +1005,6 @@ def _save_room_priority_config(config: list[dict]):
         _save_app_config(data)
     except Exception:
         pass
-
-_STAT_LABELS = {
-    "str": "STR",
-    "con": "CON",
-    "int": "INT",
-    "dex": "DEX",
-    "spd": "SPD",
-    "lck": "LCK",
-    "cha": "CHA",
-    "shield": "Shield",
-    "divine_shield": "Holy Shield",
-}
-
-
-def _load_gpak_text_strings(file_obj, file_offsets: dict[str, tuple[int, int]]) -> dict[str, str]:
-    import csv as _csv
-    import io as _io
-
-    strings: dict[str, str] = {}
-    for fname, (csv_off, csv_sz) in file_offsets.items():
-        if not (fname.startswith("data/text/") and fname.endswith(".csv")):
-            continue
-        file_obj.seek(csv_off)
-        raw_csv = file_obj.read(csv_sz).decode("utf-8-sig", errors="replace")
-        for row in _csv.reader(_io.StringIO(raw_csv)):
-            if len(row) >= 2 and row[0] and not row[0].startswith("//"):
-                strings[row[0]] = row[1]
-    return strings
-
-
-def _resolve_game_string(value: str, game_strings: dict[str, str]) -> str:
-    resolved = value
-    seen: set[str] = set()
-    while resolved in game_strings and resolved not in seen:
-        seen.add(resolved)
-        nxt = game_strings[resolved].strip()
-        if not nxt:
-            break
-        resolved = nxt
-    return resolved
-
 
 def _load_ability_descriptions() -> dict[str, str]:
     """
@@ -1209,7 +1216,13 @@ def _is_exceptional_breeder(cat: "Cat") -> bool:
     return _cat_base_sum(cat) >= EXCEPTIONAL_SUM_THRESHOLD
 
 
+def _has_eternal_youth(cat: "Cat") -> bool:
+    return any(d.lower() == "eternalyouth" for d in (getattr(cat, "disorders", None) or []))
+
+
 def _donation_candidate_base_reason(cat: "Cat") -> Optional[str]:
+    if _has_eternal_youth(cat):
+        return None
     if _is_exceptional_breeder(cat):
         return None
     total = _cat_base_sum(cat)
@@ -1351,113 +1364,6 @@ def _mutation_effect_lines(cat: "Cat") -> list[str]:
     return lines
 
 
-
-
-def _parse_mutation_gon(content: str, game_strings: dict[str, str], category: str) -> dict[int, tuple[str, str]]:
-    """Parse a mutation GON file into {slot_id: (display_name, stat_desc)}.
-
-    Covers normal mutations (300-699), birth defects (700-706, and the
-    special -2 "completely missing part" defect stored as 0xFFFFFFFE in
-    the T table), and special/rare mutations (750+).
-    IDs < 300 are base appearance variants handled separately.
-    """
-    result: dict[int, tuple[str, str]] = {}
-    csv_prefix = f"MUTATION_{category.upper()}_"
-
-    def _extract_block(start_pos: int) -> tuple[str, int]:
-        """Extract the brace-delimited block starting at start_pos (after '{')."""
-        depth, end = 1, start_pos
-        while end < len(content) and depth > 0:
-            if content[end] == '{':
-                depth += 1
-            elif content[end] == '}':
-                depth -= 1
-            end += 1
-        return content[start_pos:end - 1], end
-
-    def _block_to_entry(slot_id: int, block: str):
-        """Parse a single mutation block into (display_name, stat_desc)."""
-        name_match = re.search(r'//\s*(.+)', block)
-        raw_name = name_match.group(1).strip().title() if name_match else f"Mutation {slot_id}"
-        raw_name = re.sub(r'\s*\(.*', '', raw_name).strip() or raw_name
-        csv_key = f"{csv_prefix}{slot_id}_DESC"
-        if csv_key in game_strings:
-            stat_desc = _resolve_game_string(game_strings[csv_key], game_strings).strip().rstrip(".")
-        else:
-            header = block.split('{')[0]
-            stats: list[str] = []
-            for key, label in _STAT_LABELS.items():
-                stat_match = re.search(rf'(?<!\w){re.escape(key)}\s+(-?\d+)', header)
-                if stat_match:
-                    value = int(stat_match.group(1))
-                    stats.append(f"{'+' if value > 0 else ''}{value} {label}")
-            stat_desc = ", ".join(stats)
-        result[slot_id] = (raw_name, stat_desc)
-
-    idx = 0
-    while idx < len(content):
-        match = re.search(r'(?<!\w)(\d{3,})\s*\{', content[idx:])
-        if not match:
-            break
-        slot_id = int(match.group(1))
-        block, idx = _extract_block(idx + match.end())
-        if slot_id < 300:
-            continue
-        _block_to_entry(slot_id, block)
-
-    m2_match = re.search(r'(?<!\w)-2\s*\{', content)
-    if m2_match:
-        block, _ = _extract_block(m2_match.end())
-        csv_key_m2 = f"{csv_prefix}M2_DESC"
-        if csv_key_m2 in game_strings:
-            name_match = re.search(r'//\s*(.+)', block)
-            raw_name = name_match.group(1).strip().title() if name_match else "Missing Part"
-            raw_name = re.sub(r'\s*\(.*', '', raw_name).strip() or raw_name
-            stat_desc = _resolve_game_string(game_strings[csv_key_m2], game_strings).strip().rstrip(".")
-            result[0xFFFFFFFE] = (raw_name, stat_desc)
-        else:
-            _block_to_entry(0xFFFFFFFE, block)
-
-    return result
-
-
-def _load_visual_mut_data() -> dict[str, dict[int, tuple[str, str]]]:
-    """Load {gon_category: {slot_id: (name, stat_desc)}} from resources.gpak."""
-    if not _GPAK_PATH:
-        return {}
-    try:
-        with open(_GPAK_PATH, "rb") as f:
-            count = struct.unpack("<I", f.read(4))[0]
-            entries = []
-            for _ in range(count):
-                name_len = struct.unpack("<H", f.read(2))[0]
-                name = f.read(name_len).decode("utf-8", errors="replace")
-                size = struct.unpack("<I", f.read(4))[0]
-                entries.append((name, size))
-            dir_end = f.tell()
-
-            file_offsets: dict[str, tuple[int, int]] = {}
-            offset = dir_end
-            for name, size in entries:
-                file_offsets[name] = (offset, size)
-                offset += size
-
-            game_strings = _load_gpak_text_strings(f, file_offsets)
-
-            result: dict[str, dict[int, tuple[str, str]]] = {}
-            for fname, (foff, fsz) in file_offsets.items():
-                if not (fname.startswith("data/mutations/") and fname.endswith(".gon")):
-                    continue
-                category = fname.split("/")[-1].replace(".gon", "")
-                f.seek(foff)
-                content = f.read(fsz).decode("utf-8", errors="replace")
-                result[category] = _parse_mutation_gon(content, game_strings, category)
-        return result
-    except Exception:
-        return {}
-
-
-_VISUAL_MUT_DATA = {}
 _reload_game_data()
 
 
@@ -5273,6 +5179,20 @@ class RoomOptimizerView(QWidget):
 
         controls.addSpacing(8)
 
+        self._deep_optimize_btn = QPushButton()
+        self._deep_optimize_btn.clicked.connect(lambda: self._calculate_optimal_distribution(use_sa=True))
+        self._deep_optimize_btn.setToolTip(_tr("room_optimizer.tooltip.more_depth", default="Use simulated annealing for a slower, deeper search."))
+        self._deep_optimize_btn.setStyleSheet(
+            "QPushButton { background:#2a2a5a; color:#bbbbee; border:1px solid #4a4a8a; "
+            "border-radius:4px; padding:6px 12px; font-size:11px; font-weight:bold; }"
+            "QPushButton:hover { background:#3a3a6a; color:#ddd; }"
+            "QPushButton:pressed { background:#202048; }"
+            "QPushButton:disabled { background:#1a1a32; color:#555; border-color:#2a2a4a; }"
+        )
+        controls.addWidget(self._deep_optimize_btn)
+
+        controls.addSpacing(8)
+
         self._mode_toggle_btn = QPushButton()
         self._mode_toggle_btn.setCheckable(True)
         self._mode_toggle_btn.setChecked(False)
@@ -5426,6 +5346,13 @@ class RoomOptimizerView(QWidget):
         self._minimize_variance_checkbox.setChecked(False if enabled else _saved_optimizer_flag("minimize_variance", True))
         self._minimize_variance_checkbox.setEnabled(not enabled)
         self._minimize_variance_checkbox.setToolTip("" if not enabled else _tr("room_optimizer.tooltip.variance"))
+        if hasattr(self, "_deep_optimize_btn"):
+            self._deep_optimize_btn.setEnabled(not enabled)
+            self._deep_optimize_btn.setToolTip(
+                _tr("room_optimizer.tooltip.more_depth_disabled", default="More Depth is only available in pair-quality mode.")
+                if enabled
+                else _tr("room_optimizer.tooltip.more_depth", default="Use simulated annealing for a slower, deeper search.")
+            )
 
     def _on_table_selection_changed(self):
         selected_ranges = self._table.selectedRanges()
@@ -5504,6 +5431,8 @@ class RoomOptimizerView(QWidget):
         self._max_risk_input.setPlaceholderText(_tr("room_optimizer.placeholder.max_risk"))
         self._optimize_btn.setText(_tr("room_optimizer.optimize_btn"))
         self._set_mode_button_text(self._mode_toggle_btn.isChecked())
+        self._deep_optimize_btn.setText(_tr("room_optimizer.more_depth", default="More Depth"))
+        self._deep_optimize_btn.setEnabled(not self._mode_toggle_btn.isChecked())
         self._import_planner_btn.setText(_tr("room_optimizer.import_planner"))
         self._import_planner_btn.setToolTip(_tr("room_optimizer.import_none_tooltip"))
         # Refresh toggle button labels
@@ -5523,7 +5452,7 @@ class RoomOptimizerView(QWidget):
             _tr("room_optimizer.table.details"),
         ])
 
-    def _calculate_optimal_distribution(self):
+    def _calculate_optimal_distribution(self, use_sa: bool = False):
         """Kick off background optimizer worker."""
         if self._optimizer_worker is not None and self._optimizer_worker.isRunning():
             return  # already running
@@ -5550,6 +5479,7 @@ class RoomOptimizerView(QWidget):
             "prefer_low_aggression": self._prefer_low_aggression_checkbox.isChecked(),
             "prefer_high_libido": self._prefer_high_libido_checkbox.isChecked(),
             "mode_family": self._mode_toggle_btn.isChecked(),
+            "use_sa": use_sa and not self._mode_toggle_btn.isChecked(),
             "planner_traits": list(self._planner_traits),
             "available_rooms": list(getattr(self, "_available_rooms", [])),
             "room_config": self._room_priority_panel.get_config(),
@@ -5588,6 +5518,7 @@ class RoomOptimizerView(QWidget):
         avoid_lovers = result["avoid_lovers"]
         prefer_low_aggression = result["prefer_low_aggression"]
         prefer_high_libido = result["prefer_high_libido"]
+        use_sa = result.get("use_sa", False)
 
         self._cat_locator.show_assignments(locator_data)
         self._table.setRowCount(0)
@@ -5692,6 +5623,7 @@ class RoomOptimizerView(QWidget):
             row_idx += 1
 
         filter_info = [f"mode: {'family separation' if mode_family else 'pair quality'}"]
+        filter_info.append(f"depth: {'SA' if use_sa else 'greedy'}")
         if min_stats > 0:
             filter_info.append(f"min stats: {min_stats}")
         if max_risk < 100:
@@ -5725,361 +5657,122 @@ class RoomOptimizerWorker(QThread):
 
     def run(self):
         # All computation happens here; no Qt widgets are touched.
-        from types import SimpleNamespace
         p = self._params
         cache = self._cache
+        excluded_keys = set(self._excluded_keys or set())
 
-        excluded_keys = self._excluded_keys
         alive_cats = [c for c in self._cats if c.status != "Gone" and c.db_key not in excluded_keys]
         excluded_cats = [c for c in self._cats if c.status != "Gone" and c.db_key in excluded_keys]
 
-        min_stats = p["min_stats"]
-        max_risk = p["max_risk"]
-        minimize_variance = p["minimize_variance"]
-        avoid_lovers = p["avoid_lovers"]
-        prefer_low_aggression = p["prefer_low_aggression"]
-        prefer_high_libido = p["prefer_high_libido"]
-        mode_family = p["mode_family"]
-        raw_room_config = p.get("room_config", [])
-        room_config = [s for s in raw_room_config
-                       if isinstance(s, dict) and s.get("room") in ROOM_DISPLAY
-                       and s.get("type") in ("breeding", "fallback")]
-        # configured_rooms: order from room_config if provided, else fall back to available_rooms param
-        if room_config:
-            configured_rooms = [s["room"] for s in room_config]
-        else:
-            configured_rooms = [room for room in p.get("available_rooms", []) if room in ROOM_DISPLAY]
+        min_stats = int(p.get("min_stats", 0) or 0)
+        max_risk = float(p.get("max_risk", 10.0) or 0.0)
+        minimize_variance = bool(p.get("minimize_variance", True))
+        avoid_lovers = bool(p.get("avoid_lovers", True))
+        prefer_low_aggression = bool(p.get("prefer_low_aggression", True))
+        prefer_high_libido = bool(p.get("prefer_high_libido", True))
+        mode_family = bool(p.get("mode_family", False))
+        use_sa = bool(p.get("use_sa", False) and not mode_family)
+        planner_traits = list(p.get("planner_traits", []))
+        available_rooms = [room for room in p.get("available_rooms", []) if room in ROOM_DISPLAY]
+        room_configs = build_room_configs(p.get("room_config", []), available_rooms=available_rooms)
 
         if min_stats > 0:
-            alive_cats = [c for c in alive_cats if sum(c.base_stats.values()) >= min_stats]
+            alive_cats = [c for c in alive_cats if _cat_base_sum(c) >= min_stats]
 
         if len(alive_cats) < 2:
             self.finished.emit({"error": "Not enough cats to optimize"})
             return
 
-        stat_sum = {cat.db_key: sum(cat.base_stats.values()) for cat in alive_cats}
+        params = OptimizationParams(
+            min_stats=min_stats,
+            max_risk=max_risk,
+            stimulation=50.0,
+            minimize_variance=minimize_variance,
+            avoid_lovers=avoid_lovers,
+            prefer_low_aggression=prefer_low_aggression,
+            prefer_high_libido=prefer_high_libido,
+            mode_family=mode_family,
+            use_sa=use_sa,
+            planner_traits=planner_traits,
+        )
 
-        pair_eval_cache: dict[tuple[int, int], tuple[bool, str, float]] = {}
+        optimized = optimize_room_distribution(
+            alive_cats,
+            room_configs,
+            params,
+            cache=cache,
+            excluded_keys=excluded_keys,
+        )
+
         hater_key_map = {cat.db_key: {o.db_key for o in getattr(cat, "haters", [])} for cat in alive_cats}
         lover_key_map = {cat.db_key: {o.db_key for o in getattr(cat, "lovers", [])} for cat in alive_cats}
-        # Cats that have at least one mutual lover (love is reciprocated)
         has_mutual_lover = {
-            cat.db_key for cat in alive_cats
+            cat.db_key
+            for cat in alive_cats
             if any(cat.db_key in lover_key_map.get(o.db_key, set()) for o in getattr(cat, "lovers", []))
         }
 
-        def _pair_key(a, b):
-            ak, bk = a.db_key, b.db_key
-            return (ak, bk) if ak < bk else (bk, ak)
+        locator_data: list[dict] = []
+        room_rows: list[dict] = []
+        for room_idx, assignment in enumerate(optimized.rooms):
+            room = assignment.room
+            assigned_room_label = room.display_name
+            cat_names = [f"{c.name} ({c.gender_display})" for c in assignment.cats]
 
-        def _is_hater_conflict(a, b):
-            return b.db_key in hater_key_map.get(a.db_key, set()) or a.db_key in hater_key_map.get(b.db_key, set())
-
-        def _is_mutual_lover_pair(a, b):
-            return b.db_key in lover_key_map.get(a.db_key, set()) and a.db_key in lover_key_map.get(b.db_key, set())
-
-        def _trait_or_default(v, default=0.5):
-            return default if v is None else max(0.0, min(1.0, float(v)))
-
-        def _personality_score(a, b=None):
-            cats = [a] if b is None else [a, b]
-            score = 0.0
-            if prefer_low_aggression:
-                score += sum(1.0 - _trait_or_default(c.aggression) for c in cats) / len(cats)
-            if prefer_high_libido:
-                score += sum(_trait_or_default(c.libido) for c in cats) / len(cats)
-            return score
-
-        def _pair_eval(a, b):
-            key = _pair_key(a, b)
-            cached = pair_eval_cache.get(key)
-            if cached is not None:
-                return cached
-            ok, reason = can_breed(a, b)
-            if ok and _is_hater_conflict(a, b):
-                ok, reason = False, "These cats hate each other"
-            if ok:
-                if cache is not None and cache.ready:
-                    risk = cache.risk_pct.get(cache._pair_key(a.db_key, b.db_key), 0.0)
-                else:
-                    risk = risk_percent(a, b)
-            else:
-                risk = 0.0
-            pair_eval_cache[key] = (ok, reason, risk)
-            return pair_eval_cache[key]
-
-        def _room_conflict(a, b):
-            if _is_hater_conflict(a, b):
-                return True
-            ok, _, risk = _pair_eval(a, b)
-            return ok and risk > max_risk
-
-        # ── Planner trait bonus ──
-        planner_traits = p.get("planner_traits", [])
-
-        males   = sorted([c for c in alive_cats if c.gender == "male"],   key=lambda c: stat_sum[c.db_key], reverse=True)
-        females = sorted([c for c in alive_cats if c.gender == "female"], key=lambda c: stat_sum[c.db_key], reverse=True)
-        unknown = sorted([c for c in alive_cats if c.gender == "?"],      key=lambda c: stat_sum[c.db_key], reverse=True)
-        all_cats = males + females + unknown
-        occupied_rooms = {
-            c.room for c in alive_cats
-            if c.status == "In House" and c.room in ROOM_DISPLAY
-        }
-        available_rooms = [
-            room for room in ROOM_DISPLAY.keys()
-            if room in (set(configured_rooms) | occupied_rooms)
-        ]
-        if not available_rooms:
-            available_rooms = list(ROOM_DISPLAY.keys())
-
-        # Build breeding/fallback room lists from room_config (or fall back to available_rooms order)
-        if room_config:
-            breeding_rooms = [s["room"] for s in room_config if s["type"] == "breeding" and s["room"] in set(available_rooms)]
-            fallback_rooms  = [s["room"] for s in room_config if s["type"] == "fallback"  and s["room"] in set(available_rooms)]
-        else:
-            breeding_rooms = available_rooms[:-1] if len(available_rooms) > 1 else list(available_rooms)
-            fallback_rooms  = [available_rooms[-1]] if available_rooms else [next(iter(ROOM_DISPLAY))]
-        if not breeding_rooms:
-            breeding_rooms = available_rooms[:-1] if len(available_rooms) > 1 else list(available_rooms)
-        if not fallback_rooms:
-            fallback_rooms = [available_rooms[-1]] if available_rooms else [next(iter(ROOM_DISPLAY))]
-        fallback_rooms_set = set(fallback_rooms)
-        all_rooms = list(dict.fromkeys(breeding_rooms + fallback_rooms))
-
-        if mode_family:
-            max_cats_per_room = 6
-            family_assignments = {room: {"males": [], "females": [], "unknown": []} for room in all_rooms}
-
-            def _room_cats(room_key):
-                rd = family_assignments[room_key]
-                return rd["males"] + rd["females"] + rd["unknown"]
-
-            def _preferred_rooms(cat):
-                if not avoid_lovers:
-                    return list(all_rooms)
-                lover_rooms = [r for r in all_rooms if any(_is_mutual_lover_pair(cat, ec) for ec in _room_cats(r))]
-                return lover_rooms + [r for r in all_rooms if r not in lover_rooms]
-
-            def _family_group_id(cat):
-                ancestors = []
-                for p in (cat.parent_a, cat.parent_b):
-                    if p:
-                        ancestors.append(p.db_key)
-                        for gp in (p.parent_a, p.parent_b):
-                            if gp:
-                                ancestors.append(gp.db_key)
-                return tuple(sorted(ancestors)) if ancestors else None
-
-            for gender_list, gender_key in ((males, "males"), (females, "females"), (unknown, "unknown")):
-                family_groups: dict = {}
-                no_family = []
-                for cat in gender_list:
-                    fid = _family_group_id(cat)
-                    (family_groups.setdefault(fid, []) if fid else no_family).append(cat)
-
-                for fid, fcats in family_groups.items():
-                    for cat in fcats:
-                        placed = False
-                        for room in _preferred_rooms(cat):
-                            rc = _room_cats(room)
-                            if len(rc) >= max_cats_per_room:
-                                continue
-                            if any(_family_group_id(ec) == fid or _room_conflict(cat, ec) for ec in rc):
-                                continue
-                            family_assignments[room][gender_key].append(cat)
-                            placed = True
-                            break
-                        if not placed:
-                            best_room = min(
-                                (r for r in _preferred_rooms(cat) if len(_room_cats(r)) < max_cats_per_room),
-                                key=lambda r: sum(_pair_eval(cat, ec)[2] for ec in _room_cats(r) if not _is_hater_conflict(cat, ec)),
-                                default=min(all_rooms, key=lambda r: len(_room_cats(r))),
-                            )
-                            family_assignments[best_room][gender_key].append(cat)
-
-                for cat in no_family:
-                    placed = False
-                    for room in _preferred_rooms(cat):
-                        rc = _room_cats(room)
-                        if len(rc) < max_cats_per_room and not any(_room_conflict(cat, ec) for ec in rc):
-                            family_assignments[room][gender_key].append(cat)
-                            placed = True
-                            break
-                    if not placed:
-                        best_room = min(
-                            (r for r in _preferred_rooms(cat) if len(_room_cats(r)) < max_cats_per_room),
-                            key=lambda r: sum(_pair_eval(cat, ec)[2] for ec in _room_cats(r) if not _is_hater_conflict(cat, ec)),
-                            default=min(all_rooms, key=lambda r: len(_room_cats(r))),
-                        )
-                        family_assignments[best_room][gender_key].append(cat)
-
-            room_assignments = {room: _room_cats(room) for room in all_rooms}
-
-        else:
-            room_assignments = {room: [] for room in all_rooms}
-
-            candidate_pairs = (
-                [(a, b) for a in males for b in females]
-                + [(a, b) for a in males for b in unknown]
-                + [(a, b) for a in females for b in unknown]
-                + [(unknown[i], unknown[j]) for i in range(len(unknown)) for j in range(i+1, len(unknown))]
-            )
-
-            stimulation = 50.0
-            better_stat_chance = (1.0 + 0.01 * stimulation) / (2.0 + 0.01 * stimulation)
-
-            # When avoid_lovers is on: cats with mutual lovers may ONLY breed with
-            # their specific lover. Any other pairing is excluded; if their lover
-            # pair can't form (incompatible, risk too high) they go to fallback.
-            lover_locked: set[int] = has_mutual_lover if avoid_lovers else set()
-
-            pairs_with_scores = []
-            for cat_a, cat_b in candidate_pairs:
-                # If either cat is lover-locked, the pair must be their mutual lover pair
-                if avoid_lovers and (cat_a.db_key in lover_locked or cat_b.db_key in lover_locked):
-                    if not _is_mutual_lover_pair(cat_a, cat_b):
-                        continue
-                ok, _, risk = _pair_eval(cat_a, cat_b)
-                if not ok or risk > max_risk:
-                    continue
-                expected_stats_sum = sum(
-                    max(cat_a.base_stats[s], cat_b.base_stats[s]) * better_stat_chance
-                    + min(cat_a.base_stats[s], cat_b.base_stats[s]) * (1.0 - better_stat_chance)
-                    for s in STAT_NAMES
-                )
-                avg_base_stats = expected_stats_sum / len(STAT_NAMES)
-                complementarity_bonus = sum(0.5 for s in STAT_NAMES if max(cat_a.base_stats[s], cat_b.base_stats[s]) >= 8)
-                variance_penalty = sum(
-                    abs(cat_a.base_stats[s] - cat_b.base_stats[s]) * 2.0
-                    for s in STAT_NAMES if minimize_variance and abs(cat_a.base_stats[s] - cat_b.base_stats[s]) > 2
-                )
-                personality_bonus = _personality_score(cat_a, cat_b) * 2.5
-                # Planner trait bonus: reward pairs that carry desired traits
-                trait_bonus = 0.0
-                if planner_traits:
-                    for t in planner_traits:
-                        a_has = _cat_has_trait(cat_a, t["category"], t["key"])
-                        b_has = _cat_has_trait(cat_b, t["category"], t["key"])
-                        wf = t["weight"] / 10.0
-                        if a_has or b_has:
-                            trait_bonus += wf * 5.0
-                            if a_has and b_has:
-                                trait_bonus += wf * 2.5
-                quality = (avg_base_stats + complementarity_bonus) * (1.0 - risk / 200.0) - variance_penalty + personality_bonus + trait_bonus
-                must_breed_bonus = 1000 if (cat_a.must_breed or cat_b.must_breed) else 0
-                # Lover pairs still get priority in ordering
-                lover_bonus = 500.0 if _is_mutual_lover_pair(cat_a, cat_b) else 0.0
-                pairs_with_scores.append({
-                    "cat_a": cat_a, "cat_b": cat_b, "risk": risk,
-                    "avg_stats": avg_base_stats, "quality": quality,
-                    "must_breed_bonus": must_breed_bonus, "lover_bonus": lover_bonus,
-                })
-
-            pairs_with_scores.sort(key=lambda p: (p["must_breed_bonus"], p["lover_bonus"], p["quality"]), reverse=True)
-            assigned_cats: set[int] = set()
-            max_per_room = 6
-
-            for pair in pairs_with_scores:
-                a, b = pair["cat_a"], pair["cat_b"]
-                if a.db_key in assigned_cats or b.db_key in assigned_cats:
-                    continue
-                placed = False
-                for room in breeding_rooms:
-                    rc = room_assignments[room]
-                    if len(rc) >= max_per_room:
-                        continue
-                    if any(_room_conflict(a, ec) or _room_conflict(b, ec) for ec in rc):
-                        continue
-                    if len(rc) + 2 <= max_per_room:
-                        rc.extend([a, b])
-                        assigned_cats.update([a.db_key, b.db_key])
-                        placed = True
-                        break
-                if not placed:
-                    for cat in [a, b]:
-                        if cat.db_key in assigned_cats:
-                            continue
-                        preferred = sorted(
-                            breeding_rooms,
-                            key=lambda r: (
-                                not avoid_lovers or not any(_is_mutual_lover_pair(cat, ec) for ec in room_assignments[r]),
-                                len(room_assignments[r]),
-                            ),
-                        )
-                        for room in preferred:
-                            rc = room_assignments[room]
-                            if len(rc) < max_per_room and not any(_room_conflict(cat, ec) for ec in rc):
-                                rc.append(cat)
-                                assigned_cats.add(cat.db_key)
-                                break
-
-            # Distribute remaining cats across fallback rooms in round-robin order
-            unassigned = [c for c in all_cats if c.db_key not in assigned_cats]
-            for i, cat in enumerate(unassigned):
-                room_assignments[fallback_rooms[i % len(fallback_rooms)]].append(cat)
-
-        # Build locator data (all_rooms now contains actual room keys in all modes)
-        locator_data = []
-        for room_idx, room in enumerate(all_rooms):
-            assigned_room_label = ROOM_DISPLAY.get(room, room)
-            for c in room_assignments[room]:
-                current = c.room_display or c.status or "?"
-                needs_move = c.status != "In House" or c.room_display != assigned_room_label
+            for cat in assignment.cats:
+                current = cat.room_display or cat.status or "?"
+                needs_move = cat.status != "In House" or cat.room_display != assigned_room_label
                 locator_data.append({
-                    "name": c.name, "gender_display": c.gender_display,
-                    "db_key": c.db_key, "tags": list(_cat_tags(c)),
-                    "age": c.age if c.age is not None else c.db_key,
-                    "current_room": current, "assigned_room": assigned_room_label,
-                    "assigned_room_key": room,
-                    "room_order": room_idx, "needs_move": needs_move,
+                    "name": cat.name,
+                    "gender_display": cat.gender_display,
+                    "db_key": cat.db_key,
+                    "tags": list(_cat_tags(cat)),
+                    "age": cat.age if cat.age is not None else cat.db_key,
+                    "current_room": current,
+                    "assigned_room": assigned_room_label,
+                    "assigned_room_key": room.key,
+                    "room_order": room_idx,
+                    "needs_move": needs_move,
                 })
 
-        # Build per-room display data (no Qt objects)
-        # Use can_breed() instead of _pair_eval() so that relationship
-        # preferences (lover/hater filters) don't suppress the pair count.
-        room_rows = []
-        for room in all_rooms:
-            cats_in_room = room_assignments[room]
-            cat_names = [f"{c.name} ({c.gender_display})" for c in cats_in_room]
             room_pairs = []
-            for i, a in enumerate(cats_in_room):
-                for b in cats_in_room[i+1:]:
-                    ok, _ = can_breed(a, b)
-                    if ok:
-                        if cache is not None and cache.ready:
-                            risk = cache.risk_pct.get(cache._pair_key(a.db_key, b.db_key), 0.0)
-                        else:
-                            risk = risk_percent(a, b)
-                        stat_ranges = {s: (min(a.base_stats[s], b.base_stats[s]), max(a.base_stats[s], b.base_stats[s])) for s in STAT_NAMES}
-                        room_pairs.append({
-                            "cat_a": f"{a.name} ({a.gender_display})",
-                            "cat_b": f"{b.name} ({b.gender_display})",
-                            "is_lovers": _is_mutual_lover_pair(a, b),
-                            "cat_a_has_lover": a.db_key in has_mutual_lover,
-                            "cat_b_has_lover": b.db_key in has_mutual_lover,
-                            "risk": risk,
-                            "avg_stats": (stat_sum[a.db_key] + stat_sum[b.db_key]) / 2,
-                            "stat_ranges": stat_ranges,
-                            "sum_range": (sum(lo for lo, _ in stat_ranges.values()), sum(hi for _, hi in stat_ranges.values())),
-                        })
+            for scored in assignment.pairs:
+                a, b = scored.cat_a, scored.cat_b
+                projection = pair_projection(a, b, room.base_stim)
+                room_pairs.append({
+                    "cat_a": f"{a.name} ({a.gender_display})",
+                    "cat_b": f"{b.name} ({b.gender_display})",
+                    "is_lovers": is_mutual_lover_pair(a, b, lover_key_map),
+                    "cat_a_has_lover": a.db_key in has_mutual_lover,
+                    "cat_b_has_lover": b.db_key in has_mutual_lover,
+                    "risk": scored.risk,
+                    "avg_stats": (_cat_base_sum(a) + _cat_base_sum(b)) / 2,
+                    "stat_ranges": projection.stat_ranges,
+                    "sum_range": projection.sum_range,
+                })
+
             room_pairs.sort(key=lambda p: (-p["avg_stats"], p["risk"]))
             avg_stats = sum(p["avg_stats"] for p in room_pairs) / len(room_pairs) if room_pairs else 0.0
-            avg_risk  = sum(p["risk"]      for p in room_pairs) / len(room_pairs) if room_pairs else 0.0
+            avg_risk = sum(p["risk"] for p in room_pairs) / len(room_pairs) if room_pairs else 0.0
             room_rows.append({
-                "room": room, "room_label": ROOM_DISPLAY.get(room, room),
-                "cat_names": cat_names, "pairs": room_pairs,
-                "avg_stats": avg_stats, "avg_risk": avg_risk,
-                "is_fallback": room in fallback_rooms_set,
+                "room": room.key,
+                "room_label": assigned_room_label,
+                "cat_names": cat_names,
+                "pairs": room_pairs,
+                "avg_stats": avg_stats,
+                "avg_risk": avg_risk,
+                "is_fallback": room.room_type != RoomType.BREEDING,
             })
 
         excluded_rows = [
             {
                 "name": f"{c.name} ({c.gender_display})",
                 "tags": list(_cat_tags(c)),
-                "stats": dict(c.base_stats), "sum": _cat_base_sum(c),
+                "stats": dict(c.base_stats),
+                "sum": _cat_base_sum(c),
                 "traits": {
                     "aggression": _trait_label_from_value("aggression", c.aggression) or "unknown",
-                    "libido":     _trait_label_from_value("libido",     c.libido)     or "unknown",
+                    "libido": _trait_label_from_value("libido", c.libido) or "unknown",
                     "inbredness": _trait_label_from_value("inbredness", c.inbredness) or "unknown",
                 },
             }
@@ -6087,14 +5780,21 @@ class RoomOptimizerWorker(QThread):
         ]
 
         self.finished.emit({
-            "room_rows": room_rows, "locator_data": locator_data,
-            "excluded_rows": excluded_rows, "excluded_cats": excluded_cats,
-            "min_stats": min_stats, "max_risk": max_risk,
-            "mode_family": mode_family, "minimize_variance": minimize_variance,
+            "room_rows": room_rows,
+            "locator_data": locator_data,
+            "excluded_rows": excluded_rows,
+            "excluded_cats": excluded_cats,
+            "min_stats": min_stats,
+            "max_risk": max_risk,
+            "mode_family": mode_family,
+            "minimize_variance": minimize_variance,
             "avoid_lovers": avoid_lovers,
             "prefer_low_aggression": prefer_low_aggression,
             "prefer_high_libido": prefer_high_libido,
+            "use_sa": use_sa,
         })
+        return
+
 
 
 class _SortByUserRoleItem(QTableWidgetItem):
@@ -7246,148 +6946,68 @@ class PerfectCatPlannerView(QWidget):
             for cat in alive_cats
         }
         pair_eval_cache: dict[tuple[int, int], tuple[bool, str, float]] = {}
+        pair_factor_cache: dict[tuple[int, int, float], object] = {}
 
-        better_stat_chance = (1.0 + 0.01 * stimulation) / (2.0 + 0.01 * stimulation)
-
-        def _pair_key(cat_a: Cat, cat_b: Cat) -> tuple[int, int]:
+        def _pair_factor_key(cat_a: Cat, cat_b: Cat, stimulation_value: float) -> tuple[int, int, float]:
             a_key, b_key = cat_a.db_key, cat_b.db_key
-            return (a_key, b_key) if a_key < b_key else (b_key, a_key)
+            return (a_key, b_key, float(stimulation_value)) if a_key < b_key else (b_key, a_key, float(stimulation_value))
 
-        def _is_hater_conflict(cat_a: Cat, cat_b: Cat) -> bool:
-            haters_a = hater_key_map.get(cat_a.db_key, set())
-            haters_b = hater_key_map.get(cat_b.db_key, set())
-            return cat_b.db_key in haters_a or cat_a.db_key in haters_b
+        def _score_pair_cached(cat_a: Cat, cat_b: Cat, stimulation_value: float):
+            key = _pair_factor_key(cat_a, cat_b, stimulation_value)
+            cached = pair_factor_cache.get(key)
+            if cached is None:
+                cached = score_pair_factors(
+                    cat_a,
+                    cat_b,
+                    hater_key_map=hater_key_map,
+                    lover_key_map=lover_key_map,
+                    avoid_lovers=avoid_lovers,
+                    parent_key_map=parent_key_map,
+                    pair_eval_cache=pair_eval_cache,
+                    cache=cache,
+                    stimulation=stimulation_value,
+                    minimize_variance=False,
+                    prefer_low_aggression=prefer_low_aggression,
+                    prefer_high_libido=prefer_high_libido,
+                    planner_traits=[],
+                )
+                pair_factor_cache[key] = cached
+            return cached
 
-        def _is_lover_conflict(cat_a: Cat, cat_b: Cat) -> bool:
-            if not avoid_lovers:
-                return False
-            lovers_a = lover_key_map.get(cat_a.db_key, set())
-            lovers_b = lover_key_map.get(cat_b.db_key, set())
-            if lovers_a and cat_b.db_key not in lovers_a:
-                return True
-            if lovers_b and cat_a.db_key not in lovers_b:
-                return True
-            return False
-
-        def _trait_or_default(value: Optional[float], default: float = 0.5) -> float:
-            if value is None:
-                return default
-            return max(0.0, min(1.0, float(value)))
-
-        def _personality_bonus(cat_a: Cat, cat_b: Optional[Cat] = None) -> float:
-            cats = [cat_a] if cat_b is None else [cat_a, cat_b]
-            score = 0.0
-            if prefer_low_aggression:
-                score += sum(1.0 - _trait_or_default(cat.aggression) for cat in cats) / len(cats)
-            if prefer_high_libido:
-                score += sum(_trait_or_default(cat.libido) for cat in cats) / len(cats)
-            return score
-
-        def _is_direct_family_pair(cat_a: Cat, cat_b: Cat) -> bool:
-            parents_a = parent_key_map.get(cat_a.db_key, set())
-            parents_b = parent_key_map.get(cat_b.db_key, set())
-            if cat_a.db_key in parents_b or cat_b.db_key in parents_a:
-                return True
-            return bool(parents_a & parents_b)
-
-        def _pair_eval(cat_a: Cat, cat_b: Cat) -> tuple[bool, str, float]:
-            key = _pair_key(cat_a, cat_b)
-            cached = pair_eval_cache.get(key)
-            if cached is not None:
-                return cached
-            ok, reason = can_breed(cat_a, cat_b)
-            if ok and _is_direct_family_pair(cat_a, cat_b):
-                ok = False
-                reason = "Direct family pair"
-            if ok and _is_hater_conflict(cat_a, cat_b):
-                ok = False
-                reason = "These cats hate each other"
-            if ok:
-                if cache is not None and cache.ready:
-                    risk = cache.risk_pct.get(cache._pair_key(cat_a.db_key, cat_b.db_key), 0.0)
-                else:
-                    risk = risk_percent(cat_a, cat_b)
-            else:
-                risk = 0.0
-            pair_eval_cache[key] = (ok, reason, risk)
-            return pair_eval_cache[key]
-
-        def _offspring_projection(cat_a: Cat, cat_b: Cat) -> dict:
-            expected_stats: dict[str, float] = {}
-            stat_ranges: dict[str, tuple[int, int]] = {}
-            locked_stats: list[str] = []
-            reachable_stats: list[str] = []
-            missing_stats: list[str] = []
-            seven_plus_total = 0.0
-            distance_total = 0.0
-            for stat in STAT_NAMES:
-                stat_a = cat_a.base_stats[stat]
-                stat_b = cat_b.base_stats[stat]
-                lo = min(stat_a, stat_b)
-                hi = max(stat_a, stat_b)
-                stat_ranges[stat] = (lo, hi)
-                expected = hi * better_stat_chance + lo * (1.0 - better_stat_chance)
-                expected_stats[stat] = expected
-                distance_total += abs(expected - 7.0)
-                if lo >= 7:
-                    locked_stats.append(stat)
-                    reachable_stats.append(stat)
-                    seven_plus_total += 1.0
-                elif hi >= 7:
-                    reachable_stats.append(stat)
-                    seven_plus_total += better_stat_chance
-                else:
-                    missing_stats.append(stat)
-            sum_lo = sum(lo for lo, _ in stat_ranges.values())
-            sum_hi = sum(hi for _, hi in stat_ranges.values())
-            avg_expected = sum(expected_stats.values()) / len(STAT_NAMES)
-            return {
-                "expected_stats": expected_stats,
-                "stat_ranges": stat_ranges,
-                "locked_stats": locked_stats,
-                "reachable_stats": reachable_stats,
-                "missing_stats": missing_stats,
-                "seven_plus_total": seven_plus_total,
-                "distance_total": distance_total,
-                "sum_range": (sum_lo, sum_hi),
-                "avg_expected": avg_expected,
-            }
-
-        candidate_pairs: list[tuple[Cat, Cat]] = []
-        for i, cat_a in enumerate(alive_cats):
-            for cat_b in alive_cats[i + 1:]:
-                ok, _ = can_breed(cat_a, cat_b)
-                if ok:
-                    candidate_pairs.append((cat_a, cat_b))
+        candidate_pairs = [(cat_a, cat_b) for i, cat_a in enumerate(alive_cats) for cat_b in alive_cats[i + 1:]]
 
         evaluated_pairs = []
         for cat_a, cat_b in candidate_pairs:
-            if _is_lover_conflict(cat_a, cat_b):
+            if not planner_pair_allows_breeding(cat_a, cat_b):
                 continue
-            ok, _, risk = _pair_eval(cat_a, cat_b)
-            if not ok or risk > max_risk:
+            factors = _score_pair_cached(cat_a, cat_b, stimulation)
+            if not factors.compatible or factors.risk > max_risk:
                 continue
 
-            projection = _offspring_projection(cat_a, cat_b)
+            projection = factors.projection
             founder_bonus = sum(1.0 for cat in (cat_a, cat_b) if not get_parents(cat)) * 2.0
             must_breed_bonus = 3.0 if cat_a.must_breed or cat_b.must_breed else 0.0
-            personality = _personality_bonus(cat_a, cat_b) * 3.0
+            personality = factors.personality_bonus * 3.0
+            planner_bias = planner_pair_bias(cat_a, cat_b)
+            ancestry_penalty = planner_inbreeding_penalty(cat_a, cat_b)
             progress_score = (
                 projection["seven_plus_total"] * 16.0
                 + len(projection["locked_stats"]) * 12.0
                 + len(projection["reachable_stats"]) * 6.0
                 - len(projection["missing_stats"]) * 7.0
                 - projection["distance_total"] * 2.5
-                - risk * 1.2
+                - factors.risk * 1.2
                 + founder_bonus
                 + personality
                 + must_breed_bonus
+                + planner_bias
+                - ancestry_penalty
             )
 
             evaluated_pairs.append({
                 "cat_a": cat_a,
                 "cat_b": cat_b,
-                "risk": risk,
+                "risk": factors.risk,
                 "projection": projection,
                 "score": progress_score,
                 "personality": personality,
@@ -7494,23 +7114,29 @@ class PerfectCatPlannerView(QWidget):
                 for candidate in alive_cats:
                     if candidate.db_key in pair_cats:
                         continue
-                    ok, _, risk = _pair_eval(parent, candidate)
-                    if not ok or risk > max_risk:
+                    if not planner_pair_allows_breeding(parent, candidate):
+                        continue
+                    factors = _score_pair_cached(parent, candidate, stimulation)
+                    if not factors.compatible or factors.risk > max_risk:
                         continue
                     bring_stats = [stat for stat in missing_stats if candidate.base_stats[stat] >= 7]
                     if not bring_stats:
                         continue
+                    planner_bias = planner_pair_bias(parent, candidate)
+                    ancestry_penalty = planner_inbreeding_penalty(parent, candidate)
                     score = (
                         len(bring_stats) * 15.0
                         + sum(candidate.base_stats[stat] for stat in bring_stats)
-                        - risk
-                        + _personality_bonus(parent, candidate) * 3.0
+                        - factors.risk
+                        + factors.personality_bonus * 3.0
                         + (4.0 if not get_parents(candidate) else 0.0)
+                        + planner_bias
+                        - ancestry_penalty
                     )
                     record = {
                         "parent": parent,
                         "candidate": candidate,
-                        "risk": risk,
+                        "risk": factors.risk,
                         "bring_stats": bring_stats,
                         "score": score,
                     }
@@ -7614,7 +7240,7 @@ class PerfectCatPlannerView(QWidget):
                     if not get_parents(rotation["candidate"])
                     else _tr("perfect_planner.stage3.source.existing")
                 )
-                rotated_projection = _offspring_projection(rotation["parent"], rotation["candidate"])
+                rotated_projection = pair_projection(rotation["parent"], rotation["candidate"], stimulation=stimulation)
                 rotated_bp = _pair_breakpoint_analysis(rotation["parent"], rotation["candidate"], stimulation)
                 stage3_import_counts.append(float(len(rotation["bring_stats"])))
                 stage3_actions.append({
@@ -12280,10 +11906,7 @@ def main():
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         handlers=[logging.StreamHandler()],
     )
-    logger.info("Mewgenics Breeding Manager starting")
-
-    # Pass game data to parser module
-    set_visual_mut_data(_VISUAL_MUT_DATA)
+    logger.info("Mewgenics Breeding Manager %s starting", APP_VERSION)
 
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
@@ -12301,6 +11924,10 @@ def main():
     pal.setColor(QPalette.ToolTipBase,     QColor(20,  20,  40))
     pal.setColor(QPalette.ToolTipText,     QColor(220, 220, 230))
     app.setPalette(pal)
+
+    # Keep Qt initialized before showing dialogs on some Linux setups.
+    from PySide6 import QtWidgets
+    QtWidgets.QMessageBox()
 
     if not _GPAK_PATH:
         QMessageBox.information(

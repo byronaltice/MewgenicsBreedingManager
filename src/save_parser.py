@@ -12,6 +12,7 @@ import re
 import os
 import math
 import logging
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 from collections import deque
@@ -72,6 +73,27 @@ def _normalize_gender(raw_gender: Optional[str]) -> str:
     return "?"
 
 
+@dataclass(slots=True)
+class SaveData:
+    """Parsed save output with tuple-style compatibility."""
+
+    cats: list["Cat"]
+    errors: list[tuple[int, str]]
+    unlocked_house_rooms: list[str]
+
+    def as_tuple(self) -> tuple[list["Cat"], list[tuple[int, str]], list[str]]:
+        return self.cats, self.errors, self.unlocked_house_rooms
+
+    def __iter__(self):
+        yield from self.as_tuple()
+
+    def __len__(self) -> int:
+        return 3
+
+    def __getitem__(self, index: int):
+        return self.as_tuple()[index]
+
+
 # ── Visual mutation table ─────────────────────────────────────────────────────
 
 _VISUAL_MUTATION_FIELDS = [
@@ -105,6 +127,60 @@ _VISUAL_MUTATION_PART_LABELS = {
     "mouth": "Mouth",
 }
 
+_STAT_LABELS = {
+    "str": "STR",
+    "con": "CON",
+    "int": "INT",
+    "dex": "DEX",
+    "spd": "SPD",
+    "lck": "LCK",
+    "cha": "CHA",
+    "shield": "Shield",
+    "divine_shield": "Holy Shield",
+}
+
+
+@dataclass(slots=True)
+class GameData:
+    """Resource-backed lookup tables used by parser helpers."""
+
+    visual_mutation_data: dict[str, dict[int, tuple[str, str]]] = field(default_factory=dict)
+
+    @classmethod
+    def from_gpak(cls, gpak_path: str | None) -> "GameData":
+        if not gpak_path:
+            return cls()
+        try:
+            with open(gpak_path, "rb") as f:
+                count = struct.unpack("<I", f.read(4))[0]
+                entries = []
+                for _ in range(count):
+                    name_len = struct.unpack("<H", f.read(2))[0]
+                    name = f.read(name_len).decode("utf-8", errors="replace")
+                    size = struct.unpack("<I", f.read(4))[0]
+                    entries.append((name, size))
+                dir_end = f.tell()
+
+                file_offsets: dict[str, tuple[int, int]] = {}
+                offset = dir_end
+                for name, size in entries:
+                    file_offsets[name] = (offset, size)
+                    offset += size
+
+                game_strings = _load_gpak_text_strings(f, file_offsets)
+                result: dict[str, dict[int, tuple[str, str]]] = {}
+                for fname, (foff, fsz) in file_offsets.items():
+                    if not (fname.startswith("data/mutations/") and fname.endswith(".gon")):
+                        continue
+                    category = fname.split("/")[-1].replace(".gon", "")
+                    f.seek(foff)
+                    content = f.read(fsz).decode("utf-8", errors="replace")
+                    result[category] = _parse_mutation_gon(content, game_strings, category)
+                return cls(result)
+        except Exception:
+            return cls()
+
+
 # Populated at runtime via set_visual_mut_data() from the main module.
 _VISUAL_MUT_DATA: dict[str, dict[int, tuple[str, str]]] = {}
 
@@ -113,6 +189,100 @@ def set_visual_mut_data(data: dict[str, dict[int, tuple[str, str]]]):
     """Update the visual mutation lookup data (called after gpak loading)."""
     global _VISUAL_MUT_DATA
     _VISUAL_MUT_DATA = data
+
+
+def _load_gpak_text_strings(file_obj, file_offsets: dict[str, tuple[int, int]]) -> dict[str, str]:
+    """Read the embedded text table from a resources.gpak file."""
+    game_strings: dict[str, str] = {}
+    for fname, (offset, size) in file_offsets.items():
+        if not fname.endswith(".csv"):
+            continue
+        file_obj.seek(offset)
+        text = file_obj.read(size).decode("utf-8", errors="replace")
+        for line in text.splitlines():
+            parts = line.split(",", 1)
+            if len(parts) != 2:
+                continue
+            key, value = parts[0].strip(), parts[1].strip()
+            if key:
+                game_strings[key] = value
+    return game_strings
+
+
+def _resolve_game_string(value: str, game_strings: dict[str, str]) -> str:
+    """Resolve chained game-string references of the form [KEY]."""
+    current = value.strip()
+    seen: set[str] = set()
+    while current.startswith("[") and current.endswith("]"):
+        key = current[1:-1].strip()
+        if not key or key in seen:
+            break
+        seen.add(key)
+        next_value = game_strings.get(key)
+        if next_value is None:
+            break
+        current = next_value.strip()
+    return current
+
+
+def _parse_mutation_gon(content: str, game_strings: dict[str, str], category: str) -> dict[int, tuple[str, str]]:
+    """Parse a mutation GON file into {slot_id: (display_name, stat_desc)}."""
+    result: dict[int, tuple[str, str]] = {}
+    csv_prefix = f"MUTATION_{category.upper()}_"
+
+    def _extract_block(start_pos: int) -> tuple[str, int]:
+        depth, end = 1, start_pos
+        while end < len(content) and depth > 0:
+            if content[end] == "{":
+                depth += 1
+            elif content[end] == "}":
+                depth -= 1
+            end += 1
+        return content[start_pos:end - 1], end
+
+    def _block_to_entry(slot_id: int, block: str):
+        name_match = re.search(r"//\s*(.+)", block)
+        raw_name = name_match.group(1).strip().title() if name_match else f"Mutation {slot_id}"
+        raw_name = re.sub(r"\s*\(.*", "", raw_name).strip() or raw_name
+        csv_key = f"{csv_prefix}{slot_id}_DESC"
+        if csv_key in game_strings:
+            stat_desc = _resolve_game_string(game_strings[csv_key], game_strings).strip().rstrip(".")
+        else:
+            header = block.split("{")[0]
+            stats: list[str] = []
+            for key, label in _STAT_LABELS.items():
+                stat_match = re.search(rf"(?<!\w){re.escape(key)}\s+(-?\d+)", header)
+                if stat_match:
+                    value = int(stat_match.group(1))
+                    stats.append(f"{'+' if value > 0 else ''}{value} {label}")
+            stat_desc = ", ".join(stats)
+        result[slot_id] = (raw_name, stat_desc)
+
+    idx = 0
+    while idx < len(content):
+        match = re.search(r"(?<!\w)(\d{3,})\s*\{", content[idx:])
+        if not match:
+            break
+        slot_id = int(match.group(1))
+        block, idx = _extract_block(idx + match.end())
+        if slot_id < 300:
+            continue
+        _block_to_entry(slot_id, block)
+
+    m2_match = re.search(r"(?<!\w)-2\s*\{", content)
+    if m2_match:
+        block, _ = _extract_block(m2_match.end())
+        csv_key_m2 = f"{csv_prefix}M2_DESC"
+        if csv_key_m2 in game_strings:
+            name_match = re.search(r"//\s*(.+)", block)
+            raw_name = name_match.group(1).strip().title() if name_match else "Missing Part"
+            raw_name = re.sub(r"\s*\(.*", "", raw_name).strip() or raw_name
+            stat_desc = _resolve_game_string(game_strings[csv_key_m2], game_strings).strip().rstrip(".")
+            result[0xFFFFFFFE] = (raw_name, stat_desc)
+        else:
+            _block_to_entry(0xFFFFFFFE, block)
+
+    return result
 
 
 def _read_visual_mutation_entries(table: list[int]) -> list[dict[str, object]]:
@@ -290,6 +460,11 @@ class BinaryReader:
         self.pos += 4
         return v
 
+    def u8(self):
+        v = struct.unpack_from('<B', self.data, self.pos)[0]
+        self.pos += 1
+        return v
+
     def u64(self):
         lo, hi = struct.unpack_from('<II', self.data, self.pos)
         self.pos += 8
@@ -331,6 +506,13 @@ class BinaryReader:
     def remaining(self):
         return len(self.data) - self.pos
 
+    def find(self, needle: bytes | str, start: Optional[int] = None, end: Optional[int] = None) -> int:
+        if isinstance(needle, str):
+            needle = needle.encode("ascii", errors="ignore")
+        start = self.pos if start is None else start
+        end = len(self.data) if end is None else end
+        return self.data.find(needle, start, end)
+
 
 # ── Parent UID scanner ────────────────────────────────────────────────────────
 
@@ -357,6 +539,110 @@ def _scan_blob_for_parent_uids(raw: bytes, uid_set: frozenset, self_uid: int) ->
                 return v1, 0           # one parent (other unknown)
         i += 4  # u64-aligned steps
     return 0, 0
+
+
+def _resolve_parent_uids(
+    cat: "Cat",
+    uid_set: frozenset,
+    ped_map: dict[int, tuple[Optional[int], Optional[int]]],
+) -> tuple[Optional[int], Optional[int]]:
+    """Resolve parent UIDs using pedigree data, blob hints, and a raw scan fallback."""
+    pa_k, pb_k = ped_map.get(cat.db_key, (None, None))
+
+    def _valid_uid(value) -> Optional[int]:
+        if value in (None, 0, cat._uid_int):
+            return None
+        try:
+            candidate = int(value)
+        except Exception:
+            return None
+        return candidate if candidate in uid_set else None
+
+    candidates: list[int] = []
+    for raw_uid in (getattr(cat, "_parent_uid_a", 0), getattr(cat, "_parent_uid_b", 0)):
+        cand = _valid_uid(raw_uid)
+        if cand is not None and cand not in candidates:
+            candidates.append(cand)
+
+    if _valid_uid(pa_k) is None and candidates:
+        pa_k = candidates.pop(0)
+    if _valid_uid(pb_k) is None and candidates:
+        next_candidate = candidates.pop(0)
+        if next_candidate != pa_k:
+            pb_k = next_candidate
+
+    if _valid_uid(pa_k) is None or _valid_uid(pb_k) is None:
+        scan_a, scan_b = _scan_blob_for_parent_uids(getattr(cat, "_raw", b""), uid_set, cat._uid_int)
+        scan_candidates = [u for u in (scan_a, scan_b) if u not in (0, cat._uid_int)]
+        if _valid_uid(pa_k) is None:
+            for candidate in scan_candidates:
+                if candidate != pb_k:
+                    pa_k = candidate
+                    break
+        if _valid_uid(pb_k) is None:
+            for candidate in scan_candidates:
+                if candidate != pa_k:
+                    pb_k = candidate
+                    break
+
+    return _valid_uid(pa_k), _valid_uid(pb_k)
+
+
+def _break_pedigree_cycles(cats: list["Cat"]) -> int:
+    """Break invalid parent loops so ancestry helpers stay simple downstream."""
+    broken = 0
+    max_passes = max(1, len(cats))
+    for _ in range(max_passes):
+        changed = False
+        for cat in sorted(cats, key=lambda c: c.db_key):
+            for attr in ("parent_a", "parent_b"):
+                parent = getattr(cat, attr)
+                if parent is None:
+                    continue
+                if parent is cat:
+                    logger.warning("Breaking self-parent loop for cat %s", cat.db_key)
+                    setattr(cat, attr, None)
+                    broken += 1
+                    changed = True
+                    break
+                if cat in get_all_ancestors(parent, depth=len(cats) + 1):
+                    logger.warning(
+                        "Breaking pedigree cycle: cat %s -> parent %s via %s",
+                        cat.db_key,
+                        parent.db_key,
+                        attr,
+                    )
+                    setattr(cat, attr, None)
+                    broken += 1
+                    changed = True
+                    break
+            if changed:
+                break
+        if not changed:
+            break
+    return broken
+
+
+def _choose_age_from_creation_days(current_day: int, creation_days: list[int], eternal_youth: bool = False) -> Optional[int]:
+    """
+    Pick the most plausible age from candidate creation_day values.
+
+    Some cat blobs include a zero-padded slot immediately before the real
+    creation_day field. Preferring the largest valid non-zero creation day keeps
+    those cats from being misread as day-0 imports.
+    """
+    valid_days = sorted(
+        {day for day in creation_days if 0 <= day <= current_day},
+        reverse=True,
+    )
+    if not valid_days:
+        return None
+
+    for creation_day in valid_days:
+        age = current_day - creation_day
+        if age <= 100 or eternal_youth:
+            return age
+    return None
 
 
 def _read_db_key_candidates(raw: bytes, self_key: int, offsets: tuple[int, ...], base_offset: int = 0) -> list[int]:
@@ -513,19 +799,17 @@ class Cat:
         # ── Ability run — anchored on "DefaultMove" ─────────────────────────
         curr = r.pos
         run_start = -1
-        for i in range(curr, min(curr + 600, len(raw) - 19)):
-            lo = struct.unpack_from('<I', raw, i)[0]
-            hi = struct.unpack_from('<I', raw, i + 4)[0]
-            if hi != 0 or not (1 <= lo <= 96):
-                continue
+        marker = r.find("DefaultMove", start=curr, end=min(curr + 600, len(raw)))
+        if marker != -1 and marker >= 8:
+            run_start = marker - 8
             try:
-                cand = raw[i + 8: i + 8 + lo].decode('ascii')
-                if cand == 'DefaultMove':
-                    run_start = i
-                    break
+                lo = struct.unpack_from('<I', raw, run_start)[0]
+                hi = struct.unpack_from('<I', raw, run_start + 4)[0]
+                if hi != 0 or not (1 <= lo <= 96):
+                    run_start = -1
             except Exception:
-                logger.debug("Cat %s: ability marker scan failed at byte %d", cat_key, i, exc_info=True)
-                continue
+                logger.debug("Cat %s: ability marker scan failed at byte %d", cat_key, run_start, exc_info=True)
+                run_start = -1
 
         if run_start != -1:
             r.seek(run_start)
@@ -613,16 +897,16 @@ class Cat:
         # Extract age from creation_day stored near the end of the blob
         if current_day is not None:
             try:
+                eternal_youth = any(d.lower() == "eternalyouth" for d in (getattr(self, "disorders", None) or []))
+                creation_day_candidates: list[int] = []
                 for offset_from_end in [103, 102, 104, 101, 105, 100, 106, 107, 108, 109, 110]:
                     pos = len(raw) - offset_from_end
                     if pos + 4 > len(raw) or pos < 0:
                         continue
                     creation_day = struct.unpack_from('<I', raw, pos)[0]
                     if 0 <= creation_day <= current_day:
-                        age = current_day - creation_day
-                        if 0 <= age <= 100:
-                            self.age = age
-                            break
+                        creation_day_candidates.append(creation_day)
+                self.age = _choose_age_from_creation_days(current_day, creation_day_candidates, eternal_youth)
             except Exception:
                 logger.debug("Cat %s: age extraction failed", cat_key, exc_info=True)
 
@@ -1139,7 +1423,7 @@ def _parse_pedigree(conn) -> dict:
     return ped_map
 
 
-def parse_save(path: str) -> tuple[list, list, list[str]]:
+def parse_save(path: str) -> SaveData:
     conn  = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
     house = _get_house_info(conn)
     unlocked_house_rooms = _get_unlocked_house_rooms(conn)
@@ -1159,16 +1443,19 @@ def parse_save(path: str) -> tuple[list, list, list[str]]:
             errors.append((key, str(e)))
 
     key_to_cat: dict = {c.db_key: c for c in cats}
+    uid_set = frozenset(c._uid_int for c in cats if getattr(c, "_uid_int", 0))
 
     for cat in cats:
-        pa: Optional[Cat] = None
-        pb: Optional[Cat] = None
-        if cat.db_key in ped_map:
-            pa_k, pb_k = ped_map[cat.db_key]
+        pa = pb = None
+        pa_k, pb_k = _resolve_parent_uids(cat, uid_set, ped_map)
+        if pa_k is not None:
             pa = key_to_cat.get(pa_k)
+        if pb_k is not None:
             pb = key_to_cat.get(pb_k)
-            if pa is cat: pa = None
-            if pb is cat: pb = None
+        if pa is cat:
+            pa = None
+        if pb is cat:
+            pb = None
         cat.parent_a = pa
         cat.parent_b = pb
 
@@ -1183,6 +1470,8 @@ def parse_save(path: str) -> tuple[list, list, list[str]]:
             other = key_to_cat.get(key)
             if other is not None and other is not cat and other not in cat.haters:
                 cat.haters.append(other)
+
+    _break_pedigree_cycles(cats)
 
     # Build children bottom-up
     for cat in cats:
@@ -1215,7 +1504,7 @@ def parse_save(path: str) -> tuple[list, list, list[str]]:
         if c.generation < 0:
             c.generation = 0
 
-    return cats, errors, unlocked_house_rooms
+    return SaveData(cats=cats, errors=errors, unlocked_house_rooms=unlocked_house_rooms)
 
 
 def find_save_files(root_dir: str) -> list[str]:

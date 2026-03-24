@@ -18,6 +18,7 @@ sys.path.insert(0, _proj_root)
 
 from save_parser import (
     BinaryReader,
+    _choose_age_from_creation_days,
     _valid_str,
     _normalize_gender,
     _scan_blob_for_parent_uids,
@@ -248,6 +249,17 @@ class TestNormalizeGender:
 
     def test_unknown(self):
         assert _normalize_gender("something") == "?"
+
+
+class TestChooseAgeFromCreationDays:
+    def test_prefers_nonzero_creation_day_over_padding_zero(self):
+        assert _choose_age_from_creation_days(69, [0, 57]) == 12
+
+    def test_keeps_zero_when_it_is_the_only_candidate(self):
+        assert _choose_age_from_creation_days(69, [0]) == 69
+
+    def test_prefers_largest_valid_creation_day(self):
+        assert _choose_age_from_creation_days(69, [1, 57, 12]) == 12
 
 
 # ── Blob scanning tests ─────────────────────────────────────────────────────

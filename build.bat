@@ -4,6 +4,15 @@ set "BUILD_DIR=build\mewgenics_manager"
 set "DIST_ROOT=dist"
 set "APP_DIR_OUT=%DIST_ROOT%\MewgenicsManager"
 set "APP_EXE_OUT=%DIST_ROOT%\MewgenicsManager.exe"
+set "VERSION_FILE=VERSION"
+
+if exist "%VERSION_FILE%" (
+    set /p VERSION=<"%VERSION_FILE%"
+) else (
+    set "VERSION=dev"
+)
+if not defined VERSION set "VERSION=dev"
+set "APP_ZIP_OUT=%DIST_ROOT%\MewgenicsManager-%VERSION%.zip"
 
 echo Installing / updating dependencies...
 pip install -r requirements.txt
@@ -11,6 +20,7 @@ pip install pyinstaller
 
 echo.
 echo Cleaning previous build output...
+if exist "%DIST_ROOT%\MewgenicsManager-*.zip" del /F /Q "%DIST_ROOT%\MewgenicsManager-*.zip" >nul 2>nul
 if exist "%APP_DIR_OUT%" (
     attrib -R /S /D "%APP_DIR_OUT%\*" >nul 2>nul
     rmdir /S /Q "%APP_DIR_OUT%"
@@ -39,9 +49,9 @@ if exist "%APP_EXE_OUT%" (
     echo Waiting for file lock to release...
     timeout /t 3 /nobreak >nul
     echo Zipping executable...
-    powershell -NoProfile -Command "Compress-Archive -Path '%APP_EXE_OUT%' -DestinationPath '%DIST_ROOT%\MewgenicsManager.zip' -Force"
-    if exist "%DIST_ROOT%\MewgenicsManager.zip" (
-        echo Zip created: %DIST_ROOT%\MewgenicsManager.zip
+    powershell -NoProfile -Command "Compress-Archive -Path '%APP_EXE_OUT%' -DestinationPath '%APP_ZIP_OUT%' -Force"
+    if exist "%APP_ZIP_OUT%" (
+        echo Zip created: %APP_ZIP_OUT%
     ) else (
         echo Warning: zip creation failed.
     )
