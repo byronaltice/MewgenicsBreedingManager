@@ -74,8 +74,9 @@ jobs:
         GITHUB_TOKEN: ${{ github.token }}
       run: |
         TAG="${{ github.ref_name }}"
-        if gh release view "$TAG" >/dev/null 2>&1; then
-          gh release upload "$TAG" release-assets/windows/*.zip release-assets/linux/*.zip --clobber
+        REPO="${{ github.repository }}"
+        if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
+          gh release upload "$TAG" release-assets/windows/*.zip release-assets/linux/*.zip --clobber --repo "$REPO"
         else
-          gh release create "$TAG" release-assets/windows/*.zip release-assets/linux/*.zip --generate-notes
+          gh release create "$TAG" release-assets/windows/*.zip release-assets/linux/*.zip --generate-notes --repo "$REPO"
         fi
