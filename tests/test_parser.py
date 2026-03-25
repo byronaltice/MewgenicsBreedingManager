@@ -43,8 +43,10 @@ from save_parser import (
     _combined_malady_chance,
     _is_hater_pair,
     _parse_furniture_entry,
+    build_furniture_room_summaries,
     summarize_furniture_room,
     shared_ancestor_counts,
+    _break_pedigree_cycles,
     STAT_NAMES,
 )
 
@@ -393,6 +395,50 @@ class TestFurnitureParser:
         assert summary.crowd_penalty == 38
         assert summary.effective_effects['Comfort'] == -14.0
 
+    def test_build_furniture_room_summaries_uses_cat_counts_and_room_order(self):
+        items = [
+            _parse_furniture_entry(
+                struct.pack('<I', 1)
+                + struct.pack('<Q', len(b'blue_table'))
+                + b'blue_table'
+                + struct.pack('<4I', 0, 0, 12, 0)
+                + b'Floor1_Large'
+                + struct.pack('<5i', 1, 2, 3, 4, 5),
+                1,
+            ),
+            _parse_furniture_entry(
+                struct.pack('<I', 1)
+                + struct.pack('<Q', len(b'poop'))
+                + b'poop'
+                + struct.pack('<4I', 0, 0, 5, 0)
+                + b'Attic'
+                + struct.pack('<5i', 9, 9, 9, 9, 9),
+                2,
+            ),
+        ]
+        catalog = {
+            'blue_table': SimpleNamespace(effects={'Stimulation': 7, 'Comfort': 2}),
+            'poop': SimpleNamespace(effects={'Stimulation': -3}),
+        }
+        cats = [
+            _make_cat(db_key=1, status='In House', room='Floor1_Large'),
+            _make_cat(db_key=2, status='In House', room='Attic'),
+            _make_cat(db_key=3, status='Gone', room='Floor1_Large'),
+        ]
+
+        summaries = build_furniture_room_summaries(
+            {'Floor1_Large': [items[0]], 'Attic': [items[1]]},
+            catalog,
+            cats,
+            room_order=('Attic', 'Floor1_Large'),
+        )
+
+        assert [summary.room for summary in summaries] == ['Attic', 'Floor1_Large']
+        assert summaries[0].cat_count == 1
+        assert summaries[0].raw_effects['Stimulation'] == -3.0
+        assert summaries[1].cat_count == 1
+        assert summaries[1].raw_effects['Stimulation'] == 7.0
+
 
 # ── Breeding compatibility tests ─────────────────────────────────────────────
 
@@ -524,14 +570,47 @@ class TestAncestry:
 
         assert _resolve_parent_uids(cat, ped_map) == (7, None)
 
-    def test_parse_save_marks_repaired_pedigree(self):
+    def test_break_pedigree_cycles_repairs_a_simple_loop(self):
+        cat_a = _make_cat(db_key=1, name="A")
+        cat_b = _make_cat(db_key=2, name="B", parent_a=cat_a)
+        cat_a.parent_a = cat_b
+
+        broken = _break_pedigree_cycles([cat_a, cat_b])
+
+        assert broken == 1
+        assert cat_a.parent_a is None
+        assert cat_a.pedigree_was_repaired is True
+        assert cat_a.pedigree_cycle_breaks == 1
+        assert cat_b.parent_a is cat_a
+
+    def test_parse_save_keeps_orphan_pedigree_entries_parentless(self):
         cats, errors, rooms = parse_save(os.path.join(_proj_root, "tools", "saves", "23.sav"))
-        chevy = next(cat for cat in cats if cat.db_key == 313)
+        wisteria = next(cat for cat in cats if cat.db_key == 293)
 
         assert not errors
-        assert chevy.parent_a is None and chevy.parent_b is None
-        assert chevy.pedigree_was_repaired is True
-        assert chevy.pedigree_cycle_breaks == 2
+        assert wisteria.parent_a is None and wisteria.parent_b is None
+        assert wisteria.pedigree_was_repaired is False
+        assert wisteria.pedigree_cycle_breaks == 0
+
+    def test_parse_save_exposes_pedigree_coi_memo_cache(self):
+        save = parse_save(os.path.join(_proj_root, "tools", "saves", "23.sav"))
+        cats_by_key = {cat.db_key: cat for cat in save.cats}
+        shared_memo = {}
+
+        assert save.pedigree_coi_memos
+        assert save.accessible_cats
+
+        checked = 0
+        for (parent_a_key, parent_b_key), memo_coi in save.pedigree_coi_memos.items():
+            parent_a = cats_by_key.get(parent_a_key)
+            parent_b = cats_by_key.get(parent_b_key)
+            if parent_a is None or parent_b is None:
+                continue
+            assert save.pedigree_coi_for(parent_a_key, parent_b_key) == pytest.approx(memo_coi)
+            assert kinship_coi(parent_a, parent_b, shared_memo) == pytest.approx(memo_coi)
+            checked += 1
+
+        assert checked > 0
 
 
 class TestInbreeding:

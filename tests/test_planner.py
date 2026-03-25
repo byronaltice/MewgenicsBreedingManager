@@ -111,6 +111,25 @@ def test_evaluate_pair_enforces_lover_blocking():
     assert risk == 0.0
 
 
+def test_evaluate_pair_uses_cache_accessor_for_risk():
+    cat_a = _make_cat(1, gender="male", sexuality="bi")
+    cat_b = _make_cat(2, gender="female", sexuality="straight")
+    cache = SimpleNamespace(ready=True, get_risk=lambda a, b: 17.25)
+
+    ok, reason, risk = evaluate_pair(
+        cat_a,
+        cat_b,
+        hater_key_map={1: set(), 2: set()},
+        lover_key_map={1: set(), 2: set()},
+        avoid_lovers=False,
+        cache=cache,
+    )
+
+    assert ok
+    assert reason == ""
+    assert risk == 17.25
+
+
 def test_planner_pair_bias_prefers_opposite_or_unknown_gender_pairs():
     male = _make_cat(1, gender="male")
     female = _make_cat(2, gender="female")

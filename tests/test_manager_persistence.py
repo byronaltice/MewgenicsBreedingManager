@@ -223,6 +223,20 @@ def test_breeding_cache_round_trip():
         assert BreedingCache.load_from_disk(str(save_path), "bogus-signature") is None
 
 
+def test_breeding_cache_uses_pedigree_coi_memo_when_risk_missing():
+    cache = BreedingCache()
+    cache.ready = True
+    cache.pedigree_coi_memos[(1, 2)] = 0.25
+
+    cat_a = _make_cat("0x1", "A")
+    cat_a.db_key = 1
+    cat_b = _make_cat("0x2", "B")
+    cat_b.db_key = 2
+
+    expected = mm._combined_malady_chance(0.25) * 100.0
+    assert cache.get_risk(cat_a, cat_b) == pytest.approx(expected)
+
+
 def test_threshold_preferences_round_trip_and_curve_math(monkeypatch):
     with _workspace_temp_dir() as td:
         config_path = td / "settings.json"
@@ -277,13 +291,14 @@ def test_start_breeding_cache_uses_save_signature_for_disk_lookup(monkeypatch):
                 self.formats.append(text)
 
         class _DummyWorker:
-            def __init__(self, cats, save_path="", existing_pairwise=None, prev_cache=None, prev_parent_keys=None, save_signature=None, parent=None):
+            def __init__(self, cats, save_path="", existing_pairwise=None, prev_cache=None, prev_parent_keys=None, save_signature=None, pedigree_coi_memos=None, parent=None):
                 self.cats = cats
                 self.save_path = save_path
                 self.existing_pairwise = existing_pairwise
                 self.prev_cache = prev_cache
                 self.prev_parent_keys = prev_parent_keys
                 self.save_signature = save_signature
+                self.pedigree_coi_memos = pedigree_coi_memos
                 self.parent = parent
                 self.progress = _SignalStub()
                 self.phase1_ready = _SignalStub()

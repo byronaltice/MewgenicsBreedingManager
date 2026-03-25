@@ -58,13 +58,14 @@ class OptimizationParams:
     min_stats: int = 0
     max_risk: float = 10.0
     stimulation: float = 50.0
+    maximize_throughput: bool = False
     minimize_variance: bool = True
     avoid_lovers: bool = True
     prefer_low_aggression: bool = True
     prefer_high_libido: bool = True
     mode_family: bool = False
     use_sa: bool = False
-    sa_temperature: float = 100.0
+    sa_temperature: float = 8.0
     sa_cooling_rate: float = 0.95
     sa_neighbors_per_temp: int = 120
     risk_barrier_lambda: float = 20.0

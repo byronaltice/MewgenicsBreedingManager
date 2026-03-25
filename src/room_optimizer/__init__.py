@@ -10,13 +10,14 @@ from .types import (
     RoomType,
     ScoredPair,
 )
-from .optimizer import build_room_configs, optimize_room_distribution, score_pair
+from .optimizer import best_breeding_room_stimulation, build_room_configs, optimize_room_distribution, score_pair
 
 __all__ = [
     "DEFAULT_ROOM_CONFIGS",
     "OptimizationParams",
     "OptimizationResult",
     "OptimizationStats",
+    "best_breeding_room_stimulation",
     "RoomAssignment",
     "RoomConfig",
     "RoomType",

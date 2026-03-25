@@ -268,7 +268,11 @@ def evaluate_pair(
 
     if ok:
         if cache is not None and getattr(cache, "ready", False):
-            risk = cache.risk_pct.get(cache._pair_key(a.db_key, b.db_key), 0.0)
+            get_risk = getattr(cache, "get_risk", None)
+            if callable(get_risk):
+                risk = get_risk(a, b)
+            else:
+                risk = risk_percent(a, b)
         else:
             risk = risk_percent(a, b)
     else:

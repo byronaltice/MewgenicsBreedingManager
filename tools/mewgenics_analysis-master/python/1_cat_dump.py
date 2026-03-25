@@ -1,0 +1,95 @@
+from common.dumped_save import DumpedSaveReader
+
+SAVE_DUMP_PATH_PREFIX = '../out/dumped_save'
+
+'''
+Prints every field exposed by the Cat parser in common.dumped_save.
+
+polymeric 2026
+'''
+
+# theory_checker
+
+def main():
+    save_reader = DumpedSaveReader(SAVE_DUMP_PATH_PREFIX)
+    cats = save_reader.read_cats()
+
+    for k, v in sorted(cats.items()):
+        version = v.version()
+        entropy = v.entropy()
+        name = v.name()
+        nameplate_symbol = v.nameplate_symbol()
+        sex = v.sex()
+        sex_dup = v.sex_dup()
+        status_flags = v.status_flags()
+        unknown_2 = v.unknown_2()
+        unknown_3 = v.unknown_3()
+        libido = v.libido()
+        sexuality = v.sexuality()
+        lover_sql_key = v.lover_sql_key()
+        unknown_7 = v.unknown_7()
+        aggression = v.aggression()
+        hater_sql_key = v.hater_sql_key()
+        unknown_9 = v.unknown_9()
+        unknown_10 = v.unknown_10()
+        body_parts = v.body_parts()
+        stats_heritable = v.stats_heritable()
+        stats_delta_levelling = v.stats_delta_levelling()
+        stats_delta_injuries = v.stats_delta_injuries()
+        last_injury_debuffed_stat = v.last_injury_debuffed_stat()
+        campaign_stats = v.campaign_stats()
+        actives_basic = v.actives_basic()
+        actives_accessible = v.actives_accessible()
+        actives_inherited = v.actives_inherited()
+        passives = v.passives()
+        mutations = v.mutations()
+        equipment = v.equipment()
+        collar = v.collar()
+        level = v.level()
+        coi = v.coi()
+        birthday = v.birthday()
+        deathday_house = v.deathday_house()
+        unknown_17 = v.unknown_17()
+        unknown_19 = v.unknown_19()
+        unknown_20 = v.unknown_20()
+        unknown_21 = v.unknown_21()
+        unknown_22 = v.unknown_22()
+        unknown_23 = v.unknown_23()
+        injuries = v.injuries()
+
+        print(f'{k:08d} {name}')
+        print(f'0x{entropy:x} v{version}')
+        print(f'{nameplate_symbol} {sex} {sex_dup}')
+        print(f'{status_flags:064b}')
+        print(f'{unknown_2} {unknown_3}')
+        print(f'{libido} {sexuality}')
+        print(f'{lover_sql_key} {unknown_7}')
+        print(f'{aggression} {hater_sql_key}')
+        print(f'{unknown_9} {unknown_10}')
+        print(f'{body_parts}')
+        print(f'{stats_heritable}')
+        print(f'{stats_delta_levelling}')
+        print(f'{stats_delta_injuries}')
+        print(f'{last_injury_debuffed_stat}')
+        print(f'{campaign_stats}')
+        print(f'{actives_basic}')
+        print(f'{actives_accessible}')
+        print(f'{actives_inherited}')
+        print(f'{passives}')
+        print(f'{mutations}')
+        print(f'{equipment}')
+        print(f'{collar}')
+        print(f'{level}')
+        print(f'{coi}')
+        print(f'{birthday}')
+        print(f'{deathday_house}')
+        print(f'{unknown_17}')
+        print(f'{unknown_19}')
+        print(f'{unknown_20}')
+        print(f'{unknown_21}')
+        print(f'{unknown_22}')
+        print(f'{unknown_23}')
+        print(f'{injuries}')
+
+if __name__ == '__main__':
+    main()

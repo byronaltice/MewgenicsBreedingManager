@@ -1,0 +1,43 @@
+CompileFlags:
+    Add:
+        - -Wall
+        - -Wextra
+        - -Wpedantic
+        # The presence of compile_flags.txt encourages clangd to interpret these paths relative to workspace root
+        - -Icpp/lib/lz4/lib
+        - -Icpp/lib/minhook/include
+        - -Icpp/lib/detours/src
+        - -Icpp/lib/imgui
+        - -Icpp/lib/imgui/backends
+        - -Icpp/lib/SDL/include
+
+Diagnostics:
+    Includes:
+        IgnoreHeader: [cpp/lib/.*]
+
+---
+
+If:
+    PathMatch: [.*\.hpp, .*\.cpp, cpp/lib/imgui/.*\.h]
+CompileFlags:
+    Add:
+        - -std=c++20
+        - --language=c++
+
+---
+
+If:
+    PathMatch: [cpp/amoeba/.*]
+CompileFlags:
+    Add:
+        # The presence of compile_flags.txt encourages clangd to interpret these paths relative to workspace root
+        - -Icpp/amoeba
+
+---
+
+If:
+    PathMatch: [cpp/cosmic_ooze/.*]
+CompileFlags:
+    Add:
+        # The presence of compile_flags.txt encourages clangd to interpret these paths relative to workspace root
+        - -Icpp/cosmic_ooze

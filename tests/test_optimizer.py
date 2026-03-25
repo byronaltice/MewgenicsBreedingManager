@@ -7,7 +7,14 @@ _src_dir = os.path.join(_proj_root, "src")
 sys.path.insert(0, _src_dir)
 sys.path.insert(0, _proj_root)
 
-from room_optimizer import OptimizationParams, RoomConfig, RoomType, build_room_configs, optimize_room_distribution
+from room_optimizer import (
+    OptimizationParams,
+    RoomConfig,
+    RoomType,
+    best_breeding_room_stimulation,
+    build_room_configs,
+    optimize_room_distribution,
+)
 from save_parser import STAT_NAMES
 
 
@@ -67,6 +74,23 @@ def test_build_room_configs_preserves_roles():
     assert [cfg.key for cfg in configs] == ["Floor1_Large", "Attic"]
     assert configs[0].room_type == RoomType.BREEDING
     assert configs[1].room_type == RoomType.FALLBACK
+
+
+def test_build_room_configs_uses_capacity_and_room_stimulation():
+    room_stats = {"Floor1_Large": SimpleNamespace(raw_effects={"Stimulation": 17.0})}
+    configs = build_room_configs(
+        [
+            {"room": "Floor1_Large", "type": "breeding", "max_cats": 4},
+            {"room": "Attic", "type": "fallback", "max_cats": 0},
+        ],
+        available_rooms=["Floor1_Large", "Attic"],
+        room_stats=room_stats,
+    )
+
+    assert configs[0].max_cats == 4
+    assert configs[0].base_stim == 17.0
+    assert configs[1].max_cats is None
+    assert best_breeding_room_stimulation(configs) == 17.0
 
 
 def test_optimize_room_distribution_finds_same_sex_pair():

@@ -17,7 +17,7 @@ sys.path.insert(0, _src_dir)
 sys.path.insert(0, _proj_root)
 
 from PySide6.QtCore import Qt, QThread
-from PySide6.QtWidgets import QApplication, QTableWidgetItem
+from PySide6.QtWidgets import QApplication, QSplitter, QTableWidgetItem
 
 import mewgenics_manager as mm
 from save_parser import STAT_NAMES
@@ -119,6 +119,56 @@ def test_selected_offspring_config_round_trip(planner_config):
     assert mm._load_perfect_planner_selected_offspring() == state
 
 
+def test_furniture_view_shows_actual_items_and_remembers_splitters(qt_app, planner_config):
+    furniture_data = {
+        "angry_cat_bobble": mm.FurnitureDefinition(
+            item_name="angry_cat_bobble",
+            display_name="Angry Cat Bobble",
+            description="A tiny bobble that likes attention.",
+            effects={"Appeal": 1.0, "Comfort": 1.0, "Stimulation": -1.0},
+        ),
+    }
+    furniture = [
+        mm.FurnitureItem(
+            key=1,
+            version=1,
+            item_name="angry_cat_bobble",
+            room="Attic",
+            header_fields=(1, 2, 3, 4),
+            placement_fields=(),
+        )
+    ]
+
+    view1 = mm.FurnitureView()
+    view1.resize(800, 600)
+    view1.show()
+    view1.set_context([], furniture, furniture_data, ["Attic"])
+    qt_app.processEvents()
+
+    item_text = view1._item_browser.toPlainText()
+    assert "Angry Cat Bobble" in item_text
+    assert "Actual Items" in item_text
+
+    view1._layout_splitter.setSizes([140, 660])
+    view1._splitter.setSizes([110, 290])
+    qt_app.processEvents()
+    view1._save_session_state()
+
+    saved = mm._load_ui_state("furniture_state")
+    assert saved["layout_splitter_sizes"] == view1._layout_splitter.sizes()
+    assert saved["splitter_sizes"] == view1._splitter.sizes()
+
+    view2 = mm.FurnitureView()
+    view2.resize(800, 600)
+    view2.show()
+    view2.set_context([], furniture, furniture_data, ["Attic"])
+    qt_app.processEvents()
+
+    assert view2._layout_splitter.sizes() == saved["layout_splitter_sizes"]
+    assert view2._splitter.sizes() == saved["splitter_sizes"]
+    assert "Angry Cat Bobble" in view2._item_browser.toPlainText()
+
+
 def test_foundation_pairs_config_round_trip(planner_config):
     config = [
         {"cat_a_uid": "uid-a", "cat_b_uid": "uid-b", "using": True},
@@ -134,6 +184,37 @@ def test_foundation_pairs_config_round_trip(planner_config):
     assert len(loaded) == 6
     assert loaded[0] == {"cat_a_uid": "uid-a", "cat_b_uid": "uid-b", "using": True}
     assert loaded[5] == {"cat_a_uid": "uid-i", "cat_b_uid": "uid-j", "using": True}
+
+
+def test_planner_trait_summary_for_cat_reflects_selected_weights():
+    cat = _make_cat(1, unique_id="uid-a", gender_display="M", name="Alpha", mutations=["Spotted"], abilities=["Fireball"], disorders=["Glitch"])
+    summary = mm._planner_trait_summary_for_cat(
+        cat,
+        [
+            {"category": "mutation", "key": "spotted", "display": "[Mutation] Spotted", "weight": 8},
+            {"category": "ability", "key": "fireball", "display": "[Ability] Fireball", "weight": -4},
+            {"category": "disorder", "key": "glitch", "display": "[Passive/Disorder] Glitch", "weight": -3},
+        ],
+    )
+
+    assert summary["matches"] == ["Spotted"]
+    assert summary["penalties"] == ["Fireball", "Glitch"]
+    assert summary["score"] == pytest.approx(1.0)
+    assert summary["ratio"] > 0
+
+
+def test_planner_trait_summary_for_pair_rewards_shared_carriers():
+    cat_a = _make_cat(1, unique_id="uid-a", gender_display="M", name="Alpha", mutations=["Spotted"])
+    cat_b = _make_cat(2, unique_id="uid-b", gender_display="F", name="Bravo", mutations=["Spotted"])
+    cat_c = _make_cat(3, unique_id="uid-c", gender_display="F", name="Charlie", mutations=[])
+    traits = [{"category": "mutation", "key": "spotted", "display": "[Mutation] Spotted", "weight": 8}]
+
+    shared = mm._planner_trait_summary_for_pair(cat_a, cat_b, traits)
+    solo = mm._planner_trait_summary_for_pair(cat_a, cat_c, traits)
+
+    assert shared["matches"] == ["Spotted"]
+    assert shared["score"] > solo["score"]
+    assert "background-color: rgba" in mm._planner_trait_style(shared["ratio"])
 
 
 def test_foundation_panel_slot_count_updates_visible_rows(qt_app, planner_config):
@@ -407,6 +488,9 @@ def test_room_optimizer_restores_state_and_reuses_imported_traits(qt_app, planne
     assert view._max_risk_input.text() == "15.5"
     assert view._mode_toggle_btn.isChecked() is True
     assert view._planner_traits == saved_traits
+    assert view._sa_temperature_label.text() == "Temperature:"
+    assert view._sa_neighbors_label.text() == "Neighbors:"
+    assert view._maximize_throughput_checkbox.text().startswith("Maximize Throughput")
     assert calls == [True]
 
 
@@ -418,6 +502,8 @@ def test_perfect_planner_restores_last_session_and_autoruns(qt_app, planner_conf
             "max_risk": "25.0",
             "starter_pairs": 6,
             "stimulation": 42,
+            "sa_temperature": 12.5,
+            "sa_neighbors": 77,
             "use_sa": True,
             "avoid_lovers": True,
             "prefer_low_aggression": False,
@@ -439,11 +525,68 @@ def test_perfect_planner_restores_last_session_and_autoruns(qt_app, planner_conf
     assert view._max_risk_input.text() == "25.0"
     assert view._starter_pairs_input.value() == 6
     assert view._stimulation_input.value() == 42
+    assert view._sa_temperature_input.value() == 12.5
+    assert view._sa_neighbors_input.value() == 77
     assert view._deep_optimize_btn.isChecked() is True
     assert view._avoid_lovers_checkbox.isChecked() is True
     assert view._prefer_low_aggression_checkbox.isChecked() is False
     assert view._prefer_high_libido_checkbox.isChecked() is True
     assert calls == [view]
+
+
+def test_perfect_planner_passes_sa_parameters_to_refinement(qt_app, planner_config, monkeypatch):
+    cats = [
+        _make_cat(1, unique_id="uid-a", gender_display="M", name="Alpha"),
+        _make_cat(2, unique_id="uid-b", gender_display="F", name="Bravo"),
+        _make_cat(3, unique_id="uid-c", gender_display="M", name="Charlie"),
+        _make_cat(4, unique_id="uid-d", gender_display="F", name="Delta"),
+    ]
+
+    def _fake_score_pair_factors(cat_a, cat_b, *args, **kwargs):
+        projection = {
+            "stat_ranges": {stat: (6, 7) for stat in STAT_NAMES},
+            "expected_stats": {stat: 6.5 for stat in STAT_NAMES},
+            "sum_range": (42, 49),
+            "seven_plus_total": 5.0,
+            "locked_stats": list(STAT_NAMES[:2]),
+            "reachable_stats": list(STAT_NAMES),
+            "missing_stats": [],
+            "distance_total": 0.0,
+        }
+        return SimpleNamespace(
+            compatible=True,
+            risk=0.0,
+            projection=projection,
+            personality_bonus=0.0,
+        )
+
+    monkeypatch.setattr(mm, "score_pair_factors", _fake_score_pair_factors)
+    monkeypatch.setattr(mm, "planner_pair_allows_breeding", lambda *args, **kwargs: True)
+
+    captured = {}
+
+    def _fake_run_sa_refinement(self, evaluated_pairs, selected_pairs, starter_pairs, sa_temperature, sa_neighbors):
+        captured["starter_pairs"] = starter_pairs
+        captured["sa_temperature"] = sa_temperature
+        captured["sa_neighbors"] = sa_neighbors
+        captured["selected_pairs"] = len(selected_pairs)
+        return selected_pairs
+
+    monkeypatch.setattr(mm.PerfectCatPlannerView, "_run_sa_refinement", _fake_run_sa_refinement)
+
+    view = mm.PerfectCatPlannerView()
+    view.set_cats(cats)
+    view._starter_pairs_input.setValue(2)
+    view._deep_optimize_btn.setChecked(True)
+    view._sa_temperature_input.setValue(12.5)
+    view._sa_neighbors_input.setValue(73)
+
+    view._calculate_plan()
+
+    assert captured["starter_pairs"] == 2
+    assert captured["sa_temperature"] == 12.5
+    assert captured["sa_neighbors"] == 73
+    assert captured["selected_pairs"] >= 2
 
 
 def test_mutation_planner_restores_saved_traits_and_plan_mode(qt_app, planner_config, monkeypatch):
@@ -494,6 +637,24 @@ def test_mutation_planner_restores_saved_traits_and_plan_mode(qt_app, planner_co
     assert view._stim_spin.value() == 72
     assert view._selected_traits == saved_traits
     assert calls == [saved_traits]
+
+
+def test_perfect_planner_import_button_uses_mutation_traits(qt_app, planner_config, monkeypatch):
+    mutation_view = mm.MutationDisorderPlannerView()
+    mutation_view._selected_traits = [
+        {"category": "mutation", "key": "twoedarm", "display": "[Mutation] Two-Toed Arm", "weight": 4},
+    ]
+
+    view = mm.PerfectCatPlannerView()
+    view.set_mutation_planner_view(mutation_view)
+
+    refresh_calls = []
+    monkeypatch.setattr(view, "_request_plan_refresh", lambda: refresh_calls.append(True))
+
+    assert view._import_mutation_btn.isEnabled()
+
+    view._import_mutation_btn.click()
+    assert refresh_calls == [True]
 
 
 def test_offspring_tracker_selection_is_exclusive_and_persistent(qt_app, planner_config):
@@ -563,3 +724,30 @@ def test_offspring_selection_updates_stage_details_and_requests_refresh(qt_app, 
     assert details_calls[-1][0] == stage_data
     assert "Selected offspring pair: Oguzok x Molly Moo" in details_calls[-1][1]
     assert "Selected: Krita" in details_calls[-1][1]
+
+
+def test_reset_ui_settings_action_resets_pane_views_without_touching_save_data(qt_app, planner_config, monkeypatch):
+    calls = []
+
+    class _DummyView:
+        def reset_to_defaults(self):
+            calls.append(self)
+
+    window = mm.MainWindow.__new__(mm.MainWindow)
+    window._room_optimizer_view = _DummyView()
+    window._perfect_planner_view = _DummyView()
+    window._mutation_planner_view = _DummyView()
+    window._furniture_view = _DummyView()
+    window._detail_splitter = QSplitter(Qt.Vertical)
+    window._sidebar_splitter = QSplitter(Qt.Horizontal)
+    window._base_sidebar_width = 190
+
+    messages = []
+    window.statusBar = lambda: SimpleNamespace(showMessage=lambda msg: messages.append(msg))
+
+    monkeypatch.setattr(mm.QMessageBox, "question", lambda *args, **kwargs: mm.QMessageBox.Yes)
+
+    mm.MainWindow._reset_ui_settings_to_defaults(window)
+
+    assert len(calls) == 4
+    assert messages[-1] == "UI settings reset to defaults"

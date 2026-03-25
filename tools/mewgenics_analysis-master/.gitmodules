@@ -1,0 +1,15 @@
+[submodule "cpp/lib/minhook"]
+	path = cpp/lib/minhook
+	url = https://github.com/TsudaKageyu/minhook
+[submodule "cpp/lib/lz4"]
+	path = cpp/lib/lz4
+	url = https://github.com/lz4/lz4
+[submodule "cpp/lib/detours"]
+	path = cpp/lib/detours
+	url = https://github.com/microsoft/detours
+[submodule "cpp/lib/imgui"]
+	path = cpp/lib/imgui
+	url = https://github.com/ocornut/imgui
+[submodule "cpp/lib/SDL"]
+	path = cpp/lib/SDL
+	url = https://github.com/libsdl-org/SDL

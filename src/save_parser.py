@@ -17,7 +17,7 @@ import html
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Iterable, Optional
 from collections import deque
 
 from visual_mutation_catalog import load_visual_mutation_names
@@ -85,6 +85,11 @@ def _normalize_gender(raw_gender: Optional[str]) -> str:
     return "?"
 
 
+def _pair_key_u64(a: int, b: int) -> tuple[int, int]:
+    """Return a stable order for symmetric pedigree pair keys."""
+    return (a, b) if a <= b else (b, a)
+
+
 @dataclass(slots=True)
 class SaveData:
     """Parsed save output with tuple-style compatibility."""
@@ -94,6 +99,9 @@ class SaveData:
     unlocked_house_rooms: list[str]
     furniture: list["FurnitureItem"] = field(default_factory=list)
     furniture_data: dict[str, "FurnitureDefinition"] = field(default_factory=dict)
+    pedigree_map: dict[int, tuple[Optional[int], Optional[int]]] = field(default_factory=dict)
+    pedigree_coi_memos: dict[tuple[int, int], float] = field(default_factory=dict)
+    accessible_cats: set[int] = field(default_factory=set)
 
     def as_tuple(self) -> tuple[list["Cat"], list[tuple[int, str]], list[str]]:
         return self.cats, self.errors, self.unlocked_house_rooms
@@ -106,6 +114,10 @@ class SaveData:
 
     def __getitem__(self, index: int):
         return self.as_tuple()[index]
+
+    def pedigree_coi_for(self, parent_a: int, parent_b: int) -> Optional[float]:
+        """Look up a cached COI value for a parent pair, if present."""
+        return self.pedigree_coi_memos.get(_pair_key_u64(int(parent_a), int(parent_b)))
 
     @property
     def furniture_by_room(self) -> dict[str, list["FurnitureItem"]]:
@@ -552,6 +564,54 @@ def summarize_furniture_room(
         crowd_penalty=crowd_penalty,
         dead_body_penalty=int(dead_bodies),
     )
+
+
+def build_furniture_room_summaries(
+    furniture_by_room: dict[str, list[FurnitureItem]],
+    definitions: dict[str, FurnitureDefinition] | None = None,
+    cats: list[Cat] | None = None,
+    room_order: Iterable[str] | None = None,
+) -> list[FurnitureRoomSummary]:
+    """Build consistent room summaries for UI panels and downstream consumers."""
+    cat_counts: dict[str, int] = {}
+    for cat in cats or []:
+        if cat.status == "In House" and cat.room:
+            cat_counts[cat.room] = cat_counts.get(cat.room, 0) + 1
+
+    ordered_rooms: list[str] = []
+    seen: set[str] = set()
+
+    if room_order is not None:
+        for room in room_order:
+            if room and room not in seen:
+                ordered_rooms.append(room)
+                seen.add(room)
+    else:
+        for room in ROOM_KEYS:
+            if room not in seen:
+                ordered_rooms.append(room)
+                seen.add(room)
+
+    for room in furniture_by_room:
+        if room and room not in seen:
+            ordered_rooms.append(room)
+            seen.add(room)
+
+    if "" in furniture_by_room and "" not in seen:
+        ordered_rooms.append("")
+
+    summaries: list[FurnitureRoomSummary] = []
+    for room in ordered_rooms:
+        items = furniture_by_room.get(room, [])
+        summaries.append(
+            summarize_furniture_room(
+                items,
+                definitions,
+                room=room,
+                cat_count=cat_counts.get(room, 0),
+            )
+        )
+    return summaries
 
 
 def _read_visual_mutation_entries(table: list[int]) -> list[dict[str, object]]:
@@ -1688,44 +1748,125 @@ def _get_adventure_keys(conn) -> set:
             if cat_key:
                 keys.add(cat_key)
     except Exception:
-        logger.warning("Failed to parse adventure_state blob", exc_info=True)
+            logger.warning("Failed to parse adventure_state blob", exc_info=True)
     return keys
 
 
-def _parse_pedigree(conn) -> dict:
+def _read_parallel_hash_table(
+    buffer: bytes,
+    offset: int,
+    unpack_string: str,
+    unpack_size: int,
+) -> tuple[list[tuple], int]:
+    """
+    Read one parallel-hashmap table from a serialized blob.
+
+    This mirrors the structure reverse-engineered in the analysis tools:
+    24-byte header, control bytes, compacted data table, then growth_left.
+    """
+    if offset + 24 > len(buffer):
+        return [], len(buffer)
+
+    first_qword = struct.unpack_from("<Q", buffer, offset)[0]
+    if first_qword < 0xFFFFFFFFFFFFFFF5:
+        # Older layout without the version field.
+        size, capacity = struct.unpack_from("<QQ", buffer, offset)
+        table_start = offset + 16
+    else:
+        _, size, capacity = struct.unpack_from("<QQQ", buffer, offset)
+        table_start = offset + 24
+
+    _ = size  # kept for parity with the reverse-engineering notes
+    hash_table_size = capacity + 1 + 16
+    if table_start + hash_table_size > len(buffer):
+        return [], len(buffer)
+
+    hash_table = struct.unpack_from(f"<{capacity}B", buffer, table_start)
+    data_start = table_start + hash_table_size
+    rows: list[tuple] = []
+    for i in range(capacity):
+        if hash_table[i] <= 0x7F:
+            row_start = data_start + i * unpack_size
+            if row_start + unpack_size > len(buffer):
+                break
+            rows.append(struct.unpack_from(unpack_string, buffer, row_start))
+
+    next_offset = data_start + capacity * unpack_size + 8
+    return rows, next_offset
+
+
+def _parse_pedigree_tables(
+    conn,
+) -> tuple[
+    dict[int, tuple[Optional[int], Optional[int]]],
+    dict[tuple[int, int], float],
+    set[int],
+]:
     """
     Parse the pedigree blob from the files table.
-    Each 32-byte entry: u64 cat_key, u64 parent_a_key, u64 parent_b_key, u64 extra.
+
+    The blob is a concatenation of parallel-hashmap tables:
+    - pedigree rows: child -> parents + cached COI
+    - COI memo rows: parent pair -> cached COI
+    - accessible cat keys
     """
     try:
         row = conn.execute("SELECT data FROM files WHERE key='pedigree'").fetchone()
         if not row:
-            return {}
+            return {}, {}, set()
         data = row[0]
     except Exception:
         logger.warning("Failed to read pedigree blob", exc_info=True)
-        return {}
+        return {}, {}, set()
 
-    NULL = 0xFFFF_FFFF_FFFF_FFFF
     MAX_KEY = 1_000_000
-    ped_map: dict = {}
+    ped_map: dict[int, tuple[Optional[int], Optional[int]]] = {}
+    coi_memos: dict[tuple[int, int], float] = {}
+    accessible_cats: set[int] = set()
 
-    for pos in range(8, len(data) - 31, 32):
-        cat_k, pa_k, pb_k, extra = struct.unpack_from('<QQQQ', data, pos)
-        if cat_k == 0 or cat_k == NULL or cat_k > MAX_KEY:
-            continue
-        pa = int(pa_k) if pa_k != NULL and 0 < pa_k <= MAX_KEY else None
-        pb = int(pb_k) if pb_k != NULL and 0 < pb_k <= MAX_KEY else None
+    rows, offset = _read_parallel_hash_table(data, 0, "<qqqd", 32)
+    for cat_k, pa_k, pb_k, _coi in rows:
         cat_key = int(cat_k)
+        if cat_key <= 0 or cat_key > MAX_KEY:
+            continue
 
+        pa = int(pa_k) if 0 < int(pa_k) <= MAX_KEY else None
+        pb = int(pb_k) if 0 < int(pb_k) <= MAX_KEY else None
         existing = ped_map.get(cat_key)
         if existing is None:
             ped_map[cat_key] = (pa, pb)
-        elif existing[0] is None or existing[1] is None:
-            if pa is not None and pb is not None:
-                ped_map[cat_key] = (pa, pb)
+            continue
 
-    return ped_map
+        merged = (
+            pa if pa is not None else existing[0],
+            pb if pb is not None else existing[1],
+        )
+        if merged != existing:
+            ped_map[cat_key] = merged
+
+    memo_rows, offset = _read_parallel_hash_table(data, offset, "<qqd", 24)
+    for pa_k, pb_k, coi in memo_rows:
+        pa = int(pa_k)
+        pb = int(pb_k)
+        if not (0 < pa <= MAX_KEY and 0 < pb <= MAX_KEY):
+            continue
+        if not math.isfinite(float(coi)):
+            continue
+        key = _pair_key_u64(pa, pb)
+        coi_memos[key] = float(coi)
+
+    access_rows, _ = _read_parallel_hash_table(data, offset, "<q", 8)
+    for (cat_k,) in access_rows:
+        cat_key = int(cat_k)
+        if 0 < cat_key <= MAX_KEY:
+            accessible_cats.add(cat_key)
+
+    return ped_map, coi_memos, accessible_cats
+
+
+def _parse_pedigree(conn) -> dict:
+    """Return the child -> parent pedigree map only."""
+    return _parse_pedigree_tables(conn)[0]
 
 
 def parse_save(path: str) -> SaveData:
@@ -1735,7 +1876,7 @@ def parse_save(path: str) -> SaveData:
     adv   = _get_adventure_keys(conn)
     furniture = _get_furniture_items(conn)
     rows  = conn.execute("SELECT key, data FROM cats").fetchall()
-    ped_map = _parse_pedigree(conn)
+    ped_map, pedigree_coi_memos, accessible_cats = _parse_pedigree_tables(conn)
     current_day_row = conn.execute("SELECT data FROM properties WHERE key='current_day'").fetchone()
     current_day = current_day_row[0] if current_day_row else None
     conn.close()
@@ -1814,6 +1955,9 @@ def parse_save(path: str) -> SaveData:
         errors=errors,
         unlocked_house_rooms=unlocked_house_rooms,
         furniture=furniture,
+        pedigree_map=ped_map,
+        pedigree_coi_memos=pedigree_coi_memos,
+        accessible_cats=accessible_cats,
     )
 
 
