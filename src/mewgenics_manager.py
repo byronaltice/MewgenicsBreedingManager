@@ -22,6 +22,7 @@ import lz4.block
 import os
 import math
 import logging
+import weakref
 from pathlib import Path
 from typing import Optional, Sequence
 
@@ -41,11 +42,12 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import (
     Qt, QAbstractTableModel, QModelIndex, QSortFilterProxyModel,
     QFileSystemWatcher, QItemSelectionModel, QSize, Signal, QRegularExpression, QTimer,
-    QThread, QByteArray,
+    QThread, QByteArray, QPointF,
 )
 from PySide6.QtGui import (
     QColor, QBrush, QAction, QActionGroup, QPalette, QFont, QKeySequence, QFontMetrics,
     QDoubleValidator, QRegularExpressionValidator, QPainter, QPixmap, QIcon,
+    QPen, QPainterPath,
 )
 
 # ── Imports from extracted modules ─────────────────────────────────────────────
@@ -98,6 +100,8 @@ from room_optimizer import (
 _ACCESSIBILITY_MIN_FONT_PX = 12
 _ACCESSIBILITY_MIN_FONT_PT = 10.0
 _FONT_SIZE_RE = re.compile(r"(font-size\s*:\s*)(\d+)(px)")
+_TABLE_VIEW_STATES_KEY = "table_view_states"
+_TABLE_STATE_SAVE_TIMERS: "weakref.WeakKeyDictionary[QWidget, QTimer]" = weakref.WeakKeyDictionary()
 
 
 def _with_min_font_px(stylesheet: str, min_px: int = _ACCESSIBILITY_MIN_FONT_PX) -> str:
@@ -120,6 +124,164 @@ def _enforce_min_font_in_widget_tree(root: Optional[QWidget], min_px: int = _ACC
             adjusted = _with_min_font_px(style, min_px=min_px)
             if adjusted != style:
                 widget.setStyleSheet(adjusted)
+        _configure_table_view_behavior(widget)
+
+
+def _table_view_state_key(widget: QWidget) -> str:
+    parts: list[str] = []
+    current: Optional[QWidget] = widget
+    while current is not None:
+        name = current.objectName().strip()
+        if not name:
+            name = current.__class__.__name__
+            parent = current.parentWidget()
+            if parent is not None:
+                siblings = [child for child in parent.children() if isinstance(child, QWidget)]
+                same_kind = [child for child in siblings if child.__class__ is current.__class__]
+                if len(same_kind) > 1:
+                    try:
+                        name = f"{name}[{same_kind.index(current)}]"
+                    except ValueError:
+                        pass
+        parts.append(name)
+        current = current.parentWidget()
+    return "/".join(reversed(parts))
+
+
+def _load_table_view_states() -> dict:
+    state = _load_ui_state(_TABLE_VIEW_STATES_KEY)
+    return state if isinstance(state, dict) else {}
+
+
+def _save_table_view_states(state: dict):
+    _save_ui_state(_TABLE_VIEW_STATES_KEY, state if isinstance(state, dict) else {})
+
+
+def _queue_table_view_state_save(widget: QWidget):
+    timer = _TABLE_STATE_SAVE_TIMERS.get(widget)
+    if timer is None:
+        timer = QTimer(widget)
+        timer.setSingleShot(True)
+        timer.setInterval(200)
+        timer.timeout.connect(lambda w=widget: _save_table_view_state(w))
+        _TABLE_STATE_SAVE_TIMERS[widget] = timer
+    timer.start()
+
+
+def _save_table_view_state(widget: QWidget):
+    if not isinstance(widget, (QTableWidget, QTableView)):
+        return
+    header = widget.horizontalHeader()
+    key = _table_view_state_key(widget)
+    states = _load_table_view_states()
+    states[key] = {
+        "header_state": header.saveState().toBase64().data().decode("ascii"),
+        "sort_column": header.sortIndicatorSection(),
+        "sort_order": int(header.sortIndicatorOrder().value),
+        "sorting_enabled": bool(widget.isSortingEnabled()),
+    }
+    _save_table_view_states(states)
+
+
+def _restore_table_view_state(widget: QWidget):
+    if not isinstance(widget, (QTableWidget, QTableView)):
+        return
+    header = widget.horizontalHeader()
+    key = _table_view_state_key(widget)
+    state = _load_table_view_states().get(key)
+    if not isinstance(state, dict):
+        return
+    header_state = state.get("header_state", "")
+    if isinstance(header_state, str) and header_state:
+        try:
+            header.restoreState(QByteArray.fromBase64(header_state.encode("ascii")))
+        except Exception:
+            pass
+    sort_column = state.get("sort_column")
+    if isinstance(sort_column, int) and sort_column >= 0:
+        sort_order = Qt.SortOrder(int(state.get("sort_order", int(Qt.AscendingOrder.value))))
+        try:
+            if isinstance(widget, QTableWidget):
+                widget.sortItems(sort_column, sort_order)
+            else:
+                widget.sortByColumn(sort_column, sort_order)
+            header.setSortIndicatorShown(True)
+            header.setSortIndicator(sort_column, sort_order)
+        except Exception:
+            pass
+
+
+def _capture_table_view_states(root: Optional[QWidget]) -> dict[str, dict]:
+    if root is None:
+        return {}
+    states: dict[str, dict] = {}
+    for widget in [root] + root.findChildren(QWidget):
+        if not isinstance(widget, (QTableWidget, QTableView)):
+            continue
+        header = widget.horizontalHeader()
+        states[_table_view_state_key(widget)] = {
+            "header_state": header.saveState().toBase64().data().decode("ascii"),
+            "sort_column": header.sortIndicatorSection(),
+            "sort_order": int(header.sortIndicatorOrder().value),
+            "sorting_enabled": bool(widget.isSortingEnabled()),
+        }
+    return states
+
+
+def _restore_table_view_states(root: Optional[QWidget], states: dict):
+    if root is None or not isinstance(states, dict):
+        return
+    for widget in [root] + root.findChildren(QWidget):
+        if not isinstance(widget, (QTableWidget, QTableView)):
+            continue
+        state = states.get(_table_view_state_key(widget))
+        if not isinstance(state, dict):
+            continue
+        header = widget.horizontalHeader()
+        widget.setSortingEnabled(bool(state.get("sorting_enabled", True)))
+        header_state = state.get("header_state", "")
+        if isinstance(header_state, str) and header_state:
+            try:
+                header.restoreState(QByteArray.fromBase64(header_state.encode("ascii")))
+            except Exception:
+                pass
+        sort_column = state.get("sort_column")
+        if isinstance(sort_column, int) and sort_column >= 0:
+            sort_order = Qt.SortOrder(int(state.get("sort_order", int(Qt.AscendingOrder.value))))
+            try:
+                if isinstance(widget, QTableWidget):
+                    widget.sortItems(sort_column, sort_order)
+                else:
+                    widget.sortByColumn(sort_column, sort_order)
+                header.setSortIndicatorShown(True)
+                header.setSortIndicator(sort_column, sort_order)
+            except Exception:
+                pass
+
+
+def _configure_table_view_behavior(widget: QWidget):
+    if not isinstance(widget, (QTableWidget, QTableView)):
+        return
+    if widget.property("_global_table_behavior_ready"):
+        return
+    widget.setProperty("_global_table_behavior_ready", True)
+
+    widget.setAlternatingRowColors(True)
+    palette = widget.palette()
+    palette.setColor(QPalette.AlternateBase, QColor(24, 27, 50))
+    widget.setPalette(palette)
+    widget.setSortingEnabled(True)
+
+    header = widget.horizontalHeader()
+    header.setStretchLastSection(False)
+    header.setSectionsMovable(True)
+    header.setSortIndicatorShown(False)
+    for col in range(header.count()):
+        header.setSectionResizeMode(col, QHeaderView.Interactive)
+    header.sectionResized.connect(lambda *_args, w=widget: _queue_table_view_state_save(w))
+    header.sectionMoved.connect(lambda *_args, w=widget: _queue_table_view_state_save(w))
+    header.sortIndicatorChanged.connect(lambda *_args, w=widget: _queue_table_view_state_save(w))
+    _restore_table_view_state(widget)
 
 def _apply_font_offset_to_tree(root: Optional[QWidget], offset_px: int):
     """
@@ -751,6 +913,7 @@ TAG_PRESET_COLORS = [
 _TAG_DEFS: list[dict] = []  # [{id, name, color}, ...]
 _TAG_ICON_CACHE: dict[tuple, QIcon] = {}
 _TAG_PIX_CACHE: dict[tuple, QPixmap] = {}
+_PIN_ICON_CACHE: dict[tuple[bool, int], QIcon] = {}
 
 
 def _load_tag_definitions():
@@ -854,6 +1017,47 @@ def _make_tag_pixmap(tag_ids: list[str], dot_size: int = 10, spacing: int = 3) -
     painter.end()
     _TAG_PIX_CACHE[cache_key] = pix
     return pix
+
+
+def _make_pin_icon(active: bool = True, size: int = 16) -> QIcon:
+    """Create a compact pushpin icon for pin states."""
+    cache_key = (bool(active), int(size))
+    cached = _PIN_ICON_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+    pix = QPixmap(size, size)
+    pix.fill(Qt.transparent)
+    painter = QPainter(pix)
+    painter.setRenderHint(QPainter.Antialiasing)
+
+    if active:
+        head = QColor(224, 86, 86)
+        stem = QColor(165, 52, 52)
+        outline = QColor(86, 24, 24)
+    else:
+        head = QColor(118, 123, 154)
+        stem = QColor(70, 74, 99)
+        outline = QColor(30, 32, 44)
+
+    painter.translate(size * 0.5, size * 0.5)
+    painter.rotate(-20)
+
+    painter.setPen(QPen(outline, 0.8))
+    painter.setBrush(QBrush(head))
+    painter.drawEllipse(QPointF(0, -size * 0.18), size * 0.42, size * 0.42)
+
+    path = QPainterPath()
+    path.moveTo(-size * 0.05, -size * 0.02)
+    path.lineTo(size * 0.10, size * 0.32)
+    path.lineTo(-size * 0.08, size * 0.32)
+    path.closeSubpath()
+    painter.setBrush(QBrush(stem))
+    painter.drawPath(path)
+    painter.end()
+
+    icon = QIcon(pix)
+    _PIN_ICON_CACHE[cache_key] = icon
+    return icon
 
 
 def _locale_log_path() -> str:
@@ -981,11 +1185,11 @@ def _font_size_offset_label(offset: int) -> str:
 
 def _localized_room_display() -> dict[str, str]:
     return {
-        "Floor1_Large": _tr("room.floor1_large"),
-        "Floor1_Small": _tr("room.floor1_small"),
-        "Floor2_Large": _tr("room.floor2_large"),
-        "Floor2_Small": _tr("room.floor2_small"),
-        "Attic": _tr("room.attic"),
+        "Floor1_Large": _tr("room.floor1_large", default="1F Left"),
+        "Floor1_Small": _tr("room.floor1_small", default="1F Right"),
+        "Floor2_Large": _tr("room.floor2_large", default="2F Right"),
+        "Floor2_Small": _tr("room.floor2_small", default="2F Left"),
+        "Attic": _tr("room.attic", default="Attic"),
     }
 
 
@@ -1137,6 +1341,14 @@ def _set_optimizer_flag(name: str, value: bool):
     flags[name] = bool(value)
     data["optimizer_flags"] = flags
     _save_app_config(data)
+
+
+def _saved_room_optimizer_auto_recalc(default: bool = True) -> bool:
+    return _saved_optimizer_flag("room_optimizer_auto_recalc", default)
+
+
+def _set_room_optimizer_auto_recalc(enabled: bool):
+    _set_optimizer_flag("room_optimizer_auto_recalc", enabled)
 
 
 def _load_ui_state(key: str) -> dict:
@@ -1487,6 +1699,32 @@ def _mutation_display_name(name: str) -> str:
     if spaced == spaced.lower():
         return spaced.title()
     return spaced
+
+
+def _trait_selector_summary(tip: str) -> str:
+    """Condense a tooltip/detail string for use in the trait selector."""
+    lines = [line.strip() for line in str(tip or "").splitlines() if line.strip()]
+    if not lines:
+        return ""
+    if "(ID " in lines[0] and len(lines) >= 3:
+        lines = lines[2:]
+    if lines and lines[-1].startswith("Affects:"):
+        lines = lines[:-1]
+    return " | ".join(lines).strip()
+
+
+def _trait_selector_label(category: str, name: str, tip: str = "") -> str:
+    """Build a dropdown label with a compact effect summary when available."""
+    prefix_map = {
+        "mutation": "[Mutation]",
+        "defect": "[Birth Defect]",
+        "passive": "[Passive/Disorder]",
+        "disorder": "[Passive/Disorder]",
+        "ability": "[Ability]",
+    }
+    prefix = prefix_map.get(category, f"[{category.title()}]")
+    summary = _trait_selector_summary(tip)
+    return f"{prefix} {name}{' — ' + summary if summary else ''}"
 
 
 def _ability_tip(name: str) -> str:
@@ -6212,6 +6450,7 @@ class RoomOptimizerView(QWidget):
         self._cats: list[Cat] = []
         self._cache: Optional[BreedingCache] = None
         self._optimizer_worker: Optional[RoomOptimizerWorker] = None
+        self._auto_recalculate = _saved_room_optimizer_auto_recalc()
         self._planner_view: Optional['MutationDisorderPlannerView'] = None
         self._planner_traits: list[dict] = []
         self._available_rooms: list[str] = list(ROOM_DISPLAY.keys())
@@ -6620,7 +6859,7 @@ class RoomOptimizerView(QWidget):
                                        alive=alive_count))
         self._restore_session_state()
         self._on_planner_traits_changed()
-        if self._session_state.get("has_run") and len([c for c in self._cats if c.status != "Gone"]) >= 2:
+        if self._auto_recalculate and self._session_state.get("has_run") and len([c for c in self._cats if c.status != "Gone"]) >= 2:
             self._calculate_optimal_distribution(use_sa=bool(self._session_state.get("use_sa", False)))
 
     def set_available_rooms(self, rooms: list[str]):
@@ -6665,6 +6904,9 @@ class RoomOptimizerView(QWidget):
 
     def set_cache(self, cache: Optional['BreedingCache']):
         self._cache = cache
+
+    def set_auto_recalculate(self, enabled: bool):
+        self._auto_recalculate = bool(enabled)
 
     def set_planner_view(self, planner: 'MutationDisorderPlannerView'):
         if self._planner_view is not None and hasattr(self._planner_view, "traitsChanged"):
@@ -7804,9 +8046,10 @@ class PerfectPlannerDetailPanel(QWidget):
         self._actions_table.setAlternatingRowColors(True)
         self._actions_table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         hh = self._actions_table.horizontalHeader()
-        hh.setSectionResizeMode(0, QHeaderView.Stretch)
+        hh.setSectionResizeMode(0, QHeaderView.Interactive)
         hh.setSectionResizeMode(1, QHeaderView.Interactive)
         hh.setSectionResizeMode(2, QHeaderView.Interactive)
+        self._actions_table.setColumnWidth(0, 450)
         self._actions_table.setColumnWidth(1, 52)
         self._actions_table.setColumnWidth(2, 52)
         self._actions_table.verticalHeader().setDefaultSectionSize(24)
@@ -9619,6 +9862,10 @@ class PerfectCatPlannerView(QWidget):
         self._splitter.addWidget(self._table)
 
         self._details_pane = PerfectPlannerDetailPanel()
+        self._detail_actions_header = self._details_pane._actions_table.horizontalHeader()
+        self._detail_actions_header.sectionResized.connect(lambda *_: self._save_session_state())
+        self._detail_actions_header.sectionMoved.connect(lambda *_: self._save_session_state())
+        self._detail_actions_header.sortIndicatorChanged.connect(lambda *_: self._save_session_state())
         self._bottom_splitter = QSplitter(Qt.Horizontal)
         self._bottom_splitter.setObjectName("perfect_planner_bottom_splitter")
         self._bottom_splitter.setStyleSheet("QSplitter::handle:horizontal { background:#1e1e38; }")
@@ -9867,6 +10114,11 @@ class PerfectCatPlannerView(QWidget):
 
     def _session_state_payload(self, *, has_run: Optional[bool] = None) -> dict:
         state = dict(self._session_state) if isinstance(self._session_state, dict) else {}
+        actions_table_header_state = ""
+        try:
+            actions_table_header_state = self._details_pane._actions_table.horizontalHeader().saveState().toBase64().data().decode("ascii")
+        except Exception:
+            actions_table_header_state = ""
         state.update({
             "min_stats": self._min_stats_input.text().strip(),
             "max_risk": self._max_risk_input.text().strip(),
@@ -9880,6 +10132,7 @@ class PerfectCatPlannerView(QWidget):
             "prefer_high_libido": bool(self._prefer_high_libido_checkbox.isChecked()),
             "splitter_sizes": list(self._splitter.sizes()) if hasattr(self, "_splitter") else [],
             "bottom_splitter_sizes": list(self._bottom_splitter.sizes()) if hasattr(self, "_bottom_splitter") else [],
+            "actions_table_header_state": actions_table_header_state,
         })
         if has_run is not None:
             state["has_run"] = bool(has_run)
@@ -9920,6 +10173,14 @@ class PerfectCatPlannerView(QWidget):
                     max(10, int(bottom_splitter_sizes[0] or 0)),
                     max(10, int(bottom_splitter_sizes[1] or 0)),
                 ])
+            actions_table_header_state = state.get("actions_table_header_state", "")
+            if isinstance(actions_table_header_state, str) and actions_table_header_state:
+                try:
+                    self._details_pane._actions_table.horizontalHeader().restoreState(
+                        QByteArray.fromBase64(actions_table_header_state.encode("ascii"))
+                    )
+                except Exception:
+                    pass
         finally:
             self._restoring_session_state = False
 
@@ -10352,6 +10613,14 @@ class PerfectCatPlannerView(QWidget):
             self._offspring_tracker.clear()
             self._summary.setText(_tr("perfect_planner.status.no_pairs_found"))
             return
+
+        header = self._table.horizontalHeader()
+        table_sorting_was_enabled = self._table.isSortingEnabled()
+        had_sort_indicator = header.isSortIndicatorShown()
+        sort_column = header.sortIndicatorSection()
+        sort_order = header.sortIndicatorOrder()
+        if table_sorting_was_enabled:
+            self._table.setSortingEnabled(False)
 
         tracker_rows: list[dict] = []
         for idx, pair in enumerate(selected_pairs, 1):
@@ -10855,6 +11124,13 @@ class PerfectCatPlannerView(QWidget):
             self._show_stage_row(self._selected_stage_row, context_note=self._pending_stage_context)
         else:
             self._selected_stage_row = 0
+
+        if table_sorting_was_enabled:
+            self._table.setSortingEnabled(True)
+            if had_sort_indicator and sort_column >= 0:
+                self._table.sortItems(sort_column, sort_order)
+            else:
+                self._table.sortItems(0, Qt.AscendingOrder)
 
 
 # ── Sidebar helpers ───────────────────────────────────────────────────────────
@@ -11565,13 +11841,15 @@ def _sidebar_btn(label: str) -> QPushButton:
 def _cat_has_trait(cat: 'Cat', category: str, trait_key: str) -> bool:
     """Check whether *cat* carries the given trait (mutation/passive/ability)."""
     if category == "mutation":
-        return any(m.lower() == trait_key for m in (cat.mutations or []))
+        return any(m.lower() == trait_key for m in getattr(cat, "mutations", []) or [])
+    elif category == "defect":
+        return any(d.lower() == trait_key for d in getattr(cat, "defects", []) or [])
     elif category == "passive":
-        return any(p.lower() == trait_key for p in (cat.passive_abilities or []))
+        return any(p.lower() == trait_key for p in getattr(cat, "passive_abilities", []) or [])
     elif category == "disorder":
-        return any(d.lower() == trait_key for d in (cat.disorders or []))
+        return any(d.lower() == trait_key for d in getattr(cat, "disorders", []) or [])
     elif category == "ability":
-        return any(a.lower() == trait_key for a in (cat.abilities or []))
+        return any(a.lower() == trait_key for a in getattr(cat, "abilities", []) or [])
     return False
 
 
@@ -12010,48 +12288,79 @@ class MutationDisorderPlannerView(QWidget):
         prev = self._trait_combo.currentData()
 
         # Collect all traits across all alive cats, grouped by category
-        mutations: dict[str, str] = {}   # raw -> display
-        passives: dict[str, str] = {}
-        disorders: dict[str, str] = {}
-        abilities: dict[str, str] = {}
+        mutations: dict[str, tuple[str, str]] = {}   # raw -> (display, tip)
+        defects: dict[str, tuple[str, str]] = {}
+        passives: dict[str, tuple[str, str]] = {}
+        disorders: dict[str, tuple[str, str]] = {}
+        abilities: dict[str, tuple[str, str]] = {}
 
         for cat in self._cats:
             if cat.status == "Gone":
                 continue
+            mutation_tip_map: dict[str, str] = {}
+            for text, tip in getattr(cat, "mutation_chip_items", []):
+                key = re.sub(r'[^a-z0-9]', '', str(text).lower())
+                if key and tip and key not in mutation_tip_map:
+                    mutation_tip_map[key] = str(tip)
+            defect_tip_map: dict[str, str] = {}
+            for text, tip in getattr(cat, "defect_chip_items", []):
+                key = re.sub(r'[^a-z0-9]', '', str(text).lower())
+                if key and tip and key not in defect_tip_map:
+                    defect_tip_map[key] = str(tip)
             for m in (cat.mutations or []):
                 key = m.lower()
                 if key not in mutations:
-                    mutations[key] = _mutation_display_name(m)
+                    display = _mutation_display_name(m)
+                    tip = mutation_tip_map.get(re.sub(r'[^a-z0-9]', '', display.lower()), "") or _ability_tip(m)
+                    mutations[key] = (display, tip)
+            for d in (getattr(cat, "defects", []) or []):
+                key = d.lower()
+                if key not in defects:
+                    display = _mutation_display_name(d)
+                    tip = defect_tip_map.get(re.sub(r'[^a-z0-9]', '', display.lower()), "") or _ability_tip(d)
+                    defects[key] = (display, tip)
             for p in (cat.passive_abilities or []):
                 key = p.lower()
                 if key not in passives:
-                    passives[key] = _mutation_display_name(p)
+                    display = _mutation_display_name(p)
+                    passives[key] = (display, _ability_tip(p))
             for d in (cat.disorders or []):
                 key = d.lower()
                 if key not in disorders:
-                    disorders[key] = _mutation_display_name(d)
+                    display = _mutation_display_name(d)
+                    disorders[key] = (display, _ability_tip(d))
             for a in (cat.abilities or []):
                 key = a.lower()
                 if key not in abilities:
-                    abilities[key] = _mutation_display_name(a)
+                    display = _mutation_display_name(a)
+                    abilities[key] = (display, _ability_tip(a))
 
         # Build master list: (display_text, user_data)
         self._trait_items_master = []
-        for key in sorted(mutations, key=lambda k: mutations[k]):
+        for key in sorted(mutations, key=lambda k: mutations[k][0]):
+            display, tip = mutations[key]
             self._trait_items_master.append(
-                (f"[Mutation] {mutations[key]}", ("mutation", key))
+                (_trait_selector_label("mutation", display, tip), ("mutation", key))
             )
-        for key in sorted(passives, key=lambda k: passives[k]):
+        for key in sorted(defects, key=lambda k: defects[k][0]):
+            display, tip = defects[key]
             self._trait_items_master.append(
-                (f"[Passive/Disorder] {passives[key]}", ("passive", key))
+                (_trait_selector_label("defect", display, tip), ("defect", key))
             )
-        for key in sorted(disorders, key=lambda k: disorders[k]):
+        for key in sorted(passives, key=lambda k: passives[k][0]):
+            display, tip = passives[key]
             self._trait_items_master.append(
-                (f"[Passive/Disorder] {disorders[key]}", ("disorder", key))
+                (_trait_selector_label("passive", display, tip), ("passive", key))
             )
-        for key in sorted(abilities, key=lambda k: abilities[k]):
+        for key in sorted(disorders, key=lambda k: disorders[k][0]):
+            display, tip = disorders[key]
             self._trait_items_master.append(
-                (f"[Ability] {abilities[key]}", ("ability", key))
+                (_trait_selector_label("disorder", display, tip), ("disorder", key))
+            )
+        for key in sorted(abilities, key=lambda k: abilities[k][0]):
+            display, tip = abilities[key]
+            self._trait_items_master.append(
+                (_trait_selector_label("ability", display, tip), ("ability", key))
             )
 
         self._trait_search.clear()
@@ -13011,6 +13320,8 @@ class MutationDisorderPlannerView(QWidget):
             )
         ))
 
+        a_passives = list(getattr(cat_a, "passive_abilities", []) or [])
+        b_passives = list(getattr(cat_b, "passive_abilities", []) or [])
         if a_passives or b_passives:
             chips, share_a, share_b = _inheritance_candidates(
                 a_passives, b_passives, stim, _mutation_display_name,
@@ -13113,10 +13424,12 @@ class MutationDisorderPlannerView(QWidget):
 class FurnitureView(QWidget):
     """Dedicated view for furniture placement and current room stat totals."""
 
+    _WHOLE_HOME_KEY = "__whole_home__"
+
     _ROOM_ORDER = {
         "Attic": 0,
-        "Floor2_Large": 1,
-        "Floor2_Small": 2,
+        "Floor2_Small": 1,
+        "Floor2_Large": 2,
         "Floor1_Large": 3,
         "Floor1_Small": 4,
     }
@@ -13158,9 +13471,15 @@ class FurnitureView(QWidget):
         self._splitter_restore_pending = False
         self._pending_splitter_sizes: Optional[list[int]] = None
         self._selected_room_key = ""
+        self._suppress_selection_changed = False
+        self._pinned_item_keys: set[int] = set()
+        self._pinned_only = False
+        self._table_sort_column: Optional[int] = None
+        self._table_sort_order = Qt.AscendingOrder
+        self._item_table_sort_column: Optional[int] = None
+        self._item_table_sort_order = Qt.AscendingOrder
         self._layout_splitter: Optional[QSplitter] = None
         self._splitter: Optional[QSplitter] = None
-
         root = QVBoxLayout(self)
         root.setContentsMargins(12, 12, 12, 12)
         root.setSpacing(8)
@@ -13224,57 +13543,28 @@ class FurnitureView(QWidget):
         content_splitter.setStyleSheet("QSplitter::handle { background:#1e1e38; }")
         self._layout_splitter = content_splitter
 
-        self._item_browser = QTextBrowser()
-        self._item_browser.setOpenExternalLinks(False)
-        self._item_browser.setFrameShape(QFrame.NoFrame)
-        self._item_browser.setStyleSheet(
-            "QTextBrowser { background:#0d0d1c; color:#ddd; border:1px solid #26264a; border-radius:6px; padding:10px; }"
-            "QTextBrowser h2 { color:#f0f0ff; margin-top: 4px; margin-bottom: 8px; }"
-            "QTextBrowser h3 { color:#c9d6ff; margin-top: 12px; margin-bottom: 4px; }"
-            "QTextBrowser table { border-collapse: collapse; margin-top: 4px; margin-bottom: 8px; }"
-            "QTextBrowser td { padding: 2px 8px 2px 0; vertical-align: top; }"
-            "QTextBrowser ul { margin-left: 18px; }"
-            "QTextBrowser li { margin-bottom: 4px; }"
-            "QTextBrowser .muted { color:#8d8da8; }"
-        )
-
         right_panel = QWidget()
         right_layout = QVBoxLayout(right_panel)
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(8)
 
-        search_row = QHBoxLayout()
-        search_row.setSpacing(8)
-        self._search_label = QLabel()
-        self._search_label.setStyleSheet("color:#888; font-size:11px;")
-        search_row.addWidget(self._search_label)
-        self._search = QLineEdit()
-        self._search.setClearButtonEnabled(True)
-        self._search.setStyleSheet(
-            "QLineEdit { background:#0d0d1c; color:#ccc; border:1px solid #2a2a4a;"
-            " border-radius:4px; padding:4px 8px; }"
-        )
-        self._search.textChanged.connect(self._refresh_table)
-        self._search.textChanged.connect(lambda _: self._save_session_state())
-        search_row.addWidget(self._search, 1)
-        right_layout.addLayout(search_row)
-
         splitter = QSplitter(Qt.Vertical)
         splitter.setStyleSheet("QSplitter::handle { background:#1e1e38; }")
 
-        self._table = QTableWidget(0, 10)
+        self._table = QTableWidget(0, 11)
         self._table.setIconSize(QSize(60, 20))
         self._table.setHorizontalHeaderLabels([
+            _tr("furniture.table.order", default="#"),
             _tr("furniture.table.room", default="Room"),
-            _tr("furniture.table.cats", default="Cats"),
             _tr("furniture.table.pieces", default="Pieces"),
-            _tr("furniture.table.appeal", default="Appeal"),
-            _tr("furniture.table.comfort_raw", default="Comfort Raw"),
+            _tr("furniture.table.cats", default="Cats"),
+            _tr("furniture.table.appeal", default="APP"),
+            _tr("furniture.table.comfort_raw", default="COMF Raw"),
             _tr("furniture.table.crowd", default="Crowd"),
-            _tr("furniture.table.comfort", default="Comfort"),
-            _tr("furniture.table.stimulation", default="Stimulation"),
-            _tr("furniture.table.health", default="Health"),
-            _tr("furniture.table.mutation", default="Mutation"),
+            _tr("furniture.table.comfort", default="COMF"),
+            _tr("furniture.table.stimulation", default="STIM"),
+            _tr("furniture.table.health", default="HEA"),
+            _tr("furniture.table.mutation", default="MUT"),
         ])
         self._table.verticalHeader().setVisible(False)
         self._table.setSelectionMode(QAbstractItemView.SingleSelection)
@@ -13284,13 +13574,17 @@ class FurnitureView(QWidget):
         self._table.itemSelectionChanged.connect(self._on_selection_changed)
         hh = self._table.horizontalHeader()
         hh.setStretchLastSection(True)
-        hh.setSectionResizeMode(0, QHeaderView.Stretch)
-        for col in (1, 2):
+        hh.setSectionsMovable(True)
+        hh.setSortIndicatorShown(False)
+        hh.sectionClicked.connect(self._on_table_header_clicked)
+        hh.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        hh.setSectionResizeMode(1, QHeaderView.Interactive)
+        for col in (2, 3):
             hh.setSectionResizeMode(col, QHeaderView.ResizeToContents)
-        for col in (3, 4, 5, 6, 7, 8, 9):
+        for col in (4, 5, 6, 7, 8, 9, 10):
             hh.setSectionResizeMode(col, QHeaderView.Interactive)
         for col, width in {
-            1: 50, 2: 60, 3: 68, 4: 84, 5: 58, 6: 84, 7: 88, 8: 70, 9: 76,
+            0: 32, 1: 118, 2: 52, 3: 42, 4: 60, 5: 74, 6: 54, 7: 72, 8: 72, 9: 58, 10: 66,
         }.items():
             self._table.setColumnWidth(col, width)
 
@@ -13317,18 +13611,108 @@ class FurnitureView(QWidget):
         self._splitter = splitter
         right_layout.addWidget(splitter, 1)
 
-        content_splitter.addWidget(self._item_browser)
+        item_panel = QWidget()
+        item_panel_layout = QVBoxLayout(item_panel)
+        item_panel_layout.setContentsMargins(0, 0, 0, 0)
+        item_panel_layout.setSpacing(8)
+
+        self._item_title = QLabel()
+        self._item_title.setStyleSheet("color:#ddd; font-size:18px; font-weight:bold;")
+        self._item_subtitle = QLabel()
+        self._item_subtitle.setStyleSheet("color:#8d8da8; font-size:11px;")
+        self._item_subtitle.setWordWrap(True)
+        item_panel_layout.addWidget(self._item_title)
+        item_panel_layout.addWidget(self._item_subtitle)
+
+        search_row = QHBoxLayout()
+        search_row.setSpacing(8)
+        self._search_label = QLabel()
+        self._search_label.setStyleSheet("color:#888; font-size:11px;")
+        search_row.addWidget(self._search_label)
+        self._search = QLineEdit()
+        self._search.setClearButtonEnabled(True)
+        self._search.setPlaceholderText(
+            _tr("furniture.search.placeholder", default="Search furniture items…")
+        )
+        self._search.setStyleSheet(
+            "QLineEdit { background:#0d0d1c; color:#ccc; border:1px solid #2a2a4a;"
+            " border-radius:4px; padding:4px 8px; }"
+        )
+        self._search.textChanged.connect(self._refresh_current_item_table)
+        self._search.textChanged.connect(lambda _: self._save_session_state())
+        search_row.addWidget(self._search, 1)
+        self._pin_only_check = QToolButton()
+        self._pin_only_check.setCheckable(True)
+        self._pin_only_check.setCursor(Qt.PointingHandCursor)
+        self._pin_only_check.setToolButtonStyle(Qt.ToolButtonIconOnly)
+        self._pin_only_check.setIconSize(QSize(16, 16))
+        self._pin_only_check.setFixedSize(28, 24)
+        self._pin_only_check.setStyleSheet(
+            "QToolButton { background:#1a1a32; color:#888; border:1px solid #2a2a4a;"
+            " border-radius:4px; padding:2px; }"
+            "QToolButton:hover { background:#222244; }"
+            "QToolButton:checked { background:#2a2a5a; border-color:#4a4a8a; }"
+        )
+        self._pin_only_check.toggled.connect(self._on_pin_only_changed)
+        self._pin_only_check.toggled.connect(lambda _: self._save_session_state())
+        self._pin_only_check.setIcon(_make_pin_icon(False, 16))
+        search_row.addWidget(self._pin_only_check)
+        item_panel_layout.addLayout(search_row)
+
+        self._item_table = QTableWidget(0, 9)
+        self._item_table.setIconSize(QSize(60, 20))
+        self._item_table.setHorizontalHeaderLabels([
+            _tr("furniture.item.table.id", default="#"),
+            _tr("furniture.item.table.pin", default="Pin"),
+            _tr("furniture.item.table.item", default="Item"),
+            _tr("furniture.item.table.appeal", default="APP"),
+            _tr("furniture.item.table.comfort", default="COMF"),
+            _tr("furniture.item.table.stim", default="STIM"),
+            _tr("furniture.item.table.health", default="HEA"),
+            _tr("furniture.item.table.mutation", default="MUT"),
+            _tr("furniture.item.table.notes", default="Notes"),
+        ])
+        self._item_table.verticalHeader().setVisible(False)
+        self._item_table.setSelectionMode(QAbstractItemView.NoSelection)
+        self._item_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self._item_table.setSortingEnabled(False)
+        self._item_table.setAlternatingRowColors(True)
+        self._item_table.setWordWrap(True)
+        self._item_table.setStyleSheet(
+            "QTableWidget { background:#0d0d1c; color:#ddd; border:1px solid #26264a; border-radius:6px; }"
+            "QHeaderView::section { background:#151532; color:#7d8bb0; border:none; padding:4px; font-weight:bold; }"
+        )
+        item_header = self._item_table.horizontalHeader()
+        item_header.setSectionsMovable(False)
+        item_header.setSortIndicatorShown(False)
+        item_header.sectionClicked.connect(self._on_item_table_header_clicked)
+        item_header.setStretchLastSection(False)
+        for col in range(9):
+            item_header.setSectionResizeMode(col, QHeaderView.Interactive)
+        self._item_table.itemClicked.connect(self._on_item_table_item_clicked)
+        self._item_table.setColumnWidth(0, 32)
+        self._item_table.setColumnWidth(1, 24)
+        self._item_table.setColumnWidth(2, 140)
+        self._item_table.setColumnWidth(3, 46)
+        self._item_table.setColumnWidth(4, 46)
+        self._item_table.setColumnWidth(5, 46)
+        self._item_table.setColumnWidth(6, 46)
+        self._item_table.setColumnWidth(7, 46)
+        self._item_table.setColumnWidth(8, 124)
+        item_panel_layout.addWidget(self._item_table, 1)
+
+        content_splitter.addWidget(item_panel)
         content_splitter.addWidget(right_panel)
         # Bias the default layout toward the left item browser so it reads as a
         # full-height navigation/details pane instead of a skinny sidebar.
-        content_splitter.setSizes([360, 980])
+        content_splitter.setSizes([320, 1020])
         content_splitter.splitterMoved.connect(lambda *_: self._save_session_state())
         root.addWidget(content_splitter, 1)
 
         _enforce_min_font_in_widget_tree(self)
         self.retranslate_ui()
         self._browser.setHtml(self._build_empty_html())
-        self._item_browser.setHtml(self._build_item_empty_html())
+        self._clear_item_table()
 
     def set_context(self, cats: list[Cat], furniture: list[FurnitureItem], furniture_data: dict[str, FurnitureDefinition] | None = None, available_rooms: list[str] | None = None):
         self._cats = cats or []
@@ -13354,18 +13738,21 @@ class FurnitureView(QWidget):
     def retranslate_ui(self):
         self._title.setText(_tr("furniture.title", default="Furniture"))
         self._search_label.setText(_tr("furniture.search.label", default="Search:"))
-        self._search.setPlaceholderText(_tr("furniture.search.placeholder", default="Search rooms or furniture…"))
+        self._search.setPlaceholderText(_tr("furniture.search.placeholder", default="Search furniture items…"))
+        self._pin_only_check.setToolTip(_tr("furniture.pin_only.tooltip", default="Show only pinned items in the current room."))
+        self._pin_only_check.setIcon(_make_pin_icon(self._pinned_only, 16))
         self._table.setHorizontalHeaderLabels([
+            _tr("furniture.table.order", default="#"),
             _tr("furniture.table.room", default="Room"),
-            _tr("furniture.table.cats", default="Cats"),
             _tr("furniture.table.pieces", default="Pieces"),
-            _tr("furniture.table.appeal", default="Appeal"),
-            _tr("furniture.table.comfort_raw", default="Comfort Raw"),
+            _tr("furniture.table.cats", default="Cats"),
+            _tr("furniture.table.appeal", default="APP"),
+            _tr("furniture.table.comfort_raw", default="COMF Raw"),
             _tr("furniture.table.crowd", default="Crowd"),
-            _tr("furniture.table.comfort", default="Comfort"),
-            _tr("furniture.table.stimulation", default="Stimulation"),
-            _tr("furniture.table.health", default="Health"),
-            _tr("furniture.table.mutation", default="Mutation"),
+            _tr("furniture.table.comfort", default="COMF"),
+            _tr("furniture.table.stimulation", default="STIM"),
+            _tr("furniture.table.health", default="HEA"),
+            _tr("furniture.table.mutation", default="MUT"),
         ])
         for stat in FURNITURE_ROOM_STAT_KEYS:
             self._card_title_labels[stat].setText(
@@ -13379,12 +13766,119 @@ class FurnitureView(QWidget):
             return
         layout_splitter_sizes = list(self._layout_splitter.sizes()) if self._layout_splitter is not None else []
         splitter_sizes = list(self._splitter.sizes()) if self._splitter is not None else []
+        item_header_state = ""
+        if self._item_table is not None:
+            try:
+                item_header_state = self._item_table.horizontalHeader().saveState().toBase64().data().decode("ascii")
+            except Exception:
+                item_header_state = ""
         _save_ui_state("furniture_state", {
             "selected_room": self._selected_room_key,
             "search": self._search.text().strip(),
             "layout_splitter_sizes": layout_splitter_sizes,
             "splitter_sizes": splitter_sizes,
+            "item_header_state": item_header_state,
+            "pinned_item_keys": sorted(self._pinned_item_keys),
+            "pinned_only": self._pinned_only,
+            "table_sort_column": self._table_sort_column,
+            "table_sort_order": int(self._table_sort_order.value),
+            "item_table_sort_column": self._item_table_sort_column,
+            "item_table_sort_order": int(self._item_table_sort_order.value),
         })
+
+    def _on_pin_only_changed(self, checked: bool):
+        self._pinned_only = bool(checked)
+        self._pin_only_check.setIcon(_make_pin_icon(self._pinned_only, 16))
+        self._refresh_current_item_table()
+
+    def _refresh_current_item_table(self):
+        selected = self._table.selectedRanges()
+        if not selected:
+            self._clear_item_table()
+            return
+        row = selected[0].topRow()
+        item = self._table.item(row, 0)
+        if item is None:
+            return
+        data = item.data(Qt.UserRole + 1)
+        if not isinstance(data, dict):
+            return
+        summary = data.get("summary")
+        if not isinstance(summary, FurnitureRoomSummary):
+            return
+        self._build_item_table(summary)
+
+    def _capture_item_table_view_state(self) -> dict[str, int]:
+        if self._item_table is None:
+            return {}
+        return {
+            "vscroll": int(self._item_table.verticalScrollBar().value()),
+            "hscroll": int(self._item_table.horizontalScrollBar().value()),
+        }
+
+    def _restore_item_table_view_state(self, state: dict[str, int]):
+        if self._item_table is None or not state:
+            return
+        try:
+            self._item_table.setCurrentIndex(QModelIndex())
+        except Exception:
+            pass
+        try:
+            self._item_table.horizontalScrollBar().setValue(int(state.get("hscroll", 0)))
+        except Exception:
+            pass
+        try:
+            self._item_table.verticalScrollBar().setValue(int(state.get("vscroll", 0)))
+        except Exception:
+            pass
+
+    def _toggle_item_pin(self, item_key: int):
+        scroll_state = self._capture_item_table_view_state()
+        if item_key in self._pinned_item_keys:
+            self._pinned_item_keys.remove(item_key)
+        else:
+            self._pinned_item_keys.add(item_key)
+        self._refresh_current_item_table()
+        self._restore_item_table_view_state(scroll_state)
+
+    def _on_item_table_item_clicked(self, item: QTableWidgetItem):
+        if item.column() != 1:
+            return
+        key_value = item.data(Qt.UserRole + 1)
+        if isinstance(key_value, int):
+            self._toggle_item_pin(key_value)
+
+    def _apply_table_sort(self, column: int, order: Qt.SortOrder):
+        self._table_sort_column = column
+        self._table_sort_order = order
+        header = self._table.horizontalHeader()
+        header.setSortIndicatorShown(True)
+        header.setSortIndicator(column, order)
+        self._table.sortItems(column, order)
+
+    def _on_table_header_clicked(self, column: int):
+        order = Qt.AscendingOrder
+        if self._table_sort_column == column:
+            order = Qt.DescendingOrder if self._table_sort_order == Qt.AscendingOrder else Qt.AscendingOrder
+        self._apply_table_sort(column, order)
+        self._save_session_state()
+
+    def _apply_item_table_sort(self, column: int, order: Qt.SortOrder):
+        scroll_state = self._capture_item_table_view_state()
+        self._item_table_sort_column = column
+        self._item_table_sort_order = order
+        header = self._item_table.horizontalHeader()
+        header.setSortIndicatorShown(True)
+        header.setSortIndicator(column, order)
+        self._item_table.sortItems(column, order)
+        self._restore_item_table_view_state(scroll_state)
+
+    def _on_item_table_header_clicked(self, column: int):
+        order = Qt.AscendingOrder
+        if self._item_table_sort_column == column:
+            order = Qt.DescendingOrder if self._item_table_sort_order == Qt.AscendingOrder else Qt.AscendingOrder
+        self._apply_item_table_sort(column, order)
+        self._save_session_state()
 
     def _schedule_layout_splitter_restore(self):
         if self._layout_splitter is None or self._pending_layout_splitter_sizes is None or self._layout_splitter_restore_pending:
@@ -13452,8 +13946,38 @@ class FurnitureView(QWidget):
                     max(10, int(splitter_sizes[1] or 0)),
                 ]
                 self._schedule_splitter_restore()
+            pinned_item_keys = state.get("pinned_item_keys", [])
+            if isinstance(pinned_item_keys, list):
+                pinned_keys: set[int] = set()
+                for key in pinned_item_keys:
+                    try:
+                        pinned_keys.add(int(key))
+                    except (TypeError, ValueError):
+                        continue
+                self._pinned_item_keys = pinned_keys
+            self._pinned_only = bool(state.get("pinned_only", False))
+            if hasattr(self, "_pin_only_check"):
+                self._pin_only_check.blockSignals(True)
+                self._pin_only_check.setChecked(self._pinned_only)
+                self._pin_only_check.blockSignals(False)
+                self._pin_only_check.setIcon(_make_pin_icon(self._pinned_only, 16))
+            table_sort_column = state.get("table_sort_column")
+            if isinstance(table_sort_column, int):
+                self._table_sort_column = table_sort_column
+                self._table_sort_order = Qt.SortOrder(int(state.get("table_sort_order", int(Qt.AscendingOrder.value))))
+            item_table_sort_column = state.get("item_table_sort_column")
+            if isinstance(item_table_sort_column, int):
+                self._item_table_sort_column = item_table_sort_column
+                self._item_table_sort_order = Qt.SortOrder(int(state.get("item_table_sort_order", int(Qt.AscendingOrder.value))))
         finally:
             self._restoring_session_state = False
+        item_header_state = state.get("item_header_state", "")
+        if isinstance(item_header_state, str) and item_header_state:
+            try:
+                self._item_table.horizontalHeader().restoreState(QByteArray.fromBase64(item_header_state.encode("ascii")))
+            except Exception:
+                pass
+        self._refresh_current_item_table()
 
     def reset_to_defaults(self):
         """Restore the furniture view to its default search and splitter state."""
@@ -13463,6 +13987,12 @@ class FurnitureView(QWidget):
             self._pending_layout_splitter_sizes = None
             self._pending_splitter_sizes = None
             self._search.setText("")
+            self._pinned_only = False
+            if hasattr(self, "_pin_only_check"):
+                self._pin_only_check.blockSignals(True)
+                self._pin_only_check.setChecked(False)
+                self._pin_only_check.blockSignals(False)
+                self._pin_only_check.setIcon(_make_pin_icon(False, 16))
             self._selected_room_key = ""
             if self._layout_splitter is not None:
                 self._layout_splitter.setSizes([360, 980])
@@ -13492,11 +14022,60 @@ class FurnitureView(QWidget):
         return QBrush(QColor(160, 160, 175))
 
     def _room_sort_key(self, room: str):
-        if not room:
-            return (99, "")
+        if room == self._WHOLE_HOME_KEY:
+            return (0, "")
         if room in self._ROOM_ORDER:
-            return (self._ROOM_ORDER[room], room)
+            return (self._ROOM_ORDER[room] + 1, room)
+        if not room:
+            return (7, "")
         return (50, room.lower())
+
+    def _room_label(self, room: str) -> str:
+        if room == self._WHOLE_HOME_KEY:
+            return _tr("furniture.room.whole_home", default="Whole Home")
+        if not room:
+            return _tr("furniture.room.unplaced", default="Unplaced")
+        return ROOM_DISPLAY.get(room, room)
+
+    def _room_order_number(self, room: str) -> int:
+        if room == self._WHOLE_HOME_KEY:
+            return 1
+        if not room:
+            return 7
+        order = self._ROOM_ORDER.get(room)
+        if order is None:
+            return 50
+        return order + 2
+
+    def _room_note(self, summary: FurnitureRoomSummary) -> str:
+        if summary.room == self._WHOLE_HOME_KEY:
+            return _tr(
+                "furniture.detail.whole_home_note",
+                default="Aggregated from all placed rooms. Unplaced items are excluded.",
+            )
+        if not summary.room:
+            return _tr(
+                "furniture.detail.unplaced_note",
+                default="Unplaced items do not contribute to room stats until they are assigned to a room.",
+            )
+        return _tr(
+            "furniture.detail.room_note",
+            default="Comfort is reduced by one for every cat above four in the room.",
+        )
+
+    def _clear_item_table(self):
+        self._item_title.setText(_tr("furniture.items.title", default="Furniture Items"))
+        self._item_subtitle.setText(_tr("furniture.items.empty", default="Select a room to inspect the actual furniture items in that room."))
+        self._item_table.setRowCount(0)
+
+    def _item_notes(self, effects: dict[str, float]) -> str:
+        notes: list[str] = []
+        for key, value in sorted(effects.items(), key=lambda kv: kv[0].lower()):
+            if key in FURNITURE_ROOM_STAT_KEYS or not value:
+                continue
+            note_value = "" if key.lower().startswith("special") and float(value) == 1.0 else f" {self._fmt(value)}"
+            notes.append(f"{key}{note_value}")
+        return ", ".join(notes)
 
     def _build_room_summaries(self):
         allowed_rooms = set(self._available_rooms or self._ROOM_ORDER.keys())
@@ -13512,7 +14091,38 @@ class FurnitureView(QWidget):
             room_order=self._available_rooms or self._ROOM_ORDER.keys(),
         )
         summaries.sort(key=lambda s: self._room_sort_key(s.room))
-        self._room_summaries = summaries
+        placed_summaries = [summary for summary in summaries if summary.room]
+        whole_home_items = [item for summary in placed_summaries for item in summary.items]
+        whole_home_raw = {key: 0.0 for key in FURNITURE_ROOM_STAT_KEYS}
+        whole_home_effective = {key: 0.0 for key in FURNITURE_ROOM_STAT_KEYS}
+        whole_home_all: dict[str, float] = {}
+        whole_home_cat_count = 0
+        whole_home_crowd_penalty = 0
+        whole_home_dead_bodies = 0
+        for summary in placed_summaries:
+            whole_home_cat_count += summary.cat_count
+            whole_home_crowd_penalty += summary.crowd_penalty
+            whole_home_dead_bodies += summary.dead_body_penalty
+            for key in FURNITURE_ROOM_STAT_KEYS:
+                whole_home_raw[key] += summary.raw_effects.get(key, 0.0)
+                whole_home_effective[key] += summary.effective_effects.get(key, 0.0)
+            for key, value in summary.all_effects.items():
+                whole_home_all[key] = whole_home_all.get(key, 0.0) + value
+
+        whole_home_summary = FurnitureRoomSummary(
+            room=self._WHOLE_HOME_KEY,
+            cat_count=whole_home_cat_count,
+            furniture_count=len(whole_home_items),
+            items=tuple(whole_home_items),
+            raw_effects=whole_home_raw,
+            effective_effects=whole_home_effective,
+            all_effects=whole_home_all,
+            crowd_penalty=whole_home_crowd_penalty,
+            dead_body_penalty=whole_home_dead_bodies,
+        )
+        placed_summaries = [summary for summary in summaries if summary.room]
+        unplaced_summaries = [summary for summary in summaries if not summary.room]
+        self._room_summaries = [whole_home_summary, *placed_summaries, *unplaced_summaries]
 
         for key in FURNITURE_ROOM_STAT_KEYS:
             self._house_raw[key] = 0.0
@@ -13545,80 +14155,91 @@ class FurnitureView(QWidget):
 
     def _refresh_table(self):
         self._refresh_cards()
-        query = self._search.text().strip().lower()
-        visible: list[FurnitureRoomSummary] = []
-        for summary in self._room_summaries:
-            haystack = " ".join([
-                summary.room.lower(),
-                summary.room_display.lower(),
-                *[
-                    part
-                    for item in summary.items
-                    for part in [
-                        item.item_name.lower(),
-                        (self._furniture_data.get(item.item_name).display_name.lower() if self._furniture_data.get(item.item_name) else ""),
-                        (self._furniture_data.get(item.item_name).description.lower() if self._furniture_data.get(item.item_name) and self._furniture_data.get(item.item_name).description else ""),
-                    ]
-                ],
-            ])
-            if not query or query in haystack:
-                visible.append(summary)
+        self._table.setSortingEnabled(False)
+        visible = list(self._room_summaries)
 
         self._table.setRowCount(len(visible))
-        selected_row = None
         for row, summary in enumerate(visible):
-            room_label = summary.room_display if summary.room else _tr("furniture.room.unplaced", default="Unplaced")
-            texts = [
-                room_label,
-                str(summary.cat_count),
-                str(summary.furniture_count),
-                self._fmt(summary.raw_effects.get("Appeal", 0.0)),
-                self._fmt(summary.raw_effects.get("Comfort", 0.0)),
-                self._fmt(-summary.crowd_penalty if summary.crowd_penalty else 0.0),
-                self._fmt(summary.effective_effects.get("Comfort", 0.0)),
-                self._fmt(summary.raw_effects.get("Stimulation", 0.0)),
-                self._fmt(summary.effective_effects.get("Health", 0.0)),
-                self._fmt(summary.raw_effects.get("Evolution", 0.0)),
+            room_number = self._room_order_number(summary.room)
+            room_label = self._room_label(summary.room)
+            row_items = [
+                _SortByUserRoleItem(str(room_number)),
+                _SortByUserRoleItem(room_label),
+                _SortByUserRoleItem(str(summary.furniture_count)),
+                _SortByUserRoleItem(str(summary.cat_count)),
+                _SortByUserRoleItem(self._fmt(summary.raw_effects.get("Appeal", 0.0))),
+                _SortByUserRoleItem(self._fmt(summary.raw_effects.get("Comfort", 0.0))),
+                _SortByUserRoleItem(self._fmt(-summary.crowd_penalty if summary.crowd_penalty else 0.0)),
+                _SortByUserRoleItem(self._fmt(summary.effective_effects.get("Comfort", 0.0))),
+                _SortByUserRoleItem(self._fmt(summary.raw_effects.get("Stimulation", 0.0))),
+                _SortByUserRoleItem(self._fmt(summary.effective_effects.get("Health", 0.0))),
+                _SortByUserRoleItem(self._fmt(summary.raw_effects.get("Evolution", 0.0))),
             ]
-            for col, text in enumerate(texts):
-                item = QTableWidgetItem(text)
-                item.setData(Qt.UserRole, {
+            user_roles = [
+                room_number,
+                self._room_sort_key(summary.room),
+                summary.furniture_count,
+                summary.cat_count,
+                summary.raw_effects.get("Appeal", 0.0),
+                summary.raw_effects.get("Comfort", 0.0),
+                -summary.crowd_penalty if summary.crowd_penalty else 0.0,
+                summary.effective_effects.get("Comfort", 0.0),
+                summary.raw_effects.get("Stimulation", 0.0),
+                summary.effective_effects.get("Health", 0.0),
+                summary.raw_effects.get("Evolution", 0.0),
+            ]
+            for col, item in enumerate(row_items):
+                item.setData(Qt.UserRole, user_roles[col])
+                item.setData(Qt.UserRole + 1, {
                     "room": summary.room,
                     "room_display": room_label,
                     "summary": summary,
                 })
-                if col >= 3:
-                    if col == 3:
-                        brush = self._stat_brush(summary.raw_effects.get("Appeal", 0.0))
-                    elif col == 4:
-                        brush = self._stat_brush(summary.raw_effects.get("Comfort", 0.0))
-                    elif col == 5:
-                        brush = self._stat_brush(-summary.crowd_penalty if summary.crowd_penalty else 0.0)
-                    elif col == 6:
-                        brush = self._stat_brush(summary.effective_effects.get("Comfort", 0.0))
-                    elif col == 7:
-                        brush = self._stat_brush(summary.raw_effects.get("Stimulation", 0.0))
-                    elif col == 8:
-                        brush = self._stat_brush(summary.effective_effects.get("Health", 0.0))
-                    elif col == 9:
-                        brush = self._stat_brush(summary.raw_effects.get("Evolution", 0.0))
-                    else:
-                        brush = QBrush(QColor(160, 160, 175))
-                    item.setForeground(brush)
-                if col == 0 and not summary.room:
+                if summary.room == self._WHOLE_HOME_KEY:
+                    font = item.font()
+                    font.setBold(True)
+                    item.setFont(font)
+                if col >= 4:
+                    item.setForeground(self._stat_brush(float(user_roles[col])))
+                if col == 1 and not summary.room:
                     item.setForeground(QBrush(QColor(160, 160, 175)))
                 self._table.setItem(row, col, item)
 
-            if self._selected_room_key and summary.room == self._selected_room_key:
-                selected_row = row
-            elif selected_row is None and row == 0:
-                selected_row = 0
-
-        if selected_row is not None and self._table.rowCount():
-            self._table.selectRow(selected_row)
-        elif self._table.rowCount() == 0:
+        if self._table.rowCount() == 0:
             self._browser.setHtml(self._build_empty_html())
-            self._item_browser.setHtml(self._build_item_empty_html())
+            self._clear_item_table()
+        else:
+            if self._table_sort_column is not None:
+                self._apply_table_sort(self._table_sort_column, self._table_sort_order)
+            target_room = self._selected_room_key or self._WHOLE_HOME_KEY
+            selected_row = None
+            selected_summary = None
+            for row in range(self._table.rowCount()):
+                item = self._table.item(row, 0)
+                data = item.data(Qt.UserRole + 1) if item is not None else None
+                if isinstance(data, dict) and data.get("room") == target_room:
+                    selected_row = row
+                    summary = data.get("summary")
+                    if isinstance(summary, FurnitureRoomSummary):
+                        selected_summary = summary
+                    break
+            if selected_row is None:
+                selected_row = 0
+                item = self._table.item(selected_row, 0)
+                data = item.data(Qt.UserRole + 1) if item is not None else None
+                if isinstance(data, dict):
+                    summary = data.get("summary")
+                    if isinstance(summary, FurnitureRoomSummary):
+                        selected_summary = summary
+            self._suppress_selection_changed = True
+            try:
+                self._table.selectRow(selected_row)
+            finally:
+                self._suppress_selection_changed = False
+            if isinstance(selected_summary, FurnitureRoomSummary):
+                self._selected_room_key = selected_summary.room
+                self._browser.setHtml(self._build_room_html(selected_summary))
+                self._build_item_table(selected_summary)
 
         self._subtitle.setText(
             _tr(
@@ -13631,11 +14252,13 @@ class FurnitureView(QWidget):
         )
 
     def _on_selection_changed(self):
+        if self._suppress_selection_changed:
+            return
         selected = self._table.selectedRanges()
         if not selected:
             self._selected_room_key = ""
             self._browser.setHtml(self._build_empty_html())
-            self._item_browser.setHtml(self._build_item_empty_html())
+            self._clear_item_table()
             self._save_session_state()
             return
 
@@ -13643,7 +14266,7 @@ class FurnitureView(QWidget):
         item = self._table.item(row, 0)
         if item is None:
             return
-        data = item.data(Qt.UserRole)
+        data = item.data(Qt.UserRole + 1)
         if not isinstance(data, dict):
             return
         summary = data.get("summary")
@@ -13651,7 +14274,7 @@ class FurnitureView(QWidget):
             return
         self._selected_room_key = str(data.get("room", "") or "")
         self._browser.setHtml(self._build_room_html(summary))
-        self._item_browser.setHtml(self._build_item_html(summary))
+        self._build_item_table(summary)
         self._save_session_state()
 
     def _build_empty_html(self) -> str:
@@ -13660,16 +14283,6 @@ class FurnitureView(QWidget):
           <body style="font-family:Segoe UI, Arial, sans-serif; line-height:1.45;">
             <h2>Furniture</h2>
             <p class="muted">Load a save with furniture to inspect room stats.</p>
-          </body>
-        </html>
-        """
-
-    def _build_item_empty_html(self) -> str:
-        return """
-        <html>
-          <body style="font-family:Segoe UI, Arial, sans-serif; line-height:1.45;">
-            <h2>Furniture Items</h2>
-            <p class="muted">Select a room to inspect the actual furniture items in that room.</p>
           </body>
         </html>
         """
@@ -13695,19 +14308,19 @@ class FurnitureView(QWidget):
             )
         return ", ".join(parts)
 
-    def _build_item_html(self, summary: FurnitureRoomSummary) -> str:
-        title = summary.room_display if summary.room else _tr("furniture.room.unplaced", default="Unplaced")
-        subtitle = _tr(
-            "furniture.detail.unplaced_note",
-            default="Unplaced items do not contribute to room stats until they are assigned to a room.",
-        ) if not summary.room else _tr(
-            "furniture.detail.room_note",
-            default="Comfort is reduced by one for every cat above four in the room.",
+    def _build_item_table(self, summary: FurnitureRoomSummary):
+        scroll_state = self._capture_item_table_view_state()
+        title = self._room_label(summary.room)
+        subtitle = self._room_note(summary)
+        self._item_title.setText(title)
+        self._item_subtitle.setText(
+            f"{subtitle}  Items: {summary.furniture_count}  Cats: {summary.cat_count}"
         )
 
         items = sorted(
             summary.items,
             key=lambda item: (
+                self._room_label(item.room or "").lower(),
                 self._furniture_data.get(item.item_name).display_name.lower()
                 if self._furniture_data.get(item.item_name)
                 else item.item_name.lower(),
@@ -13715,47 +14328,95 @@ class FurnitureView(QWidget):
             ),
         )
 
-        rows = []
-        for item in items:
+        query = self._search.text().strip().lower()
+        if query:
+            filtered_items = []
+            for item in items:
+                definition = self._furniture_data.get(item.item_name)
+                haystack = " ".join([
+                    str(item.key).lower(),
+                    item.item_name.lower(),
+                    self._room_label(item.room or "").lower(),
+                    (definition.display_name.lower() if definition is not None else ""),
+                    (definition.description.lower() if definition is not None and definition.description else ""),
+                    (self._item_notes(definition.effects).lower() if definition is not None and definition.effects else ""),
+                ])
+                if query in haystack:
+                    filtered_items.append(item)
+            items = filtered_items
+
+        if self._pinned_only:
+            items = [item for item in items if int(item.key) in self._pinned_item_keys]
+
+        self._item_table.setSortingEnabled(False)
+        self._item_table.setRowCount(len(items))
+        self._item_table.setHorizontalHeaderLabels([
+            _tr("furniture.item.table.id", default="#"),
+            _tr("furniture.item.table.pin", default="Pin"),
+            _tr("furniture.item.table.item", default="Item"),
+            _tr("furniture.item.table.appeal", default="APP"),
+            _tr("furniture.item.table.comfort", default="COMF"),
+            _tr("furniture.item.table.stim", default="STIM"),
+            _tr("furniture.item.table.health", default="HEA"),
+            _tr("furniture.item.table.mutation", default="MUT"),
+            _tr("furniture.item.table.notes", default="Notes"),
+        ])
+        stat_keys = {
+            3: "Appeal",
+            4: "Comfort",
+            5: "Stimulation",
+            6: "Health",
+            7: "Evolution",
+        }
+
+        for row, item in enumerate(items):
             definition = self._furniture_data.get(item.item_name)
             display = definition.display_name if definition is not None else item.item_name.replace("_", " ").title()
             desc = definition.description if definition is not None else ""
             effects = definition.effects if definition is not None else {}
-            effect_text = self._effect_spans(effects)
-            rows.append(
-                "<li>"
-                f"<strong>#{html.escape(str(item.key))} {html.escape(display)}</strong>"
-                + (f"<div class='muted'>{html.escape(desc)}</div>" if desc else "")
-                + f"<div>{effect_text}</div>"
-                + f"<div class='muted'>{html.escape(item.item_name)}</div>"
-                "</li>"
-            )
+            pinned = int(item.key) in self._pinned_item_keys
+            values = [
+                (str(item.key), item.key),
+                ("", 1 if pinned else 0),
+                (display, display.lower()),
+                self._sort_stat_cell(effects.get("Appeal", 0.0)),
+                self._sort_stat_cell(effects.get("Comfort", 0.0)),
+                self._sort_stat_cell(effects.get("Stimulation", 0.0)),
+                self._sort_stat_cell(effects.get("Health", 0.0)),
+                self._sort_stat_cell(effects.get("Evolution", 0.0)),
+                (self._item_notes(effects) or "—", self._item_notes(effects).lower() if self._item_notes(effects) else ""),
+            ]
+            for col, (value, sort_key) in enumerate(values):
+                cell = _SortByUserRoleItem(value)
+                cell.setData(Qt.UserRole, sort_key)
+                if col == 1:
+                    cell.setData(Qt.UserRole + 1, int(item.key))
+                    cell.setTextAlignment(Qt.AlignCenter)
+                    if pinned:
+                        cell.setIcon(_make_pin_icon(True, 14))
+                        cell.setForeground(QBrush(QColor(216, 182, 106)))
+                if col == 0:
+                    cell.setTextAlignment(Qt.AlignCenter)
+                if col in stat_keys and value not in ("—", ""):
+                    cell.setForeground(self._stat_brush(float(effects.get(stat_keys[col], 0.0))))
+                cell.setToolTip("\n".join(part for part in [display, desc, item.item_name, self._room_label(item.room or "")] if part))
+                self._item_table.setItem(row, col, cell)
 
-        item_html = "".join(rows) if rows else "<li class='muted'>No furniture items in this room.</li>"
-        return f"""
-        <html>
-          <body style="font-family:Segoe UI, Arial, sans-serif; line-height:1.45;">
-            <h2>{html.escape(title)}</h2>
-            <p class="muted">{html.escape(subtitle)}</p>
-            <p>
-              <strong>Items:</strong> {summary.furniture_count}
-              &nbsp;&nbsp; <strong>Cats:</strong> {summary.cat_count}
-            </p>
-            <h3>Actual Items</h3>
-            <ul>{item_html}</ul>
-          </body>
-        </html>
-        """
+        if self._item_table_sort_column is not None:
+            self._apply_item_table_sort(self._item_table_sort_column, self._item_table_sort_order)
+        else:
+            self._restore_item_table_view_state(scroll_state)
+
+    @staticmethod
+    def _sort_stat_cell(value: float) -> tuple[str, tuple[int, float]]:
+        number = float(value or 0.0)
+        if number == 0.0:
+            return ("—", (1, 0.0))
+        return (FurnitureView._fmt(number), (0, -number))
 
     def _build_room_html(self, summary: FurnitureRoomSummary) -> str:
-        title = summary.room_display if summary.room else _tr("furniture.room.unplaced", default="Unplaced")
-        note = _tr(
-            "furniture.detail.unplaced_note",
-            default="Unplaced items do not contribute to room stats until they are assigned to a room.",
-        ) if not summary.room else _tr(
-            "furniture.detail.room_note",
-            default="Comfort is reduced by one for every cat above four in the room.",
-        )
+        title = self._room_label(summary.room)
+        note = self._room_note(summary)
 
         rows = []
         for key in FURNITURE_ROOM_STAT_KEYS:
@@ -13802,6 +14463,95 @@ class MainWindow(QMainWindow):
     @staticmethod
     def _set_bulk_toggle_label(btn: QPushButton, label: str, enabled: bool):
         btn.setText(_tr("bulk.label_template", label=label, state=_tr("common.on" if enabled else "common.off")))
+
+    @staticmethod
+    def _style_room_action_button(btn: QPushButton, background: str, border: str, hover_background: str, width: int = 110):
+        btn.setCheckable(False)
+        btn.setMinimumWidth(width)
+        btn.setStyleSheet(
+            "QPushButton { "
+            f"background:{background}; color:#f1f1f1; border:1px solid {border}; "
+            "border-radius:4px; padding:4px 10px; font-size:11px; font-weight:bold; }"
+            f"QPushButton:hover {{ background:{hover_background}; }}"
+            "QPushButton:pressed { background:#1a1a1a; }"
+        )
+
+    def _set_room_action_button_texts(self):
+        self._room_must_breed_btn.setText(_tr("bulk.toggle_must_breed"))
+        self._room_must_breed_btn.setToolTip(_tr("bulk.toggle_must_breed.tooltip"))
+        self._room_breeding_block_btn.setText(_tr("bulk.toggle_breeding_block"))
+        self._room_breeding_block_btn.setToolTip(_tr("bulk.toggle_breeding_block.tooltip"))
+        self._room_pin_btn.setText(_tr("bulk.toggle_pin", default="Toggle Pin"))
+        self._room_pin_btn.setToolTip(_tr("bulk.toggle_pin.tooltip", default="Toggle pin for selected cats"))
+
+    def _room_view_target_cats(self, room_key=None) -> list[Cat]:
+        if room_key in (None, "__all__"):
+            return self._selected_cats()
+        return self._visible_filtered_cats()
+
+    def _active_room_key(self):
+        if self._active_btn is not None:
+            for key, btn in self._room_btns.items():
+                if btn is self._active_btn:
+                    return key
+        return None
+
+    def _toggle_room_view_boolean(self, attr: str, room_key=None) -> int:
+        cats = self._room_view_target_cats(room_key)
+        mw_status = self.statusBar()
+        if not cats:
+            if room_key in (None, "__all__"):
+                mw_status.showMessage("Select cats first, then click a room action.")
+            else:
+                mw_status.showMessage("No cats in the current room view needed a change.")
+            return 0
+
+        current = [bool(getattr(cat, attr, False)) for cat in cats]
+        target_state = not all(current)
+        changed = 0
+        for cat in cats:
+            if attr == "is_pinned":
+                if cat.is_pinned == target_state:
+                    continue
+                cat.is_pinned = target_state
+                changed += 1
+                continue
+            if attr == "must_breed":
+                if cat.must_breed == target_state:
+                    continue
+                cat.must_breed = target_state
+                if target_state:
+                    cat.is_blacklisted = False
+                changed += 1
+                continue
+            if attr == "is_blacklisted":
+                if cat.is_blacklisted == target_state and (not target_state or not cat.must_breed):
+                    continue
+                cat.is_blacklisted = target_state
+                if target_state:
+                    cat.must_breed = False
+                changed += 1
+
+        if changed == 0:
+            mw_status.showMessage("No cats in view needed a change.")
+            return 0
+        self._emit_bulk_toggle_refresh()
+        return changed
+
+    def _toggle_room_must_breed(self, room_key=None):
+        changed = self._toggle_room_view_boolean("must_breed", room_key)
+        if changed:
+            self.statusBar().showMessage(_tr("bulk.status.toggled_must_breed", default="Toggled must breed for {count} selected cats", count=changed))
+
+    def _toggle_room_breeding_block(self, room_key=None):
+        changed = self._toggle_room_view_boolean("is_blacklisted", room_key)
+        if changed:
+            self.statusBar().showMessage(_tr("bulk.status.toggled_breeding_block", default="Toggled breeding block for {count} selected cats", count=changed))
+
+    def _toggle_room_pin(self, room_key=None):
+        changed = self._toggle_room_view_boolean("is_pinned", room_key)
+        if changed:
+            self.statusBar().showMessage(_tr("bulk.status.toggled_pin", default="Toggled pin for {count} selected cats", count=changed))
 
     def __init__(self, initial_save: Optional[str] = None, use_saved_default: bool = True):
         super().__init__()
@@ -13974,6 +14724,13 @@ class MainWindow(QMainWindow):
         self._lineage_action.setChecked(self._show_lineage)
         self._lineage_action.triggered.connect(self._toggle_lineage)
         sm.addAction(self._lineage_action)
+
+        sm.addSeparator()
+        self._room_optimizer_auto_recalc_action = QAction(_tr("menu.settings.room_optimizer_auto_recalc", default="Auto Recalculate Room Optimizer"), self)
+        self._room_optimizer_auto_recalc_action.setCheckable(True)
+        self._room_optimizer_auto_recalc_action.setChecked(_saved_room_optimizer_auto_recalc())
+        self._room_optimizer_auto_recalc_action.toggled.connect(self._toggle_room_optimizer_auto_recalc)
+        sm.addAction(self._room_optimizer_auto_recalc_action)
 
         sm.addSeparator()
         zoom_in = QAction(_tr("menu.settings.zoom_in"), self)
@@ -14452,6 +15209,8 @@ class MainWindow(QMainWindow):
             self._thresholds_action.setText(_tr("menu.settings.thresholds", default="Donation / Exceptional Thresholds…"))
         if hasattr(self, "_reset_ui_settings_action"):
             self._reset_ui_settings_action.setText(_tr("menu.settings.reset_ui_defaults"))
+        if hasattr(self, "_room_optimizer_auto_recalc_action"):
+            self._room_optimizer_auto_recalc_action.setText(_tr("menu.settings.room_optimizer_auto_recalc", default="Auto Recalculate Room Optimizer"))
 
     def _change_language(self, language: str):
         if language not in _SUPPORTED_LANGUAGES or language == _current_language():
@@ -14525,6 +15284,29 @@ class MainWindow(QMainWindow):
         self._bulk_actions_layout.addWidget(self._bulk_must_breed_btn)
         self._bulk_actions_layout.addWidget(self._bulk_blacklist_btn)
         self._bulk_actions_layout.addWidget(self._bulk_pin_btn)
+
+        self._room_actions_box = QWidget()
+        room_actions = QHBoxLayout(self._room_actions_box)
+        room_actions.setContentsMargins(0, 0, 0, 0)
+        room_actions.setSpacing(8)
+
+        self._room_must_breed_btn = QPushButton()
+        self._style_room_action_button(self._room_must_breed_btn, "#3b355f", "#5d58a0", "#49417a")
+        self._room_must_breed_btn.clicked.connect(lambda: self._toggle_room_must_breed(self._active_room_key()))
+        room_actions.addWidget(self._room_must_breed_btn)
+
+        self._room_breeding_block_btn = QPushButton()
+        self._style_room_action_button(self._room_breeding_block_btn, "#5a2d22", "#8b4c3e", "#6c382a")
+        self._room_breeding_block_btn.clicked.connect(lambda: self._toggle_room_breeding_block(self._active_room_key()))
+        room_actions.addWidget(self._room_breeding_block_btn)
+
+        self._room_pin_btn = QPushButton()
+        self._style_room_action_button(self._room_pin_btn, "#2a3a2a", "#4a6a4a", "#3a4a3a", width=90)
+        self._room_pin_btn.clicked.connect(lambda: self._toggle_room_pin(self._active_room_key()))
+        room_actions.addWidget(self._room_pin_btn)
+
+        room_actions.addStretch()
+        self._set_room_action_button_texts()
         self._search = QLineEdit()
         self._search.setPlaceholderText(_tr("header.search_placeholder"))
         self._search.setClearButtonEnabled(True)
@@ -14555,6 +15337,8 @@ class MainWindow(QMainWindow):
         hb.addWidget(self._header_lbl)
         hb.addWidget(self._count_lbl)
         hb.addStretch()
+        hb.addWidget(self._room_actions_box)
+        hb.addSpacing(8)
         hb.addWidget(bulk_container)
         hb.addSpacing(10)
         hb.addWidget(self._tags_btn)
@@ -14839,7 +15623,8 @@ class MainWindow(QMainWindow):
                 if btn is self._active_btn:
                     room_key = key
                     break
-        visible = room_key in (None, "__donation__", "__exceptional__") or room_key in ROOM_DISPLAY
+        room_visible = room_key in (None, "__all__") or room_key in ROOM_DISPLAY
+        bulk_visible = room_key in ("__donation__", "__exceptional__")
         donation_view = room_key == "__donation__"
         exceptional_view = room_key == "__exceptional__"
         alive_view = room_key is None
@@ -14848,20 +15633,26 @@ class MainWindow(QMainWindow):
                 item = self._bulk_actions_layout.takeAt(0)
                 if item.widget():
                     item.widget().setParent(None)
-            if donation_view:
+            if bulk_visible and donation_view:
                 self._bulk_actions_layout.addWidget(self._bulk_blacklist_btn)
                 self._bulk_actions_layout.addWidget(self._bulk_must_breed_btn)
-            else:
+            elif bulk_visible:
                 self._bulk_actions_layout.addWidget(self._bulk_must_breed_btn)
                 self._bulk_actions_layout.addWidget(self._bulk_blacklist_btn)
-            self._bulk_actions_layout.addWidget(self._bulk_pin_btn)
+            if bulk_visible:
+                self._bulk_actions_layout.addWidget(self._bulk_pin_btn)
         if hasattr(self, "_bulk_blacklist_btn"):
-            self._bulk_blacklist_btn.setVisible(visible)
+            self._bulk_blacklist_btn.setVisible(bulk_visible)
         if hasattr(self, "_bulk_must_breed_btn"):
-            self._bulk_must_breed_btn.setVisible(visible)
+            self._bulk_must_breed_btn.setVisible(bulk_visible)
         if hasattr(self, "_bulk_pin_btn"):
-            self._bulk_pin_btn.setVisible(visible)
-        if not visible:
+            self._bulk_pin_btn.setVisible(bulk_visible)
+        if hasattr(self, "_room_actions_box"):
+            self._room_actions_box.setVisible(room_visible)
+        if not (bulk_visible or room_visible):
+            return
+        if room_visible:
+            self._set_room_action_button_texts()
             return
         if alive_view:
             self._bulk_blacklist_btn.blockSignals(True)
@@ -16136,6 +16927,14 @@ class MainWindow(QMainWindow):
             if view is not None and hasattr(view, "reset_to_defaults"):
                 view.reset_to_defaults()
 
+        _set_room_optimizer_auto_recalc(True)
+        if hasattr(self, "_room_optimizer_auto_recalc_action"):
+            self._room_optimizer_auto_recalc_action.blockSignals(True)
+            self._room_optimizer_auto_recalc_action.setChecked(True)
+            self._room_optimizer_auto_recalc_action.blockSignals(False)
+        if self._room_optimizer_view is not None and hasattr(self._room_optimizer_view, "set_auto_recalculate"):
+            self._room_optimizer_view.set_auto_recalculate(True)
+
         if hasattr(self, "_detail_splitter") and self._detail_splitter is not None:
             total = max(20, self._detail_splitter.height())
             detail_h = min(240, max(10, total - 10))
@@ -16151,6 +16950,11 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(
             _tr("status.ui_settings_reset", default="UI settings reset to defaults")
         )
+
+    def _toggle_room_optimizer_auto_recalc(self, checked: bool):
+        _set_room_optimizer_auto_recalc(bool(checked))
+        if self._room_optimizer_view is not None and hasattr(self._room_optimizer_view, "set_auto_recalculate"):
+            self._room_optimizer_view.set_auto_recalculate(bool(checked))
 
     def _toggle_lineage(self, checked: bool):
         self._show_lineage = checked

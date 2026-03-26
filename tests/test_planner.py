@@ -49,6 +49,7 @@ def _make_cat(
         parent_b=parent_b,
         must_breed=False,
         disorders=[],
+        defects=[],
         aggression=aggression,
         libido=libido,
         base_stats={stat: stat_seed for stat in STAT_NAMES},
@@ -200,3 +201,23 @@ def test_score_pair_trait_bonus_uses_planner_traits():
 
     assert factors.trait_bonus == 20.0
     assert factors.quality > 0.0
+
+
+def test_score_pair_trait_bonus_includes_birth_defects():
+    cat_a = _make_cat(1, gender="male", sexuality="bi")
+    cat_b = _make_cat(2, gender="female", sexuality="straight")
+    cat_a.defects = ["no eyebrows"]
+    cat_b.defects = []
+
+    factors = score_pair(
+        cat_a,
+        cat_b,
+        hater_key_map={1: set(), 2: set()},
+        lover_key_map={1: set(), 2: set()},
+        avoid_lovers=False,
+        planner_traits=[
+            {"category": "defect", "key": "no eyebrows", "weight": 10},
+        ],
+    )
+
+    assert factors.trait_bonus == 5.0

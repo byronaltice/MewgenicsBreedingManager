@@ -180,13 +180,15 @@ def tracked_offspring(a: Cat, b: Cat) -> list[Cat]:
 
 def _cat_has_trait(cat: Cat, category: str, trait_key: str) -> bool:
     if category == "mutation":
-        return any(m.lower() == trait_key for m in (cat.mutations or []))
+        return any(m.lower() == trait_key for m in getattr(cat, "mutations", []) or [])
+    if category == "defect":
+        return any(d.lower() == trait_key for d in getattr(cat, "defects", []) or [])
     if category == "passive":
-        return any(p.lower() == trait_key for p in (cat.passive_abilities or []))
+        return any(p.lower() == trait_key for p in getattr(cat, "passive_abilities", []) or [])
     if category == "disorder":
-        return any(d.lower() == trait_key for d in (cat.disorders or []))
+        return any(d.lower() == trait_key for d in getattr(cat, "disorders", []) or [])
     if category == "ability":
-        return any(a.lower() == trait_key for a in (cat.abilities or []))
+        return any(a.lower() == trait_key for a in getattr(cat, "abilities", []) or [])
     return False
 
 

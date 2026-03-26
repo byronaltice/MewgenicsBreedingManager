@@ -16,7 +16,8 @@ _src_dir = os.path.join(_proj_root, "src")
 sys.path.insert(0, _src_dir)
 sys.path.insert(0, _proj_root)
 
-from PySide6.QtCore import Qt, QThread
+from PySide6.QtCore import Qt, QThread, QItemSelectionModel
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QApplication, QSplitter, QTableWidgetItem
 
 import mewgenics_manager as mm
@@ -41,6 +42,7 @@ def _make_cat(
     mutations=None,
     passive_abilities=None,
     disorders=None,
+    defects=None,
     abilities=None,
 ):
     class _HashableNamespace(SimpleNamespace):
@@ -71,6 +73,7 @@ def _make_cat(
         mutations=list(mutations or []),
         passive_abilities=list(passive_abilities or []),
         disorders=list(disorders or []),
+        defects=list(defects or []),
         abilities=list(abilities or []),
         tags=[],
     )
@@ -125,7 +128,13 @@ def test_furniture_view_shows_actual_items_and_remembers_splitters(qt_app, plann
             item_name="angry_cat_bobble",
             display_name="Angry Cat Bobble",
             description="A tiny bobble that likes attention.",
-            effects={"Appeal": 1.0, "Comfort": 1.0, "Stimulation": -1.0},
+            effects={"Appeal": 1.0, "Comfort": 1.0, "Stimulation": -1.0, "special": 1.0, "FoodStorage": 40.0},
+        ),
+        "branch_vase": mm.FurnitureDefinition(
+            item_name="branch_vase",
+            display_name="Branch Vase",
+            description="A simple vase with a branch in it.",
+            effects={"Appeal": 2.0},
         ),
     }
     furniture = [
@@ -136,19 +145,103 @@ def test_furniture_view_shows_actual_items_and_remembers_splitters(qt_app, plann
             room="Attic",
             header_fields=(1, 2, 3, 4),
             placement_fields=(),
-        )
+        ),
+        mm.FurnitureItem(
+            key=2,
+            version=1,
+            item_name="branch_vase",
+            room="Floor2_Large",
+            header_fields=(1, 2, 3, 4),
+            placement_fields=(),
+        ),
+    ]
+    cats = [
+        _make_cat(1, unique_id="uid-a", gender_display="M", name="Alpha", room="Attic"),
+        _make_cat(2, unique_id="uid-b", gender_display="F", name="Bravo", room="Floor2_Large"),
+        _make_cat(3, unique_id="uid-c", gender_display="M", name="Charlie", room="Floor2_Large"),
     ]
 
     view1 = mm.FurnitureView()
     view1.resize(800, 600)
     view1.show()
-    view1.set_context([], furniture, furniture_data, ["Attic"])
+    view1.set_context(cats, furniture, furniture_data, ["Attic", "Floor2_Large"])
     qt_app.processEvents()
 
-    item_text = view1._item_browser.toPlainText()
-    assert "Angry Cat Bobble" in item_text
-    assert "Actual Items" in item_text
+    assert view1._table.horizontalHeaderItem(0).text() == "#"
+    assert view1._table.horizontalHeaderItem(1).text() == "Room"
+    assert view1._table.horizontalHeaderItem(2).text() == "Pieces"
+    assert view1._table.horizontalHeaderItem(3).text() == "Cats"
+    assert view1._table.horizontalHeaderItem(4).text() == "APP"
+    assert view1._table.horizontalHeaderItem(5).text() == "COMF Raw"
+    assert view1._table.horizontalHeaderItem(7).text() == "COMF"
+    assert view1._table.horizontalHeaderItem(8).text() == "STIM"
+    assert view1._table.horizontalHeaderItem(9).text() == "HEA"
+    assert view1._table.horizontalHeaderItem(10).text() == "MUT"
+    assert view1._item_table.horizontalHeaderItem(1).text() == "Pin"
+    assert view1._item_table.horizontalHeaderItem(2).text() == "Item"
+    assert view1._item_table.horizontalHeaderItem(3).text() == "APP"
+    assert view1._item_table.horizontalHeaderItem(4).text() == "COMF"
+    assert view1._item_table.horizontalHeaderItem(5).text() == "STIM"
+    assert view1._item_table.horizontalHeaderItem(6).text() == "HEA"
+    assert view1._item_table.horizontalHeaderItem(7).text() == "MUT"
 
+    view1._table.sortItems(0, Qt.SortOrder.AscendingOrder)
+    view1._item_table.sortItems(3, Qt.SortOrder.AscendingOrder)
+    qt_app.processEvents()
+
+    assert view1._table.item(0, 0).text() == "1"
+    assert view1._table.item(0, 1).text() == "Whole Home"
+    assert view1._table.item(0, 2).text() == "2"
+    assert view1._table.item(0, 3).text() == "3"
+    assert view1._item_table.item(0, 2).text() == "Branch Vase"
+    assert view1._item_table.item(0, 3).text() == "+2"
+
+    assert view1._item_title.text() == "Whole Home"
+    assert view1._item_table.rowCount() == 2
+    assert not view1._item_table.isColumnHidden(2)
+    assert view1._item_table.item(0, 2).text() == "Branch Vase"
+    assert view1._item_table.item(0, 3).text() == "+2"
+    assert view1._item_table.item(1, 2).text() == "Angry Cat Bobble"
+    assert view1._item_table.item(1, 3).text() == "+1"
+    assert view1._item_table.item(1, 4).text() == "+1"
+    assert view1._item_table.item(1, 5).text() == "-1"
+    assert view1._item_table.item(1, 8).text() == "FoodStorage +40, special"
+    assert view1._table.item(0, 0).text() == "1"
+    assert view1._table.item(0, 1).text() == "Whole Home"
+    assert view1._table.item(0, 1).font().bold()
+    assert view1._table.item(1, 0).text() == "2"
+    assert view1._table.item(1, 1).text() == "Attic"
+    assert view1._table.item(1, 2).text() == "1"
+    assert view1._table.item(1, 3).text() == "1"
+
+    view1._table.selectRow(0)
+    qt_app.processEvents()
+    assert view1._item_title.text() == "Whole Home"
+    assert view1._item_table.rowCount() == 2
+
+    pin_item = view1._item_table.item(0, 1)
+    view1._item_table.itemClicked.emit(pin_item)
+    qt_app.processEvents()
+    assert not view1._item_table.item(0, 1).icon().isNull()
+
+    view1._search.setText("branch")
+    qt_app.processEvents()
+    assert view1._item_table.rowCount() == 1
+    assert view1._item_table.item(0, 2).text() == "Branch Vase"
+    view1._search.clear()
+    qt_app.processEvents()
+    assert view1._item_table.rowCount() == 2
+
+    view1._pin_only_check.setChecked(True)
+    qt_app.processEvents()
+    assert view1._item_table.rowCount() == 1
+    assert view1._item_table.item(0, 2).text() == "Branch Vase"
+    view1._pin_only_check.setChecked(False)
+    qt_app.processEvents()
+    assert view1._item_table.rowCount() == 2
+
+    view1._item_table.setColumnWidth(2, 108)
+    view1._item_table.setColumnWidth(8, 164)
     view1._layout_splitter.setSizes([140, 660])
     view1._splitter.setSizes([110, 290])
     qt_app.processEvents()
@@ -157,16 +250,147 @@ def test_furniture_view_shows_actual_items_and_remembers_splitters(qt_app, plann
     saved = mm._load_ui_state("furniture_state")
     assert saved["layout_splitter_sizes"] == view1._layout_splitter.sizes()
     assert saved["splitter_sizes"] == view1._splitter.sizes()
+    assert isinstance(saved.get("item_header_state"), str) and saved["item_header_state"]
 
     view2 = mm.FurnitureView()
     view2.resize(800, 600)
     view2.show()
-    view2.set_context([], furniture, furniture_data, ["Attic"])
+    view2.set_context(cats, furniture, furniture_data, ["Attic", "Floor2_Large"])
     qt_app.processEvents()
 
     assert view2._layout_splitter.sizes() == saved["layout_splitter_sizes"]
     assert view2._splitter.sizes() == saved["splitter_sizes"]
-    assert "Angry Cat Bobble" in view2._item_browser.toPlainText()
+    assert not view2._item_table.item(0, 1).icon().isNull()
+    assert view2._item_table.item(0, 2).text() == "Branch Vase"
+    assert view2._item_table.columnWidth(2) == 108
+    assert view2._item_table.columnWidth(8) == 164
+
+
+def test_furniture_view_includes_whole_home_row_excluding_unplaced(qt_app, planner_config):
+    furniture_data = {
+        "angry_cat_bobble": mm.FurnitureDefinition(
+            item_name="angry_cat_bobble",
+            display_name="Angry Cat Bobble",
+            description="A tiny bobble that likes attention.",
+            effects={"Appeal": 1.0, "special": 1.0, "FoodStorage": 40.0},
+        ),
+        "floor_sticker": mm.FurnitureDefinition(
+            item_name="floor_sticker",
+            display_name="Floor Sticker",
+            description="This one is still waiting for a room.",
+            effects={"Appeal": 2.0},
+        ),
+    }
+    furniture = [
+        mm.FurnitureItem(
+            key=1,
+            version=1,
+            item_name="angry_cat_bobble",
+            room="Attic",
+            header_fields=(1, 2, 3, 4),
+            placement_fields=(),
+        ),
+        mm.FurnitureItem(
+            key=2,
+            version=1,
+            item_name="floor_sticker",
+            room="",
+            header_fields=(1, 2, 3, 4),
+            placement_fields=(),
+        ),
+    ]
+    cats = [
+        _make_cat(1, unique_id="uid-a", gender_display="M", name="Alpha", room="Attic"),
+        _make_cat(2, unique_id="uid-b", gender_display="F", name="Bravo", room=""),
+    ]
+
+    view = mm.FurnitureView()
+    view.set_context(cats, furniture, furniture_data, ["Attic"])
+    qt_app.processEvents()
+
+    assert view._table.item(0, 0).text() == "1"
+    assert view._table.item(0, 1).text() == "Whole Home"
+    assert view._table.item(0, 1).font().bold()
+    assert view._table.item(1, 0).text() == "2"
+    assert view._table.item(1, 1).text() == "Attic"
+    assert view._table.item(1, 2).text() == "1"
+    assert view._table.item(2, 0).text() == "7"
+    assert view._table.item(2, 1).text() == "Unplaced"
+    assert view._table.item(2, 1).foreground().color() == QColor(160, 160, 175)
+    assert "Whole Home" in view._browser.toPlainText()
+    assert view._item_table.rowCount() == 1
+    assert not view._item_table.isColumnHidden(2)
+    assert view._item_table.item(0, 2).text() == "Angry Cat Bobble"
+    assert view._item_table.item(0, 3).text() == "+1"
+    assert view._item_table.item(0, 8).text() == "FoodStorage +40, special"
+
+
+def test_furniture_view_sorts_blank_stat_cells_last(qt_app, planner_config):
+    furniture_data = {
+        "plus_item": mm.FurnitureDefinition(
+            item_name="plus_item",
+            display_name="Plus Item",
+            description="Positive appeal.",
+            effects={"Appeal": 5.0},
+        ),
+        "minus_item": mm.FurnitureDefinition(
+            item_name="minus_item",
+            display_name="Minus Item",
+            description="Negative appeal.",
+            effects={"Appeal": -2.0},
+        ),
+        "blank_item": mm.FurnitureDefinition(
+            item_name="blank_item",
+            display_name="Blank Item",
+            description="No appeal listed.",
+            effects={},
+        ),
+    }
+    furniture = [
+        mm.FurnitureItem(
+            key=1,
+            version=1,
+            item_name="plus_item",
+            room="Attic",
+            header_fields=(1, 2, 3, 4),
+            placement_fields=(),
+        ),
+        mm.FurnitureItem(
+            key=2,
+            version=1,
+            item_name="minus_item",
+            room="Attic",
+            header_fields=(1, 2, 3, 4),
+            placement_fields=(),
+        ),
+        mm.FurnitureItem(
+            key=3,
+            version=1,
+            item_name="blank_item",
+            room="Attic",
+            header_fields=(1, 2, 3, 4),
+            placement_fields=(),
+        ),
+    ]
+    cats = [
+        _make_cat(1, unique_id="uid-a", gender_display="M", name="Alpha", room="Attic"),
+    ]
+
+    view = mm.FurnitureView()
+    view.set_context(cats, furniture, furniture_data, ["Attic"])
+    qt_app.processEvents()
+
+    view._table.selectRow(1)
+    qt_app.processEvents()
+    view._item_table.sortItems(3, Qt.SortOrder.AscendingOrder)
+    qt_app.processEvents()
+
+    assert view._item_table.item(0, 2).text() == "Plus Item"
+    assert view._item_table.item(0, 3).text() == "+5"
+    assert view._item_table.item(1, 2).text() == "Minus Item"
+    assert view._item_table.item(1, 3).text() == "-2"
+    assert view._item_table.item(2, 2).text() == "Blank Item"
+    assert view._item_table.item(2, 3).text() == "—"
 
 
 def test_foundation_pairs_config_round_trip(planner_config):
@@ -357,6 +581,19 @@ def test_planner_view_uses_split_layout_and_tabs(qt_app, planner_config):
     assert headers == ["Target", "7s", "Risk%"]
 
 
+def test_planner_detail_target_width_persists(qt_app, planner_config):
+    view = mm.PerfectCatPlannerView()
+
+    view._details_pane._actions_table.setColumnWidth(0, 138)
+    view._save_session_state()
+
+    saved = mm._load_ui_state("perfect_planner_state")
+    assert isinstance(saved.get("actions_table_header_state"), str) and saved["actions_table_header_state"]
+
+    view2 = mm.PerfectCatPlannerView()
+    assert view2._details_pane._actions_table.columnWidth(0) == 138
+
+
 def test_cat_locator_includes_offspring_and_pair_colors(qt_app):
     parent_a = _make_cat(1, unique_id="uid-a", gender_display="M", name="Alpha")
     parent_b = _make_cat(2, unique_id="uid-b", gender_display="F", name="Bravo")
@@ -492,6 +729,51 @@ def test_room_optimizer_restores_state_and_reuses_imported_traits(qt_app, planne
     assert view._sa_neighbors_label.text() == "Neighbors:"
     assert view._maximize_throughput_checkbox.text().startswith("Maximize Throughput")
     assert calls == [True]
+
+
+def test_room_optimizer_auto_recalc_toggle_persists_and_controls_autorun(qt_app, planner_config, monkeypatch):
+    td = Path(_proj_root) / "tmp" / "_codex_test_runs" / uuid.uuid4().hex
+    td.mkdir(parents=True, exist_ok=True)
+    try:
+        config_path = td / "settings.json"
+        monkeypatch.setattr(mm, "APPDATA_CONFIG_DIR", str(td))
+        monkeypatch.setattr(mm, "APP_CONFIG_PATH", str(config_path))
+
+        mm._set_room_optimizer_auto_recalc(True)
+        mm._save_ui_state("room_optimizer_state", {"has_run": True})
+
+        calls = []
+        monkeypatch.setattr(
+            mm.RoomOptimizerView,
+            "_calculate_optimal_distribution",
+            lambda self, use_sa=False: calls.append(use_sa),
+        )
+
+        view = mm.RoomOptimizerView()
+        window = mm.MainWindow.__new__(mm.MainWindow)
+        window._room_optimizer_view = view
+
+        mm.MainWindow._toggle_room_optimizer_auto_recalc(window, False)
+        view.set_cats([
+            _make_cat(1, unique_id="uid-a", gender_display="M", name="Alpha"),
+            _make_cat(2, unique_id="uid-b", gender_display="F", name="Bravo"),
+        ])
+
+        assert mm._saved_room_optimizer_auto_recalc() is False
+        assert view._auto_recalculate is False
+        assert calls == []
+
+        mm.MainWindow._toggle_room_optimizer_auto_recalc(window, True)
+        view.set_cats([
+            _make_cat(1, unique_id="uid-a", gender_display="M", name="Alpha"),
+            _make_cat(2, unique_id="uid-b", gender_display="F", name="Bravo"),
+        ])
+
+        assert mm._saved_room_optimizer_auto_recalc() is True
+        assert view._auto_recalculate is True
+        assert calls == [False]
+    finally:
+        shutil.rmtree(td, ignore_errors=True)
 
 
 def test_perfect_planner_restores_last_session_and_autoruns(qt_app, planner_config, monkeypatch):
@@ -639,6 +921,67 @@ def test_mutation_planner_restores_saved_traits_and_plan_mode(qt_app, planner_co
     assert calls == [saved_traits]
 
 
+def test_mutation_planner_includes_birth_defects(qt_app, planner_config):
+    view = mm.MutationDisorderPlannerView()
+    view.set_cats([
+        _make_cat(
+            1,
+            unique_id="uid-a",
+            gender_display="M",
+            name="Alpha",
+            room="1st FL L",
+            mutations=["twoedarm"],
+            defects=["no eyebrows"],
+        ),
+    ])
+
+    assert any(
+        display.startswith("[Birth Defect] No Eyebrows") and "-2 Charisma" in display and data == ("defect", "no eyebrows")
+        for display, data in view._trait_items_master
+    )
+    assert any(
+        display.startswith("[Mutation] Two-Toed Arm") and "-2 Strength" in display and data == ("mutation", "twoedarm")
+        for display, data in view._trait_items_master
+    )
+
+
+def test_mutation_planner_two_cat_selection_builds_outcome_panel(qt_app, planner_config):
+    view = mm.MutationDisorderPlannerView()
+    view.set_cats([
+        _make_cat(
+            1,
+            unique_id="uid-a",
+            gender_display="M",
+            name="Alpha",
+            room="1st FL L",
+            passive_abilities=["library"],
+        ),
+        _make_cat(
+            2,
+            unique_id="uid-b",
+            gender_display="F",
+            name="Bravo",
+            room="1st FL L",
+            passive_abilities=["library"],
+        ),
+    ])
+
+    selection = view._cat_table.selectionModel()
+    selection.select(
+        view._cat_table.model().index(0, 0),
+        QItemSelectionModel.SelectionFlag.Select | QItemSelectionModel.SelectionFlag.Rows,
+    )
+    selection.select(
+        view._cat_table.model().index(1, 0),
+        QItemSelectionModel.SelectionFlag.Select | QItemSelectionModel.SelectionFlag.Rows,
+    )
+    qt_app.processEvents()
+
+    assert len(view._selected_pair) == 2
+    assert "Alpha × Bravo" in view._pair_label.text()
+    assert view._outcome_layout.count() > 0
+
+
 def test_perfect_planner_import_button_uses_mutation_traits(qt_app, planner_config, monkeypatch):
     mutation_view = mm.MutationDisorderPlannerView()
     mutation_view._selected_traits = [
@@ -741,6 +1084,11 @@ def test_reset_ui_settings_action_resets_pane_views_without_touching_save_data(q
     window._detail_splitter = QSplitter(Qt.Vertical)
     window._sidebar_splitter = QSplitter(Qt.Horizontal)
     window._base_sidebar_width = 190
+    window._room_optimizer_auto_recalc_action = SimpleNamespace(
+        blockSignals=lambda _blocked: None,
+        setChecked=lambda _checked: None,
+    )
+    mm._set_room_optimizer_auto_recalc(False)
 
     messages = []
     window.statusBar = lambda: SimpleNamespace(showMessage=lambda msg: messages.append(msg))
@@ -750,4 +1098,5 @@ def test_reset_ui_settings_action_resets_pane_views_without_touching_save_data(q
     mm.MainWindow._reset_ui_settings_to_defaults(window)
 
     assert len(calls) == 4
+    assert mm._saved_room_optimizer_auto_recalc() is True
     assert messages[-1] == "UI settings reset to defaults"

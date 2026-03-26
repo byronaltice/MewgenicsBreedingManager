@@ -5,6 +5,8 @@ Extracted from mewgenics_manager.py to enable independent testing and
 separation of parsing/genetics logic from the Qt UI.
 """
 
+from __future__ import annotations
+
 import struct
 import sqlite3
 import lz4.block
