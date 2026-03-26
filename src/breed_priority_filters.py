@@ -71,7 +71,7 @@ class FilterState:
         }
         # Stat sum
         self.sum_active = False;   self.sum_value = 28;  self.sum_op = "Greater Than"
-        # 777 count
+        # 7-stat count
         self.count7_active = False; self.count7_value = 0; self.count7_op = "Greater Than"
         # Aggro
         self.aggro_active = False;  self.aggro_not  = False
@@ -81,12 +81,17 @@ class FilterState:
         self.libido_low    = True;  self.libido_med = True;  self.libido_high = True
         # Gene (relatives in scope)
         self.gene_active = False;  self.gene_value = 0;  self.gene_op = "Equals"
+        # Genetically unique (shortcut: 0 relatives in scope)
+        self.gene_unique_active = False
         # Children in scope
         self.children_active = False; self.children_value = 4; self.children_op = "Less Than"
         # Total score
         self.score_active = False; self.score_value = 0.0; self.score_op = "Greater Than"
         # Injuries
         self.injuries_active = False
+        # Location
+        self.location_active = False
+        self.location_rooms: set = set()  # set of display name strings to include
 
     def is_any_active(self) -> bool:
         return any([
@@ -94,8 +99,9 @@ class FilterState:
             any(sf["active"] for sf in self.stat_filters.values()),
             self.sum_active, self.count7_active,
             self.aggro_active, self.libido_active,
-            self.gene_active, self.children_active, self.score_active,
-            self.injuries_active,
+            self.gene_active, self.gene_unique_active,
+            self.children_active, self.score_active,
+            self.injuries_active, self.location_active,
         ])
 
     def to_dict(self) -> dict:
@@ -113,11 +119,14 @@ class FilterState:
             "libido_active": self.libido_active, "libido_not": self.libido_not,
             "libido_low": self.libido_low, "libido_med": self.libido_med, "libido_high": self.libido_high,
             "gene_active": self.gene_active, "gene_value": self.gene_value, "gene_op": self.gene_op,
+            "gene_unique_active": self.gene_unique_active,
             "children_active": self.children_active, "children_value": self.children_value,
             "children_op": self.children_op,
             "score_active": self.score_active, "score_value": self.score_value,
             "score_op": self.score_op,
             "injuries_active": self.injuries_active,
+            "location_active": self.location_active,
+            "location_rooms": sorted(self.location_rooms),
         }
 
     @classmethod
@@ -131,12 +140,15 @@ class FilterState:
             "aggro_active", "aggro_not", "aggro_low", "aggro_med", "aggro_high",
             "libido_active", "libido_not", "libido_low", "libido_med", "libido_high",
             "gene_active", "gene_value", "gene_op",
+            "gene_unique_active",
             "children_active", "children_value", "children_op",
             "score_active", "score_value", "score_op",
-            "injuries_active",
+            "injuries_active", "location_active",
         ]:
             if k in d:
                 setattr(state, k, d[k])
+        if "location_rooms" in d:
+            state.location_rooms = set(d["location_rooms"])
         for stat, sf in d.get("stat_filters", {}).items():
             if stat in state.stat_filters:
                 state.stat_filters[stat].update(sf)
@@ -153,7 +165,8 @@ def _compare(val: float, threshold: float, op: str) -> bool:
 
 def cat_passes_filter(cat, score_result, ch_in_scope: int, state: FilterState,
                       trait_low: float = FILTER_TRAIT_LOW,
-                      trait_high: float = FILTER_TRAIT_HIGH) -> bool:
+                      trait_high: float = FILTER_TRAIT_HIGH,
+                      room_display: dict | None = None) -> bool:
     """Return True if cat should be visible given the active filters."""
     if not state.is_any_active():
         return True
@@ -219,6 +232,10 @@ def cat_passes_filter(cat, score_result, ch_in_scope: int, state: FilterState,
                         float(f.gene_value), f.gene_op):
             return False
 
+    if f.gene_unique_active:
+        if score_result.scope_relatives_count != 0:
+            return False
+
     if f.children_active:
         if not _compare(float(ch_in_scope), float(f.children_value), f.children_op):
             return False
@@ -237,6 +254,15 @@ def cat_passes_filter(cat, score_result, ch_in_scope: int, state: FilterState,
             for sn in _base
         )
         if not _has_inj:
+            return False
+
+    if f.location_active and f.location_rooms:
+        raw_room = getattr(cat, 'room', None) or ""
+        if room_display is not None:
+            room_disp = room_display.get(raw_room, raw_room)
+        else:
+            room_disp = raw_room
+        if room_disp not in f.location_rooms:
             return False
 
     return True
@@ -475,18 +501,88 @@ class _BoolFilterRow(_FilterRow):
         self._update_enabled(active)
 
 
+class _LocationFilterRow(QWidget):
+    """Toggle + 'Location' label + per-room checkboxes."""
+
+    ROW_H = 30
+
+    def __init__(self, active: bool, rooms: list, selected: set):
+        super().__init__()
+        self._rooms = rooms
+        self.setMinimumHeight(self.ROW_H)
+
+        h = QHBoxLayout(self)
+        h.setContentsMargins(0, 1, 0, 1)
+        h.setSpacing(6)
+
+        self._tog = QPushButton("●")
+        self._tog.setCheckable(True)
+        self._tog.setChecked(active)
+        self._tog.setFixedSize(22, 20)
+        self._tog.setStyleSheet(_TOG_ON if active else _TOG_OFF)
+        self._tog.clicked.connect(self._on_toggle)
+        h.addWidget(self._tog)
+
+        self._lbl = QLabel("Location")
+        self._lbl.setFixedWidth(108)
+        self._lbl.setStyleSheet(_ROW_LBL_ON if active else _ROW_LBL_OFF)
+        h.addWidget(self._lbl)
+
+        self._ctrl = QWidget()
+        ctrl_h = QHBoxLayout(self._ctrl)
+        ctrl_h.setContentsMargins(0, 0, 0, 0)
+        ctrl_h.setSpacing(6)
+
+        self._room_chks: list[tuple[str, QCheckBox]] = []
+        for room in rooms:
+            chk = QCheckBox(room)
+            chk.setChecked(room in selected)
+            chk.setStyleSheet(_CHK_STYLE)
+            ctrl_h.addWidget(chk)
+            self._room_chks.append((room, chk))
+
+        self._opacity = QGraphicsOpacityEffect()
+        self._ctrl.setGraphicsEffect(self._opacity)
+        h.addWidget(self._ctrl)
+        h.addStretch()
+
+        self._update_enabled(active)
+
+    def _on_toggle(self, checked: bool):
+        self._tog.setStyleSheet(_TOG_ON if checked else _TOG_OFF)
+        self._update_enabled(checked)
+
+    def _update_enabled(self, active: bool):
+        self._lbl.setStyleSheet(_ROW_LBL_ON if active else _ROW_LBL_OFF)
+        self._opacity.setOpacity(1.0 if active else 0.25)
+
+    def get_state(self) -> tuple:
+        active = self._tog.isChecked()
+        selected = {room for room, chk in self._room_chks if chk.isChecked()}
+        return active, selected
+
+    def set_state(self, active: bool, selected: set):
+        self._tog.setChecked(active)
+        self._tog.setStyleSheet(_TOG_ON if active else _TOG_OFF)
+        self._update_enabled(active)
+        for room, chk in self._room_chks:
+            chk.setChecked(room in selected)
+
+
 # ── FilterDialog ──────────────────────────────────────────────────────────────
 
 class FilterDialog(QDialog):
     """Popup window to configure all Breed Priority filters."""
 
-    def __init__(self, parent, initial_state: FilterState):
+    def __init__(self, parent, initial_state: FilterState,
+                 available_rooms: list | None = None):
         super().__init__(parent)
         self.setWindowTitle("Breed Priority — Filters")
         self.setModal(True)
         self.setStyleSheet(_DLG_STYLE)
         self.resize(460, 620)
         self._state = initial_state
+        self._available_rooms = available_rooms or []
         self._applied: FilterState | None = None
         self._build_ui()
 
@@ -579,9 +675,9 @@ class FilterDialog(QDialog):
             min_val=0, max_val=49, is_float=False)
         cv.addWidget(self._sum_row)
 
-        # ── 777 ───────────────────────────────────────────────────────────────
+        # ── 7-stat count ──────────────────────────────────────────────────────
         self._count7_row = _NumericFilterRow(
-            "777 (# of 7s)", f.count7_active, f.count7_value, f.count7_op,
+            "# of 7 Stats", f.count7_active, f.count7_value, f.count7_op,
             min_val=0, max_val=7, is_float=False)
         cv.addWidget(self._count7_row)
 
@@ -609,6 +705,10 @@ class FilterDialog(QDialog):
             min_val=0, max_val=100, is_float=False)
         cv.addWidget(self._gene_row)
 
+        # ── Genetically Unique ────────────────────────────────────────────────
+        self._gene_unique_row = _BoolFilterRow("Genetically Unique", f.gene_unique_active)
+        cv.addWidget(self._gene_unique_row)
+
         # ── Children ──────────────────────────────────────────────────────────
         self._children_row = _NumericFilterRow(
             "Children", f.children_active, f.children_value, f.children_op,
@@ -627,6 +727,16 @@ class FilterDialog(QDialog):
         # ── Injuries ──────────────────────────────────────────────────────────
         self._injuries_row = _BoolFilterRow("Has Injuries", f.injuries_active)
         cv.addWidget(self._injuries_row)
+
+        # ── Location ──────────────────────────────────────────────────────────
+        if self._available_rooms:
+            _sep()
+            _section("LOCATION")
+            self._loc_row = _LocationFilterRow(
+                f.location_active, self._available_rooms, f.location_rooms)
+            cv.addWidget(self._loc_row)
+        else:
+            self._loc_row = None
 
         cv.addStretch()
 
@@ -651,6 +761,15 @@ class FilterDialog(QDialog):
     # ── Actions ───────────────────────────────────────────────────────────────
 
     def _reset_all(self):
+        from PySide6.QtWidgets import QMessageBox
+        mb = QMessageBox(self)
+        mb.setWindowTitle("Reset Filters")
+        mb.setText("Reset all filters to defaults?")
+        mb.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
+        mb.setDefaultButton(QMessageBox.Cancel)
+        mb.setStyleSheet(_DLG_STYLE)
+        if mb.exec() != QMessageBox.Ok:
+            return
         d = FilterState()
         self._age_row.set_state(d.age_active, d.age_value, d.age_op)
         self._gender_row.set_state(d.gender_active, d.gender_not,
@@ -665,9 +784,12 @@ class FilterDialog(QDialog):
         self._libido_row.set_state(d.libido_active, d.libido_not,
                                    [d.libido_low, d.libido_med, d.libido_high])
         self._gene_row.set_state(d.gene_active, d.gene_value, d.gene_op)
+        self._gene_unique_row.set_state(d.gene_unique_active)
         self._children_row.set_state(d.children_active, d.children_value, d.children_op)
         self._score_row.set_state(d.score_active, d.score_value, d.score_op)
         self._injuries_row.set_state(d.injuries_active)
+        if self._loc_row is not None:
+            self._loc_row.set_state(d.location_active, set())
 
     def _apply(self):
         f = FilterState()
@@ -684,8 +806,11 @@ class FilterDialog(QDialog):
         f.libido_active, f.libido_not, lvals         = self._libido_row.get_state()
         f.libido_low, f.libido_med, f.libido_high     = lvals
         f.gene_active, f.gene_value, f.gene_op       = self._gene_row.get_state()
+        f.gene_unique_active                          = self._gene_unique_row.get_state()
         f.children_active, f.children_value, f.children_op = self._children_row.get_state()
         f.score_active, f.score_value, f.score_op    = self._score_row.get_state()
         f.injuries_active                             = self._injuries_row.get_state()
+        if self._loc_row is not None:
+            f.location_active, f.location_rooms = self._loc_row.get_state()
         self._applied = f
         self.accept()

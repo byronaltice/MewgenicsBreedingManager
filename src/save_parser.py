@@ -34,10 +34,10 @@ _IDENT_RE = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')
 STAT_NAMES = ["STR", "DEX", "CON", "INT", "SPD", "CHA", "LCK"]
 
 ROOM_DISPLAY = {
-    "Floor1_Large":   "1st FL L",
-    "Floor1_Small":   "1st FL R",
-    "Floor2_Small":   "2nd FL L",
-    "Floor2_Large":   "2nd FL R",
+    "Floor1_Large":   "1F Left",
+    "Floor1_Small":   "1F Right",
+    "Floor2_Small":   "2F Left",
+    "Floor2_Large":   "2F Right",
     "Attic":          "Attic",
 }
 
@@ -1246,7 +1246,6 @@ class Cat:
             self.sexuality = "gay"
         else:
             self.sexuality = "bi"
-        self.parsed_sexuality = self.sexuality
 
     # ── Display helpers ────────────────────────────────────────────────────
 
