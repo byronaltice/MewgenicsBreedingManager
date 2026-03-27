@@ -2,7 +2,7 @@
 
 A high-performance, Python-based tool for optimizing breeding operations in Mewgenics. It extracts data directly from your save files and helps you compare pairings, optimize room layouts, and plan long-term lines to maximize strong offspring while minimizing inbreeding risk.
 
-Current release: `v4.2.0`
+Current release: `v4.4.0`
 
 ## Screenshots
 
@@ -59,3 +59,15 @@ On Linux, use `build.sh`.
 - Save parsing research based on [pzx521521/mewgenics-save-editor](https://github.com/pzx521521/mewgenics-save-editor)
 - Community reverse-engineering help from players and mod users
 - Original idea and reference from frankieg33
+
+## Release Notes
+
+### v4.4.0
+
+- Added shared optimizer search settings so the room optimizer and Perfect 7 planner use the same simulated annealing controls
+- Expanded the room optimizer with deeper search options, clearer setup/configuration tabs, and improved room-related tooltips
+- Improved the breeding partners view to distinguish mutual and one-way love links
+- Refined the mutation planner so cats are shown alongside selected traits instead of being buried behind room filters
+- Updated the saved UI defaults and persistence behavior for the new planner and optimizer settings
+- Expanded localization coverage for the new settings, labels, and status messages
+- Added and updated tests around planner persistence, optimizer behavior, trait labels, and UI interactions

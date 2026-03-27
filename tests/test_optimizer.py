@@ -15,6 +15,8 @@ from room_optimizer import (
     build_room_configs,
     optimize_room_distribution,
 )
+import room_optimizer.optimizer as room_optimizer_impl
+from breeding import PairFactors, PairProjection
 from save_parser import STAT_NAMES
 
 
@@ -120,6 +122,89 @@ def test_optimize_room_distribution_finds_same_sex_pair():
     assert result.stats.total_pairs >= 1
 
 
+def test_optimize_room_distribution_uses_disjoint_room_pairs():
+    cat_a = _make_cat(1, gender="male", sexuality="bi", stat_seed=8)
+    cat_b = _make_cat(2, gender="female", sexuality="bi", stat_seed=8)
+    cat_c = _make_cat(3, gender="male", sexuality="bi", stat_seed=7)
+    cat_d = _make_cat(4, gender="female", sexuality="bi", stat_seed=7)
+
+    room_configs = [
+        RoomConfig("Floor1_Large", RoomType.BREEDING, 4, 50.0),
+        RoomConfig("Attic", RoomType.FALLBACK, None, 50.0),
+    ]
+    result = optimize_room_distribution(
+        [cat_a, cat_b, cat_c, cat_d],
+        room_configs,
+        OptimizationParams(max_risk=10.0, avoid_lovers=False, use_sa=False),
+        cache=None,
+        excluded_keys=set(),
+    )
+
+    breeding_assignment = next(
+        assignment for assignment in result.rooms if assignment.room.key == "Floor1_Large"
+    )
+    paired_cat_ids = [
+        cat_id
+        for pair in breeding_assignment.pairs
+        for cat_id in (pair.cat_a.db_key, pair.cat_b.db_key)
+    ]
+
+    assert len(breeding_assignment.pairs) == 2
+    assert len(set(paired_cat_ids)) == 4
+    assert result.stats.total_pairs == 2
+
+
+def test_optimize_room_distribution_keep_lovers_together_does_not_block_other_pairs():
+    cat_a = _make_cat(1, gender="male", sexuality="bi", stat_seed=8)
+    cat_b = _make_cat(2, gender="female", sexuality="bi", stat_seed=8)
+    cat_c = _make_cat(3, gender="male", sexuality="bi", stat_seed=6)
+    cat_d = _make_cat(4, gender="female", sexuality="bi", stat_seed=6)
+    cat_a.lovers = [cat_b]
+    cat_b.lovers = [cat_a]
+
+    room_configs = [
+        RoomConfig("Floor1_Large", RoomType.BREEDING, 4, 50.0),
+        RoomConfig("Attic", RoomType.FALLBACK, None, 50.0),
+    ]
+    result = optimize_room_distribution(
+        [cat_a, cat_b, cat_c, cat_d],
+        room_configs,
+        OptimizationParams(max_risk=10.0, avoid_lovers=True, use_sa=False),
+        cache=None,
+        excluded_keys=set(),
+    )
+
+    breeding_room = _room_for_cat(result, 1)
+    assert breeding_room == "Floor1_Large"
+    assert breeding_room == _room_for_cat(result, 2)
+    assert breeding_room == _room_for_cat(result, 3)
+    assert breeding_room == _room_for_cat(result, 4)
+    assert result.stats.assigned_cats == 4
+    assert result.stats.total_pairs == 2
+
+
+def test_optimize_room_distribution_allows_unrequited_love_pairs_when_avoid_lovers_is_on():
+    cat_a = _make_cat(1, gender="male", sexuality="bi", stat_seed=8)
+    cat_b = _make_cat(2, gender="female", sexuality="bi", stat_seed=8)
+    cat_a.lovers = [cat_b]
+
+    room_configs = [
+        RoomConfig("Floor1_Large", RoomType.BREEDING, 2, 50.0),
+        RoomConfig("Attic", RoomType.FALLBACK, None, 50.0),
+    ]
+    result = optimize_room_distribution(
+        [cat_a, cat_b],
+        room_configs,
+        OptimizationParams(max_risk=10.0, avoid_lovers=True, use_sa=False),
+        cache=None,
+        excluded_keys=set(),
+    )
+
+    assert result.stats.total_pairs == 1
+    assert _room_for_cat(result, 1) == "Floor1_Large"
+    assert _room_for_cat(result, 2) == "Floor1_Large"
+
+
 def test_optimize_room_distribution_enforces_risk_cutoff():
     cat_a = _make_cat(1, gender="male", sexuality="bi", stat_seed=6)
     cat_b = _make_cat(2, gender="female", sexuality="straight", stat_seed=6)
@@ -138,6 +223,29 @@ def test_optimize_room_distribution_enforces_risk_cutoff():
 
     assert result.stats.total_pairs == 0
     assert all(not assignment.pairs for assignment in result.rooms)
+
+
+def test_optimize_room_distribution_keeps_empty_rooms_in_result():
+    cat_a = _make_cat(1, gender="male", sexuality="bi", stat_seed=8)
+    cat_b = _make_cat(2, gender="female", sexuality="bi", stat_seed=8)
+
+    room_configs = [
+        RoomConfig("Floor1_Large", RoomType.BREEDING, 6, 50.0),
+        RoomConfig("Floor1_Small", RoomType.BREEDING, 6, 50.0),
+        RoomConfig("Floor2_Small", RoomType.BREEDING, 6, 50.0),
+        RoomConfig("Floor2_Large", RoomType.BREEDING, 6, 50.0),
+        RoomConfig("Attic", RoomType.FALLBACK, None, 50.0),
+    ]
+    result = optimize_room_distribution(
+        [cat_a, cat_b],
+        room_configs,
+        OptimizationParams(max_risk=10.0, avoid_lovers=False),
+        cache=None,
+        excluded_keys=set(),
+    )
+
+    assert [assignment.room.key for assignment in result.rooms] == [cfg.key for cfg in room_configs]
+    assert result.stats.assigned_cats == 2
 
 
 def test_optimize_room_distribution_family_mode_separates_siblings():
@@ -161,3 +269,108 @@ def test_optimize_room_distribution_family_mode_separates_siblings():
     )
 
     assert _room_for_cat(result, 3) != _room_for_cat(result, 4)
+
+
+def test_optimize_room_distribution_family_mode_runs_sa(monkeypatch):
+    cat_a = _make_cat(1, gender="male", sexuality="bi", stat_seed=8)
+    cat_b = _make_cat(2, gender="female", sexuality="bi", stat_seed=8)
+    cat_c = _make_cat(3, gender="male", sexuality="bi", stat_seed=5)
+
+    room_configs = [
+        RoomConfig("Floor1_Large", RoomType.BREEDING, 6, 50.0),
+        RoomConfig("Floor1_Small", RoomType.BREEDING, 6, 50.0),
+        RoomConfig("Attic", RoomType.FALLBACK, None, 50.0),
+    ]
+
+    calls = []
+
+    def _fake_run_sa_refinement(**kwargs):
+        calls.append(kwargs)
+        return kwargs["room_assignments"]
+
+    monkeypatch.setattr(room_optimizer_impl, "_run_sa_refinement", _fake_run_sa_refinement)
+
+    result = optimize_room_distribution(
+        [cat_a, cat_b, cat_c],
+        room_configs,
+        OptimizationParams(mode_family=True, use_sa=True, avoid_lovers=False),
+        cache=None,
+        excluded_keys=set(),
+    )
+
+    assert calls
+    assert calls[0]["mode_family"] is True
+    assert result.stats.total_cats == 3
+
+
+def test_throughput_mode_skips_singletons_that_do_not_add_pairs(monkeypatch):
+    cats = [
+        _make_cat(1, gender="male", sexuality="bi", stat_seed=8),
+        _make_cat(2, gender="female", sexuality="bi", stat_seed=8),
+        _make_cat(3, gender="male", sexuality="bi", stat_seed=7),
+        _make_cat(4, gender="female", sexuality="bi", stat_seed=7),
+    ]
+
+    room_configs = [
+        RoomConfig("Floor1_Large", RoomType.BREEDING, 2, 50.0),
+        RoomConfig("Floor1_Small", RoomType.BREEDING, 1, 50.0),
+        RoomConfig("Attic", RoomType.FALLBACK, None, 50.0),
+    ]
+
+    valid_pairs = {
+        (1, 2): 100.0,
+        (3, 4): 90.0,
+    }
+
+    def _fake_score_pair_factors(cat_a, cat_b, **_kwargs):
+        pair_key = tuple(sorted((cat_a.db_key, cat_b.db_key)))
+        compatible = pair_key in valid_pairs
+        return PairFactors(
+            cat_a=cat_a,
+            cat_b=cat_b,
+            compatible=compatible,
+            reason="" if compatible else "blocked",
+            risk=0.0 if compatible else 100.0,
+            projection=PairProjection(
+                expected_stats={stat: 0.0 for stat in STAT_NAMES},
+                stat_ranges={stat: (0, 0) for stat in STAT_NAMES},
+                locked_stats=(),
+                reachable_stats=(),
+                missing_stats=(),
+                sum_range=(0, 0),
+                avg_expected=0.0,
+                seven_plus_total=0.0,
+                distance_total=0.0,
+            ),
+            complementarity_bonus=0.0,
+            variance_penalty=0.0,
+            personality_bonus=0.0,
+            trait_bonus=0.0,
+            must_breed_bonus=0.0,
+            lover_bonus=0.0,
+            quality=valid_pairs.get(pair_key, 0.0),
+        )
+
+    monkeypatch.setattr(room_optimizer_impl, "score_pair_factors", _fake_score_pair_factors)
+
+    result = optimize_room_distribution(
+        cats,
+        room_configs,
+        OptimizationParams(
+            max_risk=10.0,
+            avoid_lovers=False,
+            maximize_throughput=True,
+        ),
+        cache=None,
+        excluded_keys=set(),
+    )
+
+    small_room = next(
+        assignment for assignment in result.rooms if assignment.room.key == "Floor1_Small"
+    )
+    fallback_room = next(
+        assignment for assignment in result.rooms if assignment.room.key == "Attic"
+    )
+
+    assert small_room.cats == []
+    assert sorted(cat.db_key for cat in fallback_room.cats) == [3, 4]

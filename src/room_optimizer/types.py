@@ -98,7 +98,7 @@ class OptimizationResult:
 DEFAULT_ROOM_CONFIGS = [
     RoomConfig("Floor1_Large", RoomType.BREEDING, 6, 50.0),
     RoomConfig("Floor1_Small", RoomType.BREEDING, 6, 50.0),
+    RoomConfig("Floor2_Small", RoomType.BREEDING, 6, 50.0),
+    RoomConfig("Floor2_Large", RoomType.BREEDING, 6, 50.0),
     RoomConfig("Attic", RoomType.FALLBACK, None, 50.0),
-    RoomConfig("Floor2_Large", RoomType.NONE, None, 50.0),
-    RoomConfig("Floor2_Small", RoomType.NONE, None, 50.0),
 ]

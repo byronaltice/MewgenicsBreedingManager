@@ -95,7 +95,7 @@ def test_score_pair_allows_same_sex_bi_pairs_and_blocks_direct_family():
     assert "Direct family" in direct_family.reason
 
 
-def test_evaluate_pair_enforces_lover_blocking():
+def test_evaluate_pair_allows_unrequited_love_when_avoid_lovers_is_on():
     cat_a = _make_cat(1, gender="male", sexuality="bi")
     cat_b = _make_cat(2, gender="female", sexuality="straight")
 
@@ -107,9 +107,26 @@ def test_evaluate_pair_enforces_lover_blocking():
         avoid_lovers=True,
     )
 
-    assert not ok
-    assert "lover" in reason.lower()
-    assert risk == 0.0
+    assert ok
+    assert reason == ""
+    assert risk > 0.0
+
+
+def test_evaluate_pair_allows_mutual_lovers_when_avoid_lovers_is_on():
+    cat_a = _make_cat(1, gender="male", sexuality="bi")
+    cat_b = _make_cat(2, gender="female", sexuality="straight")
+
+    ok, reason, risk = evaluate_pair(
+        cat_a,
+        cat_b,
+        hater_key_map={1: set(), 2: set()},
+        lover_key_map={1: {2}, 2: {1}},
+        avoid_lovers=True,
+    )
+
+    assert ok
+    assert reason == ""
+    assert risk > 0.0
 
 
 def test_evaluate_pair_uses_cache_accessor_for_risk():

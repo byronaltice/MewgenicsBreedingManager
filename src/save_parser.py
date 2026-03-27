@@ -36,8 +36,8 @@ STAT_NAMES = ["STR", "DEX", "CON", "INT", "SPD", "CHA", "LCK"]
 ROOM_DISPLAY = {
     "Floor1_Large":   "1st FL L",
     "Floor1_Small":   "1st FL R",
-    "Floor2_Large":   "2nd FL R",
     "Floor2_Small":   "2nd FL L",
+    "Floor2_Large":   "2nd FL R",
     "Attic":          "Attic",
 }
 

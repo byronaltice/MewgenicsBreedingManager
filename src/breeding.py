@@ -113,12 +113,8 @@ def is_lover_conflict(
     lover_key_map: dict[int, set[int]],
     avoid_lovers: bool,
 ) -> bool:
-    """Check if pairing conflicts with existing lover relationships."""
-    if not avoid_lovers:
-        return False
-    la = lover_key_map.get(a.db_key, set())
-    lb = lover_key_map.get(b.db_key, set())
-    return (la and b.db_key not in la) or (lb and a.db_key not in lb)
+    """Lover relationships are a soft signal and never hard-block a pair."""
+    return False
 
 
 def trait_or_default(v: Optional[float], default: float = 0.5) -> float:

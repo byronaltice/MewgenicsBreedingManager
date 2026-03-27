@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import random
+from functools import lru_cache
 from typing import Iterable
 
 from breeding import PairFactors, is_hater_conflict, is_mutual_lover_pair, score_pair as score_pair_factors
@@ -173,20 +174,23 @@ def _filter_lover_exclusivity(
     lover_key_map: dict[int, set[int]],
 ) -> list[tuple[Cat, Cat]]:
     room_cat_ids = {c.db_key for c in room_cats}
-    lover_lookup = {
-        c.db_key: next(iter(lover_key_map.get(c.db_key, set())), None)
+    mutual_lover_targets = {
+        c.db_key: {
+            other_id
+            for other_id in lover_key_map.get(c.db_key, set())
+            if other_id in room_cat_ids and c.db_key in lover_key_map.get(other_id, set())
+        }
         for c in room_cats
-        if any(lid in room_cat_ids for lid in lover_key_map.get(c.db_key, set()))
     }
 
     filtered = []
     for a, b in pairs:
-        a_lover = lover_lookup.get(a.db_key)
-        b_lover = lover_lookup.get(b.db_key)
+        a_targets = mutual_lover_targets.get(a.db_key, set())
+        b_targets = mutual_lover_targets.get(b.db_key, set())
 
-        if a_lover is not None and b.db_key != a_lover:
+        if a_targets and b.db_key not in a_targets:
             continue
-        if b_lover is not None and a.db_key != b_lover:
+        if b_targets and a.db_key not in b_targets:
             continue
         filtered.append((a, b))
     return filtered
@@ -228,6 +232,117 @@ def _throughput_density_bonus(valid_pairs: int, total_possible_pairs: float, ena
         return 0.0
     density = max(0.0, min(1.0, valid_pairs / total_possible_pairs))
     return math.expm1((density**1.5) * valid_pairs)
+
+
+def _matching_result_key(result: tuple[int, float, float, tuple[tuple[int, int], ...]]) -> tuple[int, float, float]:
+    count, quality, risk, _ = result
+    return (count, quality, -risk)
+
+
+def _select_room_pairs(
+    cats_in_room: list[Cat],
+    room_stim: float,
+    *,
+    params: OptimizationParams,
+    hater_key_map: dict[int, set[int]],
+    lover_key_map: dict[int, set[int]],
+    score_pair_cached,
+    mode_family: bool = False,
+    family_group_ids: dict[int, tuple[int, ...] | None] | None = None,
+) -> list[ScoredPair] | None:
+    """Return the best non-overlapping set of breeding pairs for a room."""
+    if len(cats_in_room) < 2:
+        return []
+
+    family_group_ids = family_group_ids or {}
+
+    if mode_family:
+        for a, b in _generate_pairs(cats_in_room):
+            group_a = family_group_ids.get(a.db_key)
+            if group_a is not None and group_a == family_group_ids.get(b.db_key):
+                return None
+            factors = score_pair_cached(a, b, room_stim)
+            if not factors.compatible or factors.risk > params.max_risk:
+                return None
+
+    room_cat_ids = {cat.db_key for cat in cats_in_room}
+    mutual_lover_targets: dict[int, set[int]] = {}
+    if params.avoid_lovers:
+        for cat in cats_in_room:
+            mutuals = {
+                other_id
+                for other_id in lover_key_map.get(cat.db_key, set())
+                if other_id in room_cat_ids and cat.db_key in lover_key_map.get(other_id, set())
+            }
+            if mutuals:
+                mutual_lover_targets[cat.db_key] = mutuals
+
+    candidate_pairs: dict[tuple[int, int], ScoredPair] = {}
+    for i, cat_a in enumerate(cats_in_room):
+        for j in range(i + 1, len(cats_in_room)):
+            cat_b = cats_in_room[j]
+            if cat_b.db_key in hater_key_map.get(cat_a.db_key, set()):
+                continue
+            if cat_a.db_key in hater_key_map.get(cat_b.db_key, set()):
+                continue
+
+            lover_targets_a = mutual_lover_targets.get(cat_a.db_key)
+            if lover_targets_a and cat_b.db_key not in lover_targets_a:
+                continue
+            lover_targets_b = mutual_lover_targets.get(cat_b.db_key)
+            if lover_targets_b and cat_a.db_key not in lover_targets_b:
+                continue
+
+            factors = score_pair_cached(cat_a, cat_b, room_stim)
+            if not factors.compatible or factors.risk > params.max_risk:
+                continue
+
+            candidate_pairs[(i, j)] = ScoredPair(
+                cat_a=cat_a,
+                cat_b=cat_b,
+                risk=factors.risk,
+                quality=factors.quality,
+            )
+
+    @lru_cache(maxsize=None)
+    def _best_matching(mask: int) -> tuple[int, float, float, tuple[tuple[int, int], ...]]:
+        if mask.bit_count() < 2:
+            return (0, 0.0, 0.0, ())
+
+        first_bit = mask & -mask
+        first_idx = first_bit.bit_length() - 1
+        best = _best_matching(mask ^ (1 << first_idx))
+
+        for second_idx in range(first_idx + 1, len(cats_in_room)):
+            if not (mask & (1 << second_idx)):
+                continue
+            pair = candidate_pairs.get((first_idx, second_idx))
+            if pair is None:
+                continue
+
+            remainder = _best_matching(mask ^ (1 << first_idx) ^ (1 << second_idx))
+            candidate = (
+                remainder[0] + 1,
+                remainder[1] + pair.quality,
+                remainder[2] + pair.risk,
+                ((first_idx, second_idx),) + remainder[3],
+            )
+            if _matching_result_key(candidate) > _matching_result_key(best):
+                best = candidate
+
+        return best
+
+    _, _, _, pair_indexes = _best_matching((1 << len(cats_in_room)) - 1)
+    selected_pairs = [candidate_pairs[indexes] for indexes in pair_indexes]
+    selected_pairs.sort(
+        key=lambda pair: (
+            -pair.quality,
+            pair.risk,
+            min(pair.cat_a.db_key, pair.cat_b.db_key),
+            max(pair.cat_a.db_key, pair.cat_b.db_key),
+        )
+    )
+    return selected_pairs
 
 
 def optimize_room_distribution(
@@ -296,33 +411,65 @@ def optimize_room_distribution(
             )
         return pair_factor_cache[key]
 
+    def _family_group_id(cat: Cat) -> tuple[int, ...] | None:
+        ancestors: list[int] = []
+        for p in (cat.parent_a, cat.parent_b):
+            if p:
+                ancestors.append(p.db_key)
+                for gp in (p.parent_a, p.parent_b):
+                    if gp:
+                        ancestors.append(gp.db_key)
+        return tuple(sorted(ancestors)) if ancestors else None
+
+    family_group_ids: dict[int, tuple[int, ...] | None] = {
+        c.db_key: _family_group_id(c) for c in filtered_cats
+    } if params.mode_family else {}
+
     def _room_conflict(a: Cat, b: Cat) -> bool:
         factors = _score_pair_cached(a, b, params.stimulation)
         return (not factors.compatible) or factors.risk > params.max_risk
 
-    def _room_pair_score(cats_in_room: list[Cat], room_stim: float) -> float:
-        if len(cats_in_room) < 2:
-            return 0.0
-        pairs = _generate_pairs(cats_in_room)
-        pairs = _filter_lover_exclusivity(pairs, cats_in_room, lover_key_map)
-        pairs = _filter_hater_conflicts(pairs, cats_in_room, hater_key_map)
+    def _room_pair_metrics(cats_in_room: list[Cat], room_stim: float) -> tuple[float, int] | None:
+        """Return the room score and simultaneous-pair count for this room."""
+        selected_pairs = _select_room_pairs(
+            cats_in_room,
+            room_stim,
+            params=params,
+            hater_key_map=hater_key_map,
+            lover_key_map=lover_key_map,
+            score_pair_cached=_score_pair_cached,
+            mode_family=params.mode_family,
+            family_group_ids=family_group_ids,
+        )
+        if selected_pairs is None:
+            return None
+        return sum(pair.quality for pair in selected_pairs), len(selected_pairs)
 
-        sum_quality = 0.0
-        valid_pairs = 0
-        for a, b in pairs:
-            factors = _score_pair_cached(a, b, room_stim)
-            if factors.compatible and factors.risk <= params.max_risk:
-                sum_quality += factors.quality
-                valid_pairs += 1
+    def _room_pair_score(cats_in_room: list[Cat], room_stim: float) -> float | tuple[int, float]:
+        metrics = _room_pair_metrics(cats_in_room, room_stim)
+        if metrics is None:
+            return (0, 0.0) if params.maximize_throughput else 0.0
+        sum_quality, valid_pairs = metrics
         if valid_pairs <= 0:
-            return 0.0
+            return (0, 0.0) if params.maximize_throughput else 0.0
 
         total_possible_pairs = (len(cats_in_room) * (len(cats_in_room) - 1)) / 2.0
         base_score = sum_quality / total_possible_pairs
+        if params.maximize_throughput:
+            # Throughput mode should prefer the room that produces more valid
+            # breeding pairs, even if its average pair quality is a little lower.
+            return (
+                valid_pairs,
+                base_score + _throughput_density_bonus(
+                    valid_pairs,
+                    total_possible_pairs,
+                    True,
+                ),
+            )
         return base_score + _throughput_density_bonus(
             valid_pairs,
             total_possible_pairs,
-            params.maximize_throughput,
+            False,
         )
 
     if params.mode_family:
@@ -341,16 +488,6 @@ def optimize_room_distribution(
             lover_rooms = [r for r in room_order if any(is_mutual_lover_pair(cat, ec, lover_key_map) for ec in _room_cats(r))]
             return lover_rooms + [r for r in room_order if r not in lover_rooms]
 
-        def _family_group_id(cat: Cat) -> tuple[int, ...] | None:
-            ancestors: list[int] = []
-            for p in (cat.parent_a, cat.parent_b):
-                if p:
-                    ancestors.append(p.db_key)
-                    for gp in (p.parent_a, p.parent_b):
-                        if gp:
-                            ancestors.append(gp.db_key)
-            return tuple(sorted(ancestors)) if ancestors else None
-
         for cat in ey_cats:
             room_key = best_ey_room.key if best_ey_room is not None else room_order[0]
             family_assignments[room_key]["unknown"].append(cat)
@@ -363,7 +500,7 @@ def optimize_room_distribution(
             family_groups: dict[tuple[int, ...] | None, list[Cat]] = {}
             no_family: list[Cat] = []
             for cat in gender_list:
-                fid = _family_group_id(cat)
+                fid = family_group_ids.get(cat.db_key)
                 (family_groups.setdefault(fid, []) if fid else no_family).append(cat)
 
             for fid, fcats in family_groups.items():
@@ -373,7 +510,7 @@ def optimize_room_distribution(
                         rc = _room_cats(room_key)
                         if len(rc) >= max_cats_per_room:
                             continue
-                        if any(_family_group_id(ec) == fid or _room_conflict(cat, ec) for ec in rc):
+                        if any(family_group_ids.get(ec.db_key) == fid or _room_conflict(cat, ec) for ec in rc):
                             continue
                         family_assignments[room_key][gender_key].append(cat)
                         placed = True
@@ -449,7 +586,7 @@ def optimize_room_distribution(
             placed = False
             if params.maximize_throughput:
                 best_room_key: str | None = None
-                best_room_score = float("-inf")
+                best_room_score: tuple[int, float] | None = None
                 for room in room_configs:
                     if room.room_type != RoomType.BREEDING:
                         continue
@@ -457,15 +594,16 @@ def optimize_room_distribution(
                     effective_count = room_effective_counts[room.key]
                     if room.max_cats is not None and effective_count >= room.max_cats:
                         continue
-                    if any(_room_conflict(a, ec) or _room_conflict(b, ec) for ec in rc):
-                        continue
                     if not _can_fit_single(room, effective_count, a):
                         continue
                     next_count = effective_count + (0 if _has_eternal_youth(a) else 1)
                     if not _can_fit_single(room, next_count, b):
                         continue
+                    candidate_metrics = _room_pair_metrics(rc + [a, b], room.base_stim)
+                    if candidate_metrics is None or candidate_metrics[1] <= 0:
+                        continue
                     candidate_score = _room_pair_score(rc + [a, b], room.base_stim)
-                    if candidate_score > best_room_score:
+                    if best_room_score is None or candidate_score > best_room_score:
                         best_room_score = candidate_score
                         best_room_key = room.key
                 if best_room_key is not None:
@@ -484,9 +622,10 @@ def optimize_room_distribution(
                     effective_count = room_effective_counts[room.key]
                     if room.max_cats is not None and effective_count >= room.max_cats:
                         continue
-                    if any(_room_conflict(a, ec) or _room_conflict(b, ec) for ec in rc):
-                        continue
                     if _can_fit_single(room, effective_count, a) and _can_fit_single(room, effective_count + (0 if _has_eternal_youth(a) else 1), b):
+                        candidate_metrics = _room_pair_metrics(rc + [a, b], room.base_stim)
+                        if candidate_metrics is None or candidate_metrics[1] <= 0:
+                            continue
                         rc.extend([a, b])
                         if not _has_eternal_youth(a):
                             room_effective_counts[room.key] += 1
@@ -512,37 +651,48 @@ def optimize_room_distribution(
                         effective_count = room_effective_counts[room_key]
                         if room.max_cats is not None and effective_count >= room.max_cats:
                             continue
-                        if not any(_room_conflict(cat, ec) for ec in room_assignments[room_key]):
-                            if _can_fit_single(room, effective_count, cat):
-                                if params.maximize_throughput:
-                                    candidate_rooms = []
-                                    for candidate_key in preferred:
-                                        candidate_room = room_lookup[candidate_key]
-                                        candidate_count = room_effective_counts[candidate_key]
-                                        if candidate_room.max_cats is not None and candidate_count >= candidate_room.max_cats:
-                                            continue
-                                        if any(_room_conflict(cat, ec) for ec in room_assignments[candidate_key]):
-                                            continue
-                                        if not _can_fit_single(candidate_room, candidate_count, cat):
-                                            continue
-                                        candidate_score = _room_pair_score(
-                                            room_assignments[candidate_key] + [cat],
-                                            candidate_room.base_stim,
-                                        )
-                                        candidate_rooms.append((candidate_score, candidate_key))
-                                    if candidate_rooms:
-                                        _, best_room_key = max(candidate_rooms, key=lambda item: item[0])
-                                        room_assignments[best_room_key].append(cat)
-                                        if not _has_eternal_youth(cat):
-                                            room_effective_counts[best_room_key] += 1
-                                        assigned_cats.add(cat.db_key)
-                                        break
-                                else:
-                                    room_assignments[room_key].append(cat)
+                        candidate_metrics = _room_pair_metrics(room_assignments[room_key] + [cat], room.base_stim)
+                        if candidate_metrics is None:
+                            continue
+                        if _can_fit_single(room, effective_count, cat):
+                            if params.maximize_throughput:
+                                candidate_rooms = []
+                                for candidate_key in preferred:
+                                    candidate_room = room_lookup[candidate_key]
+                                    candidate_count = room_effective_counts[candidate_key]
+                                    if candidate_room.max_cats is not None and candidate_count >= candidate_room.max_cats:
+                                        continue
+                                    if not _can_fit_single(candidate_room, candidate_count, cat):
+                                        continue
+                                    current_metrics = _room_pair_metrics(
+                                        room_assignments[candidate_key],
+                                        candidate_room.base_stim,
+                                    )
+                                    if current_metrics is None:
+                                        continue
+                                    candidate_metrics = _room_pair_metrics(room_assignments[candidate_key] + [cat], candidate_room.base_stim)
+                                    if candidate_metrics is None:
+                                        continue
+                                    if candidate_metrics[1] <= current_metrics[1]:
+                                        continue
+                                    candidate_score = _room_pair_score(
+                                        room_assignments[candidate_key] + [cat],
+                                        candidate_room.base_stim,
+                                    )
+                                    candidate_rooms.append((candidate_score, candidate_key))
+                                if candidate_rooms:
+                                    _, best_room_key = max(candidate_rooms, key=lambda item: item[0])
+                                    room_assignments[best_room_key].append(cat)
                                     if not _has_eternal_youth(cat):
-                                        room_effective_counts[room_key] += 1
+                                        room_effective_counts[best_room_key] += 1
                                     assigned_cats.add(cat.db_key)
                                     break
+                            else:
+                                room_assignments[room_key].append(cat)
+                                if not _has_eternal_youth(cat):
+                                    room_effective_counts[room_key] += 1
+                                assigned_cats.add(cat.db_key)
+                                break
 
         unassigned = [c for c in non_ey_cats if c.db_key not in assigned_cats]
         fallback_rooms = [room.key for room in room_configs if room.room_type != RoomType.BREEDING] or [room_order[-1]]
@@ -550,20 +700,22 @@ def optimize_room_distribution(
             room_assignments[fallback_rooms[i % len(fallback_rooms)]].append(cat)
             assigned_cats.add(cat.db_key)
 
-        if params.use_sa:
-            room_assignments = _run_sa_refinement(
-                room_assignments=room_assignments,
-                room_configs=room_configs,
-                room_lookup=room_lookup,
-                room_effective_counts=room_effective_counts,
-                original_state=original_state,
-                cats_by_id=cats_by_id,
-                params=params,
-                cache=cache,
-                hater_key_map=hater_key_map,
-                lover_key_map=lover_key_map,
-                pair_factor_cache=pair_factor_cache,
-            )
+    if params.use_sa:
+        room_assignments = _run_sa_refinement(
+            room_assignments=room_assignments,
+            room_configs=room_configs,
+            room_lookup=room_lookup,
+            room_effective_counts=room_effective_counts,
+            original_state=original_state,
+            cats_by_id=cats_by_id,
+            params=params,
+            cache=cache,
+            hater_key_map=hater_key_map,
+            lover_key_map=lover_key_map,
+            pair_factor_cache=pair_factor_cache,
+            mode_family=params.mode_family,
+            family_group_ids=family_group_ids,
+        )
 
     room_results: list[RoomAssignment] = []
     breeding_rooms_used = 0
@@ -574,15 +726,20 @@ def optimize_room_distribution(
 
     for room in room_configs:
         cats_in_room = room_assignments[room.key]
-        if len(cats_in_room) < 2 and not cats_in_room:
-            continue
-
         pairs: list[ScoredPair] = []
         if room.room_type == RoomType.BREEDING and len(cats_in_room) >= 2:
-            for a, b in _generate_pairs(cats_in_room):
-                factors = _score_pair_cached(a, b, room.base_stim)
-                if factors.compatible and factors.risk <= params.max_risk:
-                    pairs.append(ScoredPair(cat_a=a, cat_b=b, risk=factors.risk, quality=factors.quality))
+            selected_pairs = _select_room_pairs(
+                cats_in_room,
+                room.base_stim,
+                params=params,
+                hater_key_map=hater_key_map,
+                lover_key_map=lover_key_map,
+                score_pair_cached=_score_pair_cached,
+                mode_family=params.mode_family,
+                family_group_ids=family_group_ids,
+            )
+            if selected_pairs is not None:
+                pairs = selected_pairs
 
         ey_in_room = [c for c in cats_in_room if _has_eternal_youth(c)]
         room_results.append(
@@ -594,10 +751,11 @@ def optimize_room_distribution(
             )
         )
 
-        if room.room_type == RoomType.BREEDING:
-            breeding_rooms_used += 1
-        elif room.room_type != RoomType.NONE:
-            general_rooms_used += 1
+        if cats_in_room:
+            if room.room_type == RoomType.BREEDING:
+                breeding_rooms_used += 1
+            elif room.room_type != RoomType.NONE:
+                general_rooms_used += 1
 
         total_pairs += len(pairs)
         for p in pairs:
@@ -634,6 +792,8 @@ def _run_sa_refinement(
     hater_key_map: dict[int, set[int]],
     lover_key_map: dict[int, set[int]],
     pair_factor_cache: dict[tuple[int, int, float], PairFactors],
+    mode_family: bool = False,
+    family_group_ids: dict[int, tuple[int, ...] | None] | None = None,
 ) -> dict[str, list[Cat]]:
     """Refine the greedy room assignment with simulated annealing."""
     breeding_rooms = [r for r in room_configs if r.room_type == RoomType.BREEDING]
@@ -644,6 +804,7 @@ def _run_sa_refinement(
     mutable_ids = [cid for cid in cats_by_id if cid not in fixed_ids]
     if len(mutable_ids) < 2:
         return room_assignments
+    family_group_ids = family_group_ids or {}
 
     def _pair_factor_key(a: Cat, b: Cat, stimulation: float) -> tuple[int, int, float]:
         return (min(a.db_key, b.db_key), max(a.db_key, b.db_key), float(stimulation))
@@ -669,6 +830,44 @@ def _run_sa_refinement(
     def _room_cats(room_key: str, state: dict[int, str]) -> list[Cat]:
         return [cats_by_id[cid] for cid, room in state.items() if room == room_key and cid in cats_by_id]
 
+    def _room_pair_metrics(cats_in_room: list[Cat], room_stim: float) -> tuple[float, int] | None:
+        selected_pairs = _select_room_pairs(
+            cats_in_room,
+            room_stim,
+            params=params,
+            hater_key_map=hater_key_map,
+            lover_key_map=lover_key_map,
+            score_pair_cached=_score_pair_cached,
+            mode_family=mode_family,
+            family_group_ids=family_group_ids,
+        )
+        if selected_pairs is None:
+            return None
+        return sum(pair.quality for pair in selected_pairs), len(selected_pairs)
+
+    def _room_score(cats_in_room: list[Cat], room_stim: float) -> tuple[float, int] | None:
+        metrics = _room_pair_metrics(cats_in_room, room_stim)
+        if metrics is None:
+            return None
+        return metrics
+
+    def _room_accepts_cat(room_key: str, cat_id: int, state: dict[int, str]) -> bool:
+        candidate = cats_by_id[cat_id]
+        if mode_family:
+            for other in _room_cats(room_key, state):
+                if other.db_key == cat_id:
+                    continue
+                candidate_group = family_group_ids.get(cat_id)
+                if candidate_group is not None and candidate_group == family_group_ids.get(other.db_key):
+                    return False
+                factors = _score_pair_cached(candidate, other, params.stimulation)
+                if not factors.compatible or factors.risk > params.max_risk:
+                    return False
+            return True
+
+        metrics = _room_pair_metrics(_room_cats(room_key, state) + [candidate], room_lookup[room_key].base_stim)
+        return metrics is not None
+
     def _state_score(state: dict[int, str]) -> float:
         total_quality = 0.0
         for room in breeding_rooms:
@@ -678,29 +877,30 @@ def _run_sa_refinement(
                 excess = effective_count - room.max_cats
                 total_quality -= 1000.0 * (excess**2)
 
-            if len(cats_in_room) < 2:
-                continue
+            room_score = _room_score(cats_in_room, room.base_stim)
+            if room_score is None:
+                return float("-inf")
 
-            pairs = _generate_pairs(cats_in_room)
-            pairs = _filter_lover_exclusivity(pairs, cats_in_room, lover_key_map)
-            pairs = _filter_hater_conflicts(pairs, cats_in_room, hater_key_map)
-
-            sum_quality = 0.0
-            valid_pairs = 0
-            for a, b in pairs:
-                factors = _score_pair_cached(a, b, room.base_stim)
-                if factors.compatible and factors.risk <= params.max_risk:
-                    sum_quality += factors.quality
-                    valid_pairs += 1
-
+            sum_quality, valid_pairs = room_score
             if valid_pairs:
                 total_possible_pairs = (len(cats_in_room) * (len(cats_in_room) - 1)) / 2.0
-                total_quality += sum_quality / total_possible_pairs
-                total_quality += _throughput_density_bonus(
-                    valid_pairs,
-                    total_possible_pairs,
-                    params.maximize_throughput,
-                )
+                if params.maximize_throughput:
+                    # Throughput mode should treat pair count as the primary
+                    # objective and pair quality as a tie-breaker.
+                    total_quality += valid_pairs * 1000.0
+                    total_quality += sum_quality / total_possible_pairs
+                    total_quality += _throughput_density_bonus(
+                        valid_pairs,
+                        total_possible_pairs,
+                        True,
+                    )
+                else:
+                    total_quality += sum_quality / total_possible_pairs
+                    total_quality += _throughput_density_bonus(
+                        valid_pairs,
+                        total_possible_pairs,
+                        False,
+                    )
 
         moved_cats = sum(1 for cid, r in state.items() if r != original_state.get(cid) and r)
         total_quality -= moved_cats * params.move_penalty_weight
@@ -720,7 +920,11 @@ def _run_sa_refinement(
                 if r_key in room_counts:
                     room_counts[r_key] += 1
 
-            valid_rooms = [r.key for r in breeding_rooms if r.key != new_state[cat_to_move]]
+            valid_rooms = [
+                r.key
+                for r in breeding_rooms
+                if r.key != new_state[cat_to_move] and _room_accepts_cat(r.key, cat_to_move, new_state)
+            ]
             if not valid_rooms:
                 return new_state
 
@@ -735,7 +939,14 @@ def _run_sa_refinement(
             new_state[cat_to_move] = random.choices(valid_rooms, weights=weights, k=1)[0]
         else:
             c1, c2 = random.sample(keys, 2)
-            new_state[c1], new_state[c2] = new_state[c2], new_state[c1]
+            room1 = new_state[c1]
+            room2 = new_state[c2]
+            new_state[c1], new_state[c2] = room2, room1
+            if mode_family and (
+                not _room_accepts_cat(room2, c1, new_state)
+                or not _room_accepts_cat(room1, c2, new_state)
+            ):
+                return state
         return new_state
 
     state = {cid: room for room_key, cats in room_assignments.items() for cid, room in [(cat.db_key, room_key) for cat in cats]}

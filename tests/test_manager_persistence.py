@@ -19,15 +19,19 @@ sys.path.insert(0, str(_proj_root))
 import mewgenics_manager as mm
 from mewgenics_manager import (
     BreedingCache,
+    RoomOptimizerWorker,
     _apply_calibration_data,
     _effective_thresholds_for_cats,
     _learn_gender_token_map,
     _load_calibration_data,
+    _load_optimizer_search_settings,
     _load_threshold_preferences,
     _load_gender_overrides,
     _save_calibration_data,
+    _save_optimizer_search_settings,
     _save_threshold_preferences,
 )
+from room_optimizer import OptimizationResult, OptimizationStats, RoomAssignment, RoomConfig, RoomType
 
 
 def _make_cat(
@@ -223,6 +227,97 @@ def test_breeding_cache_round_trip():
         assert BreedingCache.load_from_disk(str(save_path), "bogus-signature") is None
 
 
+def test_room_optimizer_worker_keeps_family_mode_sa_enabled(monkeypatch):
+    captured: dict[str, bool] = {}
+
+    cats = [
+        SimpleNamespace(
+            db_key=1,
+            name="Alpha",
+            gender_display="M",
+            status="In House",
+            room="Floor1_Large",
+            room_display=mm.ROOM_DISPLAY["Floor1_Large"],
+            lovers=[],
+            haters=[],
+            base_stats={stat: 4 for stat in mm.STAT_NAMES},
+            age=1.0,
+            aggression=0.2,
+            libido=0.3,
+            inbredness=0.1,
+        ),
+        SimpleNamespace(
+            db_key=2,
+            name="Bravo",
+            gender_display="F",
+            status="In House",
+            room="Floor1_Large",
+            room_display=mm.ROOM_DISPLAY["Floor1_Large"],
+            lovers=[],
+            haters=[],
+            base_stats={stat: 4 for stat in mm.STAT_NAMES},
+            age=1.0,
+            aggression=0.2,
+            libido=0.3,
+            inbredness=0.1,
+        ),
+    ]
+
+    def _fake_optimize_room_distribution(_cats, room_configs, params, **_kwargs):
+        captured["use_sa"] = params.use_sa
+        return OptimizationResult(
+            rooms=[
+                RoomAssignment(
+                    room=room_configs[0],
+                    cats=[],
+                    pairs=[],
+                )
+            ],
+            excluded_cats=[],
+            stats=OptimizationStats(
+                total_cats=2,
+                assigned_cats=0,
+                total_pairs=0,
+                breeding_rooms_used=0,
+                general_rooms_used=0,
+                avg_pair_quality=0.0,
+                avg_risk_percent=0.0,
+            ),
+        )
+
+    monkeypatch.setattr(mm, "optimize_room_distribution", _fake_optimize_room_distribution)
+
+    worker = RoomOptimizerWorker(
+        cats,
+        excluded_keys=set(),
+        cache=None,
+        params={
+            "min_stats": 0,
+            "max_risk": 10.0,
+            "minimize_variance": True,
+            "avoid_lovers": False,
+            "prefer_low_aggression": True,
+            "prefer_high_libido": True,
+            "maximize_throughput": False,
+            "sa_temperature": 8.0,
+            "sa_neighbors": 120,
+            "mode_family": True,
+            "use_sa": True,
+            "planner_traits": [],
+            "available_rooms": ["Floor1_Large", "Attic"],
+            "room_config": [
+                {"room": "Floor1_Large", "type": "breeding", "max_cats": 6, "base_stim": 50.0},
+                {"room": "Attic", "type": "fallback", "max_cats": 0, "base_stim": 50.0},
+            ],
+            "room_stats": {},
+        },
+    )
+
+    worker.run()
+
+    assert captured["use_sa"] is True
+
+
 def test_breeding_cache_uses_pedigree_coi_memo_when_risk_missing():
     cache = BreedingCache()
     cache.ready = True
@@ -235,6 +330,68 @@ def test_breeding_cache_uses_pedigree_coi_memo_when_risk_missing():
 
     expected = mm._combined_malady_chance(0.25) * 100.0
     assert cache.get_risk(cat_a, cat_b) == pytest.approx(expected)
+
+
+def test_safe_breeding_view_populates_all_columns_even_if_sorting_is_enabled():
+    app = mm.QApplication.instance() or mm.QApplication([])
+
+    class _Cat:
+        def __init__(self, db_key, name, gender, parent_a=None, parent_b=None, generation=0):
+            self.db_key = db_key
+            self.name = name
+            self.gender = gender
+            self.gender_display = gender
+            self.status = "In House"
+            self.must_breed = False
+            self.is_blacklisted = False
+            self.room = ""
+            self.room_display = ""
+            self.base_stats = {stat: 5 for stat in mm.STAT_NAMES}
+            self.parent_a = parent_a
+            self.parent_b = parent_b
+            self.sexuality = "bi"
+            self.haters = []
+            self.lovers = []
+            self.disorders = []
+            self.defects = []
+            self.passive_abilities = []
+            self.abilities = []
+            self.mutations = []
+            self.tags = []
+            self.generation = generation
+
+        def __hash__(self):
+            return hash(self.db_key)
+
+    grand = _Cat(1, "Grand", "male")
+    other_grand = _Cat(2, "OtherGrand", "female")
+    focus = _Cat(3, "Focus", "male", grand, other_grand, 1)
+    sibling = _Cat(4, "Sibling", "female", grand, other_grand, 1)
+    unrelated = _Cat(5, "Unrelated", "female")
+    focus.lovers = [unrelated, sibling]
+    sibling.lovers = [focus]
+
+    view = mm.SafeBreedingView()
+    view._table.setSortingEnabled(True)
+    view._table.sortByColumn(0, mm.Qt.DescendingOrder)
+    view.set_cats([grand, other_grand, focus, sibling, unrelated])
+    view._render_for(focus)
+    app.processEvents()
+
+    rows = {
+        view._table.item(row, 0).text(): row
+        for row in range(view._table.rowCount())
+        if view._table.item(row, 0) is not None
+    }
+
+    one_way_row = rows["Unrelated ♥ (female)"]
+    mutual_row = rows["Sibling ♥ (female)"]
+    neutral_row = rows["Grand (male)"]
+
+    assert view._table.item(one_way_row, 0).background().color().name() == "#e0b0c9"
+    assert view._table.item(mutual_row, 0).background().color().name() == "#842458"
+    assert view._table.item(neutral_row, 0).background().color().name() != "#e0b0c9"
+    assert view._table.item(neutral_row, 0).background().color().name() != "#842458"
 
 
 def test_threshold_preferences_round_trip_and_curve_math(monkeypatch):
@@ -263,6 +420,17 @@ def test_threshold_preferences_round_trip_and_curve_math(monkeypatch):
 
         assert avg_sum == 35.0
         assert (exceptional, donation, top_stat) == (40, 34, 6)
+
+
+def test_optimizer_search_settings_round_trip(monkeypatch):
+    with _workspace_temp_dir() as td:
+        config_path = td / "settings.json"
+        monkeypatch.setattr(mm, "APPDATA_CONFIG_DIR", str(td))
+        monkeypatch.setattr(mm, "APP_CONFIG_PATH", str(config_path))
+
+        settings = {"temperature": 12.5, "neighbors": 73}
+        assert _save_optimizer_search_settings(settings)
+        assert _load_optimizer_search_settings() == settings
 
 
 def test_start_breeding_cache_uses_save_signature_for_disk_lookup(monkeypatch):
