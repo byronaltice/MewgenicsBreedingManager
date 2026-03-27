@@ -2,7 +2,7 @@
 
 A high-performance, Python-based tool for optimizing breeding operations in Mewgenics. It extracts data directly from your save files and helps you compare pairings, optimize room layouts, and plan long-term lines to maximize strong offspring while minimizing inbreeding risk.
 
-Current release: `v4.4.0`
+Current release: `v4.4.1`
 
 ## Screenshots
 
@@ -61,6 +61,11 @@ On Linux, use `build.sh`.
 - Original idea and reference from frankieg33
 
 ## Release Notes
+
+### v4.4.1
+
+- Follow-up release for the same planner, optimizer, localization, and test updates shipped in `v4.4.0`
+- Keeps the shared optimizer search settings, deeper room optimizer controls, breeding partner improvements, and planner persistence updates in sync with the latest release line
 
 ### v4.4.0
 
