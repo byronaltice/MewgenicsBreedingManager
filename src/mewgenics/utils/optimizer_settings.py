@@ -1,0 +1,154 @@
+"""Optimizer search settings and room priority config persistence."""
+from typing import Optional
+
+from save_parser import ROOM_KEYS
+
+from mewgenics.utils.config import (
+    _load_app_config, _save_app_config, _coerce_int, _coerce_float,
+)
+from mewgenics.utils.planner_state import (
+    _load_planner_state_value, _save_planner_state_value,
+)
+
+
+_OPTIMIZER_SEARCH_SETTINGS_KEY = "optimizer_search_settings"
+_OPTIMIZER_SEARCH_DEFAULTS = {
+    "temperature": 8.0,
+    "neighbors": 120,
+}
+
+
+def _normalize_optimizer_search_settings(data: dict | None) -> dict:
+    data = data if isinstance(data, dict) else {}
+    return {
+        "temperature": _coerce_float(
+            data.get("temperature"),
+            _OPTIMIZER_SEARCH_DEFAULTS["temperature"],
+            min_value=0.0,
+        ),
+        "neighbors": _coerce_int(
+            data.get("neighbors"),
+            _OPTIMIZER_SEARCH_DEFAULTS["neighbors"],
+            min_value=1,
+        ),
+    }
+
+
+def _load_optimizer_search_settings() -> dict:
+    data = _load_app_config()
+    return _normalize_optimizer_search_settings(data.get(_OPTIMIZER_SEARCH_SETTINGS_KEY))
+
+
+def _save_optimizer_search_settings(settings: dict) -> bool:
+    normalized = _normalize_optimizer_search_settings(settings)
+    data = _load_app_config()
+    data[_OPTIMIZER_SEARCH_SETTINGS_KEY] = normalized
+    _save_app_config(data)
+    return True
+
+
+def _saved_optimizer_search_temperature(default: float | None = None) -> float:
+    settings = _load_optimizer_search_settings()
+    fallback = _OPTIMIZER_SEARCH_DEFAULTS["temperature"] if default is None else default
+    return float(settings.get("temperature", fallback))
+
+
+def _saved_optimizer_search_neighbors(default: int | None = None) -> int:
+    settings = _load_optimizer_search_settings()
+    fallback = _OPTIMIZER_SEARCH_DEFAULTS["neighbors"] if default is None else default
+    return int(settings.get("neighbors", fallback))
+
+
+# ── Room priority config ─────────────────────────────────────────────────────
+
+def _default_room_priority_config() -> list[dict]:
+    """Default room priority: all rooms as Breeding, last one as Fallback."""
+    keys = list(ROOM_KEYS)
+    return [
+        {
+            "room": k,
+            "type": "breeding" if i < len(keys) - 1 else "fallback",
+            "max_cats": 10 if i < len(keys) - 1 else None,
+        }
+        for i, k in enumerate(keys)
+    ]
+
+
+def _normalize_room_priority_config(config: list[dict]) -> tuple[list[dict], bool]:
+    """Normalize room priority config and migrate legacy default capacities."""
+    normalized: list[dict] = []
+    for slot in config or []:
+        if not isinstance(slot, dict):
+            continue
+        room = slot.get("room")
+        slot_type = slot.get("type", "breeding")
+        if room not in ROOM_KEYS or slot_type not in ("breeding", "fallback"):
+            continue
+        normalized.append({
+            "room": room,
+            "type": slot_type,
+            "max_cats": slot.get("max_cats", slot.get("capacity")),
+            "base_stim": slot.get("base_stim", slot.get("stimulation")),
+        })
+
+    migrated = False
+    for slot in normalized:
+        if slot["type"] == "breeding" and slot.get("max_cats") in (None, ""):
+            slot["max_cats"] = 10
+            migrated = True
+
+    default_order = list(ROOM_KEYS)
+    default_like = (
+        len(normalized) == len(default_order)
+        and [slot["room"] for slot in normalized] == default_order
+        and all(slot["type"] == ("breeding" if idx < len(default_order) - 1 else "fallback") for idx, slot in enumerate(normalized))
+        and all(
+            slot.get("max_cats") in (None, "", 0)
+            for slot in normalized
+        )
+    )
+    if default_like:
+        for slot in normalized:
+            if slot["type"] == "breeding":
+                if slot.get("max_cats") != 10:
+                    slot["max_cats"] = 10
+                    migrated = True
+            elif slot.get("max_cats") is not None:
+                slot["max_cats"] = None
+                migrated = True
+    return normalized, migrated
+
+
+def _load_room_priority_config(save_path: Optional[str] = None) -> list[dict]:
+    try:
+        cfg = _load_planner_state_value("room_priority_config", [], save_path=save_path)
+        if isinstance(cfg, list) and cfg:
+            valid, migrated = _normalize_room_priority_config(cfg)
+            if valid:
+                if migrated:
+                    _save_planner_state_value("room_priority_config", valid, save_path=save_path)
+                return valid
+    except Exception:
+        pass
+    return _default_room_priority_config()
+
+
+def _save_room_priority_config(config: list[dict], save_path: Optional[str] = None):
+    try:
+        cleaned: list[dict] = []
+        for slot in config or []:
+            if not isinstance(slot, dict):
+                continue
+            room = slot.get("room")
+            slot_type = slot.get("type", "breeding")
+            if room not in ROOM_KEYS or slot_type not in ("breeding", "fallback"):
+                continue
+            cleaned.append({
+                "room": room,
+                "type": slot_type,
+                "max_cats": slot.get("max_cats", slot.get("capacity")),
+                "base_stim": slot.get("base_stim", slot.get("stimulation")),
+            })
+        _save_planner_state_value("room_priority_config", cleaned, save_path=save_path)
+    except Exception:
+        pass
