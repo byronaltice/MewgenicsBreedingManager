@@ -113,7 +113,14 @@ def is_lover_conflict(
     lover_key_map: dict[int, set[int]],
     avoid_lovers: bool,
 ) -> bool:
-    """Lover relationships are a soft signal and never hard-block a pair."""
+    """Lover relationships are a soft signal and never hard-block a pair.
+
+    Lover exclusivity is enforced at the room assignment level by the
+    optimizer's ``_filter_lover_exclusivity()`` rather than at pair evaluation
+    time.  This function intentionally returns False for all inputs; the
+    ``avoid_lovers`` parameter is retained for API compatibility with
+    ``evaluate_pair()``.
+    """
     return False
 
 

@@ -1576,7 +1576,7 @@ def _default_room_priority_config() -> list[dict]:
         {
             "room": k,
             "type": "breeding" if i < len(keys) - 1 else "fallback",
-            "max_cats": 6 if i < len(keys) - 1 else None,
+            "max_cats": 10 if i < len(keys) - 1 else None,
         }
         for i, k in enumerate(keys)
     ]
@@ -1602,7 +1602,7 @@ def _normalize_room_priority_config(config: list[dict]) -> tuple[list[dict], boo
     migrated = False
     for slot in normalized:
         if slot["type"] == "breeding" and slot.get("max_cats") in (None, ""):
-            slot["max_cats"] = 6
+            slot["max_cats"] = 10
             migrated = True
 
     default_order = list(ROOM_KEYS)
@@ -1618,8 +1618,8 @@ def _normalize_room_priority_config(config: list[dict]) -> tuple[list[dict], boo
     if default_like:
         for slot in normalized:
             if slot["type"] == "breeding":
-                if slot.get("max_cats") != 6:
-                    slot["max_cats"] = 6
+                if slot.get("max_cats") != 10:
+                    slot["max_cats"] = 10
                     migrated = True
             elif slot.get("max_cats") is not None:
                 slot["max_cats"] = None
@@ -2405,7 +2405,7 @@ class BreedingCache:
 
     # ── disk persistence ──
 
-    _CACHE_VERSION = 6  # bump to invalidate stale disk caches
+    _CACHE_VERSION = 7  # bump to invalidate stale disk caches
 
     def save_to_disk(self, save_path: str, save_signature: str = ""):
         """Persist pairwise results alongside the save file."""
@@ -3837,6 +3837,10 @@ class RoomFilterModel(QSortFilterProxyModel):
         self._pinned_only = enabled
         self.invalidate()
 
+    @property
+    def tag_filter(self) -> set[str]:
+        return self._tag_filter
+
     def set_tag_filter(self, tag_ids: set[str]):
         self._tag_filter = tag_ids
         self.invalidate()
@@ -4485,8 +4489,14 @@ class SharedOptimizerSearchSettingsDialog(QDialog):
 
         grid.addWidget(QLabel(_tr("room_optimizer.sa_temperature", default="Temperature:")), 0, 0)
         grid.addWidget(self._temperature_spin, 0, 1)
+        _temp_default = QLabel(f"default: {_OPTIMIZER_SEARCH_DEFAULTS['temperature']:.1f}")
+        _temp_default.setStyleSheet("color:#5a607a; font-size:11px;")
+        grid.addWidget(_temp_default, 0, 2)
         grid.addWidget(QLabel(_tr("room_optimizer.sa_neighbors", default="Neighbors:")), 1, 0)
         grid.addWidget(self._neighbors_spin, 1, 1)
+        _neighbors_default = QLabel(f"default: {_OPTIMIZER_SEARCH_DEFAULTS['neighbors']}")
+        _neighbors_default.setStyleSheet("color:#5a607a; font-size:11px;")
+        grid.addWidget(_neighbors_default, 1, 2)
         root.addLayout(grid)
 
         note = QLabel(_tr(
@@ -4520,6 +4530,10 @@ class CatDetailPanel(QWidget):
     1 cat  → abilities / mutations / ancestry
     2 cats → breeding comparison with lineage safety check
     """
+
+    @property
+    def current_cats(self) -> list[Cat]:
+        return self._current_cats
 
     def __init__(self):
         super().__init__()
@@ -6245,6 +6259,9 @@ class BreedingPartnersView(QWidget):
             return f"{cat_a_label} <-> {cat_b_label}"
         return f"{cat_a_label} --> {cat_b_label}"
 
+    def set_navigate_to_cat_callback(self, callback):
+        self._navigate_to_cat_callback = callback
+
     def set_cats(self, cats: list[Cat]):
         self._cats = cats
         self._pairs = []
@@ -6876,6 +6893,7 @@ class RoomOptimizerView(QWidget):
             "room_optimizer.toggle.prefer_low_aggression": "Prefer Low Aggression",
             "room_optimizer.toggle.prefer_high_libido": "Prefer High Libido",
             "room_optimizer.toggle.maximize_throughput": "Maximize Throughput",
+            "room_optimizer.toggle.use_sa": "More Depth",
         }
         state = _tr("common.on", default="On") if btn.isChecked() else _tr("common.off", default="Off")
         btn.setText(f"{_tr(label_key, default=defaults.get(label_key, label_key))}: {state}")
@@ -6961,7 +6979,7 @@ class RoomOptimizerView(QWidget):
             if not wanted_names:
                 return []
             return [cat for cat in self._cats if cat.name in wanted_names]
-        lookup = {cat.db_key: cat for cat in self._cats}
+        lookup = getattr(self, "_cat_lookup", None) or {cat.db_key: cat for cat in self._cats}
         seen: set[int] = set()
         cats: list[Cat] = []
         for key in cat_keys:
@@ -7292,7 +7310,7 @@ class RoomOptimizerView(QWidget):
         self._setup_info_panel_layout.addWidget(self._setup_info_browser, 1)
 
         self._optimize_btn = QPushButton()
-        self._optimize_btn.clicked.connect(self._calculate_optimal_distribution)
+        self._optimize_btn.clicked.connect(lambda: self._calculate_optimal_distribution(use_sa=self._deep_optimize_btn.isChecked()))
         self._optimize_btn.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self._optimize_btn.setStyleSheet(
             "QPushButton { background:#1f5f4a; color:#f2f7f3; border:1px solid #3f8f72; "
@@ -7302,15 +7320,18 @@ class RoomOptimizerView(QWidget):
         )
 
         self._deep_optimize_btn = QPushButton()
-        self._deep_optimize_btn.clicked.connect(lambda: self._calculate_optimal_distribution(use_sa=True))
+        self._deep_optimize_btn.setCheckable(True)
+        self._deep_optimize_btn.setChecked(_saved_optimizer_flag("use_sa", False))
         self._deep_optimize_btn.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self._deep_optimize_btn.setStyleSheet(
             "QPushButton { background:#2a2a5a; color:#bbbbee; border:1px solid #4a4a8a; "
             "border-radius:4px; padding:6px 12px; font-size:11px; font-weight:bold; }"
             "QPushButton:hover { background:#3a3a6a; color:#ddd; }"
-            "QPushButton:pressed { background:#202048; }"
+            "QPushButton:checked { background:#3a5a3a; color:#aaffaa; border:1px solid #4a8a4a; }"
             "QPushButton:disabled { background:#1a1a32; color:#555; border-color:#2a2a4a; }"
         )
+        self._bind_persistent_toggle(self._deep_optimize_btn, "room_optimizer.toggle.use_sa", "use_sa")
+        self._deep_optimize_btn.toggled.connect(lambda _: self._save_session_state())
         self._import_planner_btn.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self._top_actions_layout.addWidget(self._setup_stats_row)
         self._top_actions_layout.addWidget(self._optimize_btn)
@@ -7491,6 +7512,7 @@ class RoomOptimizerView(QWidget):
 
     def set_cats(self, cats: list[Cat], excluded_keys: set[int] = None):
         self._cats = cats
+        self._cat_lookup = {cat.db_key: cat for cat in cats}
         # Combine explicit excluded_keys with blacklisted cats
         blacklisted_keys = {c.db_key for c in cats if c.is_blacklisted}
         self._excluded_keys = (excluded_keys or set()) | blacklisted_keys
@@ -7534,6 +7556,24 @@ class RoomOptimizerView(QWidget):
                 if isinstance(summary, FurnitureRoomSummary) and summary.room
             }
         self._room_priority_panel.set_room_summaries(self._room_summaries)
+
+    @property
+    def room_priority_panel(self):
+        return self._room_priority_panel
+
+    @property
+    def cat_locator(self):
+        return self._cat_locator
+
+    @property
+    def save_path(self) -> Optional[str]:
+        return self._save_path
+
+    def save_session_state(self, **kwargs):
+        self._save_session_state(**kwargs)
+
+    def on_planner_traits_changed(self):
+        self._on_planner_traits_changed()
 
     def get_room_config(self) -> list[dict]:
         return self._room_priority_panel.get_config()
@@ -7644,6 +7684,7 @@ class RoomOptimizerView(QWidget):
             self._prefer_low_aggression_checkbox.setChecked(bool(state.get("prefer_low_aggression", self._prefer_low_aggression_checkbox.isChecked())))
             self._prefer_high_libido_checkbox.setChecked(bool(state.get("prefer_high_libido", self._prefer_high_libido_checkbox.isChecked())))
             self._maximize_throughput_checkbox.setChecked(bool(state.get("maximize_throughput", self._maximize_throughput_checkbox.isChecked())))
+            self._deep_optimize_btn.setChecked(bool(state.get("use_sa", False)))
             if hasattr(self, "_bottom_tabs"):
                 tab_index = state.get("bottom_tab_index", self._bottom_tabs.currentIndex())
                 try:
@@ -7673,6 +7714,7 @@ class RoomOptimizerView(QWidget):
             self._prefer_low_aggression_checkbox.setChecked(True)
             self._prefer_high_libido_checkbox.setChecked(True)
             self._maximize_throughput_checkbox.setChecked(False)
+            self._deep_optimize_btn.setChecked(False)
             if hasattr(self, "_bottom_tabs"):
                 self._bottom_tabs.setCurrentIndex(2)
             self._room_priority_panel.reset_to_defaults()
@@ -7799,7 +7841,7 @@ class RoomOptimizerView(QWidget):
         )
         self._optimize_btn.setText(_tr("room_optimizer.optimize_btn"))
         self._set_mode_button_text(self._mode_toggle_btn.isChecked())
-        self._deep_optimize_btn.setText(_tr("room_optimizer.more_depth_calculation", default="More Depth Calculation"))
+        RoomOptimizerView._set_toggle_button_label(self._deep_optimize_btn, "room_optimizer.toggle.use_sa")
         self._deep_optimize_btn.setEnabled(True)
         self._deep_optimize_btn.setToolTip(
             _tr("room_optimizer.more_depth_tooltip", default="Use simulated annealing for a slower, deeper search.")
@@ -7966,8 +8008,9 @@ class RoomOptimizerView(QWidget):
             room_capacity = room_data.get("capacity")
             room_stim = room_data.get("base_stim")
 
+            best_pairs_count = room_data.get("best_pairs_count", len(room_pairs))
             total_assigned += len(cat_names)
-            total_pairs += len(room_pairs)
+            total_pairs += best_pairs_count
 
             self._table.insertRow(row_idx)
             room_color = _room_color(room_key)
@@ -7994,7 +8037,7 @@ class RoomOptimizerView(QWidget):
             cats_item = QTableWidgetItem(", ".join(cat_names) or "—")
             cats_item.setBackground(QBrush(room_bg))
 
-            pairs_item = QTableWidgetItem(str(len(room_pairs)))
+            pairs_item = QTableWidgetItem(str(best_pairs_count))
             pairs_item.setTextAlignment(Qt.AlignCenter)
             pairs_item.setBackground(QBrush(room_bg))
 
@@ -8033,7 +8076,7 @@ class RoomOptimizerView(QWidget):
                 "room": room_label,
                 "cats": cat_names,
                 "cat_keys": cat_keys,
-                "total_pairs": len(room_pairs),
+                "total_pairs": best_pairs_count,
                 "avg_stats": avg_stats,
                 "avg_risk": avg_risk,
                 "excluded_cats": [],
@@ -8223,22 +8266,34 @@ class RoomOptimizerWorker(QThread):
                 })
 
             room_pairs = []
-            for scored in assignment.pairs:
-                a, b = scored.cat_a, scored.cat_b
-                projection = pair_projection(a, b, room.base_stim)
-                room_pairs.append({
-                    "cat_a": f"{a.name} ({a.gender_display})",
-                    "cat_b": f"{b.name} ({b.gender_display})",
-                    "is_lovers": is_mutual_lover_pair(a, b, lover_key_map),
-                    "cat_a_has_lover": a.db_key in has_mutual_lover,
-                    "cat_b_has_lover": b.db_key in has_mutual_lover,
-                    "risk": scored.risk,
-                    "avg_stats": (_cat_base_sum(a) + _cat_base_sum(b)) / 2,
-                    "stat_ranges": projection.stat_ranges,
-                    "sum_range": projection.sum_range,
-                })
+            cats_in_room = assignment.cats
+            for ri, a in enumerate(cats_in_room):
+                for b in cats_in_room[ri + 1:]:
+                    ok, _ = can_breed(a, b)
+                    if not ok:
+                        continue
+                    projection = pair_projection(a, b, room.base_stim)
+                    trait_probs = _trait_inheritance_probabilities(a, b, room.base_stim)
+                    mutations = [
+                        (display, prob)
+                        for display, category, prob, _ in trait_probs
+                        if category == "mutation"
+                    ]
+                    room_pairs.append({
+                        "cat_a": f"{a.name} ({a.gender_display})",
+                        "cat_b": f"{b.name} ({b.gender_display})",
+                        "is_lovers": is_mutual_lover_pair(a, b, lover_key_map),
+                        "cat_a_has_lover": a.db_key in has_mutual_lover,
+                        "cat_b_has_lover": b.db_key in has_mutual_lover,
+                        "risk": risk_percent(a, b),
+                        "avg_stats": (_cat_base_sum(a) + _cat_base_sum(b)) / 2,
+                        "stat_ranges": projection.stat_ranges,
+                        "sum_range": projection.sum_range,
+                        "mutations": mutations,
+                    })
 
             room_pairs.sort(key=lambda p: (-p["avg_stats"], p["risk"]))
+            best_pairs_count = len(assignment.pairs)
             avg_stats = sum(p["avg_stats"] for p in room_pairs) / len(room_pairs) if room_pairs else 0.0
             avg_risk = sum(p["risk"] for p in room_pairs) / len(room_pairs) if room_pairs else 0.0
             room_rows.append({
@@ -8249,6 +8304,7 @@ class RoomOptimizerWorker(QThread):
                 "cat_names": cat_names,
                 "cat_keys": [c.db_key for c in assignment.cats],
                 "pairs": room_pairs,
+                "best_pairs_count": best_pairs_count,
                 "avg_stats": avg_stats,
                 "avg_risk": avg_risk,
                 "is_fallback": room.room_type != RoomType.BREEDING,
@@ -8369,6 +8425,9 @@ class RoomOptimizerCatLocator(QWidget):
             }
         """)
         root.addWidget(self._table, 1)
+
+    def set_navigate_to_cat_callback(self, callback):
+        self._navigate_to_cat_callback = callback
 
     @staticmethod
     def _pair_color(room_order: float | int) -> QColor:
@@ -8533,7 +8592,7 @@ class RoomOptimizerDetailPanel(QWidget):
         self._current_data: Optional[dict] = None
         self._navigate_to_cat_callback = None  # Callback to navigate to a cat by name
 
-        self._pairs_table = QTableWidget(0, 14)
+        self._pairs_table = QTableWidget(0, 15)
         self._pairs_table.setHorizontalHeaderLabels([
             _tr("room_optimizer.detail.table.cat_a"),
             _tr("room_optimizer.detail.table.cat_b"),
@@ -8543,6 +8602,7 @@ class RoomOptimizerDetailPanel(QWidget):
             _tr("room_optimizer.detail.table.avg"),
             _tr("room_optimizer.detail.table.risk"),
             _tr("room_optimizer.detail.table.rank"),
+            _tr("room_optimizer.detail.table.mutations", default="Mutations"),
         ])
         self._pairs_table.verticalHeader().setVisible(False)
         self._pairs_table.setSelectionMode(QAbstractItemView.NoSelection)
@@ -8555,6 +8615,7 @@ class RoomOptimizerDetailPanel(QWidget):
         hh.setSectionResizeMode(1, QHeaderView.Interactive)
         for col in range(2, 14):
             hh.setSectionResizeMode(col, QHeaderView.Interactive)
+        hh.setSectionResizeMode(14, QHeaderView.Stretch)
         self._pairs_table.setColumnWidth(0, 120)
         self._pairs_table.setColumnWidth(1, 120)
         self._pairs_table.setColumnWidth(2, 24)
@@ -8633,6 +8694,7 @@ class RoomOptimizerDetailPanel(QWidget):
             _tr("room_optimizer.detail.table.avg"),
             _tr("room_optimizer.detail.table.risk"),
             _tr("room_optimizer.detail.table.rank"),
+            _tr("room_optimizer.detail.table.mutations", default="Mutations"),
         ])
         self._excluded_table.setHorizontalHeaderLabels([
             _tr("room_optimizer.detail.excluded.cat"), "STR", "DEX", "CON", "INT", "SPD", "CHA", "LCK",
@@ -8866,6 +8928,19 @@ class RoomOptimizerDetailPanel(QWidget):
             self._pairs_table.setItem(i - 1, 11, avg_item)
             self._pairs_table.setItem(i - 1, 12, risk_item)
             self._pairs_table.setItem(i - 1, 13, rank_item)
+
+            mutations = pair.get("mutations") or []
+            if mutations:
+                shown = [f"{name} {prob * 100:.0f}%" for name, prob in mutations[:4]]
+                cell_text = ", ".join(shown)
+                if len(mutations) > 4:
+                    cell_text += f" (+{len(mutations) - 4})"
+                tooltip_lines = [f"{name}: {prob * 100:.0f}%" for name, prob in mutations]
+                mut_item = QTableWidgetItem(cell_text)
+                mut_item.setToolTip("\n".join(tooltip_lines))
+            else:
+                mut_item = QTableWidgetItem("—")
+            self._pairs_table.setItem(i - 1, 14, mut_item)
 
 
 class PerfectPlannerDetailPanel(QWidget):
@@ -9432,6 +9507,9 @@ class PerfectPlannerOffspringTracker(QWidget):
         self._table.setSortingEnabled(False)
         self._table.horizontalHeader().setSortIndicatorShown(False)
 
+    def set_navigate_to_cat_callback(self, callback):
+        self._navigate_to_cat_callback = callback
+
     def retranslate_ui(self):
         self._title.setText(_tr("perfect_planner.offspring_tracker.title", default="Offspring Tracker"))
         self._desc.setText(_tr(
@@ -9986,7 +10064,7 @@ class PerfectPlannerOffspringTracker(QWidget):
                             label = f"{lo}" if lo == hi else f"{lo}-{hi}"
                             base = STAT_COLORS.get(max(lo, hi), QColor(100, 100, 115))
                             bg = self._stat_tint(base, strength=0.22, lift=18)
-                            tip = f"Projected {stat}: {lo}-{hi} (expected {float(projection['expected_stats'][stat]):.1f})"
+                            tip = f"Projected {stat}: {lo}-{hi} (expected {float(projection.get('expected_stats', {}).get(stat, 0.0)):.1f})"
                         self._table.setItem(current_row, stat_idx, self._metric_item(label, "", bg, tip))
 
                     for trait_idx, field in enumerate(("aggression", "libido", "inbredness"), start=12):
@@ -10736,6 +10814,7 @@ class PerfectCatPlannerView(QWidget):
         self._splitter.addWidget(self._table)
 
         self._details_pane = PerfectPlannerDetailPanel()
+        self._details_pane.setMinimumWidth(500)
         self._detail_actions_header = self._details_pane._actions_table.horizontalHeader()
         self._detail_actions_header.sectionResized.connect(lambda *_: self._save_session_state())
         self._detail_actions_header.sectionMoved.connect(lambda *_: self._save_session_state())
@@ -10890,6 +10969,23 @@ class PerfectCatPlannerView(QWidget):
         self._pending_stage_context = context_note
         self._show_stage_row(self._selected_stage_row, context_note=context_note)
         self._request_plan_refresh()
+
+    @property
+    def cat_locator(self):
+        return self._cat_locator
+
+    @property
+    def offspring_tracker(self):
+        return self._offspring_tracker
+
+    def sync_mutation_traits(self):
+        self._sync_mutation_traits()
+
+    def sync_mutation_import_button_state(self):
+        self._sync_mutation_import_button_state()
+
+    def save_session_state(self, **kwargs):
+        self._save_session_state(**kwargs)
 
     def set_cats(self, cats: list[Cat], excluded_keys: set[int] = None):
         self._cats = cats
@@ -11059,7 +11155,7 @@ class PerfectCatPlannerView(QWidget):
             bottom_splitter_sizes = state.get("bottom_splitter_sizes", [])
             if isinstance(bottom_splitter_sizes, list) and len(bottom_splitter_sizes) == 2:
                 self._bottom_splitter.setSizes([
-                    max(10, int(bottom_splitter_sizes[0] or 0)),
+                    max(500, int(bottom_splitter_sizes[0] or 0)),
                     max(10, int(bottom_splitter_sizes[1] or 0)),
                 ])
             actions_table_header_state = state.get("actions_table_header_state", "")
@@ -11303,6 +11399,12 @@ class PerfectCatPlannerView(QWidget):
             cat.db_key: {other.db_key for other in getattr(cat, "lovers", [])}
             for cat in alive_cats
         }
+        has_mutual_lover = {
+            cat.db_key
+            for cat in alive_cats
+            if any(cat.db_key in lover_key_map.get(o.db_key, set()) for o in getattr(cat, "lovers", []))
+        }
+        lover_locked: set[int] = has_mutual_lover if avoid_lovers else set()
         pair_eval_cache: dict[tuple[int, int], tuple[bool, str, float]] = {}
         pair_factor_cache: dict[tuple[int, int, float], object] = {}
 
@@ -11327,7 +11429,7 @@ class PerfectCatPlannerView(QWidget):
                     minimize_variance=False,
                     prefer_low_aggression=prefer_low_aggression,
                     prefer_high_libido=prefer_high_libido,
-                    planner_traits=[],
+                    planner_traits=planner_traits,
                 )
                 pair_factor_cache[key] = cached
             return cached
@@ -11338,13 +11440,16 @@ class PerfectCatPlannerView(QWidget):
         for pair_index, (cat_a, cat_b) in enumerate(candidate_pairs):
             if not planner_pair_allows_breeding(cat_a, cat_b):
                 continue
+            if avoid_lovers and (cat_a.db_key in lover_locked or cat_b.db_key in lover_locked):
+                if not is_mutual_lover_pair(cat_a, cat_b, lover_key_map):
+                    continue
             factors = _score_pair_cached(cat_a, cat_b, stimulation)
             if not factors.compatible or factors.risk > max_risk:
                 continue
 
             projection = factors.projection
             founder_bonus = sum(1.0 for cat in (cat_a, cat_b) if not get_parents(cat)) * 2.0
-            must_breed_bonus = 3.0 if cat_a.must_breed or cat_b.must_breed else 0.0
+            must_breed_bonus = 50.0 if cat_a.must_breed or cat_b.must_breed else 0.0
             personality = factors.personality_bonus * 3.0
             planner_bias = planner_pair_bias(cat_a, cat_b)
             ancestry_penalty = planner_inbreeding_penalty(cat_a, cat_b)
@@ -11360,6 +11465,8 @@ class PerfectCatPlannerView(QWidget):
                 + must_breed_bonus
                 + planner_bias
                 - ancestry_penalty
+                + factors.trait_bonus
+                + factors.lover_bonus
             )
 
             evaluated_pairs.append({
@@ -11621,6 +11728,7 @@ class PerfectCatPlannerView(QWidget):
                         + (4.0 if not get_parents(candidate) else 0.0)
                         + planner_bias
                         - ancestry_penalty
+                        + factors.trait_bonus
                     )
                     record = {
                         "parent": parent,
@@ -11674,8 +11782,8 @@ class PerfectCatPlannerView(QWidget):
                 f" | {len(selected_pairs) - manual_using_count} suggested"
             ),
             "pairs": len(selected_pairs),
-            "coverage": sum(pair["projection"]["seven_plus_total"] for pair in selected_pairs) / len(selected_pairs),
-            "risk": max(pair["risk"] for pair in selected_pairs),
+            "coverage": sum(pair["projection"]["seven_plus_total"] for pair in selected_pairs) / len(selected_pairs) if selected_pairs else 0.0,
+            "risk": max((pair["risk"] for pair in selected_pairs), default=0.0),
             "mutation_ratio": _stage_mutation_ratio(stage1_actions),
             "details": _tr("perfect_planner.stage1.details"),
             "summary": _tr("perfect_planner.stage1.summary", count=len(selected_pairs)),
@@ -11713,7 +11821,7 @@ class PerfectCatPlannerView(QWidget):
             "stage": _tr("perfect_planner.stage2.title"),
             "goal": _tr("perfect_planner.stage2.goal"),
             "pairs": len(stage2_actions),
-            "coverage": sum(len(pair["projection"]["locked_stats"]) for pair in selected_pairs) / len(selected_pairs),
+            "coverage": sum(len(pair["projection"]["locked_stats"]) for pair in selected_pairs) / len(selected_pairs) if selected_pairs else 0.0,
             "risk": 0.0,
             "mutation_ratio": _stage_mutation_ratio(stage2_actions),
             "details": _tr("perfect_planner.stage2.details"),
@@ -11837,8 +11945,8 @@ class PerfectCatPlannerView(QWidget):
             "stage": _tr("perfect_planner.stage4.title"),
             "goal": _tr("perfect_planner.stage4.goal"),
             "pairs": len(stage4_actions),
-            "coverage": sum(len(pair["projection"]["reachable_stats"]) for pair in selected_pairs) / len(selected_pairs),
-            "risk": max(pair["risk"] for pair in selected_pairs),
+            "coverage": sum(len(pair["projection"]["reachable_stats"]) for pair in selected_pairs) / len(selected_pairs) if selected_pairs else 0.0,
+            "risk": max((pair["risk"] for pair in selected_pairs), default=0.0),
             "mutation_ratio": _stage_mutation_ratio(stage4_actions),
             "details": _tr("perfect_planner.stage4.details"),
             "summary": _tr("perfect_planner.stage4.summary"),
@@ -12741,8 +12849,15 @@ def _sidebar_btn(label: str) -> QPushButton:
 def _cat_has_trait(cat: 'Cat', category: str, trait_key: str) -> bool:
     """Check whether *cat* carries the given trait (mutation/passive/ability)."""
     if category == "mutation":
+        if '|' in trait_key:
+            mid = int(trait_key.rsplit('|', 1)[1])
+            return mid in (getattr(cat, "visual_mutation_ids", []) or [])
         return any(m.lower() == trait_key for m in getattr(cat, "mutations", []) or [])
     elif category == "defect":
+        if '|' in trait_key:
+            mid = int(trait_key.rsplit('|', 1)[1])
+            entries = getattr(cat, "visual_mutation_entries", []) or []
+            return any(int(e["mutation_id"]) == mid and e.get("is_defect") for e in entries)
         return any(d.lower() == trait_key for d in getattr(cat, "defects", []) or [])
     elif category == "passive":
         return any(p.lower() == trait_key for p in getattr(cat, "passive_abilities", []) or [])
@@ -12914,6 +13029,7 @@ class MutationDisorderPlannerView(QWidget):
             "QPushButton:hover { background:#252545; color:#ddd; }"
         )
         self._cats: list[Cat] = []
+        self._alive_cats: list[Cat] = []
         self._selected_pair: list[Cat] = []
         self._selected_traits: list[dict] = []  # [{category, key, display, weight}]
         self._active_trait_data: tuple[str, str] | None = None
@@ -13256,11 +13372,18 @@ class MutationDisorderPlannerView(QWidget):
 
     def set_cats(self, cats: list[Cat]):
         self._cats = cats
+        self._alive_cats = [cat for cat in cats if cat.status != "Gone"]
         self._selected_pair.clear()
         self._populate_room_filter()
         self._populate_trait_combo()
         self._refresh_table()
         self._restore_session_state()
+
+    def set_navigate_to_cat_callback(self, callback):
+        self._navigate_to_cat_callback = callback
+
+    def save_session_state(self):
+        self._save_session_state()
 
     def set_save_path(self, save_path: Optional[str], *, refresh_existing: bool = True, notify: bool = True):
         self._save_path = save_path
@@ -13278,8 +13401,8 @@ class MutationDisorderPlannerView(QWidget):
         self._room_combo.clear()
         self._room_combo.addItem(_tr("mutation_planner.all_cats"), "")
         rooms: dict[str, str] = {}
-        for cat in self._cats:
-            if cat.status == "Gone" or not cat.room or cat.room == "Adventure":
+        for cat in self._alive_cats:
+            if not cat.room or cat.room == "Adventure":
                 continue
             if cat.room not in rooms:
                 rooms[cat.room] = ROOM_DISPLAY.get(cat.room, cat.room)
@@ -13298,22 +13421,7 @@ class MutationDisorderPlannerView(QWidget):
             "ability": 4,
         }
 
-        for cat in self._cats:
-            if cat.status == "Gone":
-                continue
-
-            mutation_tip_map: dict[str, str] = {}
-            for text, tip in getattr(cat, "mutation_chip_items", []):
-                key = re.sub(r'[^a-z0-9]', '', str(text).lower())
-                if key and tip and key not in mutation_tip_map:
-                    mutation_tip_map[key] = str(tip)
-
-            defect_tip_map: dict[str, str] = {}
-            for text, tip in getattr(cat, "defect_chip_items", []):
-                key = re.sub(r'[^a-z0-9]', '', str(text).lower())
-                if key and tip and key not in defect_tip_map:
-                    defect_tip_map[key] = str(tip)
-
+        for cat in self._alive_cats:
             def _add_trait(category: str, raw_key: str, display: str, tip: str):
                 key = str(raw_key or "").strip().lower()
                 if not key:
@@ -13332,15 +13440,17 @@ class MutationDisorderPlannerView(QWidget):
                     entry["tip"] = tip
                 entry["cats"].add(_cat_uid(cat) or str(id(cat)))
 
-            for m in (cat.mutations or []):
-                display = _mutation_display_name(m)
-                tip = mutation_tip_map.get(re.sub(r'[^a-z0-9]', '', display.lower()), "") or _ability_tip(m)
-                _add_trait("mutation", m, display, tip)
+            for text, tip in getattr(cat, "mutation_chip_items", []):
+                display = _mutation_display_name(text)
+                mid_match = re.search(r'\(ID\s+(-?\d+)\)', tip)
+                key = f"{text}|{mid_match.group(1)}" if mid_match else text
+                _add_trait("mutation", key, display, tip)
 
-            for d in (getattr(cat, "defects", []) or []):
-                display = _mutation_display_name(d)
-                tip = defect_tip_map.get(re.sub(r'[^a-z0-9]', '', display.lower()), "") or _ability_tip(d)
-                _add_trait("defect", d, display, tip)
+            for text, tip in getattr(cat, "defect_chip_items", []):
+                display = _mutation_display_name(text)
+                mid_match = re.search(r'\(ID\s+(-?\d+)\)', tip)
+                key = f"{text}|{mid_match.group(1)}" if mid_match else text
+                _add_trait("defect", key, display, tip)
 
             for p in (cat.passive_abilities or []):
                 display = _mutation_display_name(p)
@@ -13369,6 +13479,19 @@ class MutationDisorderPlannerView(QWidget):
                 "kind": _trait_display_kind(entry["category"]),
                 "order": entry["order"],
             })
+
+        # Disambiguate mutation/defect variants that share the same display name
+        from collections import Counter  # noqa: local import for one-time use
+        display_counts: Counter = Counter(
+            (row["category"], row["display"])
+            for row in rows
+            if row["category"] in ("mutation", "defect")
+        )
+        for row in rows:
+            if row["category"] in ("mutation", "defect"):
+                if display_counts.get((row["category"], row["display"]), 0) > 1 and row["stats"]:
+                    row["display"] = f"{row['display']} ({row['stats']})"
+
         self._trait_catalog = sorted(rows, key=lambda row: (row["order"], row["display"].lower()))
 
     def _populate_trait_table(self, search: str = "", restore_data=None):
@@ -13469,7 +13592,7 @@ class MutationDisorderPlannerView(QWidget):
                 if re.fullmatch(r"[A-Z0-9_]+(?:_DESC)?", tooltip):
                     tooltip = display_text
                 if not tooltip:
-                    tooltip = row_data["desc"] or row_data["display"]
+                    tooltip = display_text
                 self._trait_combo.setItemData(self._trait_combo.count() - 1, tooltip, Qt.ToolTipRole)
 
         # Restore previous selection if still present
@@ -13664,10 +13787,7 @@ class MutationDisorderPlannerView(QWidget):
             self._trait_combo.blockSignals(False)
 
         self._rebuild_traits_list()
-        if self._selected_traits:
-            self._update_multi_trait_plan()
-        else:
-            self._clear_outcome_panel()
+        self._clear_outcome_panel()
         self._refresh_table()
         self._save_session_state()
         self._notify_traits_changed()
@@ -13835,7 +13955,7 @@ class MutationDisorderPlannerView(QWidget):
         traits = self._selected_traits
 
         # Get all alive cats, excluding blacklisted
-        alive = [c for c in self._cats if c.status != "Gone" and not c.is_blacklisted]
+        alive = [c for c in self._alive_cats if not c.is_blacklisted]
 
         # Score each cat: how many of the selected traits does it carry?
         def _cat_score(cat):
@@ -14150,20 +14270,9 @@ class MutationDisorderPlannerView(QWidget):
         finally:
             self._restoring_session_state = False
 
-        last_mode = str(state.get("last_mode", "") or "")
         current_trait = self._trait_combo.currentData()
-        if last_mode == "multi" and self._selected_traits:
-            self._update_multi_trait_plan()
-        elif last_mode == "pair" and len(self._selected_pair) == 2:
-            self._pair_label.setText(f"Pair: {self._selected_pair[0].name} × {self._selected_pair[1].name}")
-            self._pair_label.setStyleSheet("color:#8fb8a0; font-size:11px; font-weight:bold;")
-            self._update_outcome_panel(self._selected_pair[0], self._selected_pair[1])
-        elif isinstance(current_trait, tuple):
+        if isinstance(current_trait, tuple):
             self._activate_trait_filter(current_trait, source="combo")
-        elif self._selected_traits:
-            self._update_multi_trait_plan()
-        elif len(self._selected_pair) == 2:
-            self._update_outcome_panel(self._selected_pair[0], self._selected_pair[1])
         else:
             self._clear_outcome_panel()
         self._notify_traits_changed()
@@ -14366,9 +14475,7 @@ class MutationDisorderPlannerView(QWidget):
         room_filter = self._room_combo.currentData() or ""
         trait_filters = list(self._browse_trait_datas)
         result = []
-        for cat in self._cats:
-            if cat.status == "Gone":
-                continue
+        for cat in self._alive_cats:
             if room_filter and cat.room != room_filter:
                 continue
             if trait_filters and not any(_cat_has_trait(cat, category, trait_key) for category, trait_key in trait_filters):
@@ -14416,8 +14523,6 @@ class MutationDisorderPlannerView(QWidget):
     def _on_stim_changed(self):
         if len(self._selected_pair) == 2:
             self._update_outcome_panel(self._selected_pair[0], self._selected_pair[1])
-        elif self._selected_traits:
-            self._update_multi_trait_plan()
         elif self._active_trait_data is not None:
             self._update_trait_detail_panel(self._active_trait_data)
         self._save_session_state()
@@ -14446,19 +14551,13 @@ class MutationDisorderPlannerView(QWidget):
             self._selected_pair = selected
             self._pair_label.setText(_tr("mutation_planner.selected_one", name=selected[0].name))
             self._pair_label.setStyleSheet("color:#aa8; font-size:11px;")
-            if self._selected_traits:
-                self._update_multi_trait_plan()
-            else:
-                self._clear_outcome_panel()
+            self._clear_outcome_panel()
             self._save_session_state()
         else:
             self._selected_pair.clear()
             self._pair_label.setText(_tr("mutation_planner.pair_hint"))
             self._pair_label.setStyleSheet("color:#666; font-size:11px;")
-            if self._selected_traits:
-                self._update_multi_trait_plan()
-            else:
-                self._clear_outcome_panel()
+            self._clear_outcome_panel()
             self._save_session_state()
 
     def _clear_outcome_panel(self):
@@ -15119,6 +15218,9 @@ class FurnitureView(QWidget):
             )
         self._refresh_cards()
         self._refresh_table()
+
+    def save_session_state(self):
+        self._save_session_state()
 
     def _save_session_state(self):
         if self._restoring_session_state:
@@ -16915,7 +17017,7 @@ class MainWindow(QMainWindow):
         self._safe_breeding_view.hide()
         vb.addWidget(self._safe_breeding_view, 1)
         self._breeding_partners_view = BreedingPartnersView(self)
-        self._breeding_partners_view._navigate_to_cat_callback = self._navigate_to_cat_by_name
+        self._breeding_partners_view.set_navigate_to_cat_callback(self._navigate_to_cat_by_name)
         self._breeding_partners_view.hide()
         vb.addWidget(self._breeding_partners_view, 1)
         self._room_optimizer_view = RoomOptimizerView(self)
@@ -16937,12 +17039,12 @@ class MainWindow(QMainWindow):
         # Wire planner to optimizer so traits can be imported
         self._room_optimizer_view.set_planner_view(self._mutation_planner_view)
         self._perfect_planner_view.set_mutation_planner_view(self._mutation_planner_view)
-        self._room_optimizer_view._room_priority_panel.configChanged.connect(self._sync_room_config_views)
+        self._room_optimizer_view.room_priority_panel.configChanged.connect(self._sync_room_config_views)
         # Allow cat locator tables to navigate to cat in Alive Cats view
-        self._mutation_planner_view._navigate_to_cat_callback = self._navigate_to_cat
-        self._room_optimizer_view._cat_locator._navigate_to_cat_callback = self._navigate_to_cat
-        self._perfect_planner_view._cat_locator._navigate_to_cat_callback = self._navigate_to_cat
-        self._perfect_planner_view._offspring_tracker._navigate_to_cat_callback = self._navigate_to_cat
+        self._mutation_planner_view.set_navigate_to_cat_callback(self._navigate_to_cat)
+        self._room_optimizer_view.cat_locator.set_navigate_to_cat_callback(self._navigate_to_cat)
+        self._perfect_planner_view.cat_locator.set_navigate_to_cat_callback(self._navigate_to_cat)
+        self._perfect_planner_view.offspring_tracker.set_navigate_to_cat_callback(self._navigate_to_cat)
 
         # Loading overlay — shown during background save parse, dismissed before UI population
         self._loading_overlay = QWidget(w)
@@ -17093,23 +17195,29 @@ class MainWindow(QMainWindow):
             return
         if alive_view:
             self._bulk_blacklist_btn.blockSignals(True)
-            self._bulk_blacklist_btn.setCheckable(False)
-            self._bulk_blacklist_btn.setText(_tr("bulk.toggle_breeding_block"))
-            self._bulk_blacklist_btn.setEnabled(True)
-            self._bulk_blacklist_btn.setToolTip(_tr("bulk.toggle_breeding_block.tooltip"))
-            self._bulk_blacklist_btn.blockSignals(False)
+            try:
+                self._bulk_blacklist_btn.setCheckable(False)
+                self._bulk_blacklist_btn.setText(_tr("bulk.toggle_breeding_block"))
+                self._bulk_blacklist_btn.setEnabled(True)
+                self._bulk_blacklist_btn.setToolTip(_tr("bulk.toggle_breeding_block.tooltip"))
+            finally:
+                self._bulk_blacklist_btn.blockSignals(False)
             self._bulk_must_breed_btn.blockSignals(True)
-            self._bulk_must_breed_btn.setCheckable(False)
-            self._bulk_must_breed_btn.setText(_tr("bulk.toggle_must_breed"))
-            self._bulk_must_breed_btn.setEnabled(True)
-            self._bulk_must_breed_btn.setToolTip(_tr("bulk.toggle_must_breed.tooltip"))
-            self._bulk_must_breed_btn.blockSignals(False)
+            try:
+                self._bulk_must_breed_btn.setCheckable(False)
+                self._bulk_must_breed_btn.setText(_tr("bulk.toggle_must_breed"))
+                self._bulk_must_breed_btn.setEnabled(True)
+                self._bulk_must_breed_btn.setToolTip(_tr("bulk.toggle_must_breed.tooltip"))
+            finally:
+                self._bulk_must_breed_btn.blockSignals(False)
             self._bulk_pin_btn.blockSignals(True)
-            self._bulk_pin_btn.setCheckable(False)
-            self._bulk_pin_btn.setText(_tr("bulk.toggle_pin", default="Toggle Pin"))
-            self._bulk_pin_btn.setEnabled(True)
-            self._bulk_pin_btn.setToolTip(_tr("bulk.toggle_pin.tooltip", default="Toggle pin for selected cats"))
-            self._bulk_pin_btn.blockSignals(False)
+            try:
+                self._bulk_pin_btn.setCheckable(False)
+                self._bulk_pin_btn.setText(_tr("bulk.toggle_pin", default="Toggle Pin"))
+                self._bulk_pin_btn.setEnabled(True)
+                self._bulk_pin_btn.setToolTip(_tr("bulk.toggle_pin.tooltip", default="Toggle pin for selected cats"))
+            finally:
+                self._bulk_pin_btn.blockSignals(False)
             return
         cats = self._visible_filtered_cats()
         all_blocked = bool(cats) and all(cat.is_blacklisted for cat in cats)
@@ -17866,7 +17974,7 @@ class MainWindow(QMainWindow):
             filter_label = menu.addAction("Show only:")
             filter_label.setEnabled(False)
 
-            current_filter = self._proxy_model._tag_filter
+            current_filter = self._proxy_model.tag_filter
             show_all = menu.addAction("All cats")
             show_all.setCheckable(True)
             show_all.setChecked(not current_filter)
@@ -17929,8 +18037,8 @@ class MainWindow(QMainWindow):
                 self._source_model.dataChanged.emit(idx, idx, [Qt.DisplayRole])
         if self._current_save:
             _save_tags(self._current_save, self._cats)
-        if self._detail and self._detail._current_cats:
-            self._detail.show_cats(self._detail._current_cats)
+        if self._detail and self._detail.current_cats:
+            self._detail.show_cats(self._detail.current_cats)
 
     def _clear_tags_from_selection(self):
         """Remove all tags from selected cats."""
@@ -17948,19 +18056,19 @@ class MainWindow(QMainWindow):
                 self._source_model.dataChanged.emit(idx, idx, [Qt.DisplayRole])
         if self._current_save:
             _save_tags(self._current_save, self._cats)
-        if self._detail and self._detail._current_cats:
-            self._detail.show_cats(self._detail._current_cats)
+        if self._detail and self._detail.current_cats:
+            self._detail.show_cats(self._detail.current_cats)
 
     def _tag_filtered_cats(self) -> list:
         """Return cats filtered by the active tag filter, or all cats if no filter."""
-        f = self._proxy_model._tag_filter
+        f = self._proxy_model.tag_filter
         if not f:
             return self._cats
         return [c for c in self._cats if set(_cat_tags(c)) & f]
 
     def _toggle_tag_filter(self, tag_id: str, checked: bool):
         """Toggle a single tag in the filter set."""
-        f = set(self._proxy_model._tag_filter)
+        f = set(self._proxy_model.tag_filter)
         if checked:
             f.add(tag_id)
         else:
@@ -18012,8 +18120,8 @@ class MainWindow(QMainWindow):
         _TAG_PIX_CACHE.clear()
         # Repaint table without invalidating selection
         self._table.viewport().update()
-        if self._detail and self._detail._current_cats:
-            self._detail.show_cats(self._detail._current_cats)
+        if self._detail and self._detail.current_cats:
+            self._detail.show_cats(self._detail.current_cats)
         if self._current_save:
             _save_tags(self._current_save, self._cats)
 
@@ -18092,9 +18200,12 @@ class MainWindow(QMainWindow):
 
         # Cancel any in-progress worker
         if self._cache_worker is not None:
-            self._cache_worker.quit()
-            self._cache_worker.wait(500)
+            worker = self._cache_worker
             self._cache_worker = None
+            worker.quit()
+            if not worker.wait(500):
+                worker.terminate()
+                worker.wait(100)
 
         # Snapshot parent keys before clearing old cache (for incremental update)
         prev_cache = self._breeding_cache if not force_full else None
@@ -18206,23 +18317,29 @@ class MainWindow(QMainWindow):
         if self._mutation_planner_view is not None:
             self._mutation_planner_view.set_save_path(path, refresh_existing=False, notify=False)
             if self._room_optimizer_view is not None:
-                self._room_optimizer_view._on_planner_traits_changed()
+                self._room_optimizer_view.on_planner_traits_changed()
             if self._perfect_planner_view is not None:
-                self._perfect_planner_view._sync_mutation_traits()
-                self._perfect_planner_view._sync_mutation_import_button_state()
+                self._perfect_planner_view.sync_mutation_traits()
+                self._perfect_planner_view.sync_mutation_import_button_state()
         if self._watcher.files():
             self._watcher.removePaths(self._watcher.files())
         self._watcher.addPath(path)
 
         # Cancel any in-progress load
         if self._save_load_worker is not None:
-            self._save_load_worker.quit()
-            self._save_load_worker.wait(500)
+            worker = self._save_load_worker
             self._save_load_worker = None
+            worker.quit()
+            if not worker.wait(500):
+                worker.terminate()
+                worker.wait(100)
         if self._cache_worker is not None:
-            self._cache_worker.quit()
-            self._cache_worker.wait(500)
+            worker = self._cache_worker
             self._cache_worker = None
+            worker.quit()
+            if not worker.wait(500):
+                worker.terminate()
+                worker.wait(100)
 
         # Show overlay while parsing (background thread — main thread stays responsive for repaint)
         name = os.path.basename(path)
@@ -18359,14 +18476,14 @@ class MainWindow(QMainWindow):
     def _flush_persistent_view_state(self):
         """Persist planner-style view state before the app shuts down."""
         if self._room_optimizer_view is not None:
-            self._room_optimizer_view._save_session_state()
-            _save_room_priority_config(self._room_optimizer_view.get_room_config(), self._room_optimizer_view._save_path)
+            self._room_optimizer_view.save_session_state()
+            _save_room_priority_config(self._room_optimizer_view.get_room_config(), self._room_optimizer_view.save_path)
         if self._perfect_planner_view is not None:
-            self._perfect_planner_view._save_session_state()
+            self._perfect_planner_view.save_session_state()
         if self._mutation_planner_view is not None:
-            self._mutation_planner_view._save_session_state()
+            self._mutation_planner_view.save_session_state()
         if self._furniture_view is not None:
-            self._furniture_view._save_session_state()
+            self._furniture_view.save_session_state()
 
     def closeEvent(self, event):
         self._flush_persistent_view_state()

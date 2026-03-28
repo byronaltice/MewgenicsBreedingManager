@@ -890,44 +890,60 @@ def _resolve_parent_uids(
 
 
 def _break_pedigree_cycles(cats: list["Cat"]) -> int:
-    """Break invalid parent loops so ancestry helpers stay simple downstream."""
+    """Break invalid parent loops so ancestry helpers stay simple downstream.
+
+    Uses iterative DFS with white/gray/black coloring for O(V+E) cycle
+    detection instead of the previous O(V²) approach.
+    """
     broken = 0
-    max_passes = max(1, len(cats))
 
     def _mark_repair(cat: "Cat"):
         cat.pedigree_was_repaired = True
         cat.pedigree_cycle_breaks = getattr(cat, "pedigree_cycle_breaks", 0) + 1
 
-    for _ in range(max_passes):
-        changed = False
-        for cat in sorted(cats, key=lambda c: c.db_key):
-            for attr in ("parent_a", "parent_b"):
-                parent = getattr(cat, attr)
-                if parent is None:
-                    continue
-                if parent is cat:
-                    logger.warning("Breaking self-parent loop for cat %s", cat.db_key)
-                    _mark_repair(cat)
-                    setattr(cat, attr, None)
-                    broken += 1
-                    changed = True
-                    break
-                if cat in get_all_ancestors(parent, depth=len(cats) + 1):
-                    logger.warning(
-                        "Breaking pedigree cycle: cat %s -> parent %s via %s",
-                        cat.db_key,
-                        parent.db_key,
-                        attr,
-                    )
-                    _mark_repair(cat)
-                    setattr(cat, attr, None)
-                    broken += 1
-                    changed = True
-                    break
-            if changed:
-                break
-        if not changed:
-            break
+    # Quick pass: fix self-parent loops
+    for cat in cats:
+        for attr in ("parent_a", "parent_b"):
+            if getattr(cat, attr) is cat:
+                logger.warning("Breaking self-parent loop for cat %s", cat.db_key)
+                _mark_repair(cat)
+                setattr(cat, attr, None)
+                broken += 1
+
+    # Iterative DFS cycle detection: WHITE=0, GRAY=1, BLACK=2
+    WHITE, GRAY, BLACK = 0, 1, 2
+    color: dict[int, int] = {cat.db_key: WHITE for cat in cats}
+    cat_by_key: dict[int, "Cat"] = {cat.db_key: cat for cat in cats}
+    attrs = ("parent_a", "parent_b")
+
+    for start_cat in cats:
+        if color[start_cat.db_key] != WHITE:
+            continue
+        stack: list[tuple[int, int]] = [(start_cat.db_key, 0)]
+        while stack:
+            ck, pi = stack[-1]
+            if pi == 0:
+                color[ck] = GRAY
+            if pi < 2:
+                stack[-1] = (ck, pi + 1)
+                c = cat_by_key[ck]
+                parent = getattr(c, attrs[pi])
+                if parent is not None and parent.db_key in color:
+                    pk = parent.db_key
+                    if color[pk] == GRAY:
+                        logger.warning(
+                            "Breaking pedigree cycle: cat %s -> parent %s via %s",
+                            ck, pk, attrs[pi],
+                        )
+                        _mark_repair(c)
+                        setattr(c, attrs[pi], None)
+                        broken += 1
+                    elif color[pk] == WHITE:
+                        stack.append((pk, 0))
+            else:
+                color[ck] = BLACK
+                stack.pop()
+
     return broken
 
 
@@ -1088,7 +1104,8 @@ class Cat:
         # This field was previously (incorrectly) labeled inbredness in the parser;
         # true inbredness is derived from ancestry (COI) and applied in parse_save.
         _sexuality_raw = _read_personality(40)
-        self.inbredness = _sexuality_raw   # kept for COI override detection; overwritten in parse_save
+        self.sexuality_raw = _sexuality_raw    # raw [0,1] float: 0=straight, 0.5=bi, 1=gay
+        self.inbredness = _sexuality_raw       # overwritten with true COI in parse_save; kept for override detection
         self.aggression = _read_personality(64)
 
         # Parsed baseline values (before any manual calibration overrides).
@@ -1611,12 +1628,6 @@ def can_breed(a: Cat, b: Cat) -> tuple[bool, str]:
             return False, f"{b.name} is gay — needs same-gender partner"
         return True, ""
 
-    if ga == "female" and gb == "female":
-        return False, "Both cats are female — cannot produce offspring"
-    if ga == "male" and gb == "male":
-        return False, "Both cats are male — cannot produce offspring"
-    return False, "Cats have incompatible genders — cannot produce offspring"
-
 
 def _is_hater_pair(a: 'Cat', b: 'Cat') -> bool:
     return b in getattr(a, 'haters', []) or a in getattr(b, 'haters', [])
@@ -1948,6 +1959,9 @@ def parse_save(path: str) -> SaveData:
         if not changed:
             break
 
+    # Cats whose generation couldn't be resolved (both parents missing/broken)
+    # default to generation 0 (stray). This is intentional — the iterative
+    # algorithm above converges for valid pedigrees; stragglers are strays.
     for c in cats:
         if c.generation < 0:
             c.generation = 0

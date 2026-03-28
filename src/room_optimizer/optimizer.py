@@ -126,7 +126,7 @@ def build_room_configs(
 
     out: list[RoomConfig] = []
     for idx, room in enumerate(ordered):
-        room_type = RoomType.BREEDING if idx < max(len(ordered) - 1, 0) else RoomType.FALLBACK
+        room_type = RoomType.BREEDING if len(ordered) == 1 or idx < len(ordered) - 1 else RoomType.FALLBACK
         out.append(
             RoomConfig(
                 key=room,
@@ -489,7 +489,9 @@ def optimize_room_distribution(
             return lover_rooms + [r for r in room_order if r not in lover_rooms]
 
         for cat in ey_cats:
-            room_key = best_ey_room.key if best_ey_room is not None else room_order[0]
+            room_key = best_ey_room.key if best_ey_room is not None else (room_order[0] if room_order else None)
+            if room_key is None:
+                continue
             family_assignments[room_key]["unknown"].append(cat)
 
         for gender_list, gender_key in (
@@ -695,8 +697,10 @@ def optimize_room_distribution(
                                 break
 
         unassigned = [c for c in non_ey_cats if c.db_key not in assigned_cats]
-        fallback_rooms = [room.key for room in room_configs if room.room_type != RoomType.BREEDING] or [room_order[-1]]
+        fallback_rooms = [room.key for room in room_configs if room.room_type != RoomType.BREEDING] or (room_order[-1:] if room_order else [])
         for i, cat in enumerate(unassigned):
+            if not fallback_rooms:
+                break
             room_assignments[fallback_rooms[i % len(fallback_rooms)]].append(cat)
             assigned_cats.add(cat.db_key)
 
