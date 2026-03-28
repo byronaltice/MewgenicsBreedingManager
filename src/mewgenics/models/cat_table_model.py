@@ -1,0 +1,625 @@
+"""CatTableModel, NameTagDelegate, and sort helper items."""
+from typing import Optional
+
+from PySide6.QtWidgets import (
+    QApplication, QStyledItemDelegate, QStyle, QStyleOptionViewItem,
+    QTableWidgetItem,
+)
+from PySide6.QtCore import (
+    Qt, QAbstractTableModel, QModelIndex, Signal,
+)
+from PySide6.QtGui import (
+    QColor, QBrush, QPalette, QPainter, QIcon,
+)
+
+from save_parser import (
+    Cat, STAT_NAMES,
+    can_breed, risk_percent,
+    get_all_ancestors, get_parents, find_common_ancestors,
+    _is_hater_pair, _kinship,
+)
+from mewgenics.constants import (
+    STAT_COLORS, STATUS_COLOR,
+    COL_NAME, COL_AGE, COL_GEN, COL_ROOM, COL_STAT, COL_BL, COL_MB, COL_PIN,
+    STAT_COLS, COL_SUM, COL_AGG, COL_LIB, COL_INBRD, COL_SEXUALITY,
+    COL_RELNS, COL_REL, COL_ABIL, COL_MUTS, COL_GEN_DEPTH, COL_SRC,
+)
+from mewgenics.utils.localization import ROOM_DISPLAY, STATUS_ABBREV, COLUMNS, _tr
+from mewgenics.utils.tags import _TAG_DEFS, _tag_color, _tag_name, _cat_tags
+from mewgenics.utils.thresholds import EXCEPTIONAL_SUM_THRESHOLD
+from mewgenics.utils.cat_analysis import (
+    _cat_base_sum, _is_exceptional_breeder,
+    _donation_candidate_reason, _is_donation_candidate, _relations_summary,
+)
+from mewgenics.utils.calibration import _trait_label_from_value, _trait_level_color
+from mewgenics.utils.abilities import (
+    _mutation_display_name, _abilities_tooltip, _mutations_tooltip,
+)
+
+
+# ── Compatibility check ───────────────────────────────────────────────────────
+
+def _compatibility(focus: 'Cat', other: 'Cat') -> str:
+    """
+    Returns one of: 'self' | 'incompatible' | 'risky' | 'ok'
+    Used to dim rows in the table when a single cat is selected.
+    """
+    if focus is other:
+        return 'self'
+    ok, _ = can_breed(focus, other)
+    if not ok:
+        return 'incompatible'
+    # Hate relationship
+    if _is_hater_pair(focus, other):
+        return 'incompatible'
+    # Direct parent/offspring
+    if focus in get_parents(other) or other in get_parents(focus):
+        return 'incompatible'
+    # Shared ancestors → inbreeding risk
+    if find_common_ancestors(focus, other):
+        return 'risky'
+    return 'ok'
+
+
+# ── Source summary ────────────────────────────────────────────────────────────
+
+def _source_summary(cat: Cat) -> tuple[str, str]:
+    """Return the source/lineage label and tooltip for a cat."""
+    repaired = bool(getattr(cat, "pedigree_was_repaired", False))
+    repair_suffix = ""
+    if repaired:
+        repair_suffix = f" ({_tr('cat_detail.pedigree_repaired', default='pedigree repaired')})"
+
+    pa = getattr(cat, "parent_a", None)
+    pb = getattr(cat, "parent_b", None)
+
+    if pa is None and pb is None:
+        display = _tr("cat_detail.stray", default="Stray") + repair_suffix
+    else:
+        def _pname(p):
+            name = getattr(p, "name", "?")
+            if getattr(p, "status", "") == "Gone":
+                return _tr("cat_detail.gone_suffix", name=name)
+            return name
+
+        display = " × ".join(_pname(p) for p in (pa, pb) if p is not None)
+        display += repair_suffix
+
+    tooltip = display
+    if repaired:
+        tooltip = (
+            f"{display}\n"
+            + _tr(
+                "cat_detail.pedigree_repaired_note",
+                default="One or more parent links were broken while loading this save to prevent a pedigree cycle.",
+            )
+        )
+    return display, tooltip
+
+
+# ── Delegate ──────────────────────────────────────────────────────────────────
+
+class NameTagDelegate(QStyledItemDelegate):
+    """Paints colored tag dots to the left of the cat name in the Name column."""
+
+    _DOT = 10
+    _GAP = 3
+    _PAD_LEFT = 4
+    _PAD_RIGHT = 4
+
+    def _get_cat(self, index):
+        model = index.model()
+        while hasattr(model, 'mapToSource'):
+            index = model.mapToSource(index)
+            model = model.sourceModel()
+        if hasattr(model, 'cat_at'):
+            return model.cat_at(index.row())
+        return None
+
+    def paint(self, painter, option, index):
+        cat = self._get_cat(index)
+        tags = set(_cat_tags(cat)) if cat else set()
+        valid = [td["id"] for td in _TAG_DEFS if td["id"] in tags]
+
+        if not valid:
+            # No tags — just draw normally
+            super().paint(painter, option, index)
+            return
+
+        # Draw background/selection the standard way
+        opt = QStyleOptionViewItem(option)
+        self.initStyleOption(opt, index)
+        style = opt.widget.style() if opt.widget else QApplication.style()
+
+        # Clear text/icon so the base drawing only paints background
+        saved_text = opt.text
+        opt.text = ""
+        opt.icon = QIcon()
+        style.drawControl(QStyle.CE_ItemViewItem, opt, painter, opt.widget)
+
+        # Draw dots
+        painter.save()
+        painter.setRenderHint(QPainter.Antialiasing)
+        r = option.rect
+        dot_y = r.center().y() - self._DOT // 2
+        dot_x = r.left() + self._PAD_LEFT
+        for tid in valid:
+            c = QColor(_tag_color(tid))
+            painter.setBrush(QBrush(c))
+            painter.setPen(Qt.NoPen)
+            painter.drawEllipse(dot_x, dot_y, self._DOT, self._DOT)
+            dot_x += self._DOT + self._GAP
+
+        # Draw the name text after the dots
+        text_left = dot_x + self._PAD_RIGHT
+        text_rect = r.adjusted(text_left - r.left(), 0, 0, 0)
+        painter.setPen(opt.palette.color(
+            QPalette.HighlightedText if opt.state & QStyle.State_Selected else QPalette.Text
+        ))
+        painter.setFont(opt.font)
+        painter.drawText(text_rect, Qt.AlignVCenter | Qt.AlignLeft, saved_text)
+        painter.restore()
+
+
+# ── Table model ───────────────────────────────────────────────────────────────
+
+class CatTableModel(QAbstractTableModel):
+    blacklistChanged = Signal()
+
+    def __init__(self):
+        super().__init__()
+        self._cats: list[Cat] = []
+        self._focus_cat: Optional[Cat] = None
+        self._show_lineage: bool = False
+        self._relation_cache: dict[int, float] = {}
+        self._compat_cache: dict[int, str] = {}
+        self._inbred_score_cache: dict[int, int] = {}
+        self._ancestor_ids_cache: dict[int, frozenset[int]] = {}
+        self._parent_ids_cache: dict[int, frozenset[int]] = {}
+        self._hater_ids_cache: dict[int, frozenset[int]] = {}
+        self._breeding_cache = None  # Optional[BreedingCache]
+
+    def set_breeding_cache(self, cache):
+        self._breeding_cache = cache
+        self._relation_cache.clear()
+        self._compat_cache.clear()
+        # Fill deferred caches from breeding cache data
+        if cache is not None and cache.ready:
+            for cat in self._cats:
+                depths = cache.ancestor_depths.get(cat.db_key, {})
+                self._ancestor_ids_cache[id(cat)] = frozenset(
+                    id(anc) for anc in depths if anc is not cat
+                )
+                if cat.parent_a is not None and cat.parent_b is not None:
+                    da = cache.ancestor_depths.get(cat.parent_a.db_key, {})
+                    db = cache.ancestor_depths.get(cat.parent_b.db_key, {})
+                    self._inbred_score_cache[id(cat)] = len(set(da.keys()) & set(db.keys()))
+                else:
+                    self._inbred_score_cache[id(cat)] = 0
+        if self._cats:
+            self.dataChanged.emit(
+                self.index(0, 0),
+                self.index(len(self._cats) - 1, len(COLUMNS) - 1),
+                [Qt.DisplayRole, Qt.UserRole, Qt.BackgroundRole, Qt.ForegroundRole],
+            )
+
+    def set_show_lineage(self, show: bool):
+        self._show_lineage = show
+        if self._cats:
+            self.dataChanged.emit(
+                self.index(0, 0),
+                self.index(len(self._cats) - 1, len(COLUMNS) - 1),
+                [Qt.BackgroundRole, Qt.ForegroundRole],
+            )
+
+    def load(self, cats: list[Cat]):
+        self.beginResetModel()
+        self._cats = cats
+        self._relation_cache.clear()
+        self._compat_cache.clear()
+        # Cheap caches — computed inline
+        self._parent_ids_cache = {
+            id(cat): frozenset(id(parent) for parent in get_parents(cat))
+            for cat in cats
+        }
+        self._hater_ids_cache = {
+            id(cat): frozenset(id(hater) for hater in getattr(cat, "haters", []))
+            for cat in cats
+        }
+        # Ancestor + inbred caches — computed immediately so risky highlighting
+        # and inbred scores are available right away (v1.7.0 behaviour).
+        # The breeding cache will refine these later with deeper traversal.
+        self._ancestor_ids_cache = {
+            id(cat): frozenset(id(anc) for anc in get_all_ancestors(cat))
+            for cat in cats
+        }
+        self._inbred_score_cache = {
+            id(cat): len(find_common_ancestors(cat.parent_a, cat.parent_b))
+            if cat.parent_a is not None and cat.parent_b is not None else 0
+            for cat in cats
+        }
+        # Compute ancestry-based inbredness (COI) for cats with known parents.
+        # The game's stored inbredness value is unreliable, so we derive it
+        # from the actual family tree using the kinship coefficient.
+        # Stored as raw COI (0.25 = full siblings, 0.50+ = multi-gen inbreeding).
+        # For strays (no parents), scale the game's 0-1 value to approx COI range.
+        kinship_memo: dict[tuple[int, int], float] = {}
+        for cat in cats:
+            # Preserve manual calibration overrides
+            if cat.inbredness != cat.parsed_inbredness:
+                continue
+            if cat.parent_a is not None and cat.parent_b is not None:
+                cat.inbredness = _kinship(cat.parent_a, cat.parent_b, kinship_memo)
+            else:
+                # Stray — no parents means no inbreeding; parsed values are noise.
+                cat.inbredness = 0.0
+        self.endResetModel()
+
+    def set_focus_cat(self, cat: Optional[Cat]):
+        if cat is self._focus_cat:
+            return
+        self._focus_cat = cat
+        self._relation_cache.clear()
+        self._compat_cache.clear()
+        if self._cats:
+            self.dataChanged.emit(
+                self.index(0, 0),
+                self.index(len(self._cats) - 1, len(COLUMNS) - 1),
+                [Qt.DisplayRole, Qt.UserRole, Qt.BackgroundRole, Qt.ForegroundRole],
+            )
+
+    def _relation_for(self, cat: Cat) -> float:
+        if self._focus_cat is None:
+            return 0.0
+        if cat is self._focus_cat:
+            return 100.0
+        key = id(cat)
+        cached = self._relation_cache.get(key)
+        if cached is not None:
+            return cached
+        bc = self._breeding_cache
+        if bc is not None and bc.ready:
+            pct = bc.get_risk(self._focus_cat, cat)
+        else:
+            pct = risk_percent(self._focus_cat, cat)
+        self._relation_cache[key] = pct
+        return pct
+
+    def _compat_for(self, cat: Cat) -> Optional[str]:
+        if self._focus_cat is None or cat is self._focus_cat:
+            return None
+        focus = self._focus_cat
+        key = id(cat)
+        cached = self._compat_cache.get(key)
+        if cached is not None:
+            return cached
+
+        ok, _ = can_breed(focus, cat)
+        if not ok:
+            compat = 'incompatible'
+        else:
+            focus_id = id(focus)
+            cat_id = id(cat)
+            focus_haters = self._hater_ids_cache.get(focus_id, frozenset())
+            cat_haters = self._hater_ids_cache.get(cat_id, frozenset())
+            focus_parents = self._parent_ids_cache.get(focus_id, frozenset())
+            cat_parents = self._parent_ids_cache.get(cat_id, frozenset())
+            focus_anc = self._ancestor_ids_cache.get(focus_id, frozenset())
+            cat_anc = self._ancestor_ids_cache.get(cat_id, frozenset())
+
+            if cat_id in focus_haters or focus_id in cat_haters:
+                compat = 'incompatible'
+            elif focus_id in cat_parents or cat_id in focus_parents:
+                compat = 'incompatible'
+            elif focus_anc & cat_anc:
+                compat = 'risky'
+            else:
+                compat = 'ok'
+
+        self._compat_cache[key] = compat
+        return compat
+
+    def _inbred_score_for(self, cat: Cat) -> int:
+        return self._inbred_score_cache.get(id(cat), 0)
+
+    def rowCount(self, parent=QModelIndex()):    return len(self._cats)
+    def columnCount(self, parent=QModelIndex()): return len(COLUMNS)
+
+    def headerData(self, section, orientation, role=Qt.DisplayRole):
+        if orientation == Qt.Horizontal and role == Qt.DisplayRole:
+            return COLUMNS[section]
+        return None
+
+    def data(self, index, role=Qt.DisplayRole):
+        if not index.isValid():
+            return None
+        cat = self._cats[index.row()]
+        col = index.column()
+        is_exceptional = _is_exceptional_breeder(cat)
+        donation_reason = _donation_candidate_reason(cat)
+        is_donation = donation_reason is not None
+
+        def _badge_background() -> Optional[QColor]:
+            if is_exceptional:
+                return QColor(24, 78, 48)
+            if is_donation:
+                return QColor(82, 52, 22)
+            return None
+
+        if role == Qt.DisplayRole:
+            if col == COL_NAME:
+                if is_exceptional:
+                    return f"[EXC] {cat.name}"
+                if is_donation:
+                    return f"[DON] {cat.name}"
+                return cat.name
+            if col == COL_AGE:  return str(cat.age) if cat.age is not None else "—"
+            if col == COL_GEN:  return cat.gender_display
+            if col == COL_ROOM: return cat.room_display
+            if col == COL_STAT: return STATUS_ABBREV.get(cat.status, cat.status)
+            if col == COL_BL:   return "X" if cat.is_blacklisted else ""
+            if col == COL_MB:   return "★" if cat.must_breed else ""
+            if col == COL_PIN:  return "\u25C6" if cat.is_pinned else ""
+            if col in STAT_COLS:
+                return str(cat.base_stats[STAT_NAMES[col - STAT_COLS[0]]])
+            if col == COL_SUM:
+                return str(sum(cat.base_stats.values()))
+            if col == COL_MUTS:
+                parts = [_mutation_display_name(m) for m in cat.mutations]
+                if cat.defects:
+                    parts += [f"⚠ {d}" for d in cat.defects]
+                return ", ".join(parts)
+            if col == COL_ABIL:
+                parts = list(cat.abilities) + [f"● {_mutation_display_name(p)}" for p in cat.passive_abilities]
+                if cat.disorders:
+                    parts += [f"⚠ {_mutation_display_name(d)}" for d in cat.disorders]
+                return ", ".join(parts)
+            if col == COL_RELNS:
+                return _relations_summary(cat) or "—"
+            if col == COL_REL:
+                if self._focus_cat is None:
+                    return "—"
+                return f"{int(round(self._relation_for(cat)))}%"
+            if col == COL_GEN_DEPTH:
+                return str(cat.generation)
+            if col == COL_AGG:
+                label = _trait_label_from_value("aggression", cat.aggression)
+                return label if label else "—"
+            if col == COL_LIB:
+                label = _trait_label_from_value("libido", cat.libido)
+                return label if label else "—"
+            if col == COL_INBRD:
+                label = _trait_label_from_value("inbredness", cat.inbredness)
+                return label if label else "—"
+            if col == COL_SEXUALITY:
+                return getattr(cat, "sexuality", None) or ""
+            if col == COL_SRC:
+                return _source_summary(cat)[0]
+        elif role == Qt.UserRole:
+            if col == COL_NAME:
+                return (cat.name or "").lower()
+            if col in STAT_COLS:
+                return cat.base_stats[STAT_NAMES[col - STAT_COLS[0]]]
+            if col == COL_SUM:
+                return sum(cat.base_stats.values())
+            if col == COL_REL:
+                return self._relation_for(cat) if self._focus_cat is not None else -1.0
+            if col == COL_AGE:
+                return cat.age if cat.age is not None else -1
+            if col == COL_GEN_DEPTH:
+                return cat.generation
+            if col == COL_AGG:
+                return cat.aggression if cat.aggression is not None else -1.0
+            if col == COL_LIB:
+                return cat.libido if cat.libido is not None else -1.0
+            if col == COL_INBRD:
+                return cat.inbredness if cat.inbredness is not None else -1.0
+            if col == COL_SEXUALITY:
+                return getattr(cat, "sexuality", None) or ""
+            if col == COL_SRC:
+                return _source_summary(cat)[1]
+            return self.data(index, Qt.DisplayRole)
+
+        elif role == Qt.BackgroundRole:
+            compat = self._compat_for(cat)
+            # Suppress risky highlight when lineage features are off
+            if compat == 'risky' and not self._show_lineage:
+                compat = 'ok'
+            if col in STAT_COLS:
+                base_c = STAT_COLORS.get(cat.base_stats[STAT_NAMES[col - STAT_COLS[0]]], QColor(100, 100, 115))
+                if compat == 'incompatible':
+                    return QBrush(QColor(base_c.red() // 4, base_c.green() // 4, base_c.blue() // 4))
+                if compat == 'risky':
+                    return QBrush(QColor(base_c.red() // 2, base_c.green() // 2, base_c.blue() // 2))
+                return QBrush(base_c)
+            if col == COL_STAT:
+                sc = STATUS_COLOR.get(cat.status, QColor(80, 80, 90))
+                if compat == 'incompatible':
+                    return QBrush(QColor(sc.red() // 4, sc.green() // 4, sc.blue() // 4))
+                if compat == 'risky':
+                    return QBrush(QColor(sc.red() // 2, sc.green() // 2, sc.blue() // 2))
+                return QBrush(sc)
+            if col in (COL_AGG, COL_LIB, COL_INBRD):
+                if col == COL_AGG:
+                    base = _trait_level_color(_trait_label_from_value("aggression", cat.aggression))
+                elif col == COL_LIB:
+                    base = _trait_level_color(_trait_label_from_value("libido", cat.libido))
+                else:
+                    base = _trait_level_color(_trait_label_from_value("inbredness", cat.inbredness))
+                if compat == 'incompatible':
+                    return QBrush(QColor(base.red() // 4, base.green() // 4, base.blue() // 4))
+                if compat == 'risky':
+                    return QBrush(QColor(base.red() // 2, base.green() // 2, base.blue() // 2))
+                return QBrush(base)
+            if col in (COL_NAME, COL_SUM):
+                badge = _badge_background()
+                if badge is not None:
+                    if compat == 'incompatible':
+                        badge = QColor(badge.red() // 4, badge.green() // 4, badge.blue() // 4)
+                    elif compat == 'risky':
+                        badge = QColor(badge.red() // 2, badge.green() // 2, badge.blue() // 2)
+                    return QBrush(badge)
+            if compat == 'incompatible':
+                return QBrush(QColor(18, 12, 14))
+            if compat == 'risky':
+                return QBrush(QColor(22, 18, 10))
+
+        elif role == Qt.ForegroundRole:
+            compat = self._compat_for(cat)
+            # Suppress risky highlight when lineage features are off
+            if compat == 'risky' and not self._show_lineage:
+                compat = 'ok'
+            if compat == 'incompatible':
+                return QBrush(QColor(65, 55, 60))
+            if compat == 'risky':
+                return QBrush(QColor(130, 110, 60))
+            if col in STAT_COLS or col == COL_STAT or col in (COL_AGG, COL_LIB, COL_INBRD, COL_NAME, COL_SUM):
+                return QBrush(QColor(255, 255, 255))
+
+        elif role == Qt.ToolTipRole:
+            if col == COL_NAME:
+                notes: list[str] = []
+                tag_names = [_tag_name(t) for t in _cat_tags(cat) if any(td["id"] == t for td in _TAG_DEFS)]
+                if tag_names:
+                    notes.append("Tags: " + ", ".join(tag_names))
+                if is_exceptional:
+                    notes.append(
+                        f"Exceptional breeder: base stat sum {_cat_base_sum(cat)} >= {EXCEPTIONAL_SUM_THRESHOLD}"
+                    )
+                if donation_reason:
+                    notes.append(f"Donation candidate: {donation_reason}")
+                if notes:
+                    return "\n".join(notes)
+                return cat.name
+            if col in STAT_COLS:
+                n = STAT_NAMES[col - STAT_COLS[0]]
+                b = cat.base_stats[n]
+                t = cat.total_stats[n]
+                extra = f"  (+{t - b})" if t != b else ""
+                return f"{n}  base: {b}{extra}  |  total: {t}"
+            if col == COL_ROOM:
+                return cat.room
+            if col == COL_BL:
+                return _tr("table.tooltip.excluded") if cat.is_blacklisted else _tr("table.tooltip.included")
+            if col == COL_MB:
+                return _tr("table.tooltip.must_breed") if cat.must_breed else _tr("table.tooltip.normal_priority")
+            if col == COL_PIN:
+                return _tr("table.tooltip.pinned") if cat.is_pinned else _tr("table.tooltip.not_pinned")
+            if col == COL_MUTS and (cat.mutations or cat.defects):
+                return _mutations_tooltip(cat)
+            if col == COL_ABIL and (cat.abilities or cat.passive_abilities or cat.disorders):
+                return _abilities_tooltip(cat)
+            if col == COL_RELNS and (cat.lovers or cat.haters):
+                lines: list[str] = []
+                if cat.lovers:
+                    lines.append("Lovers: " + ", ".join(other.name for other in cat.lovers))
+                if cat.haters:
+                    lines.append("Haters: " + ", ".join(other.name for other in cat.haters))
+                return "\n".join(lines)
+            if col == COL_AGG:
+                if cat.aggression is None:
+                    return "Aggression: unknown"
+                return f"Aggression: {cat.aggression:.3f} ({_trait_label_from_value('aggression', cat.aggression)})"
+            if col == COL_LIB:
+                if cat.libido is None:
+                    return "Libido: unknown"
+                return f"Libido: {cat.libido:.3f} ({_trait_label_from_value('libido', cat.libido)})"
+            if col == COL_INBRD:
+                if cat.inbredness is None:
+                    return "Inbredness: unknown"
+                return f"Inbredness: {cat.inbredness:.3f} ({_trait_label_from_value('inbredness', cat.inbredness)})"
+            if col == COL_SUM:
+                notes: list[str] = [f"Base stat sum: {_cat_base_sum(cat)}"]
+                if is_exceptional:
+                    notes.append(f"Exceptional threshold: >= {EXCEPTIONAL_SUM_THRESHOLD}")
+                if donation_reason:
+                    notes.append(f"Donation signal: {donation_reason}")
+                return "\n".join(notes)
+
+        elif role == Qt.CheckStateRole:
+            if col == COL_BL:
+                return Qt.Checked if cat.is_blacklisted else Qt.Unchecked
+            if col == COL_MB:
+                return Qt.Checked if cat.must_breed else Qt.Unchecked
+            if col == COL_PIN:
+                return Qt.Checked if cat.is_pinned else Qt.Unchecked
+
+        elif role == Qt.TextAlignmentRole:
+            if col in STAT_COLS or col in (COL_GEN, COL_STAT, COL_AGE, COL_BL, COL_MB, COL_PIN, COL_SUM, COL_REL, COL_GEN_DEPTH, COL_AGG, COL_LIB, COL_INBRD, COL_SEXUALITY):
+                return Qt.AlignCenter
+
+        return None
+
+    def flags(self, index):
+        if not index.isValid():
+            return Qt.NoItemFlags
+        base = Qt.ItemIsSelectable | Qt.ItemIsEnabled
+        if index.column() in (COL_BL, COL_MB, COL_PIN):
+            return base | Qt.ItemIsUserCheckable
+        return base
+
+    def setData(self, index, value, role=Qt.EditRole):
+        if not index.isValid():
+            return False
+        col = index.column()
+        if col not in (COL_BL, COL_MB, COL_PIN) or role != Qt.CheckStateRole:
+            return False
+        cat = self._cats[index.row()]
+        new_state = (value == Qt.Checked)
+        changed_indexes = [index]
+
+        if col == COL_BL:
+            if cat.is_blacklisted == new_state:
+                return False
+            cat.is_blacklisted = new_state
+            if new_state and cat.must_breed:
+                cat.must_breed = False
+                changed_indexes.append(self.index(index.row(), COL_MB))
+        elif col == COL_MB:
+            if cat.must_breed == new_state:
+                return False
+            cat.must_breed = new_state
+            if new_state and cat.is_blacklisted:
+                cat.is_blacklisted = False
+                changed_indexes.append(self.index(index.row(), COL_BL))
+        elif col == COL_PIN:
+            if cat.is_pinned == new_state:
+                return False
+            cat.is_pinned = new_state
+
+        for changed_index in changed_indexes:
+            self.dataChanged.emit(changed_index, changed_index, [Qt.DisplayRole, Qt.CheckStateRole, Qt.ToolTipRole])
+        self.blacklistChanged.emit()
+        return True
+
+    def cat_at(self, row: int) -> Optional[Cat]:
+        return self._cats[row] if 0 <= row < len(self._cats) else None
+
+
+# ── Sort helper items ─────────────────────────────────────────────────────────
+
+class _SortByUserRoleItem(QTableWidgetItem):
+    """QTableWidgetItem that sorts by UserRole data instead of display text."""
+    def __lt__(self, other):
+        a = self.data(Qt.UserRole)
+        b = other.data(Qt.UserRole) if isinstance(other, QTableWidgetItem) else None
+        if a is not None and b is not None:
+            try:
+                return a < b
+            except TypeError:
+                pass
+        return super().__lt__(other)
+
+
+class _SortKeyItem(QTableWidgetItem):
+    """QTableWidgetItem that sorts by an integer key stored in Qt.UserRole."""
+    def __lt__(self, other: QTableWidgetItem) -> bool:
+        a = self.data(Qt.UserRole)
+        b = other.data(Qt.UserRole)
+        if a is None and b is None:
+            return self.text() < other.text()
+        if a is None:
+            return True
+        if b is None:
+            return False
+        return a < b
