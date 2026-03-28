@@ -2,7 +2,7 @@
 
 A high-performance, Python-based tool for optimizing breeding operations in Mewgenics. It extracts data directly from your save files and helps you compare pairings, optimize room layouts, and plan long-term lines to maximize strong offspring while minimizing inbreeding risk.
 
-Current release: `v4.4.1`
+Current release: `v5.0.0`
 
 ## Screenshots
 
@@ -61,6 +61,14 @@ On Linux, use `build.sh`.
 - Original idea and reference from frankieg33
 
 ## Release Notes
+
+### v5.0.0
+
+- Full codebase refactoring: split monolithic `mewgenics_manager.py` (~19k lines) into a structured `mewgenics/` package
+- New package layout: `utils/`, `models/`, `workers/`, `views/`, `panels/`, `dialogs` — 30+ focused modules
+- Entry point (`mewgenics_manager.py`) is now a thin wrapper for backwards compatibility
+- No feature changes or behavior differences — pure structural refactor
+- Updated PyInstaller spec with all new submodule imports
 
 ### v4.4.1
 
