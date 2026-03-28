@@ -1,0 +1,3008 @@
+"""MainWindow: primary application window for Mewgenics Breeding Manager."""
+import re
+import csv
+import os
+from pathlib import Path
+from typing import Optional
+
+from PySide6.QtWidgets import (
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+    QTableView, QPushButton, QLabel, QFileDialog, QHeaderView,
+    QAbstractItemView, QSplitter, QDialog,
+    QLineEdit,
+    QMessageBox, QProgressBar, QMenu,
+)
+from PySide6.QtCore import (
+    Qt, QModelIndex,
+    QFileSystemWatcher, QTimer,
+)
+from PySide6.QtGui import (
+    QColor, QBrush, QAction, QActionGroup, QFont, QKeySequence,
+    QPainter, QPixmap, QIcon,
+)
+
+from save_parser import (
+    Cat, FurnitureDefinition, FurnitureRoomSummary,
+    build_furniture_room_summaries,
+    STAT_NAMES, _is_hater_pair, ROOM_KEYS,
+)
+
+from mewgenics.constants import (
+    COL_NAME, COL_AGE, COL_GEN, COL_ROOM, COL_STAT, COL_BL, COL_MB, COL_PIN,
+    STAT_COLS, COL_SUM, COL_AGG, COL_LIB, COL_INBRD, COL_SEXUALITY,
+    COL_RELNS, COL_REL, COL_ABIL, COL_MUTS, COL_GEN_DEPTH, COL_SRC,
+    _W_STATUS, _W_STAT, _W_GEN, _W_RELNS, _W_REL, _W_TRAIT, _W_TRAIT_NARROW,
+    _ZOOM_MIN, _ZOOM_MAX, _ZOOM_STEP,
+    _NAME_STYLE, _META_STYLE,
+)
+from mewgenics.utils.paths import (
+    APPDATA_SAVE_DIR, APP_VERSION, _breeding_cache_path,
+)
+from mewgenics.utils.config import (
+    _save_root_dir, _saved_default_save, _set_default_save,
+    _save_current_view, _load_current_view,
+    _set_save_dir, find_save_files,
+    _saved_room_optimizer_auto_recalc, _set_room_optimizer_auto_recalc,
+    _save_splitter_state, _bind_splitter_persistence,
+    _candidate_gpak_paths,
+)
+from mewgenics.utils.localization import (
+    _SUPPORTED_LANGUAGES, ROOM_DISPLAY, COLUMNS,
+    _saved_language, _set_saved_language,
+    _set_current_language, _current_language, _tr,
+    _language_label, _font_size_offset_label,
+    _refresh_localized_constants,
+)
+from mewgenics.utils.tags import (
+    _TAG_DEFS, _TAG_ICON_CACHE, _TAG_PIX_CACHE, _cat_tags,
+)
+from mewgenics.utils.thresholds import (
+    _load_threshold_preferences, _save_threshold_preferences,
+    _apply_threshold_preferences, _current_threshold_summary,
+)
+from mewgenics.utils.optimizer_settings import (
+    _OPTIMIZER_SEARCH_DEFAULTS,
+    _load_optimizer_search_settings, _save_optimizer_search_settings,
+    _save_room_priority_config,
+)
+from mewgenics.utils.calibration import (
+    _trait_label_from_value, _apply_calibration,
+)
+from mewgenics.utils.cat_persistence import (
+    _save_blacklist, _save_must_breed, _save_pinned, _save_tags,
+)
+from mewgenics.utils.cat_analysis import (
+    _is_exceptional_breeder, _is_donation_candidate,
+)
+from mewgenics.utils.game_data import (
+    _set_gpak_path, _GPAK_PATH, _FURNITURE_DATA,
+)
+from mewgenics.utils.styling import (
+    _ACCESSIBILITY_MIN_FONT_PX, _ACCESSIBILITY_MIN_FONT_PT,
+    _enforce_min_font_in_widget_tree, _apply_font_offset_to_tree,
+    _hsep, _sidebar_btn,
+)
+from mewgenics.models.breeding_cache import (
+    BreedingCache, BreedingCacheWorker,
+    _breeding_cache_fingerprint, _breeding_save_signature,
+)
+from mewgenics.models.cat_table_model import NameTagDelegate, CatTableModel
+from mewgenics.models.room_filter_model import RoomFilterModel
+from mewgenics.workers.save_loader import SaveLoadWorker
+from mewgenics.workers.room_refresh import QuickRoomRefreshWorker
+
+from mewgenics.dialogs import (
+    TagManagerDialog,
+    ThresholdPreferencesDialog,
+    SharedOptimizerSearchSettingsDialog,
+    SaveSelectorDialog,
+)
+from mewgenics.panels.cat_detail import CatDetailPanel
+
+from mewgenics.views.family_tree import FamilyTreeBrowserView
+from mewgenics.views.safe_breeding import SafeBreedingView
+from mewgenics.views.breeding_partners import BreedingPartnersView
+from mewgenics.views.room_optimizer import RoomOptimizerView
+from mewgenics.views.perfect_planner import PerfectCatPlannerView
+from mewgenics.views.calibration import CalibrationView
+from mewgenics.views.mutation_planner import MutationDisorderPlannerView
+from mewgenics.views.furniture import FurnitureView
+
+
+class MainWindow(QMainWindow):
+    @staticmethod
+    def _set_bulk_toggle_label(btn: QPushButton, label: str, enabled: bool):
+        btn.setText(_tr("bulk.label_template", label=label, state=_tr("common.on" if enabled else "common.off")))
+
+    @staticmethod
+    def _style_room_action_button(btn: QPushButton, background: str, border: str, hover_background: str, width: int = 110):
+        btn.setCheckable(False)
+        btn.setMinimumWidth(width)
+        btn.setStyleSheet(
+            "QPushButton { "
+            f"background:{background}; color:#f1f1f1; border:1px solid {border}; "
+            "border-radius:4px; padding:4px 10px; font-size:11px; font-weight:bold; }"
+            f"QPushButton:hover {{ background:{hover_background}; }}"
+            "QPushButton:pressed { background:#1a1a1a; }"
+        )
+
+    def _set_room_action_button_texts(self):
+        self._room_must_breed_btn.setText(_tr("bulk.toggle_must_breed"))
+        self._room_must_breed_btn.setToolTip(_tr("bulk.toggle_must_breed.tooltip"))
+        self._room_breeding_block_btn.setText(_tr("bulk.toggle_breeding_block"))
+        self._room_breeding_block_btn.setToolTip(_tr("bulk.toggle_breeding_block.tooltip"))
+        self._room_pin_btn.setText(_tr("bulk.toggle_pin", default="Toggle Pin"))
+        self._room_pin_btn.setToolTip(_tr("bulk.toggle_pin.tooltip", default="Toggle pin for selected cats"))
+
+    def _room_view_target_cats(self, room_key=None) -> list[Cat]:
+        if room_key in (None, "__all__"):
+            return self._selected_cats()
+        return self._visible_filtered_cats()
+
+    def _active_room_key(self):
+        if self._active_btn is not None:
+            for key, btn in self._room_btns.items():
+                if btn is self._active_btn:
+                    return key
+        return None
+
+    def _toggle_room_view_boolean(self, attr: str, room_key=None) -> int:
+        cats = self._room_view_target_cats(room_key)
+        mw_status = self.statusBar()
+        if not cats:
+            if room_key in (None, "__all__"):
+                mw_status.showMessage("Select cats first, then click a room action.")
+            else:
+                mw_status.showMessage("No cats in the current room view needed a change.")
+            return 0
+
+        current = [bool(getattr(cat, attr, False)) for cat in cats]
+        target_state = not all(current)
+        changed = 0
+        for cat in cats:
+            if attr == "is_pinned":
+                if cat.is_pinned == target_state:
+                    continue
+                cat.is_pinned = target_state
+                changed += 1
+                continue
+            if attr == "must_breed":
+                if cat.must_breed == target_state:
+                    continue
+                cat.must_breed = target_state
+                if target_state:
+                    cat.is_blacklisted = False
+                changed += 1
+                continue
+            if attr == "is_blacklisted":
+                if cat.is_blacklisted == target_state and (not target_state or not cat.must_breed):
+                    continue
+                cat.is_blacklisted = target_state
+                if target_state:
+                    cat.must_breed = False
+                changed += 1
+
+        if changed == 0:
+            mw_status.showMessage("No cats in view needed a change.")
+            return 0
+        self._emit_bulk_toggle_refresh()
+        return changed
+
+    def _toggle_room_must_breed(self, room_key=None):
+        changed = self._toggle_room_view_boolean("must_breed", room_key)
+        if changed:
+            self.statusBar().showMessage(_tr("bulk.status.toggled_must_breed", default="Toggled must breed for {count} selected cats", count=changed))
+
+    def _toggle_room_breeding_block(self, room_key=None):
+        changed = self._toggle_room_view_boolean("is_blacklisted", room_key)
+        if changed:
+            self.statusBar().showMessage(_tr("bulk.status.toggled_breeding_block", default="Toggled breeding block for {count} selected cats", count=changed))
+
+    def _toggle_room_pin(self, room_key=None):
+        changed = self._toggle_room_view_boolean("is_pinned", room_key)
+        if changed:
+            self.statusBar().showMessage(_tr("bulk.status.toggled_pin", default="Toggled pin for {count} selected cats", count=changed))
+
+    def __init__(self, initial_save: Optional[str] = None, use_saved_default: bool = True):
+        super().__init__()
+        _set_current_language(_saved_language())
+        _refresh_localized_constants()
+        self.setWindowTitle(_tr("app.title"))
+        self.resize(1440, 900)
+
+        self._current_save = None
+        self._cats: list[Cat] = []
+        self._furniture = []
+        self._furniture_by_room = {}
+        self._room_summaries: dict[str, FurnitureRoomSummary] = {}
+        self._available_house_rooms: list[str] = list(ROOM_KEYS)
+        self._furniture_data: dict[str, FurnitureDefinition] = dict(_FURNITURE_DATA)
+        self._room_btns: dict = {}
+        self._active_btn = None
+        self._show_lineage: bool = False
+        self._pedigree_coi_memos: dict[tuple[int, int], float] = {}
+        self._tree_view: Optional[FamilyTreeBrowserView] = None
+        self._safe_breeding_view: Optional[SafeBreedingView] = None
+        self._breeding_partners_view: Optional[BreedingPartnersView] = None
+        self._room_optimizer_view: Optional[RoomOptimizerView] = None
+        self._perfect_planner_view: Optional[PerfectCatPlannerView] = None
+        self._calibration_view: Optional[CalibrationView] = None
+        self._furniture_view: Optional[FurnitureView] = None
+        self._breeding_cache: Optional[BreedingCache] = None
+        self._cache_worker: Optional[BreedingCacheWorker] = None
+        self._save_load_worker: Optional[SaveLoadWorker] = None
+        self._quick_refresh_worker: Optional[QuickRoomRefreshWorker] = None
+        self._prev_parent_keys: dict[int, tuple] = {}
+        self._zoom_percent: int = 100
+        self._font_size_offset: int = 0   # pt offset applied on top of zoom
+        self._base_font: QFont = QApplication.instance().font()
+        self._base_sidebar_width = 190
+        self._base_header_height = 46
+        self._base_search_width = 180
+        self._base_col_widths = {
+            COL_NAME: 160,
+            COL_GEN: _W_GEN,
+            COL_STAT: _W_STATUS,
+            COL_BL: 34,
+            COL_MB: 34,
+            COL_PIN: 34,
+            COL_SUM: 38,
+            COL_ABIL: 180,
+            COL_MUTS: 155,
+            COL_RELNS: _W_RELNS,
+            COL_REL: _W_REL,
+            COL_AGE: 34,
+            COL_AGG: _W_TRAIT_NARROW,
+            COL_LIB: _W_TRAIT_NARROW,
+            COL_INBRD: _W_TRAIT_NARROW,
+            COL_SEXUALITY: _W_TRAIT,
+            **{c: _W_STAT for c in STAT_COLS},
+        }
+
+        self._build_ui()
+        self._build_menu()
+        self._apply_zoom()
+
+        # Progress bar for breeding cache computation
+        self._cache_progress = QProgressBar()
+        self._cache_progress.setFixedWidth(200)
+        self._cache_progress.setFixedHeight(16)
+        self._cache_progress.setTextVisible(True)
+        self._cache_progress.setFormat(_tr("loading.cache.computing"))
+        self._cache_progress.setStyleSheet(
+            "QProgressBar { background:#1a1a32; border:1px solid #2a2a4a; border-radius:4px; color:#aaa; font-size:10px; }"
+            "QProgressBar::chunk { background:#3f8f72; border-radius:3px; }"
+        )
+        self._cache_progress.hide()
+        self.statusBar().addPermanentWidget(self._cache_progress)
+
+        self._watcher = QFileSystemWatcher(self)
+        self._watcher.fileChanged.connect(self._on_file_changed)
+
+        # Use initial_save if provided; otherwise only auto-load the saved default when allowed.
+        save_to_load = initial_save if initial_save else (_saved_default_save() if use_saved_default else None)
+        if save_to_load:
+            # Defer load_save to after the window is shown so the UI appears instantly.
+            QTimer.singleShot(0, lambda: self.load_save(save_to_load))
+
+    # ── Menu ──────────────────────────────────────────────────────────────
+
+    def _build_menu(self):
+        self.menuBar().clear()
+        fm = self.menuBar().addMenu(_tr("menu.file"))
+
+        oa = QAction(_tr("menu.file.open_save"), self)
+        oa.setShortcut("Ctrl+O")
+        oa.triggered.connect(self._open_file)
+        fm.addAction(oa)
+
+        # Recent Saves submenu
+        self._recent_saves_menu = fm.addMenu(_tr("menu.file.recent_saves"))
+        self._recent_save_actions: list[QAction] = []
+        self._refresh_recent_save_actions()
+
+        fm.addSeparator()
+
+        # Default Save submenu
+        self._default_save_menu = fm.addMenu(_tr("menu.file.default_save"))
+        self._set_default_save_action = QAction(_tr("menu.file.default_save.set_current"), self)
+        self._set_default_save_action.triggered.connect(self._set_current_as_default)
+        self._set_default_save_action.setEnabled(False)
+        self._default_save_menu.addAction(self._set_default_save_action)
+
+        self._clear_default_save_action = QAction(_tr("menu.file.default_save.clear"), self)
+        self._clear_default_save_action.triggered.connect(self._clear_default_save)
+        self._clear_default_save_action.setEnabled(False)
+        self._default_save_menu.addAction(self._clear_default_save_action)
+
+        fm.addSeparator()
+
+        ra = QAction(_tr("menu.file.reload"), self)
+        ra.setShortcut("F5")
+        ra.triggered.connect(self._reload)
+        fm.addAction(ra)
+
+        recalc = QAction(_tr("menu.file.recalculate_breeding_data"), self)
+        recalc.setShortcut("Ctrl+F5")
+        recalc.setToolTip(_tr("menu.file.recalculate_breeding_data.tooltip"))
+        recalc.triggered.connect(lambda: self._start_breeding_cache(self._cats, force_full=True) if self._cats else None)
+        fm.addAction(recalc)
+
+        clear_cache = QAction(_tr("menu.file.clear_breeding_cache"), self)
+        clear_cache.setToolTip(_tr("menu.file.clear_breeding_cache.tooltip"))
+        clear_cache.triggered.connect(self._clear_breeding_cache)
+        fm.addAction(clear_cache)
+
+        fm.addSeparator()
+
+        export_action = QAction(_tr("menu.file.export_cats", default="Export Cats…"), self)
+        export_action.setShortcut("Ctrl+E")
+        export_action.triggered.connect(self._export_cats)
+        fm.addAction(export_action)
+
+        fm.addSeparator()
+
+        exit_action = QAction(_tr("menu.file.exit"), self)
+        exit_action.setShortcut("Alt+F4")
+        exit_action.triggered.connect(self.close)
+        fm.addAction(exit_action)
+
+        sm = self.menuBar().addMenu(_tr("menu.settings"))
+        locations_action = QAction(_tr("menu.settings.locations"), self)
+        locations_action.triggered.connect(self._open_locations_dialog)
+        sm.addAction(locations_action)
+
+        self._thresholds_action = QAction(_tr("menu.settings.thresholds", default="Donation / Exceptional Thresholds…"), self)
+        self._thresholds_action.triggered.connect(self._open_threshold_preferences_dialog)
+        sm.addAction(self._thresholds_action)
+
+        self._optimizer_search_settings_action = QAction(
+            _tr("menu.settings.optimizer_search_settings", default="Optimizer Search Settings…"),
+            self,
+        )
+        self._optimizer_search_settings_action.triggered.connect(self._open_optimizer_search_settings_dialog)
+        sm.addAction(self._optimizer_search_settings_action)
+
+        sm.addSeparator()
+        self._language_menu = sm.addMenu(_tr("language.menu"))
+        self._language_group = QActionGroup(self)
+        self._language_group.setExclusive(True)
+        for language in _SUPPORTED_LANGUAGES:
+            action = QAction(_language_label(language), self)
+            action.setCheckable(True)
+            action.setChecked(language == _current_language())
+            action.triggered.connect(lambda checked=False, lang=language: self._change_language(lang))
+            self._language_group.addAction(action)
+            self._language_menu.addAction(action)
+
+        sm.addSeparator()
+        self._lineage_action = QAction(_tr("menu.settings.show_lineage"), self)
+        self._lineage_action.setCheckable(True)
+        self._lineage_action.setChecked(self._show_lineage)
+        self._lineage_action.triggered.connect(self._toggle_lineage)
+        sm.addAction(self._lineage_action)
+
+        sm.addSeparator()
+        self._room_optimizer_auto_recalc_action = QAction(_tr("menu.settings.room_optimizer_auto_recalc", default="Auto Recalculate Room Optimizer"), self)
+        self._room_optimizer_auto_recalc_action.setCheckable(True)
+        self._room_optimizer_auto_recalc_action.setChecked(_saved_room_optimizer_auto_recalc())
+        self._room_optimizer_auto_recalc_action.toggled.connect(self._toggle_room_optimizer_auto_recalc)
+        sm.addAction(self._room_optimizer_auto_recalc_action)
+
+        sm.addSeparator()
+        zoom_in = QAction(_tr("menu.settings.zoom_in"), self)
+        zoom_in_keys = QKeySequence.keyBindings(QKeySequence.StandardKey.ZoomIn)
+        if not zoom_in_keys:
+            zoom_in_keys = []
+        for seq in (QKeySequence("Ctrl+="), QKeySequence("Ctrl++")):
+            if seq not in zoom_in_keys:
+                zoom_in_keys.append(seq)
+        zoom_in.setShortcuts(zoom_in_keys)
+        zoom_in.triggered.connect(lambda: self._change_zoom(+1))
+        sm.addAction(zoom_in)
+
+        zoom_out = QAction(_tr("menu.settings.zoom_out"), self)
+        zoom_out_keys = QKeySequence.keyBindings(QKeySequence.StandardKey.ZoomOut)
+        if not zoom_out_keys:
+            zoom_out_keys = []
+        if QKeySequence("Ctrl+-") not in zoom_out_keys:
+            zoom_out_keys.append(QKeySequence("Ctrl+-"))
+        zoom_out.setShortcuts(zoom_out_keys)
+        zoom_out.triggered.connect(lambda: self._change_zoom(-1))
+        sm.addAction(zoom_out)
+
+        zoom_reset = QAction(_tr("menu.settings.reset_zoom"), self)
+        zoom_reset.setShortcut("Ctrl+0")
+        zoom_reset.triggered.connect(self._reset_zoom)
+        sm.addAction(zoom_reset)
+
+        self._zoom_info_action = QAction("", self)
+        self._zoom_info_action.setEnabled(False)
+        sm.addAction(self._zoom_info_action)
+        self._update_zoom_info_action()
+
+        sm.addSeparator()
+        fs_in = QAction(_tr("menu.settings.increase_font_size"), self)
+        fs_in.setShortcut("Ctrl+]")
+        fs_in.triggered.connect(lambda: self._change_font_size(+1))
+        sm.addAction(fs_in)
+
+        fs_out = QAction(_tr("menu.settings.decrease_font_size"), self)
+        fs_out.setShortcut("Ctrl+[")
+        fs_out.triggered.connect(lambda: self._change_font_size(-1))
+        sm.addAction(fs_out)
+
+        fs_reset = QAction(_tr("menu.settings.reset_font_size"), self)
+        fs_reset.setShortcut("Ctrl+\\")
+        fs_reset.triggered.connect(lambda: self._set_font_size_offset(0))
+        sm.addAction(fs_reset)
+
+        self._font_size_info_action = QAction("", self)
+        self._font_size_info_action.setEnabled(False)
+        sm.addAction(self._font_size_info_action)
+        self._update_font_size_info_action()
+
+        sm.addSeparator()
+        self._reset_ui_settings_action = QAction(_tr("menu.settings.reset_ui_defaults"), self)
+        self._reset_ui_settings_action.triggered.connect(self._reset_ui_settings_to_defaults)
+        sm.addAction(self._reset_ui_settings_action)
+
+    def _refresh_recent_save_actions(self):
+        if not hasattr(self, "_recent_saves_menu"):
+            return
+        self._recent_saves_menu.clear()
+        self._recent_save_actions = []
+
+        saves = find_save_files()
+        if not saves:
+            action = QAction(_tr("menu.file.no_saves_found", path=_save_root_dir()), self)
+            action.setEnabled(False)
+            self._recent_saves_menu.addAction(action)
+            self._recent_save_actions.append(action)
+            return
+
+        for path in saves[:10]:
+            action = QAction(os.path.basename(path), self)
+            action.setToolTip(path)
+            action.triggered.connect(lambda _, p=path: self.load_save(p))
+            self._recent_saves_menu.addAction(action)
+            self._recent_save_actions.append(action)
+
+    def _open_locations_dialog(self):
+        dlg = QDialog(self)
+        dlg.setWindowTitle(_tr("dialog.locations.title"))
+        dlg.setModal(True)
+        layout = QVBoxLayout(dlg)
+        layout.setContentsMargins(14, 14, 14, 14)
+        layout.setSpacing(10)
+
+        game_title = QLabel(_tr("dialog.locations.game_install"))
+        game_title.setStyleSheet(_NAME_STYLE)
+        game_path_label = QLabel()
+        game_path_label.setWordWrap(True)
+        game_path_label.setStyleSheet(_META_STYLE)
+
+        save_title = QLabel(_tr("dialog.locations.save_root"))
+        save_title.setStyleSheet(_NAME_STYLE)
+        save_path_label = QLabel()
+        save_path_label.setWordWrap(True)
+        save_path_label.setStyleSheet(_META_STYLE)
+
+        note_label = QLabel(_tr("dialog.locations.note", path=APPDATA_SAVE_DIR))
+        note_label.setWordWrap(True)
+        note_label.setStyleSheet(_META_STYLE)
+
+        def _refresh_labels():
+            game_path_label.setText(_GPAK_PATH or _tr("common.not_found"))
+            save_path_label.setText(_save_root_dir())
+
+        def _choose_game_dir():
+            start_dir = os.path.dirname(_GPAK_PATH) if _GPAK_PATH else (
+                r"C:\Program Files (x86)\Steam\steamapps\common\Mewgenics"
+                if os.path.isdir(r"C:\Program Files (x86)\Steam\steamapps\common\Mewgenics")
+                else (
+                    r"C:\Program Files\Steam\steamapps\common\Mewgenics"
+                    if os.path.isdir(r"C:\Program Files\Steam\steamapps\common\Mewgenics")
+                    else str(Path.home())
+                )
+            )
+            chosen_dir = QFileDialog.getExistingDirectory(
+                dlg,
+                _tr("dialog.locations.select_game_folder"),
+                start_dir,
+            )
+            if not chosen_dir:
+                return
+            gpak_path = os.path.join(chosen_dir, "resources.gpak")
+            if not os.path.exists(gpak_path):
+                QMessageBox.warning(
+                    dlg,
+                    _tr("dialog.locations.resources_not_found.title"),
+                    _tr("dialog.locations.resources_not_found.body"),
+                )
+                return
+            _set_gpak_path(gpak_path)
+            _refresh_labels()
+            if self._current_save:
+                self.load_save(self._current_save)
+            self.statusBar().showMessage(_tr("status.using_game_data", path=gpak_path))
+
+        def _choose_save_dir():
+            chosen_dir = QFileDialog.getExistingDirectory(
+                dlg,
+                _tr("dialog.locations.select_save_root"),
+                _save_root_dir(),
+            )
+            if not chosen_dir:
+                return
+            _set_save_dir(chosen_dir)
+            _refresh_labels()
+            self._refresh_recent_save_actions()
+            self.statusBar().showMessage(_tr("status.using_save_root", path=chosen_dir))
+
+        game_btn = QPushButton(_tr("dialog.locations.change_game_folder"))
+        game_btn.clicked.connect(_choose_game_dir)
+        save_btn = QPushButton(_tr("dialog.locations.change_save_root"))
+        save_btn.clicked.connect(_choose_save_dir)
+
+        layout.addWidget(game_title)
+        layout.addWidget(game_path_label)
+        layout.addWidget(game_btn)
+        layout.addSpacing(8)
+        layout.addWidget(save_title)
+        layout.addWidget(save_path_label)
+        layout.addWidget(save_btn)
+        layout.addSpacing(8)
+        layout.addWidget(note_label)
+
+        close_btn = QPushButton(_tr("common.close"))
+        close_btn.clicked.connect(dlg.accept)
+        layout.addWidget(close_btn, alignment=Qt.AlignRight)
+
+        _refresh_labels()
+        dlg.resize(640, 260)
+        dlg.exec()
+
+    def _open_threshold_preferences_dialog(self):
+        dlg = ThresholdPreferencesDialog(self, _load_threshold_preferences(), self._cats)
+        if dlg.exec() != QDialog.Accepted:
+            return
+        prefs = dlg.preferences()
+        _save_threshold_preferences(prefs)
+        self._refresh_threshold_runtime(self._cats)
+        room_key = None
+        if self._active_btn is not None:
+            for key, btn in self._room_btns.items():
+                if btn is self._active_btn:
+                    room_key = key
+                    break
+        self._refresh_threshold_sensitive_ui(room_key)
+        self.statusBar().showMessage(
+            _tr("status.thresholds_saved", default="Threshold preferences saved")
+        )
+
+    def _open_optimizer_search_settings_dialog(self):
+        dlg = SharedOptimizerSearchSettingsDialog(self, _load_optimizer_search_settings())
+        if dlg.exec() != QDialog.Accepted:
+            return
+        settings = dlg.preferences()
+        _save_optimizer_search_settings(settings)
+        self.statusBar().showMessage(
+            _tr("status.optimizer_search_settings_saved", default="Optimizer search settings saved")
+        )
+
+    # ── Layout ────────────────────────────────────────────────────────────
+
+    def _build_ui(self):
+        central = QWidget()
+        self.setCentralWidget(central)
+        rl = QHBoxLayout(central)
+        rl.setContentsMargins(0, 0, 0, 0)
+        rl.setSpacing(0)
+
+        hs = QSplitter(Qt.Horizontal)
+        hs.setObjectName("main_window_sidebar_splitter")
+        self._sidebar_splitter = hs
+        rl.addWidget(hs)
+        hs.addWidget(self._build_sidebar())
+        hs.addWidget(self._build_content())
+        hs.setStretchFactor(0, 0)
+        hs.setStretchFactor(1, 1)
+        hs.setSizes([190, 1250])
+        _enforce_min_font_in_widget_tree(central)
+        # Snapshot all stylesheet font sizes before any offset is applied,
+        # so _apply_font_offset_to_tree always scales from the true originals.
+        _apply_font_offset_to_tree(central, 0)
+        _bind_splitter_persistence(self)
+
+    # ── Sidebar ────────────────────────────────────────────────────────────
+
+    def _build_sidebar(self) -> QWidget:
+        w  = QWidget()
+        self._sidebar = w
+        w.setFixedWidth(self._base_sidebar_width)
+        w.setStyleSheet("background:#14142a;")
+        vb = QVBoxLayout(w)
+        vb.setContentsMargins(8, 14, 8, 12)
+        vb.setSpacing(2)
+
+        def sl(text):
+            l = QLabel(text)
+            l.setStyleSheet("color:#444; font-size:10px; font-weight:bold;"
+                            " letter-spacing:1px; padding:8px 4px 4px 4px;")
+            return l
+
+        self._filters_section_label = sl(_tr("sidebar.section.filters"))
+        vb.addWidget(self._filters_section_label)
+        self._btn_everyone = _sidebar_btn(_tr("sidebar.button.all_cats"))
+        self._btn_everyone.clicked.connect(
+            lambda: self._filter("__all__", self._btn_everyone))
+        vb.addWidget(self._btn_everyone)
+        self._room_btns["__all__"] = self._btn_everyone
+
+        self._btn_all = _sidebar_btn(_tr("sidebar.button.alive_cats"))
+        self._btn_all.setChecked(True)
+        self._active_btn = self._btn_all
+        self._btn_all.clicked.connect(lambda: self._filter(None, self._btn_all))
+        vb.addWidget(self._btn_all)
+        self._room_btns[None] = self._btn_all
+
+        self._btn_exceptional = _sidebar_btn("")
+        self._btn_exceptional.setToolTip("")
+        self._btn_exceptional.clicked.connect(
+            lambda: self._filter("__exceptional__", self._btn_exceptional)
+        )
+        vb.addWidget(self._btn_exceptional)
+        self._room_btns["__exceptional__"] = self._btn_exceptional
+
+        self._btn_donation = _sidebar_btn("")
+        self._btn_donation.setToolTip("")
+        self._btn_donation.clicked.connect(
+            lambda: self._filter("__donation__", self._btn_donation)
+        )
+        vb.addWidget(self._btn_donation)
+        self._room_btns["__donation__"] = self._btn_donation
+
+        vb.addWidget(_hsep())
+        self._breeding_section_label = sl(_tr("sidebar.section.breeding"))
+        vb.addWidget(self._breeding_section_label)
+        self._btn_room_optimizer = _sidebar_btn(_tr("sidebar.button.room_optimizer"))
+        self._btn_room_optimizer.clicked.connect(self._open_room_optimizer)
+        vb.addWidget(self._btn_room_optimizer)
+        self._btn_perfect_planner = _sidebar_btn(_tr("sidebar.button.perfect_7_planner"))
+        self._btn_perfect_planner.clicked.connect(self._open_perfect_planner_view)
+        vb.addWidget(self._btn_perfect_planner)
+        self._btn_mutation_planner = _sidebar_btn(_tr("sidebar.button.mutation_planner"))
+        self._btn_mutation_planner.clicked.connect(self._open_mutation_planner_view)
+        vb.addWidget(self._btn_mutation_planner)
+        self._btn_safe_breeding_view = _sidebar_btn(_tr("sidebar.button.safe_breeding"))
+        self._btn_safe_breeding_view.clicked.connect(self._open_safe_breeding_view)
+        vb.addWidget(self._btn_safe_breeding_view)
+        self._btn_breeding_partners_view = _sidebar_btn(_tr("sidebar.button.breeding_partners"))
+        self._btn_breeding_partners_view.clicked.connect(self._open_breeding_partners_view)
+        vb.addWidget(self._btn_breeding_partners_view)
+
+        vb.addWidget(_hsep())
+        self._info_section_label = sl(_tr("sidebar.section.info"))
+        vb.addWidget(self._info_section_label)
+        self._btn_tree_view = _sidebar_btn(_tr("sidebar.button.family_tree_view"))
+        self._btn_tree_view.clicked.connect(self._open_tree_browser)
+        vb.addWidget(self._btn_tree_view)
+        self._btn_furniture_view = _sidebar_btn(_tr("sidebar.button.furniture", default="Furniture"))
+        self._btn_furniture_view.clicked.connect(self._open_furniture_view)
+        vb.addWidget(self._btn_furniture_view)
+        self._btn_calibration = _sidebar_btn(_tr("sidebar.button.calibration"))
+        self._btn_calibration.clicked.connect(self._open_calibration_view)
+        vb.addWidget(self._btn_calibration)
+
+        vb.addWidget(_hsep())
+        self._rooms_section_label = sl(_tr("sidebar.section.rooms"))
+        vb.addWidget(self._rooms_section_label)
+        self._rooms_vb = QVBoxLayout(); self._rooms_vb.setSpacing(2)
+        vb.addLayout(self._rooms_vb)
+        vb.addWidget(_hsep())
+
+        self._other_section_label = sl(_tr("sidebar.section.other"))
+        vb.addWidget(self._other_section_label)
+        self._btn_adventure = _sidebar_btn(_tr("sidebar.button.on_adventure"))
+        self._btn_gone      = _sidebar_btn(_tr("sidebar.button.gone"))
+        self._btn_adventure.clicked.connect(
+            lambda: self._filter("__adventure__", self._btn_adventure))
+        self._btn_gone.clicked.connect(
+            lambda: self._filter("__gone__", self._btn_gone))
+        vb.addWidget(self._btn_adventure)
+        vb.addWidget(self._btn_gone)
+        self._room_btns["__adventure__"] = self._btn_adventure
+        self._room_btns["__gone__"]      = self._btn_gone
+
+        vb.addStretch()
+
+        self._version_lbl = QLabel(f"v{APP_VERSION}")
+        self._version_lbl.setStyleSheet("color:#666; font-size:10px; padding:0 4px 2px 4px;")
+        self._version_lbl.setToolTip(f"Application version: {APP_VERSION}")
+        vb.addWidget(self._version_lbl)
+
+        self._save_lbl = QLabel(_tr("sidebar.no_save_loaded"))
+        self._save_lbl.setStyleSheet("color:#444; font-size:10px;")
+        self._save_lbl.setWordWrap(True)
+        vb.addWidget(self._save_lbl)
+
+        self._reload_btn = QPushButton(_tr("sidebar.button.reload"))
+        self._reload_btn.setStyleSheet("QPushButton { color:#888; background:#1a1a32;"
+                         " border:1px solid #2a2a4a; padding:7px;"
+                         " border-radius:4px; font-size:11px; }"
+                         "QPushButton:hover { background:#222244; }")
+        self._reload_btn.clicked.connect(self._reload)
+        vb.addWidget(self._reload_btn)
+        self._refresh_filter_button_counts()
+        return w
+
+    def _rebuild_room_buttons(self, cats: list[Cat]):
+        while self._rooms_vb.count():
+            item = self._rooms_vb.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        _ROOM_ORDER = {
+            "Attic": 0,
+            "Floor2_Large": 1, "Floor2_Small": 2,
+            "Floor1_Large": 3, "Floor1_Small": 4,
+        }
+        rooms = sorted(
+            {c.room for c in cats if c.status == "In House" and c.room},
+            key=lambda r: _ROOM_ORDER.get(r, 99),
+        )
+        for room in rooms:
+            count = sum(1 for c in cats if c.room == room)
+            display = ROOM_DISPLAY.get(room, room)
+            btn = _sidebar_btn(f"{display}  ({count})")
+            btn.clicked.connect(lambda _, r=room, b=btn: self._filter(r, b))
+            self._rooms_vb.addWidget(btn)
+            self._room_btns[room] = btn
+
+    def _refresh_filter_button_counts(self):
+        total = len(self._cats)
+        alive = sum(1 for c in self._cats if c.status != "Gone")
+        exceptional = sum(1 for c in self._cats if c.status != "Gone" and _is_exceptional_breeder(c))
+        donation = sum(1 for c in self._cats if c.status != "Gone" and _is_donation_candidate(c))
+        adv = sum(1 for c in self._cats if c.status == "Adventure")
+        gone = sum(1 for c in self._cats if c.status == "Gone")
+
+        self._btn_everyone.setText(f"{_tr('sidebar.button.all_cats')}  ({total})" if total else _tr("sidebar.button.all_cats"))
+        self._btn_all.setText(f"{_tr('sidebar.button.alive_cats')}  ({alive})" if total else _tr("sidebar.button.alive_cats"))
+        self._btn_exceptional.setText(f"{_tr('sidebar.button.exceptional')}  ({exceptional})")
+        self._btn_donation.setText(f"{_tr('sidebar.button.donation_candidates')}  ({donation})")
+        self._btn_adventure.setText(f"{_tr('sidebar.button.on_adventure')}  ({adv})" if total else _tr("sidebar.button.on_adventure"))
+        self._btn_gone.setText(f"{_tr('sidebar.button.gone')}  ({gone})" if total else _tr("sidebar.button.gone"))
+        self._btn_room_optimizer.setText(_tr("sidebar.button.room_optimizer"))
+        self._btn_perfect_planner.setText(_tr("sidebar.button.perfect_7_planner"))
+        self._btn_mutation_planner.setText(_tr("sidebar.button.mutation_planner"))
+        self._btn_safe_breeding_view.setText(_tr("sidebar.button.safe_breeding"))
+        self._btn_breeding_partners_view.setText(_tr("sidebar.button.breeding_partners"))
+        self._btn_tree_view.setText(_tr("sidebar.button.family_tree_view"))
+        self._btn_calibration.setText(_tr("sidebar.button.calibration"))
+        self._btn_furniture_view.setText(_tr("sidebar.button.furniture", default="Furniture"))
+        self._update_threshold_button_copy()
+
+    def _update_threshold_button_copy(self):
+        if not hasattr(self, "_btn_exceptional") or not hasattr(self, "_btn_donation"):
+            return
+        summary = _current_threshold_summary(self._cats)
+        exceptional = summary["exceptional"]
+        donation = summary["donation"]
+        top_stat = summary["top_stat"]
+        avg_sum = summary["avg_sum"]
+        base_exceptional = summary["base_exceptional"]
+        base_donation = summary["base_donation"]
+        adaptive = summary["adaptive_enabled"]
+        if adaptive:
+            self._btn_exceptional.setToolTip(
+                "Exceptional breeders follow the living-cat average curve: "
+                f"base {base_exceptional}, reference avg {summary['adaptive_reference_avg_sum']:.1f}, "
+                f"curve {summary['adaptive_curve_strength']:.2f}, current avg {avg_sum:.1f} -> {exceptional}."
+            )
+            self._btn_donation.setToolTip(
+                "Donation candidates follow the living-cat average curve: "
+                f"base {base_donation}, reference avg {summary['adaptive_reference_avg_sum']:.1f}, "
+                f"curve {summary['adaptive_curve_strength']:.2f}, current avg {avg_sum:.1f} -> {donation}, "
+                f"top stat cap {top_stat}."
+            )
+        else:
+            self._btn_exceptional.setToolTip(
+                f"Exceptional breeders: base stat sum >= {exceptional}."
+            )
+            self._btn_donation.setToolTip(
+                "Donation candidates use documented heuristics: "
+                f"base stat sum <= {donation}, "
+                f"top stat <= {top_stat}, and/or high aggression."
+            )
+
+    def _refresh_threshold_runtime(self, cats: list[Cat] | None = None):
+        _apply_threshold_preferences(_load_threshold_preferences(), cats if cats is not None else self._cats)
+
+    def _refresh_threshold_sensitive_ui(self, room_key=None):
+        if hasattr(self, "_proxy_model"):
+            self._proxy_model.invalidate()
+        self._refresh_filter_button_counts()
+        self._refresh_bulk_view_buttons(room_key)
+        self._update_count()
+
+    def _sync_room_config_views(self):
+        if self._room_optimizer_view is None or self._perfect_planner_view is None:
+            return
+        self._perfect_planner_view.sync_from_room_config(
+            self._room_optimizer_view.get_room_config(),
+            available_rooms=self._room_optimizer_view.get_available_rooms(),
+        )
+
+    def _retranslate_ui(self):
+        current_room_key = next((key for key, btn in self._room_btns.items() if btn is self._active_btn), None)
+        _refresh_localized_constants()
+        self._build_menu()
+        self._filters_section_label.setText(_tr("sidebar.section.filters"))
+        self._breeding_section_label.setText(_tr("sidebar.section.breeding"))
+        self._info_section_label.setText(_tr("sidebar.section.info"))
+        self._rooms_section_label.setText(_tr("sidebar.section.rooms"))
+        self._other_section_label.setText(_tr("sidebar.section.other"))
+        self._reload_btn.setText(_tr("sidebar.button.reload"))
+        self._save_lbl.setText(os.path.basename(self._current_save) if self._current_save else _tr("sidebar.no_save_loaded"))
+        self._search.setPlaceholderText(_tr("header.search_placeholder"))
+        self._loading_label.setText(_tr("loading.save_file"))
+        self._cache_progress.setFormat(_tr("loading.cache.computing"))
+        self._refresh_filter_button_counts()
+        self._rebuild_room_buttons(self._cats)
+        if current_room_key in self._room_btns:
+            self._active_btn = self._room_btns[current_room_key]
+            self._active_btn.setChecked(True)
+        self._update_header(current_room_key)
+        self._update_count()
+        self._refresh_bulk_view_buttons()
+        if hasattr(self, "_source_model") and self._source_model is not None:
+            self._source_model.headerDataChanged.emit(Qt.Horizontal, 0, len(COLUMNS) - 1)
+        if self._safe_breeding_view is not None:
+            self._safe_breeding_view.retranslate_ui()
+        if self._breeding_partners_view is not None:
+            self._breeding_partners_view.retranslate_ui()
+        if self._room_optimizer_view is not None:
+            self._room_optimizer_view.retranslate_ui()
+        if self._perfect_planner_view is not None:
+            self._perfect_planner_view.retranslate_ui()
+        if hasattr(self, "_mutation_planner_view") and self._mutation_planner_view is not None:
+            self._mutation_planner_view.retranslate_ui()
+        if self._calibration_view is not None:
+            self._calibration_view.retranslate_ui()
+        if self._furniture_view is not None:
+            self._furniture_view.retranslate_ui()
+        if hasattr(self, "_thresholds_action"):
+            self._thresholds_action.setText(_tr("menu.settings.thresholds", default="Donation / Exceptional Thresholds…"))
+        if hasattr(self, "_optimizer_search_settings_action"):
+            self._optimizer_search_settings_action.setText(
+                _tr("menu.settings.optimizer_search_settings", default="Optimizer Search Settings…")
+            )
+        if hasattr(self, "_reset_ui_settings_action"):
+            self._reset_ui_settings_action.setText(_tr("menu.settings.reset_ui_defaults"))
+        if hasattr(self, "_room_optimizer_auto_recalc_action"):
+            self._room_optimizer_auto_recalc_action.setText(_tr("menu.settings.room_optimizer_auto_recalc", default="Auto Recalculate Room Optimizer"))
+
+    def _change_language(self, language: str):
+        if language not in _SUPPORTED_LANGUAGES or language == _current_language():
+            return
+        _set_saved_language(language)
+        _set_current_language(language)
+        self._retranslate_ui()
+        current_title = _language_label(language)
+        self.setWindowTitle(_tr("app.title_with_save", name=os.path.basename(self._current_save)) if self._current_save else _tr("app.title"))
+        self.statusBar().showMessage(_tr("status.language_changed", language=current_title))
+
+    # ── Content ────────────────────────────────────────────────────────────
+
+    def _build_content(self) -> QWidget:
+        w  = QWidget()
+        vb = QVBoxLayout(w)
+        vb.setContentsMargins(0, 0, 0, 0)
+        vb.setSpacing(0)
+
+        # Header
+        hdr = QWidget()
+        self._header = hdr
+        hdr.setStyleSheet("background:#16213e; border-bottom:1px solid #1e1e38;")
+        hdr.setFixedHeight(self._base_header_height)
+        hb = QHBoxLayout(hdr); hb.setContentsMargins(14, 0, 14, 0)
+        self._header_lbl = QLabel(_tr("header.filter.all_cats"))
+        self._header_lbl.setStyleSheet("color:#eee; font-size:15px; font-weight:bold;")
+        self._count_lbl = QLabel("")
+        self._count_lbl.setStyleSheet("color:#555; font-size:12px; padding-left:8px;")
+        self._summary_lbl = QLabel("")
+        self._summary_lbl.setStyleSheet("color:#4a7a9a; font-size:11px;")
+        self._bulk_blacklist_btn = QPushButton()
+        self._bulk_blacklist_btn.setCheckable(True)
+        self._bulk_blacklist_btn.setMinimumWidth(130)
+        self._bulk_blacklist_btn.setStyleSheet(
+            "QPushButton { background:#5a2d22; color:#f1dfda; border:1px solid #8b4c3e;"
+            " border-radius:4px; padding:4px 10px; font-size:11px; font-weight:bold; }"
+            "QPushButton:hover { background:#6c382a; }"
+            "QPushButton:pressed { background:#4c241b; }"
+            "QPushButton:checked { background:#7a3626; border:1px solid #b35b48; }"
+        )
+        self._set_bulk_toggle_label(self._bulk_blacklist_btn, _tr("bulk.breeding_block"), False)
+        self._bulk_blacklist_btn.clicked.connect(self._toggle_blacklist_filtered_cats)
+        self._bulk_must_breed_btn = QPushButton()
+        self._bulk_must_breed_btn.setCheckable(True)
+        self._bulk_must_breed_btn.setMinimumWidth(110)
+        self._bulk_must_breed_btn.setStyleSheet(
+            "QPushButton { background:#3b355f; color:#ece8fb; border:1px solid #5d58a0;"
+            " border-radius:4px; padding:4px 10px; font-size:11px; font-weight:bold; }"
+            "QPushButton:hover { background:#49417a; }"
+            "QPushButton:pressed { background:#312c4f; }"
+            "QPushButton:checked { background:#514890; border:1px solid #7d73c7; }"
+        )
+        self._set_bulk_toggle_label(self._bulk_must_breed_btn, _tr("bulk.must_breed"), False)
+        self._bulk_must_breed_btn.clicked.connect(self._toggle_must_breed_filtered_cats)
+        bulk_container = QWidget()
+        self._bulk_actions_layout = QHBoxLayout(bulk_container)
+        self._bulk_actions_layout.setContentsMargins(0, 0, 0, 0)
+        self._bulk_actions_layout.setSpacing(8)
+        self._bulk_pin_btn = QPushButton()
+        self._bulk_pin_btn.setCheckable(True)
+        self._bulk_pin_btn.setMinimumWidth(90)
+        self._bulk_pin_btn.setStyleSheet(
+            "QPushButton { background:#2a3a2a; color:#c8dcc8; border:1px solid #4a6a4a;"
+            " border-radius:4px; padding:4px 10px; font-size:11px; font-weight:bold; }"
+            "QPushButton:hover { background:#3a4a3a; }"
+            "QPushButton:pressed { background:#1e2e1e; }"
+            "QPushButton:checked { background:#3a5a3a; border:1px solid #5a8a5a; }")
+        self._set_bulk_toggle_label(self._bulk_pin_btn, _tr("bulk.pin", default="Pin"), False)
+        self._bulk_pin_btn.clicked.connect(self._toggle_pin_filtered_cats)
+        self._bulk_actions_layout.addWidget(self._bulk_must_breed_btn)
+        self._bulk_actions_layout.addWidget(self._bulk_blacklist_btn)
+        self._bulk_actions_layout.addWidget(self._bulk_pin_btn)
+
+        self._room_actions_box = QWidget()
+        room_actions = QHBoxLayout(self._room_actions_box)
+        room_actions.setContentsMargins(0, 0, 0, 0)
+        room_actions.setSpacing(8)
+
+        self._room_must_breed_btn = QPushButton()
+        self._style_room_action_button(self._room_must_breed_btn, "#3b355f", "#5d58a0", "#49417a")
+        self._room_must_breed_btn.clicked.connect(lambda: self._toggle_room_must_breed(self._active_room_key()))
+        room_actions.addWidget(self._room_must_breed_btn)
+
+        self._room_breeding_block_btn = QPushButton()
+        self._style_room_action_button(self._room_breeding_block_btn, "#5a2d22", "#8b4c3e", "#6c382a")
+        self._room_breeding_block_btn.clicked.connect(lambda: self._toggle_room_breeding_block(self._active_room_key()))
+        room_actions.addWidget(self._room_breeding_block_btn)
+
+        self._room_pin_btn = QPushButton()
+        self._style_room_action_button(self._room_pin_btn, "#2a3a2a", "#4a6a4a", "#3a4a3a", width=90)
+        self._room_pin_btn.clicked.connect(lambda: self._toggle_room_pin(self._active_room_key()))
+        room_actions.addWidget(self._room_pin_btn)
+
+        room_actions.addStretch()
+        self._set_room_action_button_texts()
+        self._search = QLineEdit()
+        self._search.setPlaceholderText(_tr("header.search_placeholder"))
+        self._search.setClearButtonEnabled(True)
+        self._search.setFixedWidth(self._base_search_width)
+        self._search.setStyleSheet(
+            "QLineEdit { background:#0d0d1c; color:#ccc; border:1px solid #2a2a4a;"
+            " border-radius:4px; padding:3px 8px; font-size:12px; }"
+            "QLineEdit:focus { border-color:#3a3a7a; }")
+        self._pin_toggle = QPushButton(_tr("header.pin_toggle", default="📌"))
+        self._pin_toggle.setCheckable(True)
+        self._pin_toggle.setToolTip(_tr("header.pin_toggle_tooltip", default="Show only pinned cats"))
+        self._pin_toggle.setStyleSheet(
+            "QPushButton { background:#1a1a32; color:#888; border:1px solid #2a2a4a;"
+            " border-radius:4px; padding:3px 8px; font-size:12px; min-width:28px; }"
+            "QPushButton:hover { background:#222244; }"
+            "QPushButton:checked { background:#2a2a5a; color:#eee; border-color:#4a4a8a; }")
+        self._pin_toggle.toggled.connect(self._on_pin_toggle)
+
+        self._tags_btn = QPushButton("Tags")
+        self._tags_btn.setToolTip("Apply tags to selected cats")
+        self._tags_btn.setStyleSheet(
+            "QPushButton { background:#1a1a32; color:#aaa; border:1px solid #2a2a4a;"
+            " border-radius:4px; padding:3px 10px; font-size:11px; font-weight:bold; }"
+            "QPushButton:hover { background:#252545; color:#ddd; }"
+            "QPushButton::menu-indicator { image:none; }")
+        self._tags_btn.clicked.connect(self._show_tags_menu)
+
+        hb.addWidget(self._header_lbl)
+        hb.addWidget(self._count_lbl)
+        hb.addStretch()
+        hb.addWidget(self._room_actions_box)
+        hb.addSpacing(8)
+        hb.addWidget(bulk_container)
+        hb.addSpacing(10)
+        hb.addWidget(self._tags_btn)
+        hb.addSpacing(4)
+        hb.addWidget(self._pin_toggle)
+        hb.addSpacing(4)
+        hb.addWidget(self._search)
+        hb.addSpacing(12)
+        hb.addWidget(self._summary_lbl)
+        vb.addWidget(hdr)
+
+        # Vertical splitter: table on top, detail panel on bottom (user-resizable)
+        vs = QSplitter(Qt.Vertical)
+        vs.setObjectName("main_window_detail_splitter")
+        vs.setHandleWidth(4)
+        vs.setStyleSheet("QSplitter::handle:vertical { background:#1e1e38; }")
+        self._detail_splitter = vs
+        self._table_view_container = vs
+        vb.addWidget(vs)
+
+        # Table
+        self._source_model = CatTableModel()
+        self._source_model.blacklistChanged.connect(self._on_blacklist_changed)
+        self._proxy_model  = RoomFilterModel()
+        self._proxy_model.setSourceModel(self._source_model)
+        self._proxy_model.modelReset.connect(self._update_count)
+        self._proxy_model.rowsInserted.connect(self._update_count)
+        self._proxy_model.rowsRemoved.connect(self._update_count)
+
+        self._table = QTableView()
+        self._table.setModel(self._proxy_model)
+        self._table.setSortingEnabled(True)
+        self._table.sortByColumn(COL_NAME, Qt.AscendingOrder)
+        self._table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self._table.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self._table.setAlternatingRowColors(True)
+        self._table.verticalHeader().setVisible(False)
+        self._table.setShowGrid(False)
+        self._table.setWordWrap(False)
+        # Checkbox columns are toggled explicitly in _on_table_clicked.
+        self._table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        hh = self._table.horizontalHeader()
+        hh.setStretchLastSection(False)  # we control stretch manually
+
+        # Name: interactive so the user can resize it; not Stretch so it
+        # doesn't eat the blank space that should sit at the right edge.
+        hh.setSectionResizeMode(COL_NAME, QHeaderView.Interactive)
+        self._table.setColumnWidth(COL_NAME, self._base_col_widths[COL_NAME])
+        self._name_tag_delegate = NameTagDelegate(self._table)
+        self._table.setItemDelegateForColumn(COL_NAME, self._name_tag_delegate)
+
+        # Room: size to content so it adapts to room name length
+        hh.setSectionResizeMode(COL_ROOM, QHeaderView.ResizeToContents)
+
+        # Narrow columns keep today's defaults but can now be widened for translated text.
+        for col, width in [
+            (COL_GEN, _W_GEN),
+            (COL_STAT, _W_STATUS),
+            (COL_BL, 34),
+            (COL_MB, 34),
+            (COL_PIN, 34),
+            (COL_SUM, 38),
+            (COL_AGG, _W_TRAIT_NARROW),
+            (COL_LIB, _W_TRAIT_NARROW),
+            (COL_INBRD, _W_TRAIT_NARROW),
+            (COL_SEXUALITY, _W_TRAIT),
+        ] + [(c, _W_STAT) for c in STAT_COLS]:
+            hh.setSectionResizeMode(col, QHeaderView.Interactive)
+            self._table.setColumnWidth(col, width)
+
+        # Abilities: interactive — user drags to taste
+        hh.setSectionResizeMode(COL_ABIL, QHeaderView.Interactive)
+        self._table.setColumnWidth(COL_ABIL, self._base_col_widths[COL_ABIL])
+
+        # Mutations: interactive
+        hh.setSectionResizeMode(COL_MUTS, QHeaderView.Interactive)
+        self._table.setColumnWidth(COL_MUTS, self._base_col_widths[COL_MUTS])
+
+        # Relations: interactive
+        hh.setSectionResizeMode(COL_RELNS, QHeaderView.Interactive)
+        self._table.setColumnWidth(COL_RELNS, self._base_col_widths[COL_RELNS])
+
+        # Narrow auxiliary columns keep their defaults but can be widened manually.
+        hh.setSectionResizeMode(COL_REL, QHeaderView.Interactive)
+        self._table.setColumnWidth(COL_REL, self._base_col_widths[COL_REL])
+
+        hh.setSectionResizeMode(COL_AGE, QHeaderView.Interactive)
+        self._table.setColumnWidth(COL_AGE, self._base_col_widths[COL_AGE])
+
+        hh.setSectionResizeMode(COL_GEN_DEPTH, QHeaderView.Interactive)
+        self._table.setColumnWidth(COL_GEN_DEPTH, _W_GEN)
+        self._table.setColumnHidden(COL_GEN_DEPTH, True)
+
+        # Source: Stretch — absorbs blank space, hidden by default (behind lineage toggle)
+        hh.setSectionResizeMode(COL_SRC, QHeaderView.Stretch)
+        self._table.setColumnHidden(COL_SRC, True)
+
+        self._table.setStyleSheet("""
+            QTableView {
+                background:#0d0d1c; alternate-background-color:#131326;
+                color:#ddd; border:none; font-size:12px;
+                selection-background-color:#1e3060;
+            }
+            QTableView::item { padding:3px 4px; }
+            QTableView::item:selected { color:#fff; }
+            QHeaderView::section {
+                background:#16213e; color:#888; padding:5px 4px;
+                border:none; border-bottom:1px solid #1e1e38;
+                border-right:1px solid #16213e;
+                font-size:11px; font-weight:bold;
+            }
+            QScrollBar:vertical { background:#0d0d1c; width:10px; }
+            QScrollBar::handle:vertical {
+                background:#252545; border-radius:5px; min-height:20px;
+            }
+        """)
+
+        self._table.selectionModel().selectionChanged.connect(self._on_selection)
+        self._table.clicked.connect(self._on_table_clicked)
+        self._search.textChanged.connect(self._proxy_model.set_name_filter)
+        self._search.textChanged.connect(self._update_count)
+        self._search.textChanged.connect(lambda _: self._refresh_bulk_view_buttons())
+        vs.addWidget(self._table)
+
+        # Detail panel
+        self._detail = CatDetailPanel()
+        vs.addWidget(self._detail)
+        vs.setStretchFactor(0, 1)
+        vs.setStretchFactor(1, 0)
+
+        # Family tree view lives in the same main container and is swapped in/out
+        # via left sidebar "VIEW" buttons.
+        self._tree_view = FamilyTreeBrowserView(self)
+        self._tree_view.hide()
+        vb.addWidget(self._tree_view, 1)
+        self._safe_breeding_view = SafeBreedingView(self)
+        self._safe_breeding_view.hide()
+        vb.addWidget(self._safe_breeding_view, 1)
+        self._breeding_partners_view = BreedingPartnersView(self)
+        self._breeding_partners_view.set_navigate_to_cat_callback(self._navigate_to_cat_by_name)
+        self._breeding_partners_view.hide()
+        vb.addWidget(self._breeding_partners_view, 1)
+        self._room_optimizer_view = RoomOptimizerView(self)
+        self._room_optimizer_view.hide()
+        vb.addWidget(self._room_optimizer_view, 1)
+        self._perfect_planner_view = PerfectCatPlannerView(self)
+        self._perfect_planner_view.hide()
+        vb.addWidget(self._perfect_planner_view, 1)
+        self._calibration_view = CalibrationView(self)
+        self._calibration_view.calibrationChanged.connect(self._on_calibration_changed)
+        self._calibration_view.hide()
+        vb.addWidget(self._calibration_view, 1)
+        self._mutation_planner_view = MutationDisorderPlannerView(self)
+        self._mutation_planner_view.hide()
+        vb.addWidget(self._mutation_planner_view, 1)
+        self._furniture_view = FurnitureView(self)
+        self._furniture_view.hide()
+        vb.addWidget(self._furniture_view, 1)
+        # Wire planner to optimizer so traits can be imported
+        self._room_optimizer_view.set_planner_view(self._mutation_planner_view)
+        self._perfect_planner_view.set_mutation_planner_view(self._mutation_planner_view)
+        self._room_optimizer_view.room_priority_panel.configChanged.connect(self._sync_room_config_views)
+        # Allow cat locator tables to navigate to cat in Alive Cats view
+        self._mutation_planner_view.set_navigate_to_cat_callback(self._navigate_to_cat)
+        self._room_optimizer_view.cat_locator.set_navigate_to_cat_callback(self._navigate_to_cat)
+        self._perfect_planner_view.cat_locator.set_navigate_to_cat_callback(self._navigate_to_cat)
+        self._perfect_planner_view.offspring_tracker.set_navigate_to_cat_callback(self._navigate_to_cat)
+
+        # Loading overlay — shown during background save parse, dismissed before UI population
+        self._loading_overlay = QWidget(w)
+        self._loading_overlay.setStyleSheet("background:#0a0a18;")
+        lo_vb = QVBoxLayout(self._loading_overlay)
+        lo_vb.setAlignment(Qt.AlignCenter)
+        self._loading_label = QLabel(_tr("loading.save_file"))
+        self._loading_label.setStyleSheet("color:#aaa; font-size:15px; font-weight:bold;")
+        self._loading_label.setAlignment(Qt.AlignCenter)
+        self._loading_bar = QProgressBar()
+        self._loading_bar.setFixedWidth(320)
+        self._loading_bar.setFixedHeight(16)
+        self._loading_bar.setRange(0, 0)  # indeterminate pulse
+        self._loading_bar.setTextVisible(False)
+        self._loading_bar.setStyleSheet(
+            "QProgressBar { background:#1a1a32; border:1px solid #2a2a4a; border-radius:4px; }"
+            "QProgressBar::chunk { background:#3f8f72; border-radius:3px; }"
+        )
+        lo_vb.addWidget(self._loading_label)
+        lo_vb.addSpacing(10)
+        lo_vb.addWidget(self._loading_bar, 0, Qt.AlignCenter)
+        self._loading_overlay.hide()
+
+        return w
+
+    # ── Selection → detail ────────────────────────────────────────────────
+
+    def _on_selection(self):
+        rows = list({
+            self._proxy_model.mapToSource(idx).row()
+            for idx in self._table.selectionModel().selectedRows()
+        })
+        cats = [c for r in rows[:2] if (c := self._source_model.cat_at(r)) is not None]
+        if len(cats) == 2 and _is_hater_pair(cats[0], cats[1]):
+            cats = cats[:1]
+        was_collapsed = self._detail.maximumHeight() == 0
+        self._detail.show_cats(cats)
+        if cats and was_collapsed:
+            total   = self._detail_splitter.height()
+            panel_h = 200 if len(cats) == 1 else 300
+            self._detail_splitter.setSizes([max(10, total - panel_h), panel_h])
+
+        # Highlight compatibility: dim incompatible cats when 1 is selected
+        focus = cats[0] if len(cats) == 1 else None
+        self._source_model.set_focus_cat(focus)
+        if self._tree_view is not None and self._tree_view.isVisible() and focus is not None:
+            self._tree_view.select_cat(focus)
+        if self._safe_breeding_view is not None and self._safe_breeding_view.isVisible() and focus is not None:
+            self._safe_breeding_view.select_cat(focus)
+
+    def _on_table_clicked(self, proxy_index: QModelIndex):
+        if not proxy_index.isValid() or proxy_index.column() not in (COL_BL, COL_MB, COL_PIN):
+            return
+        src_index = self._proxy_model.mapToSource(proxy_index)
+        if not src_index.isValid():
+            return
+        current = self._source_model.data(src_index, Qt.CheckStateRole)
+        next_state = Qt.Unchecked if current == Qt.Checked else Qt.Checked
+        if self._source_model.setData(src_index, next_state, Qt.CheckStateRole):
+            self._on_selection()
+
+    # ── Filtering ──────────────────────────────────────────────────────────
+
+    def _filter(self, room_key, btn: QPushButton):
+        if not getattr(self, "_save_view_disabled", False):
+            _save_current_view("table")
+        self._show_table_view()
+        if self._active_btn and self._active_btn is not btn:
+            self._active_btn.setChecked(False)
+        btn.setChecked(True)
+        self._active_btn = btn
+        self._proxy_model.set_room(room_key)
+
+        # Set multi-column sort for donation candidates and exceptional breeders
+        if room_key in ("__donation__", "__exceptional__"):
+            self._proxy_model.set_sort_columns([
+                (COL_ROOM, Qt.AscendingOrder),
+                (COL_AGE, Qt.AscendingOrder),
+                (COL_NAME, Qt.AscendingOrder),
+            ])
+        else:
+            self._proxy_model.set_sort_columns([])
+
+        self._refresh_bulk_view_buttons(room_key)
+        self._update_header(room_key)
+        self._update_count()
+        self._detail.show_cats([])
+        self._source_model.set_focus_cat(None)
+
+    def _visible_filtered_cats(self) -> list[Cat]:
+        cats: list[Cat] = []
+        for row in range(self._proxy_model.rowCount()):
+            src_idx = self._proxy_model.mapToSource(self._proxy_model.index(row, 0))
+            if not src_idx.isValid():
+                continue
+            cat = self._source_model.cat_at(src_idx.row())
+            if cat is not None:
+                cats.append(cat)
+        return cats
+
+    def _selected_cats(self) -> list[Cat]:
+        cats: list[Cat] = []
+        for idx in self._table.selectionModel().selectedRows():
+            src_idx = self._proxy_model.mapToSource(idx)
+            if not src_idx.isValid():
+                continue
+            cat = self._source_model.cat_at(src_idx.row())
+            if cat is not None:
+                cats.append(cat)
+        return cats
+
+    def _refresh_bulk_view_buttons(self, room_key=None):
+        if room_key is None and self._active_btn is not None:
+            for key, btn in self._room_btns.items():
+                if btn is self._active_btn:
+                    room_key = key
+                    break
+        room_visible = room_key in (None, "__all__") or room_key in ROOM_DISPLAY
+        bulk_visible = room_key in ("__donation__", "__exceptional__")
+        donation_view = room_key == "__donation__"
+        exceptional_view = room_key == "__exceptional__"
+        alive_view = room_key is None
+        if hasattr(self, "_bulk_actions_layout"):
+            while self._bulk_actions_layout.count():
+                item = self._bulk_actions_layout.takeAt(0)
+                if item.widget():
+                    item.widget().setParent(None)
+            if bulk_visible and donation_view:
+                self._bulk_actions_layout.addWidget(self._bulk_blacklist_btn)
+                self._bulk_actions_layout.addWidget(self._bulk_must_breed_btn)
+            elif bulk_visible:
+                self._bulk_actions_layout.addWidget(self._bulk_must_breed_btn)
+                self._bulk_actions_layout.addWidget(self._bulk_blacklist_btn)
+            if bulk_visible:
+                self._bulk_actions_layout.addWidget(self._bulk_pin_btn)
+        if hasattr(self, "_bulk_blacklist_btn"):
+            self._bulk_blacklist_btn.setVisible(bulk_visible)
+        if hasattr(self, "_bulk_must_breed_btn"):
+            self._bulk_must_breed_btn.setVisible(bulk_visible)
+        if hasattr(self, "_bulk_pin_btn"):
+            self._bulk_pin_btn.setVisible(bulk_visible)
+        if hasattr(self, "_room_actions_box"):
+            self._room_actions_box.setVisible(room_visible)
+        if not (bulk_visible or room_visible):
+            return
+        if room_visible:
+            self._set_room_action_button_texts()
+            return
+        if alive_view:
+            self._bulk_blacklist_btn.blockSignals(True)
+            try:
+                self._bulk_blacklist_btn.setCheckable(False)
+                self._bulk_blacklist_btn.setText(_tr("bulk.toggle_breeding_block"))
+                self._bulk_blacklist_btn.setEnabled(True)
+                self._bulk_blacklist_btn.setToolTip(_tr("bulk.toggle_breeding_block.tooltip"))
+            finally:
+                self._bulk_blacklist_btn.blockSignals(False)
+            self._bulk_must_breed_btn.blockSignals(True)
+            try:
+                self._bulk_must_breed_btn.setCheckable(False)
+                self._bulk_must_breed_btn.setText(_tr("bulk.toggle_must_breed"))
+                self._bulk_must_breed_btn.setEnabled(True)
+                self._bulk_must_breed_btn.setToolTip(_tr("bulk.toggle_must_breed.tooltip"))
+            finally:
+                self._bulk_must_breed_btn.blockSignals(False)
+            self._bulk_pin_btn.blockSignals(True)
+            try:
+                self._bulk_pin_btn.setCheckable(False)
+                self._bulk_pin_btn.setText(_tr("bulk.toggle_pin", default="Toggle Pin"))
+                self._bulk_pin_btn.setEnabled(True)
+                self._bulk_pin_btn.setToolTip(_tr("bulk.toggle_pin.tooltip", default="Toggle pin for selected cats"))
+            finally:
+                self._bulk_pin_btn.blockSignals(False)
+            return
+        cats = self._visible_filtered_cats()
+        all_blocked = bool(cats) and all(cat.is_blacklisted for cat in cats)
+        all_must_breed = bool(cats) and all(cat.must_breed for cat in cats)
+        self._bulk_blacklist_btn.setCheckable(True)
+        self._bulk_blacklist_btn.blockSignals(True)
+        if exceptional_view:
+            any_blocked = any(cat.is_blacklisted for cat in cats)
+            self._bulk_blacklist_btn.setChecked(False)
+            self._bulk_blacklist_btn.setEnabled(any_blocked)
+            self._bulk_blacklist_btn.setText(_tr("bulk.clear_breeding_block"))
+            self._bulk_blacklist_btn.setToolTip(_tr("bulk.clear_breeding_block.tooltip"))
+        else:
+            self._bulk_blacklist_btn.setChecked(all_blocked)
+            self._bulk_blacklist_btn.setEnabled(True)
+            self._set_bulk_toggle_label(self._bulk_blacklist_btn, _tr("bulk.breeding_block"), all_blocked)
+            self._bulk_blacklist_btn.setToolTip("")
+        self._bulk_blacklist_btn.blockSignals(False)
+        self._bulk_must_breed_btn.setCheckable(True)
+        self._bulk_must_breed_btn.blockSignals(True)
+        if donation_view:
+            any_must_breed = any(cat.must_breed for cat in cats)
+            self._bulk_must_breed_btn.setChecked(False)
+            self._bulk_must_breed_btn.setEnabled(any_must_breed)
+            self._bulk_must_breed_btn.setText(_tr("bulk.clear_must_breed"))
+            self._bulk_must_breed_btn.setToolTip(_tr("bulk.clear_must_breed.tooltip"))
+        else:
+            self._bulk_must_breed_btn.setChecked(all_must_breed)
+            self._bulk_must_breed_btn.setEnabled(True)
+            self._set_bulk_toggle_label(self._bulk_must_breed_btn, _tr("bulk.must_breed"), all_must_breed)
+            self._bulk_must_breed_btn.setToolTip("")
+        self._bulk_must_breed_btn.blockSignals(False)
+        all_pinned = bool(cats) and all(cat.is_pinned for cat in cats)
+        self._bulk_pin_btn.setCheckable(True)
+        self._bulk_pin_btn.blockSignals(True)
+        self._bulk_pin_btn.setChecked(all_pinned)
+        self._bulk_pin_btn.setEnabled(True)
+        self._set_bulk_toggle_label(self._bulk_pin_btn, _tr("bulk.pin", default="Pin"), all_pinned)
+        self._bulk_pin_btn.setToolTip("")
+        self._bulk_pin_btn.blockSignals(False)
+
+    def _toggle_blacklist_filtered_cats(self):
+        room_key = None
+        if self._active_btn is not None:
+            for key, btn in self._room_btns.items():
+                if btn is self._active_btn:
+                    room_key = key
+                    break
+        alive_view = room_key is None
+        exceptional_view = room_key == "__exceptional__"
+        if alive_view:
+            cats = self._selected_cats()
+            if not cats:
+                self.statusBar().showMessage(_tr("bulk.status.select_toggle_breeding_block", default="Select cats first, then click Toggle Breeding Block"))
+                return
+            changed = 0
+            for cat in cats:
+                cat.is_blacklisted = not cat.is_blacklisted
+                if cat.is_blacklisted:
+                    cat.must_breed = False
+                changed += 1
+            self._emit_bulk_toggle_refresh()
+            self.statusBar().showMessage(_tr("bulk.status.toggled_breeding_block", default="Toggled breeding block for {count} selected cats", count=changed))
+            return
+        target_state = False if exceptional_view else self._bulk_blacklist_btn.isChecked()
+        changed = 0
+        for cat in self._visible_filtered_cats():
+            if cat.is_blacklisted == target_state and (not target_state or not cat.must_breed):
+                continue
+            cat.is_blacklisted = target_state
+            if target_state:
+                cat.must_breed = False
+            changed += 1
+        self._refresh_bulk_view_buttons()
+        if changed == 0:
+            self.statusBar().showMessage(_tr("bulk.status.no_breeding_block_change", default="No cats in view needed a breeding-block change"))
+            return
+        self._emit_bulk_toggle_refresh()
+        if exceptional_view:
+            self.statusBar().showMessage(_tr("bulk.status.cleared_breeding_block_exceptional", default="Cleared breeding block for {count} cats in the current exceptional view", count=changed))
+        else:
+            state_text = _tr("common.on", default="on") if target_state else _tr("common.off", default="off")
+            self.statusBar().showMessage(_tr("bulk.status.turned_breeding_block", default="Turned breeding block {state} for {count} cats in the current view", state=state_text, count=changed))
+
+    def _toggle_must_breed_filtered_cats(self):
+        room_key = None
+        if self._active_btn is not None:
+            for key, btn in self._room_btns.items():
+                if btn is self._active_btn:
+                    room_key = key
+                    break
+        alive_view = room_key is None
+        donation_view = room_key == "__donation__"
+        if alive_view:
+            cats = self._selected_cats()
+            if not cats:
+                self.statusBar().showMessage(_tr("bulk.status.select_toggle_must_breed", default="Select cats first, then click Toggle Must Breed"))
+                return
+            changed = 0
+            for cat in cats:
+                cat.must_breed = not cat.must_breed
+                if cat.must_breed:
+                    cat.is_blacklisted = False
+                changed += 1
+            self._emit_bulk_toggle_refresh()
+            self.statusBar().showMessage(_tr("bulk.status.toggled_must_breed", default="Toggled must breed for {count} selected cats", count=changed))
+            return
+        target_state = False if donation_view else self._bulk_must_breed_btn.isChecked()
+        changed = 0
+        for cat in self._visible_filtered_cats():
+            if cat.must_breed == target_state and (not target_state or not cat.is_blacklisted):
+                continue
+            cat.must_breed = target_state
+            if target_state:
+                cat.is_blacklisted = False
+            changed += 1
+        self._refresh_bulk_view_buttons()
+        if changed == 0:
+            self.statusBar().showMessage(_tr("bulk.status.no_must_breed_change", default="No cats in view needed a must-breed change"))
+            return
+        self._emit_bulk_toggle_refresh()
+        if donation_view:
+            self.statusBar().showMessage(_tr("bulk.status.cleared_must_breed_donation", default="Cleared Must Breed for {count} cats in the current donation-candidates view", count=changed))
+        else:
+            state_text = _tr("common.on", default="on") if target_state else _tr("common.off", default="off")
+            self.statusBar().showMessage(_tr("bulk.status.turned_must_breed", default="Turned must breed {state} for {count} cats in the current view", state=state_text, count=changed))
+
+    def _toggle_pin_filtered_cats(self):
+        room_key = None
+        if self._active_btn is not None:
+            for key, btn in self._room_btns.items():
+                if btn is self._active_btn:
+                    room_key = key
+                    break
+        alive_view = room_key is None
+        if alive_view:
+            cats = self._selected_cats()
+            if not cats:
+                self.statusBar().showMessage(_tr("bulk.status.select_toggle_pin", default="Select cats first, then click Toggle Pin"))
+                return
+            changed = 0
+            for cat in cats:
+                cat.is_pinned = not cat.is_pinned
+                changed += 1
+            self._emit_bulk_toggle_refresh()
+            self.statusBar().showMessage(_tr("bulk.status.toggled_pin", default="Toggled pin for {count} selected cats", count=changed))
+            return
+        target_state = self._bulk_pin_btn.isChecked()
+        changed = 0
+        for cat in self._visible_filtered_cats():
+            if cat.is_pinned == target_state:
+                continue
+            cat.is_pinned = target_state
+            changed += 1
+        self._refresh_bulk_view_buttons()
+        if changed == 0:
+            self.statusBar().showMessage(_tr("bulk.status.no_pin_change", default="No cats in view needed a pin change"))
+            return
+        self._emit_bulk_toggle_refresh()
+        state_text = _tr("common.on", default="on") if target_state else _tr("common.off", default="off")
+        self.statusBar().showMessage(_tr("bulk.status.turned_pin", default="Turned pin {state} for {count} cats in the current view", state=state_text, count=changed))
+
+    def _emit_bulk_toggle_refresh(self):
+        if self._source_model.rowCount() == 0:
+            return
+        top_left = self._source_model.index(0, COL_BL)
+        bottom_right = self._source_model.index(max(0, self._source_model.rowCount() - 1), COL_PIN)
+        self._source_model.dataChanged.emit(
+            top_left,
+            bottom_right,
+            [Qt.DisplayRole, Qt.CheckStateRole, Qt.ToolTipRole],
+        )
+        self._proxy_model.invalidate()
+        self._source_model.blacklistChanged.emit()
+        self._update_count()
+        self._refresh_bulk_view_buttons()
+
+    def _blacklist_filtered_cats(self):
+        changed = 0
+        for row in range(self._proxy_model.rowCount()):
+            proxy_idx = self._proxy_model.index(row, COL_BL)
+            if not proxy_idx.isValid():
+                continue
+            src_idx = self._proxy_model.mapToSource(proxy_idx)
+            if not src_idx.isValid():
+                continue
+            cat = self._source_model.cat_at(src_idx.row())
+            if cat is None or cat.is_blacklisted:
+                continue
+            cat.is_blacklisted = True
+            changed += 1
+        if changed == 0:
+            self.statusBar().showMessage(_tr("bulk.status.no_additional_blacklist", default="No additional cats in view were added to the breeding blacklist"))
+            return
+
+        top_left = self._source_model.index(0, COL_BL)
+        bottom_right = self._source_model.index(max(0, self._source_model.rowCount() - 1), COL_BL)
+        self._source_model.dataChanged.emit(
+            top_left,
+            bottom_right,
+            [Qt.DisplayRole, Qt.CheckStateRole, Qt.ToolTipRole],
+        )
+        self._source_model.blacklistChanged.emit()
+        self._update_count()
+        self.statusBar().showMessage(_tr("bulk.status.excluded_donation", default="Excluded {count} cats in the current donation-candidates view from breeding", count=changed))
+
+    def _clear_must_breed_filtered_cats(self):
+        changed = 0
+        for row in range(self._proxy_model.rowCount()):
+            proxy_idx = self._proxy_model.index(row, COL_MB)
+            if not proxy_idx.isValid():
+                continue
+            src_idx = self._proxy_model.mapToSource(proxy_idx)
+            if not src_idx.isValid():
+                continue
+            cat = self._source_model.cat_at(src_idx.row())
+            if cat is None or not cat.must_breed:
+                continue
+            cat.must_breed = False
+            changed += 1
+        if changed == 0:
+            self.statusBar().showMessage("No cats in view had Must Breed set")
+            return
+
+        top_left = self._source_model.index(0, COL_MB)
+        bottom_right = self._source_model.index(max(0, self._source_model.rowCount() - 1), COL_MB)
+        self._source_model.dataChanged.emit(
+            top_left,
+            bottom_right,
+            [Qt.DisplayRole, Qt.CheckStateRole, Qt.ToolTipRole],
+        )
+        self._source_model.blacklistChanged.emit()
+        self._update_count()
+        self.statusBar().showMessage(f"Cleared Must Breed for {changed} cats in the current donation-candidates view")
+
+    def _show_table_view(self):
+        if hasattr(self, "_tree_view") and self._tree_view is not None:
+            self._tree_view.hide()
+        if hasattr(self, "_safe_breeding_view") and self._safe_breeding_view is not None:
+            self._safe_breeding_view.hide()
+        if hasattr(self, "_breeding_partners_view") and self._breeding_partners_view is not None:
+            self._breeding_partners_view.hide()
+        if hasattr(self, "_room_optimizer_view") and self._room_optimizer_view is not None:
+            self._room_optimizer_view.hide()
+        if hasattr(self, "_perfect_planner_view") and self._perfect_planner_view is not None:
+            self._perfect_planner_view.hide()
+        if hasattr(self, "_calibration_view") and self._calibration_view is not None:
+            self._calibration_view.hide()
+        if hasattr(self, "_mutation_planner_view") and self._mutation_planner_view is not None:
+            self._mutation_planner_view.hide()
+        if hasattr(self, "_furniture_view") and self._furniture_view is not None:
+            self._furniture_view.hide()
+        if hasattr(self, "_header"):
+            self._header.show()
+        if hasattr(self, "_table_view_container"):
+            self._table_view_container.show()
+        if hasattr(self, "_btn_tree_view"):
+            self._btn_tree_view.setChecked(False)
+        if hasattr(self, "_btn_safe_breeding_view"):
+            self._btn_safe_breeding_view.setChecked(False)
+        if hasattr(self, "_btn_breeding_partners_view"):
+            self._btn_breeding_partners_view.setChecked(False)
+        if hasattr(self, "_btn_room_optimizer"):
+            self._btn_room_optimizer.setChecked(False)
+        if hasattr(self, "_btn_perfect_planner"):
+            self._btn_perfect_planner.setChecked(False)
+        if hasattr(self, "_btn_calibration"):
+            self._btn_calibration.setChecked(False)
+        if hasattr(self, "_btn_mutation_planner"):
+            self._btn_mutation_planner.setChecked(False)
+        if hasattr(self, "_btn_furniture_view"):
+            self._btn_furniture_view.setChecked(False)
+
+    def _show_tree_view(self):
+        if self._active_btn is not None:
+            self._active_btn.setChecked(False)
+        self._active_btn = None
+        if hasattr(self, "_header"):
+            self._header.hide()
+        if hasattr(self, "_table_view_container"):
+            self._table_view_container.hide()
+        if hasattr(self, "_safe_breeding_view") and self._safe_breeding_view is not None:
+            self._safe_breeding_view.hide()
+        if hasattr(self, "_breeding_partners_view") and self._breeding_partners_view is not None:
+            self._breeding_partners_view.hide()
+        if hasattr(self, "_room_optimizer_view") and self._room_optimizer_view is not None:
+            self._room_optimizer_view.hide()
+        if hasattr(self, "_perfect_planner_view") and self._perfect_planner_view is not None:
+            self._perfect_planner_view.hide()
+        if hasattr(self, "_calibration_view") and self._calibration_view is not None:
+            self._calibration_view.hide()
+        if hasattr(self, "_mutation_planner_view") and self._mutation_planner_view is not None:
+            self._mutation_planner_view.hide()
+        if hasattr(self, "_furniture_view") and self._furniture_view is not None:
+            self._furniture_view.hide()
+        if self._tree_view is not None:
+            self._tree_view.set_cats(self._cats)
+            self._tree_view.show()
+        if hasattr(self, "_btn_tree_view"):
+            self._btn_tree_view.setChecked(True)
+        if hasattr(self, "_btn_safe_breeding_view"):
+            self._btn_safe_breeding_view.setChecked(False)
+        if hasattr(self, "_btn_breeding_partners_view"):
+            self._btn_breeding_partners_view.setChecked(False)
+        if hasattr(self, "_btn_room_optimizer"):
+            self._btn_room_optimizer.setChecked(False)
+        if hasattr(self, "_btn_perfect_planner"):
+            self._btn_perfect_planner.setChecked(False)
+        if hasattr(self, "_btn_calibration"):
+            self._btn_calibration.setChecked(False)
+        if hasattr(self, "_btn_mutation_planner"):
+            self._btn_mutation_planner.setChecked(False)
+        if hasattr(self, "_btn_furniture_view"):
+            self._btn_furniture_view.setChecked(False)
+
+    def _show_safe_breeding_view(self):
+        if self._active_btn is not None:
+            self._active_btn.setChecked(False)
+        self._active_btn = None
+        if hasattr(self, "_header"):
+            self._header.hide()
+        if hasattr(self, "_table_view_container"):
+            self._table_view_container.hide()
+        if hasattr(self, "_tree_view") and self._tree_view is not None:
+            self._tree_view.hide()
+        if hasattr(self, "_breeding_partners_view") and self._breeding_partners_view is not None:
+            self._breeding_partners_view.hide()
+        if hasattr(self, "_room_optimizer_view") and self._room_optimizer_view is not None:
+            self._room_optimizer_view.hide()
+        if hasattr(self, "_perfect_planner_view") and self._perfect_planner_view is not None:
+            self._perfect_planner_view.hide()
+        if hasattr(self, "_calibration_view") and self._calibration_view is not None:
+            self._calibration_view.hide()
+        if hasattr(self, "_mutation_planner_view") and self._mutation_planner_view is not None:
+            self._mutation_planner_view.hide()
+        if hasattr(self, "_furniture_view") and self._furniture_view is not None:
+            self._furniture_view.hide()
+        if self._safe_breeding_view is not None:
+            self._safe_breeding_view.set_cats(self._cats)
+            self._safe_breeding_view.show()
+        if hasattr(self, "_btn_tree_view"):
+            self._btn_tree_view.setChecked(False)
+        if hasattr(self, "_btn_safe_breeding_view"):
+            self._btn_safe_breeding_view.setChecked(True)
+        if hasattr(self, "_btn_breeding_partners_view"):
+            self._btn_breeding_partners_view.setChecked(False)
+        if hasattr(self, "_btn_room_optimizer"):
+            self._btn_room_optimizer.setChecked(False)
+        if hasattr(self, "_btn_perfect_planner"):
+            self._btn_perfect_planner.setChecked(False)
+        if hasattr(self, "_btn_calibration"):
+            self._btn_calibration.setChecked(False)
+        if hasattr(self, "_btn_mutation_planner"):
+            self._btn_mutation_planner.setChecked(False)
+        if hasattr(self, "_btn_furniture_view"):
+            self._btn_furniture_view.setChecked(False)
+
+    def _show_breeding_partners_view(self):
+        if self._active_btn is not None:
+            self._active_btn.setChecked(False)
+        self._active_btn = None
+        if hasattr(self, "_header"):
+            self._header.hide()
+        if hasattr(self, "_table_view_container"):
+            self._table_view_container.hide()
+        if hasattr(self, "_tree_view") and self._tree_view is not None:
+            self._tree_view.hide()
+        if hasattr(self, "_safe_breeding_view") and self._safe_breeding_view is not None:
+            self._safe_breeding_view.hide()
+        if hasattr(self, "_room_optimizer_view") and self._room_optimizer_view is not None:
+            self._room_optimizer_view.hide()
+        if hasattr(self, "_calibration_view") and self._calibration_view is not None:
+            self._calibration_view.hide()
+        if hasattr(self, "_mutation_planner_view") and self._mutation_planner_view is not None:
+            self._mutation_planner_view.hide()
+        if hasattr(self, "_perfect_planner_view") and self._perfect_planner_view is not None:
+            self._perfect_planner_view.hide()
+        if hasattr(self, "_furniture_view") and self._furniture_view is not None:
+            self._furniture_view.hide()
+        if self._breeding_partners_view is not None:
+            self._breeding_partners_view.set_cats(self._cats)
+            self._breeding_partners_view.show()
+        if hasattr(self, "_btn_tree_view"):
+            self._btn_tree_view.setChecked(False)
+        if hasattr(self, "_btn_safe_breeding_view"):
+            self._btn_safe_breeding_view.setChecked(False)
+        if hasattr(self, "_btn_breeding_partners_view"):
+            self._btn_breeding_partners_view.setChecked(True)
+        if hasattr(self, "_btn_room_optimizer"):
+            self._btn_room_optimizer.setChecked(False)
+        if hasattr(self, "_btn_perfect_planner"):
+            self._btn_perfect_planner.setChecked(False)
+        if hasattr(self, "_btn_calibration"):
+            self._btn_calibration.setChecked(False)
+        if hasattr(self, "_btn_mutation_planner"):
+            self._btn_mutation_planner.setChecked(False)
+        if hasattr(self, "_btn_furniture_view"):
+            self._btn_furniture_view.setChecked(False)
+
+    def _show_room_optimizer_view(self):
+        if self._active_btn is not None:
+            self._active_btn.setChecked(False)
+        self._active_btn = None
+        if hasattr(self, "_header"):
+            self._header.hide()
+        if hasattr(self, "_table_view_container"):
+            self._table_view_container.hide()
+        if hasattr(self, "_tree_view") and self._tree_view is not None:
+            self._tree_view.hide()
+        if hasattr(self, "_safe_breeding_view") and self._safe_breeding_view is not None:
+            self._safe_breeding_view.hide()
+        if hasattr(self, "_breeding_partners_view") and self._breeding_partners_view is not None:
+            self._breeding_partners_view.hide()
+        if hasattr(self, "_calibration_view") and self._calibration_view is not None:
+            self._calibration_view.hide()
+        if hasattr(self, "_perfect_planner_view") and self._perfect_planner_view is not None:
+            self._perfect_planner_view.hide()
+        if hasattr(self, "_mutation_planner_view") and self._mutation_planner_view is not None:
+            self._mutation_planner_view.hide()
+        if hasattr(self, "_furniture_view") and self._furniture_view is not None:
+            self._furniture_view.hide()
+        if self._room_optimizer_view is not None:
+            self._room_optimizer_view.set_cats(self._cats)
+            self._room_optimizer_view.show()
+        if hasattr(self, "_btn_tree_view"):
+            self._btn_tree_view.setChecked(False)
+        if hasattr(self, "_btn_safe_breeding_view"):
+            self._btn_safe_breeding_view.setChecked(False)
+        if hasattr(self, "_btn_breeding_partners_view"):
+            self._btn_breeding_partners_view.setChecked(False)
+        if hasattr(self, "_btn_room_optimizer"):
+            self._btn_room_optimizer.setChecked(True)
+        if hasattr(self, "_btn_perfect_planner"):
+            self._btn_perfect_planner.setChecked(False)
+        if hasattr(self, "_btn_calibration"):
+            self._btn_calibration.setChecked(False)
+        if hasattr(self, "_btn_mutation_planner"):
+            self._btn_mutation_planner.setChecked(False)
+        if hasattr(self, "_btn_furniture_view"):
+            self._btn_furniture_view.setChecked(False)
+
+    def _show_perfect_planner_view(self):
+        if self._active_btn is not None:
+            self._active_btn.setChecked(False)
+        self._active_btn = None
+        if hasattr(self, "_header"):
+            self._header.hide()
+        if hasattr(self, "_table_view_container"):
+            self._table_view_container.hide()
+        if hasattr(self, "_tree_view") and self._tree_view is not None:
+            self._tree_view.hide()
+        if hasattr(self, "_safe_breeding_view") and self._safe_breeding_view is not None:
+            self._safe_breeding_view.hide()
+        if hasattr(self, "_breeding_partners_view") and self._breeding_partners_view is not None:
+            self._breeding_partners_view.hide()
+        if hasattr(self, "_room_optimizer_view") and self._room_optimizer_view is not None:
+            self._room_optimizer_view.hide()
+        if hasattr(self, "_calibration_view") and self._calibration_view is not None:
+            self._calibration_view.hide()
+        if hasattr(self, "_mutation_planner_view") and self._mutation_planner_view is not None:
+            self._mutation_planner_view.hide()
+        if hasattr(self, "_furniture_view") and self._furniture_view is not None:
+            self._furniture_view.hide()
+        if self._perfect_planner_view is not None:
+            self._perfect_planner_view.set_cats(self._cats)
+            self._perfect_planner_view.show()
+        if hasattr(self, "_btn_tree_view"):
+            self._btn_tree_view.setChecked(False)
+        if hasattr(self, "_btn_safe_breeding_view"):
+            self._btn_safe_breeding_view.setChecked(False)
+        if hasattr(self, "_btn_breeding_partners_view"):
+            self._btn_breeding_partners_view.setChecked(False)
+        if hasattr(self, "_btn_room_optimizer"):
+            self._btn_room_optimizer.setChecked(False)
+        if hasattr(self, "_btn_perfect_planner"):
+            self._btn_perfect_planner.setChecked(True)
+        if hasattr(self, "_btn_calibration"):
+            self._btn_calibration.setChecked(False)
+        if hasattr(self, "_btn_mutation_planner"):
+            self._btn_mutation_planner.setChecked(False)
+        if hasattr(self, "_btn_furniture_view"):
+            self._btn_furniture_view.setChecked(False)
+
+    def _show_calibration_view(self):
+        if self._active_btn is not None:
+            self._active_btn.setChecked(False)
+        self._active_btn = None
+        if hasattr(self, "_header"):
+            self._header.hide()
+        if hasattr(self, "_table_view_container"):
+            self._table_view_container.hide()
+        if hasattr(self, "_tree_view") and self._tree_view is not None:
+            self._tree_view.hide()
+        if hasattr(self, "_safe_breeding_view") and self._safe_breeding_view is not None:
+            self._safe_breeding_view.hide()
+        if hasattr(self, "_breeding_partners_view") and self._breeding_partners_view is not None:
+            self._breeding_partners_view.hide()
+        if hasattr(self, "_room_optimizer_view") and self._room_optimizer_view is not None:
+            self._room_optimizer_view.hide()
+        if hasattr(self, "_perfect_planner_view") and self._perfect_planner_view is not None:
+            self._perfect_planner_view.hide()
+        if hasattr(self, "_furniture_view") and self._furniture_view is not None:
+            self._furniture_view.hide()
+        if self._calibration_view is not None:
+            if self._current_save:
+                self._calibration_view.set_context(self._current_save, self._cats)
+            self._calibration_view.show()
+        if hasattr(self, "_btn_tree_view"):
+            self._btn_tree_view.setChecked(False)
+        if hasattr(self, "_btn_safe_breeding_view"):
+            self._btn_safe_breeding_view.setChecked(False)
+        if hasattr(self, "_btn_breeding_partners_view"):
+            self._btn_breeding_partners_view.setChecked(False)
+        if hasattr(self, "_btn_room_optimizer"):
+            self._btn_room_optimizer.setChecked(False)
+        if hasattr(self, "_btn_perfect_planner"):
+            self._btn_perfect_planner.setChecked(False)
+        if hasattr(self, "_btn_calibration"):
+            self._btn_calibration.setChecked(True)
+        if hasattr(self, "_btn_mutation_planner"):
+            self._btn_mutation_planner.setChecked(False)
+        if hasattr(self, "_btn_furniture_view"):
+            self._btn_furniture_view.setChecked(False)
+        if hasattr(self, "_mutation_planner_view") and self._mutation_planner_view is not None:
+            self._mutation_planner_view.hide()
+
+    def _show_mutation_planner_view(self):
+        if self._active_btn is not None:
+            self._active_btn.setChecked(False)
+        self._active_btn = None
+        if hasattr(self, "_header"):
+            self._header.hide()
+        if hasattr(self, "_table_view_container"):
+            self._table_view_container.hide()
+        if hasattr(self, "_tree_view") and self._tree_view is not None:
+            self._tree_view.hide()
+        if hasattr(self, "_safe_breeding_view") and self._safe_breeding_view is not None:
+            self._safe_breeding_view.hide()
+        if hasattr(self, "_breeding_partners_view") and self._breeding_partners_view is not None:
+            self._breeding_partners_view.hide()
+        if hasattr(self, "_room_optimizer_view") and self._room_optimizer_view is not None:
+            self._room_optimizer_view.hide()
+        if hasattr(self, "_perfect_planner_view") and self._perfect_planner_view is not None:
+            self._perfect_planner_view.hide()
+        if hasattr(self, "_calibration_view") and self._calibration_view is not None:
+            self._calibration_view.hide()
+        if hasattr(self, "_furniture_view") and self._furniture_view is not None:
+            self._furniture_view.hide()
+        if self._mutation_planner_view is not None:
+            self._mutation_planner_view.set_cats(self._cats)
+            self._mutation_planner_view.show()
+        if hasattr(self, "_btn_tree_view"):
+            self._btn_tree_view.setChecked(False)
+        if hasattr(self, "_btn_safe_breeding_view"):
+            self._btn_safe_breeding_view.setChecked(False)
+        if hasattr(self, "_btn_breeding_partners_view"):
+            self._btn_breeding_partners_view.setChecked(False)
+        if hasattr(self, "_btn_room_optimizer"):
+            self._btn_room_optimizer.setChecked(False)
+        if hasattr(self, "_btn_perfect_planner"):
+            self._btn_perfect_planner.setChecked(False)
+        if hasattr(self, "_btn_calibration"):
+            self._btn_calibration.setChecked(False)
+        if hasattr(self, "_btn_mutation_planner"):
+            self._btn_mutation_planner.setChecked(True)
+        if hasattr(self, "_btn_furniture_view"):
+            self._btn_furniture_view.setChecked(False)
+
+    def _show_furniture_view(self):
+        if self._active_btn is not None:
+            self._active_btn.setChecked(False)
+        self._active_btn = None
+        if hasattr(self, "_header"):
+            self._header.hide()
+        if hasattr(self, "_table_view_container"):
+            self._table_view_container.hide()
+        if hasattr(self, "_tree_view") and self._tree_view is not None:
+            self._tree_view.hide()
+        if hasattr(self, "_safe_breeding_view") and self._safe_breeding_view is not None:
+            self._safe_breeding_view.hide()
+        if hasattr(self, "_breeding_partners_view") and self._breeding_partners_view is not None:
+            self._breeding_partners_view.hide()
+        if hasattr(self, "_room_optimizer_view") and self._room_optimizer_view is not None:
+            self._room_optimizer_view.hide()
+        if hasattr(self, "_perfect_planner_view") and self._perfect_planner_view is not None:
+            self._perfect_planner_view.hide()
+        if hasattr(self, "_calibration_view") and self._calibration_view is not None:
+            self._calibration_view.hide()
+        if hasattr(self, "_mutation_planner_view") and self._mutation_planner_view is not None:
+            self._mutation_planner_view.hide()
+        if self._furniture_view is not None:
+            if self._current_save:
+                self._furniture_view.set_context(self._cats, self._furniture, self._furniture_data, available_rooms=self._available_house_rooms)
+            self._furniture_view.show()
+        if hasattr(self, "_btn_tree_view"):
+            self._btn_tree_view.setChecked(False)
+        if hasattr(self, "_btn_safe_breeding_view"):
+            self._btn_safe_breeding_view.setChecked(False)
+        if hasattr(self, "_btn_breeding_partners_view"):
+            self._btn_breeding_partners_view.setChecked(False)
+        if hasattr(self, "_btn_room_optimizer"):
+            self._btn_room_optimizer.setChecked(False)
+        if hasattr(self, "_btn_perfect_planner"):
+            self._btn_perfect_planner.setChecked(False)
+        if hasattr(self, "_btn_calibration"):
+            self._btn_calibration.setChecked(False)
+        if hasattr(self, "_btn_mutation_planner"):
+            self._btn_mutation_planner.setChecked(False)
+        if hasattr(self, "_btn_furniture_view"):
+            self._btn_furniture_view.setChecked(True)
+
+    def _navigate_to_cat(self, db_key: int):
+        """Switch to Alive Cats view and select the given cat by db_key."""
+        self._filter(None, self._btn_all)
+        for row in range(self._proxy_model.rowCount()):
+            src_idx = self._proxy_model.mapToSource(self._proxy_model.index(row, 0))
+            cat = self._source_model.cat_at(src_idx.row())
+            if cat is not None and cat.db_key == db_key:
+                self._table.scrollTo(self._proxy_model.index(row, 0))
+                self._table.selectRow(row)
+                return
+        # Not found in Alive filter — try All Cats
+        self._filter("__all__", self._btn_everyone)
+        for row in range(self._proxy_model.rowCount()):
+            src_idx = self._proxy_model.mapToSource(self._proxy_model.index(row, 0))
+            cat = self._source_model.cat_at(src_idx.row())
+            if cat is not None and cat.db_key == db_key:
+                self._table.scrollTo(self._proxy_model.index(row, 0))
+                self._table.selectRow(row)
+                return
+
+    def _navigate_to_cat_by_name(self, cat_name_formatted: str):
+        """Navigate to a cat by its formatted name (e.g. 'Fluffy (Female)')."""
+        cat_name = cat_name_formatted.split(" (")[0] if " (" in cat_name_formatted else cat_name_formatted
+        cat_name = cat_name.replace(" \u2665", "")
+        for cat in self._cats:
+            if cat.name == cat_name:
+                self._navigate_to_cat(cat.db_key)
+                return
+
+    def _update_header(self, room_key):
+        if room_key == "__all__":
+            self._header_lbl.setText(_tr("header.filter.all_cats"))
+        elif room_key is None:
+            self._header_lbl.setText(_tr("header.filter.alive"))
+        elif room_key == "__exceptional__":
+            self._header_lbl.setText(_tr("header.filter.exceptional"))
+        elif room_key == "__donation__":
+            self._header_lbl.setText(_tr("header.filter.donation"))
+        elif room_key == "__gone__":
+            self._header_lbl.setText(_tr("header.filter.gone"))
+        elif room_key == "__adventure__":
+            self._header_lbl.setText(_tr("header.filter.adventure"))
+        else:
+            self._header_lbl.setText(ROOM_DISPLAY.get(room_key, room_key))
+
+    def _current_room_key(self):
+        if self._active_btn is None:
+            return None
+        for key, btn in self._room_btns.items():
+            if btn is self._active_btn:
+                return key
+        return None
+
+    def _update_count(self):
+        visible = self._proxy_model.rowCount()
+        total   = self._source_model.rowCount()
+        room_key = self._current_room_key()
+        if room_key in ("__exceptional__", "__donation__"):
+            summary = _current_threshold_summary(self._cats)
+            if room_key == "__exceptional__":
+                self._count_lbl.setText(
+                    _tr(
+                        "header.count_exceptional",
+                        visible=visible,
+                        total=total,
+                        threshold=summary["exceptional"],
+                    )
+                )
+            else:
+                self._count_lbl.setText(
+                    _tr(
+                        "header.count_donation",
+                        visible=visible,
+                        total=total,
+                        threshold=summary["donation"],
+                    )
+                )
+        else:
+            self._count_lbl.setText(_tr("header.count", visible=visible, total=total))
+
+        placed = sum(1 for c in self._cats if c.status == "In House")
+        adv    = sum(1 for c in self._cats if c.status == "Adventure")
+        gone   = sum(1 for c in self._cats if c.status == "Gone")
+        self._summary_lbl.setText(_tr("header.summary", placed=placed, adv=adv, gone=gone))
+
+    def _on_pin_toggle(self, checked: bool):
+        self._proxy_model.set_pinned_only(checked)
+        self._update_count()
+
+    def _show_tags_menu(self):
+        """Show dropdown menu to apply/remove tags on selected cats."""
+        selected_cats = self._get_selected_cats()
+        menu = QMenu(self)
+        menu.setStyleSheet(
+            "QMenu { background:#1a1a32; color:#ddd; border:1px solid #2a2a4a; padding:4px; }"
+            "QMenu::item { padding:4px 16px; }"
+            "QMenu::item:selected { background:#252545; }"
+            "QMenu::separator { height:1px; background:#2a2a4a; margin:4px 8px; }"
+        )
+
+        if not _TAG_DEFS:
+            no_tags = menu.addAction("No tags defined — open Manage Tags")
+            no_tags.triggered.connect(self._open_tag_manager)
+        else:
+            header = menu.addAction("Apply Tags")
+            header.setEnabled(False)
+            menu.addSeparator()
+
+            if not selected_cats:
+                hint = menu.addAction("Select cats first, then apply tags")
+                hint.setEnabled(False)
+                menu.addSeparator()
+
+            for td in _TAG_DEFS:
+                tid = td["id"]
+                label = td["name"] if td["name"] else ""
+                # Show check if ALL selected cats have this tag
+                all_have = bool(selected_cats) and all(tid in _cat_tags(c) for c in selected_cats)
+                action = menu.addAction(f"  \u25CF  {label}")
+                action.setCheckable(True)
+                action.setChecked(all_have)
+                # Color the dot via rich icon
+                pix = QPixmap(12, 12)
+                pix.fill(Qt.transparent)
+                p = QPainter(pix)
+                p.setRenderHint(QPainter.Antialiasing)
+                p.setBrush(QBrush(QColor(td["color"])))
+                p.setPen(Qt.NoPen)
+                p.drawEllipse(1, 1, 10, 10)
+                p.end()
+                action.setIcon(QIcon(pix))
+                action.triggered.connect(
+                    lambda checked, tag_id=tid: self._apply_tag_to_selection(tag_id, checked)
+                )
+
+            menu.addSeparator()
+            clear_action = menu.addAction("Clear all tags from selection")
+            clear_action.setEnabled(bool(selected_cats))
+            clear_action.triggered.connect(self._clear_tags_from_selection)
+
+            # ── Filter section ──
+            menu.addSeparator()
+            filter_label = menu.addAction("Show only:")
+            filter_label.setEnabled(False)
+
+            current_filter = self._proxy_model.tag_filter
+            show_all = menu.addAction("All cats")
+            show_all.setCheckable(True)
+            show_all.setChecked(not current_filter)
+            show_all.triggered.connect(self._clear_tag_filter)
+
+            for td in _TAG_DEFS:
+                tid = td["id"]
+                label = td["name"] if td["name"] else "\u25CF"
+                is_active = tid in current_filter
+                pix = QPixmap(12, 12)
+                pix.fill(Qt.transparent)
+                p = QPainter(pix)
+                p.setRenderHint(QPainter.Antialiasing)
+                p.setBrush(QBrush(QColor(td["color"])))
+                p.setPen(Qt.NoPen)
+                p.drawEllipse(1, 1, 10, 10)
+                p.end()
+                check_mark = "\u2713 " if is_active else "  "
+                fa = menu.addAction(QIcon(pix), f"{check_mark}{label}")
+                fa.setCheckable(True)
+                fa.setChecked(is_active)
+                fa.triggered.connect(
+                    lambda checked, tag_id=tid: self._toggle_tag_filter(tag_id, checked)
+                )
+
+        menu.addSeparator()
+        manage = menu.addAction("Manage Tags\u2026")
+        manage.triggered.connect(self._open_tag_manager)
+
+        menu.exec(self._tags_btn.mapToGlobal(
+            self._tags_btn.rect().bottomLeft()))
+
+    def _get_selected_cats(self) -> list:
+        """Get currently selected cats from the main table."""
+        rows = set()
+        for idx in self._table.selectionModel().selectedRows():
+            src = self._proxy_model.mapToSource(idx)
+            rows.add(src.row())
+        return [c for r in rows if (c := self._source_model.cat_at(r)) is not None]
+
+    def _apply_tag_to_selection(self, tag_id: str, add: bool):
+        """Add or remove a tag from all selected cats."""
+        cats = self._get_selected_cats()
+        if not cats:
+            return
+        _TAG_ICON_CACHE.clear()
+        _TAG_PIX_CACHE.clear()
+        for c in cats:
+            current = list(getattr(c, 'tags', None) or [])
+            if add and tag_id not in current:
+                current.append(tag_id)
+            elif not add and tag_id in current:
+                current.remove(tag_id)
+            c.tags = current
+        # Refresh name column for affected rows
+        for row in range(self._source_model.rowCount()):
+            cat = self._source_model.cat_at(row)
+            if cat in cats:
+                idx = self._source_model.index(row, COL_NAME)
+                self._source_model.dataChanged.emit(idx, idx, [Qt.DisplayRole])
+        if self._current_save:
+            _save_tags(self._current_save, self._cats)
+        if self._detail and self._detail.current_cats:
+            self._detail.show_cats(self._detail.current_cats)
+
+    def _clear_tags_from_selection(self):
+        """Remove all tags from selected cats."""
+        cats = self._get_selected_cats()
+        if not cats:
+            return
+        _TAG_ICON_CACHE.clear()
+        _TAG_PIX_CACHE.clear()
+        for c in cats:
+            c.tags = []
+        for row in range(self._source_model.rowCount()):
+            cat = self._source_model.cat_at(row)
+            if cat in cats:
+                idx = self._source_model.index(row, COL_NAME)
+                self._source_model.dataChanged.emit(idx, idx, [Qt.DisplayRole])
+        if self._current_save:
+            _save_tags(self._current_save, self._cats)
+        if self._detail and self._detail.current_cats:
+            self._detail.show_cats(self._detail.current_cats)
+
+    def _tag_filtered_cats(self) -> list:
+        """Return cats filtered by the active tag filter, or all cats if no filter."""
+        f = self._proxy_model.tag_filter
+        if not f:
+            return self._cats
+        return [c for c in self._cats if set(_cat_tags(c)) & f]
+
+    def _toggle_tag_filter(self, tag_id: str, checked: bool):
+        """Toggle a single tag in the filter set."""
+        f = set(self._proxy_model.tag_filter)
+        if checked:
+            f.add(tag_id)
+        else:
+            f.discard(tag_id)
+        self._proxy_model.set_tag_filter(f)
+        self._update_count()
+        self._refresh_views_for_tag_filter()
+        # Visual indicator on the Tags button when filtering
+        if f:
+            self._tags_btn.setStyleSheet(
+                "QPushButton { background:#2a3a2a; color:#8c8; border:1px solid #4a6a4a;"
+                " border-radius:4px; padding:3px 10px; font-size:11px; font-weight:bold; }"
+                "QPushButton:hover { background:#3a5a3a; color:#afa; }"
+                "QPushButton::menu-indicator { image:none; }")
+        else:
+            self._tags_btn.setStyleSheet(
+                "QPushButton { background:#1a1a32; color:#aaa; border:1px solid #2a2a4a;"
+                " border-radius:4px; padding:3px 10px; font-size:11px; font-weight:bold; }"
+                "QPushButton:hover { background:#252545; color:#ddd; }"
+                "QPushButton::menu-indicator { image:none; }")
+
+    def _refresh_views_for_tag_filter(self):
+        """Push tag-filtered cat list to secondary views."""
+        filtered = self._tag_filtered_cats()
+        if self._room_optimizer_view is not None:
+            self._room_optimizer_view.set_cats(filtered)
+        if self._safe_breeding_view is not None:
+            self._safe_breeding_view.set_cats(filtered)
+        if self._breeding_partners_view is not None:
+            self._breeding_partners_view.set_cats(filtered)
+        if self._perfect_planner_view is not None:
+            self._perfect_planner_view.set_cats(filtered)
+
+    def _clear_tag_filter(self):
+        """Remove all tag filters."""
+        self._proxy_model.set_tag_filter(set())
+        self._update_count()
+        self._refresh_views_for_tag_filter()
+        self._tags_btn.setStyleSheet(
+            "QPushButton { background:#1a1a32; color:#aaa; border:1px solid #2a2a4a;"
+            " border-radius:4px; padding:3px 10px; font-size:11px; font-weight:bold; }"
+            "QPushButton:hover { background:#252545; color:#ddd; }"
+            "QPushButton::menu-indicator { image:none; }")
+
+    def _open_tag_manager(self):
+        dlg = TagManagerDialog(self)
+        dlg.exec()
+        _TAG_ICON_CACHE.clear()
+        _TAG_PIX_CACHE.clear()
+        # Repaint table without invalidating selection
+        self._table.viewport().update()
+        if self._detail and self._detail.current_cats:
+            self._detail.show_cats(self._detail.current_cats)
+        if self._current_save:
+            _save_tags(self._current_save, self._cats)
+
+    def _on_blacklist_changed(self):
+        if self._current_save:
+            _save_blacklist(self._current_save, self._cats)
+            _save_must_breed(self._current_save, self._cats)
+            _save_pinned(self._current_save, self._cats)
+            _save_tags(self._current_save, self._cats)
+        self._refresh_bulk_view_buttons()
+        if self._safe_breeding_view is not None:
+            self._safe_breeding_view.set_cats(self._cats)
+        if self._breeding_partners_view is not None:
+            self._breeding_partners_view.set_cats(self._cats)
+        if self._room_optimizer_view is not None:
+            self._room_optimizer_view.set_cats(self._cats)
+        if self._perfect_planner_view is not None:
+            self._perfect_planner_view.set_cats(self._cats)
+
+    def _on_calibration_changed(self):
+        if not self._current_save:
+            return
+        cal_explicit, cal_token, cal_rows = _apply_calibration(self._current_save, self._cats)
+        self._source_model.load(self._cats)
+        self._refresh_filter_button_counts()
+        if self._safe_breeding_view is not None:
+            self._safe_breeding_view.set_cats(self._cats)
+        if self._breeding_partners_view is not None:
+            self._breeding_partners_view.set_cats(self._cats)
+        if self._room_optimizer_view is not None:
+            self._room_optimizer_view.set_cats(self._cats)
+        if self._perfect_planner_view is not None:
+            self._perfect_planner_view.set_cats(self._cats)
+        if self._calibration_view is not None and self._calibration_view.isVisible():
+            self._calibration_view.set_context(self._current_save, self._cats)
+        self._update_count()
+        self.statusBar().showMessage(
+            _tr("status.calibration_applied", default="Calibration applied ({explicit} explicit, {token} token from {rows} rows)", explicit=cal_explicit, token=cal_token, rows=cal_rows)
+        )
+
+    # ── Breeding cache ──────────────────────────────────────────────────
+
+    @staticmethod
+    def _cache_cat_fingerprint(cat: 'Cat') -> tuple:
+        """Tuple of every field that affects cache computation (not room/display)."""
+        return _breeding_cache_fingerprint(cat)
+
+    def _only_display_changed(self, new_cats: list['Cat']) -> bool:
+        """Return True if self._cats and new_cats differ only in display fields (e.g. room)."""
+        if not self._cats:
+            return False
+        old_fps = {c.db_key: self._cache_cat_fingerprint(c) for c in self._cats}
+        new_fps = {c.db_key: self._cache_cat_fingerprint(c) for c in new_cats}
+        return old_fps == new_fps
+
+    def _start_breeding_cache(self, cats: list[Cat], force_full: bool = False):
+        """Kick off background computation of the breeding cache."""
+        # Fast path: skip rebuild when only display fields (e.g. room) changed
+        if (not force_full
+                and self._breeding_cache is not None
+                and self._breeding_cache.ready
+                and self._only_display_changed(cats)):
+            # Refresh cat object references so views see updated rooms
+            self._breeding_cache._cats_by_key = {
+                c.db_key: c for c in cats if c.status != "Gone"
+            }
+            # Keep _prev_parent_keys current for the next reload's incremental check
+            self._prev_parent_keys = {
+                c.db_key: (
+                    c.parent_a.db_key if c.parent_a is not None else None,
+                    c.parent_b.db_key if c.parent_b is not None else None,
+                )
+                for c in cats
+            }
+            return
+
+        # Cancel any in-progress worker
+        if self._cache_worker is not None:
+            worker = self._cache_worker
+            self._cache_worker = None
+            worker.quit()
+            if not worker.wait(500):
+                worker.terminate()
+                worker.wait(100)
+
+        # Snapshot parent keys before clearing old cache (for incremental update)
+        prev_cache = self._breeding_cache if not force_full else None
+        prev_parent_keys = dict(self._prev_parent_keys) if hasattr(self, "_prev_parent_keys") and not force_full else {}
+
+        # Record current parent keys for next reload
+        self._prev_parent_keys = {
+            c.db_key: (
+                c.parent_a.db_key if c.parent_a is not None else None,
+                c.parent_b.db_key if c.parent_b is not None else None,
+            )
+            for c in cats
+        }
+
+        self._breeding_cache = None
+        self._cache_progress.setValue(0)
+        self._cache_progress.show()
+
+        # Try loading pairwise data from disk (skip if force_full)
+        existing = None
+        save_path = self._current_save or ""
+        save_signature = _breeding_save_signature(cats)
+        pedigree_coi_memos = getattr(self, "_pedigree_coi_memos", {})
+        if not force_full and save_path:
+            existing = BreedingCache.load_from_disk(save_path, save_signature)
+            if existing is not None:
+                self._cache_progress.setFormat(_tr("loading.cache.loading_cached"))
+            elif prev_cache is not None:
+                self._cache_progress.setFormat(_tr("loading.cache.updating"))
+            else:
+                self._cache_progress.setFormat(_tr("loading.cache.computing"))
+        else:
+            self._cache_progress.setFormat(_tr("loading.cache.computing"))
+
+        worker = BreedingCacheWorker(
+            cats, save_path=save_path, existing_pairwise=existing,
+            prev_cache=prev_cache, prev_parent_keys=prev_parent_keys,
+            save_signature=save_signature,
+            pedigree_coi_memos=pedigree_coi_memos,
+            parent=self,
+        )
+        worker.progress.connect(self._on_cache_progress)
+        worker.phase1_ready.connect(self._on_phase1_ready)
+        worker.finished_cache.connect(self._on_cache_ready)
+        worker.finished.connect(lambda: self._cache_progress.hide())
+        self._cache_worker = worker
+        worker.start()
+
+    def _on_cache_progress(self, current: int, total: int):
+        self._cache_progress.setMaximum(total)
+        self._cache_progress.setValue(current)
+
+    def _clear_breeding_cache(self):
+        """Delete the on-disk breeding cache for the current save file."""
+        if not self._current_save:
+            self.statusBar().showMessage(_tr("status.no_save_loaded_clear"))
+            return
+        cp = _breeding_cache_path(self._current_save)
+        if os.path.exists(cp):
+            try:
+                os.remove(cp)
+                self.statusBar().showMessage(_tr("status.cache_cleared"))
+            except OSError as e:
+                self.statusBar().showMessage(_tr("status.cache_delete_failed", default="Could not delete cache: {error}", error=e))
+        else:
+            self.statusBar().showMessage(_tr("status.cache_missing"))
+
+    def _on_phase1_ready(self, cache: BreedingCache):
+        """Ancestry computed — push to table and Safe Breeding so they're usable immediately."""
+        self._breeding_cache = cache
+        self._source_model.set_breeding_cache(cache)
+        if self._safe_breeding_view is not None:
+            self._safe_breeding_view.set_cache(cache)
+        if self._perfect_planner_view is not None:
+            self._perfect_planner_view.set_cache(cache)
+        self._cache_progress.setFormat(_tr("loading.cache.pair_risks"))
+
+    def _on_cache_ready(self, cache: BreedingCache):
+        self._breeding_cache = cache
+        self._cache_worker = None
+        self._cache_progress.hide()
+        # Push completed cache (now includes pairwise risk) to all views
+        self._source_model.set_breeding_cache(cache)
+        if self._safe_breeding_view is not None:
+            self._safe_breeding_view.set_cache(cache)
+        if self._room_optimizer_view is not None:
+            self._room_optimizer_view.set_cache(cache)
+        if self._perfect_planner_view is not None:
+            self._perfect_planner_view.set_cache(cache)
+        self.statusBar().showMessage(
+            self.statusBar().currentMessage() + _tr("status.cache_ready_suffix", default="  |  Breeding cache ready")
+        )
+
+    # ── Loading ────────────────────────────────────────────────────────────
+
+    def load_save(self, path: str, force_full_breeding_cache: bool = False):
+        previous_save = self._current_save
+        fresh_save = True
+        if previous_save:
+            fresh_save = os.path.normcase(os.path.abspath(previous_save)) != os.path.normcase(os.path.abspath(path))
+        if fresh_save:
+            self._breeding_cache = None
+            self._prev_parent_keys = {}
+        self._current_save = path
+        if self._room_optimizer_view is not None:
+            self._room_optimizer_view.set_save_path(path, refresh_existing=False)
+        if self._perfect_planner_view is not None:
+            self._perfect_planner_view.set_save_path(path, refresh_existing=False)
+        if self._mutation_planner_view is not None:
+            self._mutation_planner_view.set_save_path(path, refresh_existing=False, notify=False)
+            if self._room_optimizer_view is not None:
+                self._room_optimizer_view.on_planner_traits_changed()
+            if self._perfect_planner_view is not None:
+                self._perfect_planner_view.sync_mutation_traits()
+                self._perfect_planner_view.sync_mutation_import_button_state()
+        if self._watcher.files():
+            self._watcher.removePaths(self._watcher.files())
+        self._watcher.addPath(path)
+
+        # Cancel any in-progress load
+        if self._save_load_worker is not None:
+            worker = self._save_load_worker
+            self._save_load_worker = None
+            worker.quit()
+            if not worker.wait(500):
+                worker.terminate()
+                worker.wait(100)
+        if self._cache_worker is not None:
+            worker = self._cache_worker
+            self._cache_worker = None
+            worker.quit()
+            if not worker.wait(500):
+                worker.terminate()
+                worker.wait(100)
+
+        # Show overlay while parsing (background thread — main thread stays responsive for repaint)
+        name = os.path.basename(path)
+        self._loading_label.setText(_tr("loading.save_named", name=name))
+        overlay = self._loading_overlay
+        parent = overlay.parentWidget()
+        if parent:
+            overlay.setGeometry(0, 0, parent.width(), parent.height())
+        overlay.raise_()
+        overlay.show()
+
+        worker = SaveLoadWorker(path, parent=self)
+        worker.finished_load.connect(
+            lambda result, force=force_full_breeding_cache: self._on_save_loaded(result, force)
+        )
+        self._save_load_worker = worker
+        worker.start()
+
+    def _on_save_loaded(self, result: dict, force_full_breeding_cache: bool = False):
+        self._save_load_worker = None
+        # Dismiss overlay immediately — UI work below is fast (model.load is O(n), no ancestry)
+        self._loading_overlay.hide()
+        self._save_view_disabled = True
+        try:
+            cats = result["cats"]
+            errors = result["errors"]
+            unlocked_house_rooms = result.get("unlocked_house_rooms", [])
+            furniture = result.get("furniture", [])
+            furniture_by_room = result.get("furniture_by_room", {})
+            applied_overrides = result["applied_overrides"]
+            override_rows = result["override_rows"]
+            cal_explicit = result["cal_explicit"]
+            cal_token = result["cal_token"]
+            cal_rows = result["cal_rows"]
+            self._pedigree_coi_memos = dict(result.get("pedigree_coi_memos", {}))
+
+            self._cats = cats
+            self._furniture = furniture
+            self._furniture_by_room = furniture_by_room
+            self._furniture_data = dict(_FURNITURE_DATA)
+            self._available_house_rooms = [room for room in ROOM_KEYS if room in set(unlocked_house_rooms)] or list(ROOM_KEYS)
+            self._room_summaries = {
+                summary.room: summary
+                for summary in build_furniture_room_summaries(
+                    self._furniture_by_room,
+                    self._furniture_data,
+                    self._cats,
+                    room_order=self._available_house_rooms,
+                )
+                if summary.room in self._available_house_rooms or not summary.room
+            }
+            self._source_model.set_breeding_cache(None)
+            if self._safe_breeding_view is not None:
+                self._safe_breeding_view.set_cache(None)
+            if self._breeding_partners_view is not None:
+                self._breeding_partners_view.set_cache(None)
+            if self._room_optimizer_view is not None:
+                self._room_optimizer_view.set_cache(None)
+            if self._perfect_planner_view is not None:
+                self._perfect_planner_view.set_cache(None)
+            self._refresh_threshold_runtime(cats)
+            self._source_model.load(cats)
+            self._rebuild_room_buttons(cats)
+            self._refresh_filter_button_counts()
+            self._filter(None, self._btn_all)
+            if self._room_optimizer_view is not None:
+                self._room_optimizer_view.set_available_rooms(self._available_house_rooms)
+                self._room_optimizer_view.set_room_summaries(self._room_summaries)
+            if self._furniture_view is not None:
+                self._furniture_view.set_context(self._cats, self._furniture, self._furniture_data, available_rooms=self._available_house_rooms)
+            # Only push cats to currently visible views immediately.
+            # Hidden views call set_cats themselves when shown via _show_* methods.
+            if self._tree_view is not None and self._tree_view.isVisible():
+                self._tree_view.set_cats(cats)
+            if self._safe_breeding_view is not None and self._safe_breeding_view.isVisible():
+                self._safe_breeding_view.set_cats(cats)
+            if self._breeding_partners_view is not None and self._breeding_partners_view.isVisible():
+                self._breeding_partners_view.set_cats(cats)
+            if self._room_optimizer_view is not None and self._room_optimizer_view.isVisible():
+                self._room_optimizer_view.set_cats(cats)
+            if self._perfect_planner_view is not None and self._perfect_planner_view.isVisible():
+                self._perfect_planner_view.set_cats(cats)
+            if self._calibration_view is not None and self._calibration_view.isVisible():
+                self._calibration_view.set_context(self._current_save, cats)
+            name = os.path.basename(self._current_save)
+            self._save_lbl.setText(name)
+            self.setWindowTitle(_tr("app.title_with_save", name=name))
+
+            msg = _tr("status.save_loaded", default="Loaded {count} cats from {name}", count=len(cats), name=name)
+            if errors:
+                msg += _tr("status.save_loaded.parse_errors_suffix", default="  ({count} parse errors)", count=len(errors))
+            if applied_overrides:
+                msg += _tr("status.save_loaded.gender_overrides_suffix", default="  ({applied}/{rows} gender overrides)", applied=applied_overrides, rows=override_rows)
+            if cal_rows:
+                msg += _tr("status.save_loaded.calibration_suffix", default="  (calibration: {explicit} explicit, {token} token)", explicit=cal_explicit, token=cal_token)
+            self.statusBar().showMessage(msg)
+
+            # Start background breeding cache computation
+            self._start_breeding_cache(cats, force_full=force_full_breeding_cache)
+
+            # Update default save menu items
+            self._update_default_save_menu()
+        except Exception as e:
+            import traceback
+            print(traceback.format_exc())
+            self.statusBar().showMessage(_tr("status.save_load_failed", default="Error loading save: {error}", error=e))
+        finally:
+            self._save_view_disabled = False
+            self._restore_current_view()
+
+    def _update_default_save_menu(self):
+        """Update the enabled state of default save menu items."""
+        has_save = self._current_save is not None
+        default_save = _saved_default_save()
+        is_current_default = has_save and default_save == self._current_save
+
+        self._set_default_save_action.setEnabled(has_save and not is_current_default)
+        self._clear_default_save_action.setEnabled(has_save and is_current_default)
+
+    def _set_current_as_default(self):
+        """Set the current save file as the default."""
+        if self._current_save:
+            _set_default_save(self._current_save)
+            name = os.path.basename(self._current_save)
+            self.statusBar().showMessage(_tr("status.default_save_set", default="Default save set to: {name}", name=name))
+            self._update_default_save_menu()
+
+    def _clear_default_save(self):
+        """Clear the default save setting."""
+        _set_default_save(None)
+        self.statusBar().showMessage(_tr("status.default_save_cleared", default="Default save cleared"))
+        self._update_default_save_menu()
+
+    def _flush_persistent_view_state(self):
+        """Persist planner-style view state before the app shuts down."""
+        if self._room_optimizer_view is not None:
+            self._room_optimizer_view.save_session_state()
+            _save_room_priority_config(self._room_optimizer_view.get_room_config(), self._room_optimizer_view.save_path)
+        if self._perfect_planner_view is not None:
+            self._perfect_planner_view.save_session_state()
+        if self._mutation_planner_view is not None:
+            self._mutation_planner_view.save_session_state()
+        if self._furniture_view is not None:
+            self._furniture_view.save_session_state()
+
+    def closeEvent(self, event):
+        self._flush_persistent_view_state()
+        super().closeEvent(event)
+
+    def _reset_ui_settings_to_defaults(self):
+        """Reset pane sizes and planner inputs without touching save-file data."""
+        confirm = QMessageBox.question(
+            self,
+            _tr("menu.settings.reset_ui_defaults.title"),
+            _tr("menu.settings.reset_ui_defaults.body"),
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if confirm != QMessageBox.Yes:
+            return
+
+        for view in (
+            self._room_optimizer_view,
+            self._perfect_planner_view,
+            self._furniture_view,
+            self._mutation_planner_view,
+        ):
+            if view is not None and hasattr(view, "reset_to_defaults"):
+                view.reset_to_defaults()
+
+        _set_room_optimizer_auto_recalc(False)
+        _save_optimizer_search_settings(_OPTIMIZER_SEARCH_DEFAULTS)
+        if hasattr(self, "_room_optimizer_auto_recalc_action"):
+            self._room_optimizer_auto_recalc_action.blockSignals(True)
+            self._room_optimizer_auto_recalc_action.setChecked(False)
+            self._room_optimizer_auto_recalc_action.blockSignals(False)
+        if self._room_optimizer_view is not None and hasattr(self._room_optimizer_view, "set_auto_recalculate"):
+            self._room_optimizer_view.set_auto_recalculate(False)
+
+        if hasattr(self, "_detail_splitter") and self._detail_splitter is not None:
+            total = max(20, self._detail_splitter.height())
+            detail_h = min(240, max(10, total - 10))
+            self._detail_splitter.setSizes([max(10, total - detail_h), detail_h])
+            _save_splitter_state(self._detail_splitter)
+
+        if hasattr(self, "_sidebar_splitter") and self._sidebar_splitter is not None:
+            total = max(20, self._sidebar_splitter.width())
+            sidebar_w = min(self._base_sidebar_width, max(10, total - 10))
+            self._sidebar_splitter.setSizes([sidebar_w, max(10, total - sidebar_w)])
+            _save_splitter_state(self._sidebar_splitter)
+
+        self.statusBar().showMessage(
+            _tr("status.ui_settings_reset", default="UI settings reset to defaults")
+        )
+
+    def _toggle_room_optimizer_auto_recalc(self, checked: bool):
+        _set_room_optimizer_auto_recalc(bool(checked))
+        if self._room_optimizer_view is not None and hasattr(self._room_optimizer_view, "set_auto_recalculate"):
+            self._room_optimizer_view.set_auto_recalculate(bool(checked))
+
+    def _toggle_lineage(self, checked: bool):
+        self._show_lineage = checked
+        for col in (COL_GEN_DEPTH, COL_SRC):
+            self._table.setColumnHidden(col, not checked)
+        self._source_model.set_show_lineage(checked)
+        self._detail.set_show_lineage(checked)
+        self._on_selection()   # refresh detail panel with updated flag
+
+    def _open_file(self):
+        saves   = find_save_files()
+        start   = os.path.dirname(saves[0]) if saves else os.path.expanduser("~")
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            _tr("dialog.open_save.title"),
+            start,
+            _tr("dialog.open_save.filter"),
+        )
+        if path:
+            self.load_save(path)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, "_loading_overlay") and self._loading_overlay.isVisible():
+            parent = self._loading_overlay.parentWidget()
+            if parent:
+                self._loading_overlay.setGeometry(0, 0, parent.width(), parent.height())
+
+    def _export_cats(self):
+        if not self._cats:
+            QMessageBox.information(self, _tr("export.title", default="Export"), _tr("export.no_save", default="No save loaded."))
+            return
+
+        base = os.path.splitext(self._current_save)[0] if self._current_save else "cats"
+        path, _ = QFileDialog.getSaveFileName(
+            self, _tr("export.dialog_title", default="Export Cats"),
+            base,
+            "CSV (*.csv);;Excel (*.xlsx)"
+        )
+        if not path:
+            return
+
+        base_stat_headers  = ["Base " + s for s in STAT_NAMES]
+        actual_stat_headers = ["Actual " + s for s in STAT_NAMES]
+        headers = (
+            ["Name", "Status", "Room", "Age", "Gender", "Sexuality", "Generation"]
+            + base_stat_headers + ["Base Sum"]
+            + actual_stat_headers + ["Actual Sum"]
+            + ["Abilities", "Mutations", "Aggression", "Libido", "Inbreeding",
+               "Pinned", "Blacklisted", "Must Breed", "Parent A", "Parent B"]
+        )
+
+        def _trait(val, field):
+            if val is None:
+                return ""
+            return _trait_label_from_value(field, val)
+
+        rows = []
+        for cat in self._cats:
+            base_vals   = [cat.base_stats.get(s, 0) for s in STAT_NAMES]
+            actual_vals = [cat.total_stats.get(s, 0) for s in STAT_NAMES]
+            row = (
+                [
+                    cat.name,
+                    cat.status or "",
+                    cat.room_display,
+                    str(cat.age) if cat.age is not None else "",
+                    cat.gender or "",
+                    cat.sexuality or "",
+                    str(cat.generation),
+                ]
+                + [str(v) for v in base_vals] + [str(sum(base_vals))]
+                + [str(v) for v in actual_vals] + [str(sum(actual_vals))]
+                + [
+                    "; ".join(cat.abilities or []),
+                    "; ".join(cat.mutations or []),
+                    _trait(cat.aggression, "aggression"),
+                    _trait(cat.libido, "libido"),
+                    _trait(cat.inbredness, "inbredness"),
+                    "Yes" if getattr(cat, "is_pinned", False) else "No",
+                    "Yes" if getattr(cat, "is_blacklisted", False) else "No",
+                    "Yes" if getattr(cat, "must_breed", False) else "No",
+                    cat.parent_a.name if cat.parent_a else "",
+                    cat.parent_b.name if cat.parent_b else "",
+                ]
+            )
+            rows.append(row)
+
+        ext = os.path.splitext(path)[1].lower()
+
+        if ext == ".xlsx":
+            try:
+                import openpyxl
+                from openpyxl.styles import Font
+            except ImportError:
+                QMessageBox.critical(self, _tr("export.title", default="Export"), "openpyxl is not installed. Install it with: pip install openpyxl")
+                return
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.title = "Cats"
+            ws.append(headers)
+            for cell in ws[1]:
+                cell.font = Font(bold=True)
+            for row in rows:
+                ws.append(row)
+            wb.save(path)
+        else:
+            if not path.lower().endswith(".csv"):
+                path += ".csv"
+            import csv
+            with open(path, "w", newline="", encoding="utf-8") as f:
+                writer = csv.writer(f)
+                writer.writerow(headers)
+                writer.writerows(rows)
+
+        QMessageBox.information(self, _tr("export.title", default="Export"), f"Exported {len(rows)} cats to:\n{path}")
+
+    def _reload(self):
+        if self._current_save:
+            self.load_save(self._current_save)
+
+    def _on_file_changed(self, path: str):
+        if path != self._current_save:
+            return
+        # If cats are already loaded and no full reload is running, try the fast path.
+        if self._cats and self._save_load_worker is None:
+            self._start_quick_room_refresh()
+        else:
+            self._reload()
+
+    def _start_quick_room_refresh(self):
+        if self._quick_refresh_worker is not None:
+            self._quick_refresh_worker.quit()
+            self._quick_refresh_worker.wait(200)
+            self._quick_refresh_worker = None
+        expected = {c.db_key for c in self._cats}
+        w = QuickRoomRefreshWorker(self._current_save, expected, parent=self)
+        w.room_patch.connect(self._on_room_patch)
+        w.needs_full_reload.connect(self._reload)
+        self._quick_refresh_worker = w
+        w.start()
+
+    def _on_room_patch(self, patch: dict):
+        self._quick_refresh_worker = None
+        for cat in self._cats:
+            entry = patch.get(cat.db_key)
+            if entry is not None:
+                cat.room, cat.status = entry
+        # Lightweight repaint — no model rebuild, no ancestry recompute
+        self._source_model.layoutChanged.emit()
+        self._rebuild_room_buttons(self._cats)
+        self._refresh_filter_button_counts()
+        if self._furniture_view is not None:
+            self._furniture_view.set_context(self._cats, self._furniture, self._furniture_data, available_rooms=self._available_house_rooms)
+        if self._tree_view is not None and self._tree_view.isVisible():
+            self._tree_view.set_cats(self._cats)
+        if self._safe_breeding_view is not None and self._safe_breeding_view.isVisible():
+            self._safe_breeding_view.set_cats(self._cats)
+        if self._breeding_partners_view is not None and self._breeding_partners_view.isVisible():
+            self._breeding_partners_view.set_cats(self._cats)
+        if self._room_optimizer_view is not None and self._room_optimizer_view.isVisible():
+            self._room_optimizer_view.set_cats(self._cats)
+        if self._perfect_planner_view is not None and self._perfect_planner_view.isVisible():
+            self._perfect_planner_view.set_cats(self._cats)
+        if self._calibration_view is not None and self._calibration_view.isVisible():
+            self._calibration_view.set_context(self._current_save, self._cats)
+        self.statusBar().showMessage(_tr("status.rooms_refreshed", default="Room locations updated."))
+
+    def _open_tree_browser(self):
+        _save_current_view("tree")
+        self._show_tree_view()
+        rows = list({
+            self._proxy_model.mapToSource(idx).row()
+            for idx in self._table.selectionModel().selectedRows()
+        })
+        cats = [c for r in rows[:1] if (c := self._source_model.cat_at(r)) is not None]
+        if cats and self._tree_view is not None:
+            self._tree_view.select_cat(cats[0])
+
+    def _open_safe_breeding_view(self):
+        _save_current_view("safe_breeding")
+        self._show_safe_breeding_view()
+        rows = list({
+            self._proxy_model.mapToSource(idx).row()
+            for idx in self._table.selectionModel().selectedRows()
+        })
+        cats = [c for r in rows[:1] if (c := self._source_model.cat_at(r)) is not None]
+        if cats and self._safe_breeding_view is not None:
+            self._safe_breeding_view.select_cat(cats[0])
+
+    def _open_breeding_partners_view(self):
+        _save_current_view("breeding_partners")
+        self._show_breeding_partners_view()
+
+    def _open_room_optimizer(self):
+        _save_current_view("room_optimizer")
+        self._show_room_optimizer_view()
+
+    def _open_perfect_planner_view(self):
+        _save_current_view("perfect_planner")
+        self._show_perfect_planner_view()
+
+    def _open_calibration_view(self):
+        _save_current_view("calibration")
+        self._show_calibration_view()
+
+    def _open_mutation_planner_view(self):
+        _save_current_view("mutation_planner")
+        self._show_mutation_planner_view()
+
+    def _open_furniture_view(self):
+        _save_current_view("furniture")
+        self._show_furniture_view()
+
+    def _restore_current_view(self):
+        """Restore the last-used view after a save is loaded."""
+        view = _load_current_view()
+        _restore_map = {
+            "tree":               self._show_tree_view,
+            "safe_breeding":      self._show_safe_breeding_view,
+            "breeding_partners":  self._show_breeding_partners_view,
+            "room_optimizer":     self._show_room_optimizer_view,
+            "perfect_planner":    self._show_perfect_planner_view,
+            "calibration":        self._show_calibration_view,
+            "mutation_planner":   self._show_mutation_planner_view,
+            "furniture":          self._show_furniture_view,
+        }
+        fn = _restore_map.get(view)
+        if fn:
+            fn()
+
+    # ── UI zoom ───────────────────────────────────────────────────────────
+
+    def _scaled(self, value: int) -> int:
+        return max(1, round(value * (self._zoom_percent / 100.0)))
+
+    def _update_zoom_info_action(self):
+        if hasattr(self, "_zoom_info_action"):
+            self._zoom_info_action.setText(_tr("menu.settings.zoom_info", percent=self._zoom_percent))
+
+    def _set_zoom(self, percent: int):
+        clamped = max(_ZOOM_MIN, min(_ZOOM_MAX, int(percent)))
+        if clamped == self._zoom_percent:
+            return
+        self._zoom_percent = clamped
+        self._apply_zoom()
+        self._update_zoom_info_action()
+        self.statusBar().showMessage(_tr("status.zoom_changed", default="UI zoom set to {percent}%", percent=self._zoom_percent))
+
+    def _change_zoom(self, direction: int):
+        self._set_zoom(self._zoom_percent + (direction * _ZOOM_STEP))
+
+    def _reset_zoom(self):
+        self._set_zoom(100)
+
+    def _change_font_size(self, direction: int):
+        self._set_font_size_offset(self._font_size_offset + direction)
+
+    def _set_font_size_offset(self, offset: int):
+        clamped = max(-6, min(12, offset))
+        if clamped == self._font_size_offset:
+            return
+        self._font_size_offset = clamped
+        self._apply_zoom()
+        self._update_font_size_info_action()
+        label = _font_size_offset_label(clamped)
+        self.statusBar().showMessage(_tr("status.font_size_offset", default="Font size offset: {label}", label=label))
+
+    def _update_font_size_info_action(self):
+        if hasattr(self, "_font_size_info_action"):
+            off = self._font_size_offset
+            label = _font_size_offset_label(off)
+            self._font_size_info_action.setText(_tr("menu.settings.font_size_info", label=label))
+
+    def _apply_zoom(self):
+        app = QApplication.instance()
+        font = QFont(self._base_font)
+        base_pt = self._base_font.pointSizeF()
+        if base_pt > 0:
+            zoomed_pt = base_pt * (self._zoom_percent / 100.0) + self._font_size_offset
+            font.setPointSizeF(max(_ACCESSIBILITY_MIN_FONT_PT, zoomed_pt))
+        elif self._base_font.pixelSize() > 0:
+            font.setPixelSize(max(_ACCESSIBILITY_MIN_FONT_PX, self._scaled(self._base_font.pixelSize()) + self._font_size_offset))
+        app.setFont(font)
+
+        if hasattr(self, "_sidebar"):
+            self._sidebar.setFixedWidth(self._scaled(self._base_sidebar_width))
+        if hasattr(self, "_header"):
+            self._header.setFixedHeight(self._scaled(self._base_header_height))
+        if hasattr(self, "_search"):
+            self._search.setFixedWidth(self._scaled(self._base_search_width))
+        if hasattr(self, "_table"):
+            for col, width in self._base_col_widths.items():
+                self._table.setColumnWidth(col, self._scaled(width))
+            self._table.verticalHeader().setDefaultSectionSize(self._scaled(24))
+
+        # Scale all hardcoded stylesheet font-size values across the whole window.
+        # 1pt ≈ 1.33px; round to nearest integer pixel.
+        offset_px = round(self._font_size_offset * 1.333)
+        _apply_font_offset_to_tree(self, offset_px)
+
+
+
+def _ensure_gpak_path_interactive(parent: Optional[QWidget] = None):
+    if _GPAK_PATH:
+        return
+
+    if os.path.isdir(r"C:\Program Files (x86)\Steam\steamapps\common\Mewgenics"):
+        start_dir = r"C:\Program Files (x86)\Steam\steamapps\common\Mewgenics"
+    elif os.path.isdir(r"C:\Program Files\Steam\steamapps\common\Mewgenics"):
+        start_dir = r"C:\Program Files\Steam\steamapps\common\Mewgenics"
+    elif os.path.isdir(r"D:\Games\Mewgenics"):
+        start_dir = r"D:\Games\Mewgenics"
+    else:
+        start_dir = str(Path.home())
+    chosen_dir = QFileDialog.getExistingDirectory(
+        parent,
+        "Select Mewgenics Install Folder",
+        start_dir,
+    )
+    if not chosen_dir:
+        return
+
+    gpak_path = os.path.join(chosen_dir, "resources.gpak")
+    if os.path.exists(gpak_path):
+        _set_gpak_path(gpak_path)
+        return
+
+    QMessageBox.warning(
+        parent,
+        "resources.gpak not found",
+        "The selected folder does not contain resources.gpak. "
+        "Choose the Mewgenics install directory that contains that file.",
+    )
+
