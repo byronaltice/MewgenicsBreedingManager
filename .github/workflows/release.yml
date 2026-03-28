@@ -80,26 +80,3 @@ jobs:
         else
           gh release create "$TAG" release-assets/windows/*.zip release-assets/linux/*.zip --generate-notes --repo "$REPO"
         fi
-
-    - name: Resolve artifact paths
-      id: paths
-      run: |
-        echo "windows=$(ls release-assets/windows/*.zip)" >> $GITHUB_OUTPUT
-        echo "linux=$(ls release-assets/linux/*.zip)" >> $GITHUB_OUTPUT
-        echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
-
-    - name: Upload Windows build to NexusMods
-      uses: Nexus-Mods/upload-action@v1
-      with:
-        api_key: ${{ secrets.NEXUSMODS_API_KEY }}
-        file_group_id: 7135345
-        filename: ${{ steps.paths.outputs.windows }}
-        version: ${{ steps.paths.outputs.version }}
-
-    - name: Upload Linux build to NexusMods
-      uses: Nexus-Mods/upload-action@v1
-      with:
-        api_key: ${{ secrets.NEXUSMODS_API_KEY }}
-        file_group_id: 7221748
-        filename: ${{ steps.paths.outputs.linux }}
-        version: ${{ steps.paths.outputs.version }}
