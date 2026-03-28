@@ -1821,7 +1821,7 @@ class PerfectCatPlannerView(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         # Deferred import to avoid circular dependency
-        from mewgenics_manager import RoomOptimizerCatLocator
+        from mewgenics.views.room_optimizer import RoomOptimizerCatLocator
         self.setStyleSheet(
             "QWidget { background:#0a0a18; }"
             "QLabel { color:#bbb; }"
@@ -2340,7 +2340,7 @@ class PerfectCatPlannerView(QWidget):
         active = bool(self._mutation_planner_traits)
         self._import_mutation_btn.setText(self._mutation_import_button_label())
         # Deferred import to avoid circular dependency
-        from mewgenics_manager import RoomOptimizerView
+        from mewgenics.views.room_optimizer import RoomOptimizerView
         RoomOptimizerView._style_import_planner_button(self._import_mutation_btn, active=active)
         self._import_mutation_btn.setEnabled(True)
         self._import_mutation_btn.setToolTip(self._mutation_import_button_tooltip())
