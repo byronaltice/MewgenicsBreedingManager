@@ -1,0 +1,483 @@
+from __future__ import annotations
+
+from typing import Optional
+
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QColor
+from PySide6.QtWidgets import (
+    QComboBox,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QScrollArea,
+    QSizePolicy,
+    QSpinBox,
+    QVBoxLayout,
+    QWidget,
+)
+
+from save_parser import FurnitureRoomSummary
+from mewgenics.constants import ROOM_COLORS, _room_color, _room_tint
+from mewgenics.utils.localization import ROOM_DISPLAY
+from mewgenics.utils.optimizer_settings import (
+    _default_room_priority_config,
+    _load_room_priority_config,
+    _save_room_priority_config,
+)
+
+
+class RoomPriorityPanel(QWidget):
+    """Compact vertical panel for ordering rooms as Breeding or Fallback."""
+    configChanged = Signal()
+
+    _SS_BTN = (
+        "QPushButton { background:#1a1a32; color:#888; border:1px solid #2a2a4a;"
+        " border-radius:3px; padding:2px 6px; font-size:11px; }"
+        "QPushButton:hover { background:#252545; color:#ddd; }"
+    )
+    _SS_BREED = (
+        "QPushButton { background:#1f4a2a; color:#8fe0a0; border:1px solid #2f7a4a;"
+        " border-radius:3px; padding:2px 8px; font-size:11px; font-weight:bold; }"
+        "QPushButton:hover { background:#2f6a3a; }"
+    )
+    _SS_FALLBACK = (
+        "QPushButton { background:#4a2a3a; color:#e08898; border:1px solid #7a3a5a;"
+        " border-radius:3px; padding:2px 8px; font-size:11px; font-weight:bold; }"
+        "QPushButton:hover { background:#5a3a4a; }"
+    )
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(8)
+
+        header = QHBoxLayout()
+        lbl = QLabel("Configure Rooms:")
+        lbl.setStyleSheet("color:#888; font-size:11px; font-weight:bold;")
+        lbl.setToolTip("Set each room's capacity and base stimulation level.")
+        header.addWidget(lbl)
+        header.addStretch(1)
+
+        self._add_btn = QPushButton("+ Add Room")
+        self._add_btn.setStyleSheet(self._SS_BTN)
+        self._add_btn.clicked.connect(lambda: self._add_slot())
+        header.addWidget(self._add_btn)
+        outer.addLayout(header)
+
+        self._slots: list[dict] = []
+        self._room_stats: dict[str, FurnitureRoomSummary] = {}
+        self._room_expected_pairs: dict[str, int] = {}
+        self._available_rooms: list[str] = list(ROOM_DISPLAY.keys())
+        self._save_path: Optional[str] = None
+        self._slots_widget = QWidget()
+        self._slots_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+        self._slots_layout = QVBoxLayout(self._slots_widget)
+        self._slots_layout.setContentsMargins(0, 0, 0, 0)
+        self._slots_layout.setSpacing(4)
+        self._slots_layout.addStretch()
+
+        scroll = QScrollArea()
+        scroll.setWidget(self._slots_widget)
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        scroll.setMinimumHeight(0)
+        scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        scroll.setStyleSheet(
+            "QScrollArea { border: none; background: transparent; }"
+            "QWidget#qt_scrollarea_viewport { background: transparent; }"
+            "QScrollBar:vertical { width: 5px; background: #0d0d1a; }"
+            "QScrollBar::handle:vertical { background: #2a2a4a; border-radius: 2px; }"
+        )
+        outer.addWidget(scroll, 1)
+
+        self.set_config(_load_room_priority_config(self._save_path))
+
+    def set_save_path(self, save_path: Optional[str]):
+        self._save_path = save_path
+        self.set_config(_load_room_priority_config(self._save_path))
+
+    def reset_to_defaults(self):
+        self.set_config(_default_room_priority_config())
+        self._on_changed()
+
+    def _default_room_stim(self, room: str | None, fallback: float = 50.0) -> float:
+        if room and room in self._room_stats:
+            summary = self._room_stats.get(room)
+            if summary is not None:
+                return max(0.0, float(summary.raw_effects.get("Stimulation", 0.0) or 0.0))
+        return float(fallback)
+
+    def _room_choices(self) -> list[str]:
+        choices = [room for room in ROOM_DISPLAY.keys() if room in set(self._available_rooms)]
+        return choices or list(ROOM_DISPLAY.keys())
+
+    def _refresh_room_choices(self):
+        """Keep each row's room combo unique across the panel."""
+        if not self._slots:
+            self._add_btn.setEnabled(len(self._slots) < len(self._room_choices()))
+            return
+
+        current_rooms = [slot["combo"].currentData() for slot in self._slots]
+        for slot in self._slots:
+            current_room = slot["combo"].currentData()
+            allowed_rooms = []
+            for room in self._room_choices():
+                if room == current_room or room not in current_rooms:
+                    allowed_rooms.append(room)
+
+            slot["combo"].blockSignals(True)
+            slot["combo"].clear()
+            for room in allowed_rooms:
+                slot["combo"].addItem(ROOM_DISPLAY.get(room, room), room)
+            idx = slot["combo"].findData(current_room)
+            if idx < 0 and allowed_rooms:
+                idx = 0
+            if idx >= 0:
+                slot["combo"].setCurrentIndex(idx)
+            slot["combo"].blockSignals(False)
+
+        self._add_btn.setEnabled(len(self._slots) < len(self._room_choices()))
+
+    def _update_expected_pairs_label(self, slot: dict):
+        room = slot["combo"].currentData()
+        expected = self._room_expected_pairs.get(room)
+        slot["pairs_lbl"].setText(str(expected) if expected is not None else "—")
+
+    def _clear_slots(self):
+        for slot in list(self._slots):
+            self._slots_layout.removeWidget(slot["widget"])
+            slot["widget"].deleteLater()
+        self._slots = []
+
+    def _add_slot(
+        self,
+        room: str = None,
+        slot_type: str = "breeding",
+        emit: bool = True,
+        max_cats: int | None = None,
+        base_stim: float | None = None,
+    ):
+        choices = self._room_choices()
+        if len(self._slots) >= len(choices):
+            return
+        used = {s["combo"].currentData() for s in self._slots}
+        if room is None or room not in choices:
+            room = next((k for k in choices if k not in used), next(iter(choices), None))
+        if room is None:
+            return
+
+        w = QWidget()
+        w.setAutoFillBackground(True)
+        row = QHBoxLayout(w)
+        row.setContentsMargins(3, 2, 3, 2)
+        row.setSpacing(4)
+
+        # Color swatch (thin accent bar on the left)
+        swatch = QLabel()
+        swatch.setFixedSize(6, 18)
+        row.addWidget(swatch)
+
+        combo = QComboBox()
+        combo.setFixedWidth(82)
+        combo.setStyleSheet(
+            "QComboBox { background:#1a1a32; color:#ddd; border:1px solid #2a2a4a;"
+            " padding:2px 4px; font-size:11px; border-radius:3px; }"
+            "QComboBox::drop-down { border:none; }"
+            "QComboBox QAbstractItemView { background:#101023; color:#ddd;"
+            " selection-background-color:#252545; }"
+        )
+        for key in choices:
+            disp = ROOM_DISPLAY.get(key, key)
+            combo.addItem(disp, key)
+        idx = combo.findData(room)
+        if idx >= 0:
+            combo.setCurrentIndex(idx)
+        row.addWidget(combo)
+
+        is_fallback = (slot_type == "fallback")
+        type_btn = QPushButton("Fallback" if is_fallback else "Breeding")
+        type_btn.setCheckable(True)
+        type_btn.setChecked(is_fallback)
+        type_btn.setFixedWidth(70)
+        type_btn.setStyleSheet(self._SS_FALLBACK if is_fallback else self._SS_BREED)
+        row.addWidget(type_btn)
+
+        pairs_title = QLabel("Expected Pairs")
+        pairs_title.setStyleSheet("color:#777; font-size:11px; font-weight:bold;")
+        row.addWidget(pairs_title)
+
+        pairs_lbl = QLabel("—")
+        pairs_lbl.setFixedWidth(28)
+        pairs_lbl.setAlignment(Qt.AlignCenter)
+        pairs_lbl.setStyleSheet("color:#ddd; font-size:11px;")
+        row.addWidget(pairs_lbl)
+
+        cap_lbl = QLabel("Capacity")
+        cap_lbl.setStyleSheet("color:#777; font-size:11px; font-weight:bold;")
+        row.addWidget(cap_lbl)
+
+        cap_spin = QSpinBox()
+        cap_spin.setRange(0, 12)
+        cap_spin.setSpecialValueText("∞")
+        cap_spin.setFixedWidth(66)
+        cap_spin.setMinimumWidth(66)
+        cap_spin.setStyleSheet(
+            "QSpinBox { background:#0d0d1c; color:#ccc; border:1px solid #2a2a4a;"
+            " border-radius:3px; padding:2px 4px; font-size:11px; }"
+        )
+        cap_spin.setToolTip("Maximum cats allowed in this room. 0 means unlimited.")
+        if max_cats is not None:
+            capacity = max_cats
+        else:
+            capacity = 6 if slot_type != "fallback" else 0
+        try:
+            cap_spin.setValue(max(0, int(capacity)))
+        except (TypeError, ValueError):
+            cap_spin.setValue(6 if slot_type != "fallback" else 0)
+        row.addWidget(cap_spin)
+
+        stim_lbl = QLabel("Stim")
+        stim_lbl.setStyleSheet("color:#777; font-size:11px; font-weight:bold;")
+        row.addWidget(stim_lbl)
+
+        stim_spin = QSpinBox()
+        stim_spin.setRange(0, 200)
+        stim_spin.setFixedWidth(78)
+        stim_spin.setMinimumWidth(78)
+        stim_spin.setStyleSheet(
+            "QSpinBox { background:#0d0d1c; color:#ccc; border:1px solid #2a2a4a;"
+            " border-radius:3px; padding:2px 4px; font-size:11px; }"
+        )
+        stim_spin.setToolTip("Base stimulation from the room's furniture.")
+        stim_value = base_stim if base_stim is not None else self._default_room_stim(room)
+        try:
+            stim_spin.setValue(max(0, min(200, int(round(float(stim_value))))))
+        except (TypeError, ValueError):
+            stim_spin.setValue(max(0, min(200, int(round(self._default_room_stim(room))))))
+        row.addWidget(stim_spin)
+
+        up_btn = QPushButton("↑")
+        up_btn.setFixedWidth(22)
+        up_btn.setStyleSheet(self._SS_BTN)
+        up_btn.setToolTip("Move this room higher in priority.")
+        row.addWidget(up_btn)
+
+        dn_btn = QPushButton("↓")
+        dn_btn.setFixedWidth(22)
+        dn_btn.setStyleSheet(self._SS_BTN)
+        dn_btn.setToolTip("Move this room lower in priority.")
+        row.addWidget(dn_btn)
+
+        rm_btn = QPushButton("×")
+        rm_btn.setFixedWidth(20)
+        rm_btn.setStyleSheet(
+            "QPushButton { background:#3a1a1a; color:#e08080; border:1px solid #5a2a2a;"
+            " border-radius:3px; font-size:11px; }"
+            "QPushButton:hover { background:#5a2a2a; }"
+        )
+        row.addWidget(rm_btn)
+        row.addStretch(1)
+
+        slot = {
+            "combo": combo,
+            "type_btn": type_btn,
+            "pairs_lbl": pairs_lbl,
+            "cap_spin": cap_spin,
+            "stim_spin": stim_spin,
+            "up_btn": up_btn,
+            "dn_btn": dn_btn,
+            "widget": w,
+            "swatch": swatch,
+        }
+        self._slots.append(slot)
+        self._slots_layout.insertWidget(self._slots_layout.count() - 1, w)
+
+        def _update_swatch(_s=slot):
+            key = _s["combo"].currentData()
+            color = _room_color(key)
+            r, g, b = color.red(), color.green(), color.blue()
+            # Thin swatch bar: full color
+            _s["swatch"].setStyleSheet(
+                f"background-color: rgb({r},{g},{b}); border-radius: 2px;"
+            )
+            # Box background: heavily dimmed tint
+            tint = _room_tint(key)
+            _s["widget"].setStyleSheet(
+                f"QWidget {{ background-color: rgb({tint.red()},{tint.green()},{tint.blue()});"
+                " border-radius: 4px; }"
+            )
+
+        def _on_type(checked, _s=slot):
+            _s["type_btn"].setText("Fallback" if checked else "Breeding")
+            _s["type_btn"].setStyleSheet(self._SS_FALLBACK if checked else self._SS_BREED)
+            self._on_changed()
+
+        type_btn.toggled.connect(_on_type)
+        combo.currentIndexChanged.connect(lambda _: (_update_swatch(), self._update_expected_pairs_label(slot), self._refresh_room_choices(), self._on_changed()))
+        cap_spin.valueChanged.connect(lambda _: self._on_changed())
+        stim_spin.valueChanged.connect(lambda _: self._on_changed())
+        up_btn.clicked.connect(lambda checked=False, _s=slot: self._move(-1, _s))
+        dn_btn.clicked.connect(lambda checked=False, _s=slot: self._move(+1, _s))
+        rm_btn.clicked.connect(lambda checked=False, _s=slot: self._remove(_s))
+
+        _update_swatch()
+        self._update_expected_pairs_label(slot)
+        self._refresh_room_choices()
+
+        if emit:
+            self._on_changed()
+
+    def _move(self, direction: int, slot: dict):
+        if slot not in self._slots:
+            return
+        i = self._slots.index(slot)
+        j = i + direction
+        if not (0 <= j < len(self._slots)):
+            return
+        a, b = self._slots[i], self._slots[j]
+        a_room, b_room = a["combo"].currentData(), b["combo"].currentData()
+        a_fb, b_fb = a["type_btn"].isChecked(), b["type_btn"].isChecked()
+        a_cap, b_cap = a["cap_spin"].value(), b["cap_spin"].value()
+        a_stim, b_stim = a["stim_spin"].value(), b["stim_spin"].value()
+        for s in (a, b):
+            s["combo"].blockSignals(True)
+            s["type_btn"].blockSignals(True)
+            s["cap_spin"].blockSignals(True)
+            s["stim_spin"].blockSignals(True)
+        a["combo"].setCurrentIndex(a["combo"].findData(b_room))
+        b["combo"].setCurrentIndex(b["combo"].findData(a_room))
+        a["type_btn"].setChecked(b_fb)
+        b["type_btn"].setChecked(a_fb)
+        a["cap_spin"].setValue(b_cap)
+        b["cap_spin"].setValue(a_cap)
+        a["stim_spin"].setValue(b_stim)
+        b["stim_spin"].setValue(a_stim)
+        for s in (a, b):
+            s["combo"].blockSignals(False)
+            s["type_btn"].blockSignals(False)
+            s["cap_spin"].blockSignals(False)
+            s["stim_spin"].blockSignals(False)
+            is_fb = s["type_btn"].isChecked()
+            s["type_btn"].setText("Fallback" if is_fb else "Breeding")
+            s["type_btn"].setStyleSheet(self._SS_FALLBACK if is_fb else self._SS_BREED)
+            key = s["combo"].currentData()
+            color = ROOM_COLORS.get(key, QColor(80, 80, 100))
+            r, g, b = color.red(), color.green(), color.blue()
+            s["swatch"].setStyleSheet(
+                f"background-color: rgb({r},{g},{b}); border-radius: 2px;"
+            )
+            s["widget"].setStyleSheet(
+                f"QWidget {{ background-color: rgb({max(18,r//5)},{max(18,g//5)},{max(18,b//5)});"
+                " border-radius: 4px; }"
+            )
+            self._update_expected_pairs_label(s)
+        self._refresh_room_choices()
+        self._on_changed()
+
+    def _remove(self, slot: dict):
+        if slot not in self._slots:
+            return
+        self._slots.remove(slot)
+        self._slots_layout.removeWidget(slot["widget"])
+        slot["widget"].deleteLater()
+        self._refresh_room_choices()
+        self._on_changed()
+
+    def _on_changed(self, *, persist: bool = True):
+        if persist:
+            _save_room_priority_config(self.get_config(), self._save_path)
+        self.configChanged.emit()
+
+    def get_config(self) -> list[dict]:
+        return [
+            {
+                "room": s["combo"].currentData(),
+                "type": "fallback" if s["type_btn"].isChecked() else "breeding",
+                "max_cats": int(s["cap_spin"].value()),
+                "base_stim": float(s["stim_spin"].value()),
+            }
+            for s in self._slots
+        ]
+
+    def set_config(self, config: list[dict]):
+        self._clear_slots()
+        for slot in config:
+            self._add_slot(
+                slot.get("room"),
+                slot.get("type", "breeding"),
+                emit=False,
+                max_cats=slot.get("max_cats", slot.get("capacity")),
+                base_stim=slot.get("base_stim", slot.get("stimulation")),
+            )
+        self._refresh_room_choices()
+
+    def set_available_rooms(self, rooms: list[str]):
+        ordered = [room for room in ROOM_DISPLAY.keys() if room in set(rooms or [])]
+        self._available_rooms = ordered or list(ROOM_DISPLAY.keys())
+        current = self.get_config()
+        max_slots = len(self._available_rooms)
+        normalized: list[dict] = []
+        for slot in current[:max_slots]:
+            room = slot.get("room")
+            if room not in self._available_rooms:
+                room = self._available_rooms[0] if self._available_rooms else None
+            if room is None:
+                continue
+            updated = dict(slot)
+            updated["room"] = room
+            normalized.append(updated)
+        self.set_config(normalized)
+        # Refresh dependent views without treating the load-time normalization as a user edit.
+        self._on_changed(persist=False)
+
+    def set_room_summaries(self, summaries: list[FurnitureRoomSummary] | dict[str, FurnitureRoomSummary]):
+        if isinstance(summaries, dict):
+            room_map = {
+                room: summary
+                for room, summary in summaries.items()
+                if room and isinstance(summary, FurnitureRoomSummary)
+            }
+        else:
+            room_map = {
+                summary.room: summary
+                for summary in summaries
+                if isinstance(summary, FurnitureRoomSummary) and summary.room
+            }
+        self._room_stats = room_map
+
+        if not self._slots:
+            self.configChanged.emit()
+            return
+
+        for slot in self._slots:
+            room = slot["combo"].currentData()
+            summary = room_map.get(room)
+            if summary is None:
+                continue
+            stim = max(0, min(200, int(round(float(summary.raw_effects.get("Stimulation", 0.0) or 0.0)))))
+            slot["stim_spin"].blockSignals(True)
+            slot["stim_spin"].setValue(stim)
+            slot["stim_spin"].setToolTip(
+                f"Base stimulation from furniture. Current room value: {stim}"
+            )
+            slot["stim_spin"].blockSignals(False)
+
+        self.configChanged.emit()
+
+    def set_room_expected_pairs(self, room_rows: list[dict] | dict[str, int]):
+        if isinstance(room_rows, dict):
+            self._room_expected_pairs = {
+                room: int(count)
+                for room, count in room_rows.items()
+                if room in ROOM_DISPLAY and isinstance(count, (int, float))
+            }
+        else:
+            self._room_expected_pairs = {
+                row.get("room"): int(row.get("pairs", []).__len__()) if isinstance(row, dict) else 0
+                for row in room_rows
+                if isinstance(row, dict) and row.get("room") in ROOM_DISPLAY
+            }
+        for slot in self._slots:
+            self._update_expected_pairs_label(slot)

@@ -1,0 +1,1034 @@
+"""CatDetailPanel, LineageDialog, and chip helper widgets."""
+from typing import Optional
+
+from PySide6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QScrollArea,
+    QGridLayout, QPushButton, QSpinBox, QSizePolicy,
+    QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
+    QDialog, QToolButton, QMenu,
+)
+from PySide6.QtCore import Qt, Signal, QTimer, QItemSelectionModel
+from PySide6.QtGui import QColor, QBrush, QFont
+
+from save_parser import (
+    Cat, STAT_NAMES,
+    can_breed, risk_percent, kinship_coi,
+    get_parents, get_grandparents, find_common_ancestors,
+    _appearance_group_names, _appearance_preview_text,
+    _inheritance_candidates,
+    _malady_breakdown,
+)
+from breeding import pair_projection, score_pair as score_pair_factors
+from mewgenics.constants import (
+    STAT_COLORS, PAIR_COLORS,
+    COL_BL, COL_MB,
+    _CHIP_STYLE, _DEFECT_CHIP_STYLE, _NAME_STYLE, _META_STYLE,
+    _WARN_STYLE, _SAFE_STYLE, _ANCS_STYLE, _PANEL_BG, _DETAIL_TEXT_STYLE, _NOTE_STYLE,
+)
+from mewgenics.utils.localization import _tr
+from mewgenics.utils.config import _load_app_config, _save_app_config
+from mewgenics.utils.cat_analysis import _cat_base_sum, _pair_breakpoint_analysis
+from mewgenics.utils.calibration import _trait_label_from_value, _trait_level_color
+from mewgenics.utils.abilities import (
+    _mutation_display_name, _ability_tip,
+    _ability_effect_lines, _mutation_effect_lines,
+    _trait_inheritance_probabilities,
+)
+from mewgenics.utils.game_data import _GPAK_PATH
+from mewgenics.utils.styling import (
+    _chip, _defect_chip, _sec, _vsep, _hsep,
+    _detail_text_block, _enforce_min_font_in_widget_tree,
+)
+
+
+def _wrapped_chip_block(items, tooltip_fn=None, display_fn=None, max_per_row: int = 5) -> QWidget:
+    box = QWidget()
+    layout = QVBoxLayout(box)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setSpacing(4)
+    if not items:
+        return box
+    for start in range(0, len(items), max_per_row):
+        row = QHBoxLayout()
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(5)
+        for item in items[start:start + max_per_row]:
+            if isinstance(item, tuple):
+                text, tip = item
+                tip = tip or (tooltip_fn(text) if tooltip_fn else "")
+            else:
+                text = display_fn(item) if display_fn else item
+                tip = tooltip_fn(item) if tooltip_fn else ""
+            row.addWidget(_chip(text, tip))
+        row.addStretch()
+        layout.addLayout(row)
+    return box
+
+
+class ChipRow(QWidget):
+    def __init__(self, items, tooltip_fn=None, display_fn=None):
+        super().__init__()
+        row = QHBoxLayout(self)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(5)
+        for item in items:
+            if isinstance(item, tuple):
+                text, tip = item
+                tip = tip or (tooltip_fn(text) if tooltip_fn else "")
+            else:
+                text = display_fn(item) if display_fn else item
+                tip = tooltip_fn(item) if tooltip_fn else ""
+            row.addWidget(_chip(text, tip))
+        row.addStretch()
+
+
+def _defect_chip_row(items, tooltip_fn=None) -> QWidget:
+    """Like ChipRow but uses the reddish defect chip style."""
+    w = QWidget()
+    row = QHBoxLayout(w)
+    row.setContentsMargins(0, 0, 0, 0)
+    row.setSpacing(5)
+    for item in items:
+        if isinstance(item, tuple):
+            text, tip = item
+            tip = tip or (tooltip_fn(text) if tooltip_fn else "")
+        else:
+            text = item
+            tip = tooltip_fn(item) if tooltip_fn else ""
+        row.addWidget(_defect_chip(text, tip))
+    row.addStretch()
+    return w
+
+
+class CatDetailPanel(QWidget):
+    """
+    Bottom panel driven by table selection.
+    1 cat  → abilities / mutations / ancestry
+    2 cats → breeding comparison with lineage safety check
+    """
+
+    @property
+    def current_cats(self) -> list[Cat]:
+        return self._current_cats
+
+    def __init__(self):
+        super().__init__()
+        self.setStyleSheet(_PANEL_BG)
+        self.setFixedHeight(0)
+        self._show_lineage: bool = False
+        self._pair_stimulation: int = int(_load_app_config().get("pair_stimulation", 50) or 50)
+        self._current_cats: list[Cat] = []
+
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(14, 10, 14, 10)
+        outer.setSpacing(0)
+        self._scroll = QScrollArea()
+        self._scroll.setWidgetResizable(True)
+        self._scroll.setFrameShape(QFrame.NoFrame)
+        self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self._scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self._scroll.setStyleSheet("QScrollArea { border:none; background:#0a0a18; }")
+        self._content = QWidget()
+        self._scroll.setWidget(self._content)
+        outer.addWidget(self._scroll)
+
+    def set_show_lineage(self, show: bool):
+        self._show_lineage = show
+
+    def show_cats(self, cats: list[Cat]):
+        self._current_cats = list(cats)
+        self._content = QWidget()
+        self._scroll.setWidget(self._content)
+
+        if not cats:
+            self.setFixedHeight(0)
+            return
+
+        min_h = 160 if len(cats) == 1 else 220
+        self.setMinimumHeight(min_h)
+        self.setMaximumHeight(16777215)   # remove the fixed-height lock
+
+        if len(cats) == 1:
+            self._build_single(cats[0])
+        else:
+            self._build_pair(cats[0], cats[1])
+        _enforce_min_font_in_widget_tree(self)
+
+    # ── Single cat ─────────────────────────────────────────────────────────
+
+    def _build_single(self, cat: Cat):
+        root = QHBoxLayout(self._content)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(20)
+
+        # Identity
+        id_col = QVBoxLayout()
+        id_col.setSpacing(3)
+        name_row = QHBoxLayout()
+        nl = QLabel(cat.name); nl.setStyleSheet(_NAME_STYLE)
+        gl = QLabel(cat.gender_display)
+        gl.setStyleSheet("color:#7ac; font-size:12px; font-weight:bold;")
+        name_row.addWidget(nl); name_row.addWidget(gl); name_row.addStretch()
+        id_col.addLayout(name_row)
+
+        id_col.addWidget(QLabel(cat.room_display or "—", styleSheet=_META_STYLE))
+
+        # Stats: compact grid with shared Base / Mod / Total row labels.
+        id_col.addSpacing(4)
+        stats_box = QWidget()
+        stats_box.setStyleSheet("background:#101024; border:1px solid #1e1e38; border-radius:4px;")
+        stats_grid = QGridLayout(stats_box)
+        stats_grid.setContentsMargins(6, 4, 6, 4)
+        stats_grid.setHorizontalSpacing(6)
+        stats_grid.setVerticalSpacing(1)
+        stats_box.setMinimumWidth(280)
+
+        corner = QLabel("")
+        corner.setStyleSheet("color:#888; font-size:9px;")
+        stats_grid.addWidget(corner, 0, 0)
+        stats_grid.setColumnMinimumWidth(0, 34)
+
+        for col, stat_name in enumerate(STAT_NAMES, start=1):
+            head = QLabel(stat_name)
+            head.setStyleSheet("color:#888; font-size:9px; font-weight:bold;")
+            head.setAlignment(Qt.AlignCenter)
+            stats_grid.addWidget(head, 0, col)
+            stats_grid.setColumnMinimumWidth(col, 28)
+
+        for row, label in enumerate((_tr("cat_detail.base"), _tr("cat_detail.mod"), _tr("cat_detail.total")), start=1):
+            row_lbl = QLabel(label)
+            row_lbl.setStyleSheet("color:#777; font-size:9px; font-weight:bold;")
+            stats_grid.addWidget(row_lbl, row, 0)
+
+        for col, stat_name in enumerate(STAT_NAMES, start=1):
+            base = cat.base_stats[stat_name]
+            total = cat.total_stats[stat_name]
+            delta = total - base
+            delta_sign = "+" if delta > 0 else ""
+            delta_color = "#5a9" if delta > 0 else ("#c55" if delta < 0 else "#888")
+            base_bg = STAT_COLORS.get(base, QColor(45, 45, 60)).name()
+            total_bg = STAT_COLORS.get(total, QColor(45, 45, 60)).name()
+
+            base_lbl = QLabel(str(base))
+            base_lbl.setStyleSheet(
+                f"background:{base_bg}; color:#fff; font-size:9px; font-weight:bold;"
+                "border-radius:3px; padding:1px 4px;"
+            )
+            base_lbl.setAlignment(Qt.AlignCenter)
+            stats_grid.addWidget(base_lbl, 1, col)
+
+            mod_lbl = QLabel(f"{delta_sign}{delta}")
+            mod_lbl.setStyleSheet(
+                f"background:{'#183820' if delta > 0 else ('#3a1818' if delta < 0 else '#101024')};"
+                f"color:{delta_color}; font-size:9px; border-radius:3px; padding:1px 4px;"
+            )
+            mod_lbl.setAlignment(Qt.AlignCenter)
+            stats_grid.addWidget(mod_lbl, 2, col)
+
+            total_lbl = QLabel(str(total))
+            total_lbl.setStyleSheet(
+                f"background:{total_bg}; color:#fff; font-size:9px; font-weight:bold;"
+                "border-radius:3px; padding:1px 4px;"
+            )
+            total_lbl.setAlignment(Qt.AlignCenter)
+            stats_grid.addWidget(total_lbl, 3, col)
+
+        id_col.addWidget(stats_box)
+
+        def _navigate(target: Cat):
+            mw = self.window()
+            # Use "All Cats" view so gone/adventure cats are always reachable
+            mw._filter("__all__", mw._btn_everyone)
+            for row in range(mw._source_model.rowCount()):
+                if mw._source_model.cat_at(row) is target:
+                    proxy_idx = mw._proxy_model.mapFromSource(
+                        mw._source_model.index(row, 0))
+                    if proxy_idx.isValid():
+                        mw._table.selectionModel().setCurrentIndex(
+                            proxy_idx,
+                            QItemSelectionModel.SelectionFlag.ClearAndSelect |
+                            QItemSelectionModel.SelectionFlag.Rows)
+                        mw._table.scrollTo(proxy_idx)
+                    break
+
+        if self._show_lineage:
+            tree_btn = QPushButton(_tr("cat_detail.family_tree"))
+            tree_btn.setStyleSheet(
+                "QPushButton { color:#5a8aaa; background:transparent; border:1px solid #252545;"
+                " padding:3px 8px; border-radius:4px; font-size:10px; }"
+                "QPushButton:hover { background:#131328; }")
+            tree_btn.clicked.connect(lambda: LineageDialog(cat, self, navigate_fn=_navigate).exec())
+            id_col.addWidget(tree_btn)
+
+        # Blacklist toggle button
+        blacklist_btn = QPushButton(_tr("cat_detail.include_in_breeding") if not cat.is_blacklisted else _tr("cat_detail.exclude_from_breeding"))
+        blacklist_btn.setStyleSheet(
+            "QPushButton { color:#888; background:transparent; border:1px solid #252545;"
+            " padding:3px 8px; border-radius:4px; font-size:10px; }"
+            "QPushButton:hover { background:#131328; color:#ddd; }")
+        def _toggle_blacklist():
+            cat.is_blacklisted = not cat.is_blacklisted
+            if cat.is_blacklisted:
+                cat.must_breed = False
+            blacklist_btn.setText(_tr("cat_detail.include_in_breeding") if not cat.is_blacklisted else _tr("cat_detail.exclude_from_breeding"))
+            must_breed_btn.setText(_tr("cat_detail.must_breed") if cat.must_breed else _tr("cat_detail.normal_priority"))
+            mw = self.window()
+            if hasattr(mw, "_source_model") and mw._source_model is not None:
+                for row in range(mw._source_model.rowCount()):
+                    if mw._source_model.cat_at(row) is cat:
+                        idx_bl = mw._source_model.index(row, COL_BL)
+                        idx_mb = mw._source_model.index(row, COL_MB)
+                        mw._source_model.dataChanged.emit(idx_bl, idx_bl, [Qt.DisplayRole, Qt.CheckStateRole, Qt.ToolTipRole])
+                        mw._source_model.dataChanged.emit(idx_mb, idx_mb, [Qt.DisplayRole, Qt.CheckStateRole, Qt.ToolTipRole])
+                        # Emit blacklistChanged which will trigger _on_blacklist_changed
+                        mw._source_model.blacklistChanged.emit()
+                        break
+        blacklist_btn.clicked.connect(_toggle_blacklist)
+        id_col.addWidget(blacklist_btn)
+
+        # Must breed toggle button
+        must_breed_btn = QPushButton(_tr("cat_detail.must_breed") if cat.must_breed else _tr("cat_detail.normal_priority"))
+        must_breed_btn.setStyleSheet(
+            "QPushButton { color:#888; background:transparent; border:1px solid #252545;"
+            " padding:3px 8px; border-radius:4px; font-size:10px; }"
+            "QPushButton:hover { background:#131328; color:#ddd; }")
+        def _toggle_must_breed():
+            cat.must_breed = not cat.must_breed
+            if cat.must_breed:
+                cat.is_blacklisted = False
+            must_breed_btn.setText(_tr("cat_detail.must_breed") if cat.must_breed else _tr("cat_detail.normal_priority"))
+            blacklist_btn.setText(_tr("cat_detail.include_in_breeding") if not cat.is_blacklisted else _tr("cat_detail.exclude_from_breeding"))
+            mw = self.window()
+            if hasattr(mw, "_source_model") and mw._source_model is not None:
+                for row in range(mw._source_model.rowCount()):
+                    if mw._source_model.cat_at(row) is cat:
+                        idx_bl = mw._source_model.index(row, COL_BL)
+                        idx_mb = mw._source_model.index(row, COL_MB)
+                        mw._source_model.dataChanged.emit(idx_bl, idx_bl, [Qt.DisplayRole, Qt.CheckStateRole, Qt.ToolTipRole])
+                        mw._source_model.dataChanged.emit(idx_mb, idx_mb, [Qt.DisplayRole, Qt.CheckStateRole, Qt.ToolTipRole])
+                        # Emit blacklistChanged to save must_breed state
+                        mw._source_model.blacklistChanged.emit()
+                        break
+        must_breed_btn.clicked.connect(_toggle_must_breed)
+        id_col.addWidget(must_breed_btn)
+
+        id_col.addStretch()
+        root.addLayout(id_col)
+
+        # Abilities
+        if cat.abilities or cat.passive_abilities or cat.disorders:
+            root.addWidget(_vsep())
+            ab = QVBoxLayout(); ab.setSpacing(4)
+            ab.addWidget(_sec("ABILITIES"))
+            ab.addWidget(ChipRow(cat.abilities, tooltip_fn=_ability_tip))
+            if cat.passive_abilities:
+                ab.addWidget(_sec("PASSIVE"))
+                ab.addWidget(ChipRow(
+                    cat.passive_abilities,
+                    tooltip_fn=_ability_tip,
+                    display_fn=lambda n: f"● {_mutation_display_name(n)}",
+                ))
+            if cat.disorders:
+                ab.addWidget(_sec("DISORDERS"))
+                ab.addWidget(ChipRow(
+                    cat.disorders,
+                    tooltip_fn=_ability_tip,
+                    display_fn=lambda n: f"⚠ {_mutation_display_name(n)}",
+                ))
+            ability_lines = _ability_effect_lines(cat)
+            if ability_lines:
+                ab.addWidget(_detail_text_block(ability_lines))
+            elif not _GPAK_PATH:
+                ab.addWidget(_detail_text_block(
+                    ["Ability descriptions unavailable. Set MEWGENICS_GPAK_PATH or place resources.gpak next to the app."],
+                    style=_NOTE_STYLE,
+                ))
+            ab.addStretch()
+            root.addLayout(ab)
+
+        # Mutations
+        if cat.mutations or cat.defects:
+            root.addWidget(_vsep())
+            mu = QVBoxLayout(); mu.setSpacing(4)
+            if cat.mutations:
+                mu.addWidget(_sec("MUTATIONS"))
+                mu.addWidget(ChipRow(cat.mutation_chip_items, tooltip_fn=_ability_tip))
+                mutation_lines = _mutation_effect_lines(cat)
+                if mutation_lines:
+                    mu.addWidget(_detail_text_block(mutation_lines))
+                elif not _GPAK_PATH:
+                    mu.addWidget(_detail_text_block(
+                        ["Mutation effect text unavailable. Set MEWGENICS_GPAK_PATH or place resources.gpak next to the app."],
+                        style=_NOTE_STYLE,
+                    ))
+            if cat.defects:
+                mu.addWidget(_sec("BIRTH DEFECTS"))
+                mu.addWidget(_defect_chip_row(cat.defect_chip_items, tooltip_fn=_ability_tip))
+            mu.addStretch()
+            root.addLayout(mu)
+
+        # Equipment
+        if cat.equipment:
+            root.addWidget(_vsep())
+            eq = QVBoxLayout(); eq.setSpacing(4)
+            eq.addWidget(_sec("EQUIPMENT"))
+            eq.addWidget(ChipRow(cat.equipment))
+            eq.addStretch()
+            root.addLayout(eq)
+
+        # Ancestry
+        parents = get_parents(cat)
+        gparents = get_grandparents(cat)
+        repaired = bool(getattr(cat, "pedigree_was_repaired", False))
+        if parents or repaired:
+            root.addWidget(_vsep())
+            anc = QVBoxLayout(); anc.setSpacing(4)
+            anc.addWidget(_sec("LINEAGE"))
+
+            if parents:
+                source_text = " × ".join(f"{p.name} ({p.gender_display})" for p in parents)
+            else:
+                source_text = _tr("cat_detail.stray", default="Stray")
+            if repaired:
+                source_text += f" ({_tr('cat_detail.pedigree_repaired', default='pedigree repaired')})"
+
+            source_lbl = QLabel(source_text)
+            source_lbl.setStyleSheet(_ANCS_STYLE)
+            if repaired:
+                source_lbl.setToolTip(
+                    _tr(
+                        "cat_detail.pedigree_repaired_note",
+                        default="One or more parent links were broken while loading this save to prevent a pedigree cycle.",
+                    )
+                )
+            anc.addWidget(source_lbl)
+
+            if gparents:
+                gp_names = "  ·  ".join(gp.short_name for gp in gparents)
+                gl2 = QLabel(gp_names)
+                gl2.setStyleSheet("color:#555; font-size:10px;")
+                anc.addWidget(gl2)
+
+            anc.addStretch()
+            root.addLayout(anc)
+
+        # Lovers & haters
+        if cat.lovers or cat.haters:
+            root.addWidget(_vsep())
+            rel = QVBoxLayout(); rel.setSpacing(4)
+            if cat.lovers:
+                rel.addWidget(_sec("LOVERS"))
+                rel.addWidget(ChipRow([c.name for c in cat.lovers]))
+            if cat.haters:
+                rel.addWidget(_sec("HATERS"))
+                hl = ChipRow([c.name for c in cat.haters])
+                for i in range(hl.layout().count() - 1):  # tint hater chips red
+                    w = hl.layout().itemAt(i).widget()
+                    if w:
+                        w.setStyleSheet(w.styleSheet().replace("background:#252545", "background:#452020"))
+                rel.addWidget(hl)
+            rel.addStretch()
+            root.addLayout(rel)
+
+        root.addStretch()
+
+    # ── Breeding pair ──────────────────────────────────────────────────────
+
+    def _build_pair(self, a: Cat, b: Cat):
+        ok, reason = can_breed(a, b)
+
+        root = QVBoxLayout(self._content)
+        root.setContentsMargins(0, 4, 0, 0)
+        root.setSpacing(10)
+
+        # ── Header: parent names + room ────────────────────────────────────
+        hdr = QHBoxLayout()
+        hdr.setSpacing(6)
+
+        for cat in (a, b):
+            nl = QLabel(cat.name)
+            nl.setStyleSheet(_NAME_STYLE)
+            nl.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+            hdr.addWidget(nl)
+            gl = QLabel(cat.gender_display)
+            gl.setStyleSheet("color:#7ac; font-size:12px; font-weight:bold;")
+            hdr.addWidget(gl)
+            rl = QLabel(f"  {cat.room_display}" if cat.room_display else "")
+            rl.setStyleSheet(_META_STYLE)
+            hdr.addWidget(rl)
+            if cat is not b:
+                x = QLabel("×")
+                x.setStyleSheet("color:#444; font-size:14px; padding:0 10px;")
+                hdr.addWidget(x)
+
+        hdr.addStretch()
+        stim_lbl = QLabel(_tr("cat_detail.stimulation"))
+        stim_lbl.setStyleSheet(_META_STYLE)
+        hdr.addWidget(stim_lbl)
+        stim_box = QSpinBox()
+        stim_box.setRange(0, 100)
+        stim_box.setValue(max(0, min(100, int(self._pair_stimulation))))
+        stim_box.setFixedWidth(64)
+        stim_box.setStyleSheet(
+            "QSpinBox { background:#0d0d1c; color:#ccc; border:1px solid #2a2a4a;"
+            " border-radius:4px; padding:2px 6px; font-size:11px; }"
+        )
+        def _set_pair_stimulation(value: int):
+            self._pair_stimulation = int(value)
+            data = _load_app_config()
+            data["pair_stimulation"] = self._pair_stimulation
+            _save_app_config(data)
+            if len(self._current_cats) >= 2:
+                current_pair = list(self._current_cats[:2])
+                QTimer.singleShot(0, lambda pair=current_pair: self.show_cats(pair))
+        stim_box.valueChanged.connect(_set_pair_stimulation)
+        hdr.addWidget(stim_box)
+        if not ok:
+            hdr.addWidget(QLabel(f"⚠  {reason}", styleSheet=_WARN_STYLE))
+
+        root.addLayout(hdr)
+
+        if not ok:
+            root.addStretch()
+            return
+
+        # ── Stats grid + abilities ─────────────────────────────────────────
+        mid = QHBoxLayout()
+        mid.setSpacing(20)
+
+        # Grid rows: Cat A, Cat B, then Offspring last
+        grid_rows = [
+            (a, True),    # (cat, is_cat)
+            (b, True),
+            (None, False),  # offspring range
+        ]
+
+        grid_w = QWidget()
+        grid   = QGridLayout(grid_w)
+        grid.setHorizontalSpacing(5)
+        grid.setVerticalSpacing(5)
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setColumnMinimumWidth(0, 110)   # ensure label column has room for full names
+
+        # Stat column headers
+        for j, stat in enumerate(STAT_NAMES):
+            h = QLabel(stat)
+            h.setStyleSheet("color:#555; font-size:9px; font-weight:bold;")
+            h.setAlignment(Qt.AlignCenter)
+            grid.addWidget(h, 0, j + 1)
+        sum_col = len(STAT_NAMES) + 1
+        sh = QLabel(_tr("cat_detail.sum"))
+        sh.setStyleSheet("color:#455; font-size:9px; font-weight:bold;")
+        sh.setAlignment(Qt.AlignCenter)
+        grid.addWidget(sh, 0, sum_col)
+
+        for i, (cat, is_cat) in enumerate(grid_rows):
+            row_num = i + 1
+
+            # Label cell: name + gender chip for cat rows, plain text for offspring
+            lbl_w  = QWidget()
+            lbl_hb = QHBoxLayout(lbl_w)
+            lbl_hb.setContentsMargins(0, 0, 6, 0)
+            lbl_hb.setSpacing(5)
+
+            if is_cat:
+                name_lbl = QLabel(cat.name)
+                name_lbl.setStyleSheet("color:#ddd; font-size:11px; font-weight:bold;")
+                gen_lbl  = QLabel(cat.gender_display)
+                gen_lbl.setFixedWidth(20)
+                gen_lbl.setAlignment(Qt.AlignCenter)
+                gen_lbl.setStyleSheet(
+                    "color:#fff; background:#253555; border-radius:4px;"
+                    " font-size:10px; font-weight:bold;")
+                lbl_hb.addWidget(name_lbl)
+                lbl_hb.addWidget(gen_lbl)
+            else:
+                off_lbl = QLabel(_tr("cat_detail.offspring"))
+                off_lbl.setStyleSheet("color:#555; font-size:10px; font-style:italic;")
+                lbl_hb.addWidget(off_lbl)
+
+            lbl_hb.addStretch()
+            grid.addWidget(lbl_w, row_num, 0)
+
+            # Stat cells
+            for j, stat in enumerate(STAT_NAMES):
+                if is_cat:
+                    val  = cat.base_stats[stat]
+                    c    = STAT_COLORS.get(val, QColor(100, 100, 115))
+                    cell = QLabel(str(val))
+                    cell.setAlignment(Qt.AlignCenter)
+                    cell.setStyleSheet(
+                        f"background:rgb({c.red()},{c.green()},{c.blue()});"
+                        f"color:#fff; font-size:11px; font-weight:bold;"
+                        f"border-radius:2px; padding:2px 6px;")
+                else:
+                    va, vb = a.base_stats[stat], b.base_stats[stat]
+                    lo, hi = min(va, vb), max(va, vb)
+                    c      = STAT_COLORS.get(hi, QColor(100, 100, 115))
+                    text   = f"{lo}–{hi}" if lo != hi else str(lo)
+                    cell   = QLabel(text)
+                    cell.setAlignment(Qt.AlignCenter)
+                    cell.setStyleSheet(
+                        f"color:rgb({c.red()},{c.green()},{c.blue()});"
+                        f"font-size:11px; font-weight:bold;")
+                grid.addWidget(cell, row_num, j + 1)
+
+            # Sum cell
+            if is_cat:
+                sv = sum(cat.base_stats.values())
+                sc = QLabel(str(sv))
+                sc.setStyleSheet("color:#aaa; font-size:11px; font-weight:bold;")
+            else:
+                lo_s = sum(min(a.base_stats[st], b.base_stats[st]) for st in STAT_NAMES)
+                hi_s = sum(max(a.base_stats[st], b.base_stats[st]) for st in STAT_NAMES)
+                sc = QLabel(f"{lo_s}–{hi_s}" if lo_s != hi_s else str(lo_s))
+                sc.setStyleSheet("color:#777; font-size:11px; font-weight:bold;")
+            sc.setAlignment(Qt.AlignCenter)
+            grid.addWidget(sc, row_num, sum_col)
+
+        mid.addWidget(grid_w)
+        mid.addWidget(_vsep())
+
+        # Inherited personality traits (based on parsed/calibrated parent values)
+        trait_col = QVBoxLayout()
+        trait_col.setSpacing(6)
+        trait_col.addWidget(_sec("INHERITED TRAITS"))
+
+        def _trait_text(field: str, value) -> str:
+            label = _trait_label_from_value(field, value)
+            return label if label else "unknown"
+
+        def _offspring_trait_text(field: str, va, vb) -> str:
+            if va is None or vb is None:
+                return "unknown"
+            lo = min(float(va), float(vb))
+            hi = max(float(va), float(vb))
+            lo_label = _trait_label_from_value(field, lo) or "unknown"
+            hi_label = _trait_label_from_value(field, hi) or "unknown"
+            if lo_label == hi_label:
+                return lo_label
+            return f"{lo_label} to {hi_label}"
+
+        def _trait_chip(text: str) -> QLabel:
+            chip = _chip(text)
+            color = _trait_level_color(text)
+            chip.setStyleSheet(
+                f"QLabel {{ background:rgb({color.red()},{color.green()},{color.blue()}); "
+                f"color:#fff; border-radius:6px; padding:2px 7px; font-size:11px; }}"
+            )
+            return chip
+
+        for field, title in (
+            ("aggression", "Aggression"),
+            ("libido", "Libido"),
+            ("inbredness", "Inbredness"),
+        ):
+            va = getattr(a, field, None)
+            vb = getattr(b, field, None)
+            row = QHBoxLayout()
+            row.setSpacing(5)
+            row.addWidget(QLabel(f"{title}:", styleSheet="color:#555; font-size:10px;"))
+            row.addWidget(_trait_chip(_trait_text(field, va)))
+            row.addWidget(QLabel("x", styleSheet="color:#444; font-size:10px;"))
+            row.addWidget(_trait_chip(_trait_text(field, vb)))
+            row.addWidget(QLabel("->", styleSheet="color:#666; font-size:10px;"))
+            row.addWidget(_trait_chip(_offspring_trait_text(field, va, vb)))
+            row.addStretch()
+            trait_col.addLayout(row)
+
+        trait_col.addStretch()
+        mid.addLayout(trait_col)
+        mid.addWidget(_vsep())
+
+        # Abilities column
+        ab_col = QVBoxLayout()
+        ab_col.setSpacing(6)
+        ab_col.addWidget(_sec("ABILITIES"))
+        for cat in (a, b):
+            if cat.abilities or cat.passive_abilities or cat.disorders:
+                ab_col.addWidget(QLabel(f"{cat.name}:", styleSheet="color:#555; font-size:10px;"))
+                ability_items = [(ab, _ability_tip(ab)) for ab in cat.abilities]
+                ability_items.extend(
+                    (f"● {_mutation_display_name(pa)}", _ability_tip(pa))
+                    for pa in cat.passive_abilities
+                )
+                ability_items.extend(
+                    (f"⚠ {_mutation_display_name(d)}", _ability_tip(d))
+                    for d in cat.disorders
+                )
+                ab_col.addWidget(_wrapped_chip_block(ability_items, max_per_row=4))
+        ab_col.addStretch()
+        mid.addLayout(ab_col)
+        mid.addWidget(_vsep())
+
+        if a.mutations or b.mutations or a.defects or b.defects:
+            mu_col = QVBoxLayout()
+            mu_col.setSpacing(6)
+            if a.mutations or b.mutations:
+                mu_col.addWidget(_sec("MUTATIONS"))
+                for cat in (a, b):
+                    if cat.mutations:
+                        mu_col.addWidget(QLabel(f"{cat.name}:", styleSheet="color:#555; font-size:10px;"))
+                        mu_col.addWidget(_wrapped_chip_block(cat.mutation_chip_items, max_per_row=3))
+            if a.defects or b.defects:
+                mu_col.addWidget(_sec("BIRTH DEFECTS"))
+                for cat in (a, b):
+                    if cat.defects:
+                        mu_col.addWidget(QLabel(f"{cat.name}:", styleSheet="color:#555; font-size:10px;"))
+                        mu_col.addWidget(_defect_chip_row(cat.defect_chip_items, tooltip_fn=_ability_tip))
+            mu_col.addStretch()
+            mid.addLayout(mu_col)
+
+        root.addLayout(mid)
+
+        stim = float(self._pair_stimulation)
+        active_candidates, share_a, share_b = _inheritance_candidates(
+            list(a.abilities),
+            list(b.abilities),
+            stim,
+        )
+        passive_candidates, _, _ = _inheritance_candidates(
+            list(a.passive_abilities),
+            list(b.passive_abilities),
+            stim,
+            display_fn=_mutation_display_name,
+        )
+        breakpoint_info = _pair_breakpoint_analysis(a, b, stim)
+
+        inh = QVBoxLayout()
+        inh.setSpacing(6)
+        inh.addWidget(_sec("INHERITANCE"))
+        inh_note = QLabel(
+            f"Estimated at stimulation {int(stim)}. Parent source weighting: "
+            f"{a.name} {share_a * 100:.0f}% / {b.name} {share_b * 100:.0f}%."
+        )
+        inh_note.setStyleSheet(_META_STYLE)
+        inh_note.setWordWrap(True)
+        inh.addWidget(inh_note)
+
+        active_label = QLabel("Active spell candidates", styleSheet="color:#555; font-size:10px;")
+        inh.addWidget(active_label)
+        if active_candidates:
+            inh.addWidget(_wrapped_chip_block(active_candidates, max_per_row=5))
+        else:
+            inh.addWidget(QLabel("No active ability candidates.", styleSheet=_META_STYLE))
+
+        passive_label = QLabel("Passive candidates", styleSheet="color:#555; font-size:10px;")
+        inh.addWidget(passive_label)
+        if passive_candidates:
+            inh.addWidget(_wrapped_chip_block(passive_candidates, max_per_row=4))
+        else:
+            inh.addWidget(QLabel("No passive candidates.", styleSheet=_META_STYLE))
+
+        # ── Trait inheritance probabilities ──
+        trait_probs = _trait_inheritance_probabilities(a, b, stim)
+        if trait_probs:
+            inh.addWidget(QLabel(_tr("cat_detail.trait_inheritance"), styleSheet="color:#555; font-size:10px;"))
+            prob_chips: list[tuple[str, str]] = []
+            for display, category, prob, detail in trait_probs:
+                pct = prob * 100
+                cat_label = {"ability": _tr("cat_detail.spell"), "passive": _tr("cat_detail.passive"), "mutation": _tr("cat_detail.mutation")}.get(category, category)
+                chip_text = f"{display} {pct:.0f}%"
+                tip_text = f"[{cat_label}] {detail}\n{_ability_tip(display)}" if _ability_tip(display) else f"[{cat_label}] {detail}"
+                prob_chips.append((chip_text, tip_text))
+            inh.addWidget(_wrapped_chip_block(prob_chips, max_per_row=5))
+
+        # ── Risk breakdown ──
+        coi = kinship_coi(a, b)
+        disorder_ch, part_defect_ch, combined_ch = _malady_breakdown(coi)
+        risk_row = QHBoxLayout()
+        risk_row.setSpacing(8)
+        risk_row.addWidget(QLabel("Risk:", styleSheet="color:#555; font-size:10px;"))
+
+        def _risk_chip(text: str, value: float) -> QLabel:
+            c = _chip(text)
+            if value > 0.10:
+                bg = "#6a2a2a"
+            elif value > 0.03:
+                bg = "#5a4a2a"
+            else:
+                bg = "#2a3a2a"
+            c.setStyleSheet(
+                f"QLabel {{ background:{bg}; color:#ddd; border-radius:6px;"
+                f" padding:2px 7px; font-size:11px; }}")
+            return c
+
+        risk_row.addWidget(_risk_chip(f"Disorder {disorder_ch*100:.1f}%", disorder_ch))
+        risk_row.addWidget(_risk_chip(f"Part defect {part_defect_ch*100:.1f}%", part_defect_ch))
+        risk_row.addWidget(_risk_chip(f"Combined {combined_ch*100:.1f}%", combined_ch))
+        disorder_tip = QLabel("(?)")
+        disorder_tip.setStyleSheet("color:#555; font-size:10px;")
+        disorder_tip.setToolTip(
+            "Disorder: base 2%, scales above 0.20 CoI\n"
+            "Part defect: 0 below 0.05 CoI, then 1.5x CoI\n"
+            "Combined: chance of at least one occurring"
+        )
+        risk_row.addWidget(disorder_tip)
+        risk_row.addStretch()
+        inh.addLayout(risk_row)
+
+        root.addLayout(inh)
+
+        # ── Breakpoints + appearance + lineage ─────────────────────────────
+        bot = QHBoxLayout()
+        bot.setSpacing(20)
+
+        bp_col = QVBoxLayout()
+        bp_col.setSpacing(6)
+        bp_col.addWidget(_sec("BREAKPOINT HINTS"))
+        bp_note = QLabel(
+            f"{breakpoint_info['headline']}  |  "
+            f"Sum range {breakpoint_info['sum_range'][0]}-{breakpoint_info['sum_range'][1]}  |  "
+            f"Expected avg {breakpoint_info['avg_expected']:.1f}"
+        )
+        bp_note.setStyleSheet(_DETAIL_TEXT_STYLE)
+        bp_note.setWordWrap(True)
+        bp_col.addWidget(bp_note)
+
+        bp_table = QTableWidget(4, len(STAT_NAMES))
+        bp_table.setHorizontalHeaderLabels(STAT_NAMES)
+        bp_table.setVerticalHeaderLabels(["Range", "Exp", "Breakpoint", "Hint"])
+        bp_table.setSelectionMode(QAbstractItemView.NoSelection)
+        bp_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        bp_table.setFocusPolicy(Qt.NoFocus)
+        bp_table.setWordWrap(False)
+        bp_table.setStyleSheet("""
+            QTableWidget {
+                background:#0d0d1c; alternate-background-color:#131326;
+                color:#ddd; border:1px solid #26264a; font-size:11px;
+            }
+            QTableWidget::item { padding:2px 4px; }
+            QHeaderView::section {
+                background:#16213e; color:#888; padding:4px 3px;
+                border:none; border-bottom:1px solid #1e1e38;
+                border-right:1px solid #16213e; font-size:10px; font-weight:bold;
+            }
+        """)
+        bp_hh = bp_table.horizontalHeader()
+        for col in range(len(STAT_NAMES)):
+            bp_hh.setSectionResizeMode(col, QHeaderView.Stretch)
+        bp_vh = bp_table.verticalHeader()
+        for row in range(4):
+            bp_vh.setSectionResizeMode(row, QHeaderView.ResizeToContents)
+        for col_idx, row in enumerate(breakpoint_info["rows"]):
+            status_color = {
+                "locked": QColor(98, 194, 135),
+                "can hit 7": QColor(143, 201, 230),
+                "one step off": QColor(216, 181, 106),
+                "stalled": QColor(190, 145, 40),
+            }.get(row["status"], QColor(120, 120, 135))
+            range_item = QTableWidgetItem(f"{row['lo']}-{row['hi']}" if row["lo"] != row["hi"] else str(row["lo"]))
+            exp_item = QTableWidgetItem(f"{row['expected']:.1f}")
+            status_item = QTableWidgetItem(row["status"])
+            hint_text = (
+                "lock" if row["status"] == "locked"
+                else "7 now" if row["status"] == "can hit 7"
+                else "next up" if row["status"] == "one step off"
+                else "needs help"
+            )
+            hint_item = QTableWidgetItem(hint_text)
+            for item in (range_item, exp_item, status_item, hint_item):
+                item.setForeground(QBrush(status_color))
+                item.setTextAlignment(Qt.AlignCenter)
+            bp_table.setItem(0, col_idx, range_item)
+            bp_table.setItem(1, col_idx, exp_item)
+            bp_table.setItem(2, col_idx, status_item)
+            bp_table.setItem(3, col_idx, hint_item)
+        bp_table.resizeRowsToContents()
+        bp_height = bp_table.horizontalHeader().height() + 4
+        for row in range(bp_table.rowCount()):
+            bp_height += bp_table.rowHeight(row)
+        bp_height += 4
+        bp_table.setFixedHeight(bp_height)
+        bp_col.addWidget(bp_table)
+        if breakpoint_info["hints"]:
+            hints_lbl = QLabel("  |  ".join(breakpoint_info["hints"][:2]))
+            hints_lbl.setStyleSheet(_META_STYLE)
+            hints_lbl.setWordWrap(True)
+            bp_col.addWidget(hints_lbl)
+        bot.addLayout(bp_col, 2)
+        bot.addWidget(_vsep())
+
+        app_col = QVBoxLayout()
+        app_col.setSpacing(6)
+        app_col.addWidget(_sec("APPEARANCE PREVIEW"))
+        app_note = QLabel(_tr("cat_detail.appearance_preview"))
+        app_note.setStyleSheet(_META_STYLE)
+        app_note.setWordWrap(True)
+        app_col.addWidget(app_note)
+
+        appearance_groups = [
+            ("fur", _tr("cat_detail.appearance.fur")),
+            ("body", _tr("cat_detail.appearance.body")),
+            ("head", _tr("cat_detail.appearance.head")),
+            ("tail", _tr("cat_detail.appearance.tail")),
+            ("ears", _tr("cat_detail.appearance.ears")),
+            ("eyes", _tr("cat_detail.appearance.eyes")),
+            ("mouth", _tr("cat_detail.appearance.mouth")),
+        ]
+        shown_preview = False
+        for group_key, title in appearance_groups:
+            a_names = _appearance_group_names(a, group_key)
+            b_names = _appearance_group_names(b, group_key)
+            if not a_names and not b_names:
+                continue
+            shown_preview = True
+            row = QHBoxLayout()
+            row.setSpacing(5)
+            row.addWidget(QLabel(f"{title}:", styleSheet="color:#555; font-size:10px;"))
+            row.addWidget(_chip(" / ".join(a_names) if a_names else "Base"))
+            row.addWidget(QLabel("x", styleSheet="color:#444; font-size:10px;"))
+            row.addWidget(_chip(" / ".join(b_names) if b_names else "Base"))
+            row.addWidget(QLabel("->", styleSheet="color:#666; font-size:10px;"))
+            row.addWidget(_chip(_appearance_preview_text(a_names, b_names)))
+            row.addStretch()
+            app_col.addLayout(row)
+
+        if not shown_preview:
+            app_col.addWidget(QLabel(_tr("cat_detail.no_appearance_data"), styleSheet=_META_STYLE))
+
+        app_col.addStretch()
+        bot.addLayout(app_col, 1)
+        if self._show_lineage:
+            bot.addWidget(_vsep())
+
+        if self._show_lineage:
+            lc = QVBoxLayout()
+            lc.setSpacing(3)
+            lc.addWidget(_sec("LINEAGE"))
+            common    = find_common_ancestors(a, b)
+            is_direct = (a in get_parents(b) or b in get_parents(a))
+            is_haters = (b in getattr(a, 'haters', []) or a in getattr(b, 'haters', []))
+
+            if is_haters:
+                lc.addWidget(QLabel("⚠  These cats hate each other", styleSheet=_WARN_STYLE))
+            if is_direct:
+                lc.addWidget(QLabel("⚠  Direct parent/offspring", styleSheet=_WARN_STYLE))
+            elif common:
+                lc.addWidget(QLabel(
+                    f"⚠  {len(common)} shared ancestor{'s' if len(common) > 1 else ''}: "
+                    + "  ·  ".join(c.short_name for c in common[:6]),
+                    styleSheet=_WARN_STYLE))
+            elif get_parents(a) or get_parents(b):
+                lc.addWidget(QLabel("✓  No shared ancestors", styleSheet=_SAFE_STYLE))
+            else:
+                lc.addWidget(QLabel("—  Lineage unknown", styleSheet=_META_STYLE))
+
+            lc.addStretch()
+            bot.addLayout(lc)
+        bot.addStretch()
+
+        root.addLayout(bot)
+
+
+# ── Lineage tree dialog ───────────────────────────────────────────────────────
+
+class LineageDialog(QDialog):
+    """
+    Family tree dialog — generations from oldest (top) to newest (bottom).
+    Layout:  Grandparents → Parents → Self → Children → Grandchildren
+    """
+
+    def __init__(self, cat: 'Cat', parent=None, navigate_fn=None):
+        super().__init__(parent)
+        self.setWindowTitle(_tr("family_tree.title", name=cat.name))
+        self.setMinimumSize(700, 400)
+        self.setStyleSheet(
+            "QDialog { background:#0a0a18; }"
+            "QScrollArea { border:none; background:#0a0a18; }"
+            "QPushButton { background:#1e1e38; color:#ccc; border:1px solid #2a2a4a;"
+            " padding:5px 14px; border-radius:4px; font-size:11px; }"
+            "QPushButton:hover { background:#252555; }"
+        )
+
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(20, 16, 20, 14)
+        outer.setSpacing(12)
+
+        # ── Reusable box builder ─────────────────────────────────────────
+        def cat_box(cat_obj, highlight=False, dim=False):
+            if cat_obj is None:
+                btn = QPushButton(_tr("family_tree.unknown"))
+                btn.setEnabled(False)
+                btn.setStyleSheet(
+                    "QPushButton { color:#252535; font-size:10px; padding:6px 10px;"
+                    " background:#0d0d1c; border:1px solid #141424; border-radius:5px; }")
+            else:
+                line2 = cat_obj.gender_display
+                if cat_obj.room_display:
+                    line2 += f"  {cat_obj.room_display}"
+                bg     = "#1a2840" if highlight else ("#0e0e1a" if dim else "#121222")
+                border = "#3060a0" if highlight else ("#1a1a28" if dim else "#222238")
+                col    = "#ddd"    if not dim    else "#333"
+                can_nav = navigate_fn is not None and cat_obj is not cat
+                hover  = "#1d3560" if can_nav else bg
+                btn = QPushButton(f"{cat_obj.name}\n{line2}")
+                btn.setStyleSheet(
+                    f"QPushButton {{ color:{col}; font-size:10px; padding:6px 10px;"
+                    f" background:{bg}; border:1px solid {border}; border-radius:5px;"
+                    f" text-align:center; }}"
+                    f"QPushButton:hover {{ background:{hover}; }}")
+                if can_nav:
+                    btn.setCursor(Qt.CursorShape.PointingHandCursor)
+                    btn.clicked.connect(
+                        lambda checked=False, c=cat_obj: (self.accept(), navigate_fn(c)))
+            btn.setMinimumWidth(100)
+            btn.setMaximumWidth(200)
+            return btn
+
+        # ── Generation label ─────────────────────────────────────────────
+        def gen_row_label(text):
+            lbl = QLabel(text)
+            lbl.setStyleSheet(
+                "color:#333; font-size:9px; font-weight:bold; letter-spacing:1px;"
+                " min-width:90px;")
+            lbl.setAlignment(Qt.AlignVCenter | Qt.AlignRight)
+            return lbl
+
+        def make_gen_row(label_text, cat_list, highlight_all=False, dim_all=False):
+            row = QHBoxLayout()
+            row.setSpacing(8)
+            row.addWidget(gen_row_label(label_text))
+            for c in cat_list:
+                row.addWidget(cat_box(c, highlight=highlight_all,
+                                      dim=(dim_all and c is not None)))
+            row.addStretch()
+            outer.addLayout(row)
+
+        # ── Build generations ────────────────────────────────────────────
+        pa, pb = cat.parent_a, cat.parent_b
+        gp_a1 = pa.parent_a if pa else None
+        gp_a2 = pa.parent_b if pa else None
+        gp_b1 = pb.parent_a if pb else None
+        gp_b2 = pb.parent_b if pb else None
+
+        grandparents = [gp_a1, gp_a2, gp_b1, gp_b2]
+        parents      = [pa, pb]
+
+        children = list(cat.children)
+        grandchildren: list = []
+        for child in children:
+            grandchildren.extend(child.children)
+
+        make_gen_row(_tr("family_tree.grandparents"), grandparents)
+        make_gen_row(_tr("family_tree.parents"),      parents)
+        make_gen_row("",             [cat], highlight_all=True)
+        if children:
+            make_gen_row(_tr("family_tree.lineage_children"), children[:8])
+            if len(children) > 8:
+                outer.addWidget(
+                    QLabel(_tr("family_tree.more_children", count=len(children)-8),
+                           styleSheet="color:#444; font-size:10px; padding-left:100px;"))
+        if grandchildren:
+            unique_gc = list({id(g): g for g in grandchildren}.values())
+            make_gen_row(_tr("family_tree.lineage_grandchildren"), unique_gc[:8])
+            if len(unique_gc) > 8:
+                outer.addWidget(
+                    QLabel(_tr("family_tree.more_grandchildren", count=len(unique_gc)-8),
+                           styleSheet="color:#444; font-size:10px; padding-left:100px;"))
+
+        outer.addStretch()
+        close_btn = QPushButton(_tr("family_tree.close"))
+        close_btn.clicked.connect(self.accept)
+        outer.addWidget(close_btn, alignment=Qt.AlignRight)
+        _enforce_min_font_in_widget_tree(self)
