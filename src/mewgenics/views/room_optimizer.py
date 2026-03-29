@@ -1,6 +1,8 @@
 """Room Optimizer views extracted from mewgenics_manager.py."""
 
+import hashlib
 import html
+import json
 from typing import Optional
 
 from PySide6.QtWidgets import (
@@ -686,6 +688,12 @@ class RoomOptimizerView(QWidget):
         self._restore_session_state()
         self._on_planner_traits_changed()
         alive_count = len([c for c in self._cats if c.status != "Gone"])
+        if self._session_state.get("has_run") and alive_count >= 2:
+            cached = self._load_cached_results()
+            if cached is not None:
+                self._on_optimizer_result(cached)
+                self._pending_initial_restore_run = False
+                return
         if self._pending_initial_restore_run and alive_count >= 2:
             self._pending_initial_restore_run = False
             self._calculate_optimal_distribution(use_sa=bool(self._session_state.get("use_sa", False)))
@@ -823,6 +831,38 @@ class RoomOptimizerView(QWidget):
             return
         self._session_state = self._session_state_payload(has_run=has_run, use_sa=use_sa)
         _save_planner_state_value("room_optimizer_state", self._session_state, self._save_path)
+
+    # ── Result caching ──────────────────────────────────────────────────
+
+    @staticmethod
+    def _cats_fingerprint(cats: list[Cat]) -> str:
+        keys = sorted(c.db_key for c in cats if c.status != "Gone")
+        raw = json.dumps(keys, separators=(",", ":"))
+        return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+
+    def _save_cached_results(self, result: dict):
+        if not self._save_path:
+            return
+        payload = {
+            "fingerprint": self._cats_fingerprint(self._cats),
+            "result": result,
+        }
+        _save_planner_state_value("room_optimizer_results", payload, self._save_path)
+
+    def _load_cached_results(self) -> Optional[dict]:
+        if not self._save_path or not self._cats:
+            return None
+        payload = _load_planner_state_value("room_optimizer_results", None, self._save_path)
+        if not isinstance(payload, dict):
+            return None
+        if payload.get("fingerprint") != self._cats_fingerprint(self._cats):
+            return None
+        result = payload.get("result")
+        return result if isinstance(result, dict) and "room_rows" in result else None
+
+    def _clear_cached_results(self):
+        if self._save_path:
+            _save_planner_state_value("room_optimizer_results", None, self._save_path)
 
     def _restore_session_state(self):
         state = _load_planner_state_value("room_optimizer_state", {}, self._save_path)
@@ -1314,6 +1354,9 @@ class RoomOptimizerView(QWidget):
                 self._table.sortByColumn(sort_column, sort_order)
         else:
             self._table.setSortingEnabled(False)
+
+        # Cache the result for cross-session restore
+        self._save_cached_results(result)
 
 
 class RoomOptimizerCatLocator(QWidget):

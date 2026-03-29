@@ -1096,6 +1096,7 @@ class MutationDisorderPlannerView(QWidget):
         self._trait_info_label.setText("")
         self._refresh_table()
         self._update_multi_trait_plan()
+        self._session_state["has_multi_trait_results"] = bool(self._selected_traits)
         self._save_session_state()
 
     def _update_multi_trait_plan(self):
@@ -1420,7 +1421,9 @@ class MutationDisorderPlannerView(QWidget):
             self._restoring_session_state = False
 
         current_trait = self._trait_combo.currentData()
-        if isinstance(current_trait, tuple):
+        if state.get("has_multi_trait_results") and self._selected_traits and self._alive_cats:
+            self._on_find_best_pairs()
+        elif isinstance(current_trait, tuple):
             self._activate_trait_filter(current_trait, source="combo")
         else:
             self._clear_outcome_panel()

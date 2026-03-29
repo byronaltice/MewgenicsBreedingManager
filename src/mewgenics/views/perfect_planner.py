@@ -1,9 +1,9 @@
 """Perfect Cat Planner views extracted from mewgenics_manager.py."""
 from __future__ import annotations
 
+import hashlib
 import html
-import math
-import random
+import json
 from typing import TYPE_CHECKING, Optional, Sequence
 
 from PySide6.QtWidgets import (
@@ -28,6 +28,7 @@ from breeding import (
 from room_optimizer import (
     best_breeding_room_stimulation, build_room_configs,
 )
+from room_optimizer.parallel import run_parallel_p7p_sa
 
 from mewgenics.constants import (
     STAT_COLORS, PAIR_COLORS,
@@ -2253,7 +2254,11 @@ class PerfectCatPlannerView(QWidget):
         self._sync_mutation_traits()
         self._foundation_panel.set_cats([c for c in cats if c.status != "Gone" and c.db_key not in self._excluded_keys])
         if self._session_state.get("has_run") and len([c for c in cats if c.status != "Gone" and c.db_key not in self._excluded_keys]) >= 2:
-            self._calculate_plan()
+            cached = self._load_cached_results()
+            if cached is not None:
+                self._restore_from_cached_results(cached)
+            else:
+                self._calculate_plan()
 
     def set_cache(self, cache: Optional[BreedingCache]):
         self._cache = cache
@@ -2386,6 +2391,203 @@ class PerfectCatPlannerView(QWidget):
         self._session_state = self._session_state_payload(has_run=has_run)
         _save_planner_state_value("perfect_planner_state", self._session_state, self._save_path)
 
+    # ── Result caching ──────────────────────────────────────────────────
+
+    @staticmethod
+    def _cats_fingerprint(cats: list[Cat]) -> str:
+        keys = sorted(c.db_key for c in cats if c.status != "Gone")
+        raw = json.dumps(keys, separators=(",", ":"))
+        return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+
+    def _save_cached_results(self, stage_rows: list[dict], tracker_rows: list[dict],
+                              locator_data: list[dict], summary_text: str):
+        if not self._save_path:
+            return
+        # Build serializable stage data (strip Cat objects from actions)
+        serializable_stages = []
+        for stage in stage_rows:
+            s = {
+                "stage": stage.get("stage", ""),
+                "goal": stage.get("goal", ""),
+                "pairs": stage.get("pairs", 0),
+                "coverage": stage.get("coverage", 0.0),
+                "risk": stage.get("risk", 0.0),
+                "mutation_ratio": stage.get("mutation_ratio", 0.0),
+                "details": stage.get("details", ""),
+                "summary": stage.get("summary", ""),
+                "notes": stage.get("notes", []),
+            }
+            # Save lightweight action summaries (no Cat objects)
+            actions = []
+            for action in stage.get("actions", []):
+                a = {
+                    "action": action.get("action", ""),
+                    "target": action.get("target", ""),
+                    "risk": action.get("risk"),
+                    "why": action.get("why", ""),
+                    "children": action.get("children", ""),
+                    "rotate": action.get("rotate", ""),
+                    "coverage_value": action.get("coverage_value", 0.0),
+                    "target_grid": action.get("target_grid"),
+                    "detail_projection": action.get("detail_projection"),
+                    "mutation_summary": action.get("mutation_summary"),
+                }
+                # Replace Cat objects in parents with identifiers
+                parents = action.get("parents", [])
+                a["parent_keys"] = [
+                    {"db_key": p.db_key, "name": p.name, "gender_display": p.gender_display}
+                    if hasattr(p, "db_key") else p
+                    for p in parents
+                ]
+                actions.append(a)
+            s["actions"] = actions
+            serializable_stages.append(s)
+
+        # Serialize tracker rows (replace Cat objects with db_keys)
+        serializable_tracker = []
+        for row in tracker_rows:
+            r = {
+                "pair_index": row.get("pair_index"),
+                "cat_a_key": row["cat_a"].db_key if hasattr(row.get("cat_a"), "db_key") else None,
+                "cat_b_key": row["cat_b"].db_key if hasattr(row.get("cat_b"), "db_key") else None,
+                "cat_a_name": f"{row['cat_a'].name} ({row['cat_a'].gender_display})" if hasattr(row.get("cat_a"), "name") else "",
+                "cat_b_name": f"{row['cat_b'].name} ({row['cat_b'].gender_display})" if hasattr(row.get("cat_b"), "name") else "",
+                "projection": row.get("projection"),
+                "risk": row.get("risk", 0.0),
+                "coi": row.get("coi", 0.0),
+                "shared": row.get("shared", (0, 0)),
+                "source": row.get("source", "suggested"),
+                "slot_index": row.get("slot_index"),
+                "offspring_keys": [c.db_key for c in row.get("known_offspring", []) if hasattr(c, "db_key")],
+            }
+            serializable_tracker.append(r)
+
+        payload = {
+            "fingerprint": self._cats_fingerprint(self._cats),
+            "stage_rows": serializable_stages,
+            "tracker_rows": serializable_tracker,
+            "locator_data": locator_data,
+            "summary_text": summary_text,
+        }
+        _save_planner_state_value("perfect_planner_results", payload, self._save_path)
+
+    def _load_cached_results(self) -> Optional[dict]:
+        if not self._save_path or not self._cats:
+            return None
+        payload = _load_planner_state_value("perfect_planner_results", None, self._save_path)
+        if not isinstance(payload, dict):
+            return None
+        if payload.get("fingerprint") != self._cats_fingerprint(self._cats):
+            return None
+        if not payload.get("stage_rows"):
+            return None
+        return payload
+
+    def _restore_from_cached_results(self, cached: dict):
+        """Repopulate tables from a cached result snapshot."""
+        stage_rows = cached.get("stage_rows", [])
+        tracker_rows = cached.get("tracker_rows", [])
+        locator_data = cached.get("locator_data", [])
+        summary_text = cached.get("summary_text", "")
+
+        # Repopulate stage table
+        self._table.setRowCount(0)
+        self._details_pane.show_stage(None)
+
+        cat_lookup = {c.db_key: c for c in self._cats}
+
+        for row_idx, stage in enumerate(stage_rows):
+            self._table.insertRow(row_idx)
+
+            # Restore Cat objects in actions where possible
+            for action in stage.get("actions", []):
+                parent_keys = action.pop("parent_keys", [])
+                parents = []
+                for pk in parent_keys:
+                    if isinstance(pk, dict) and "db_key" in pk:
+                        cat = cat_lookup.get(pk["db_key"])
+                        if cat is not None:
+                            parents.append(cat)
+                action["parents"] = parents
+
+            stage_item = QTableWidgetItem(stage["stage"])
+            stage_item.setData(Qt.UserRole, stage)
+            stage_item.setTextAlignment(Qt.AlignCenter)
+
+            goal_item = QTableWidgetItem(stage["goal"])
+            pair_item = QTableWidgetItem(str(stage["pairs"]))
+            pair_item.setTextAlignment(Qt.AlignCenter)
+
+            coverage_value = float(stage["coverage"])
+            coverage_item = QTableWidgetItem(f"{coverage_value:.1f}/7")
+            coverage_item.setTextAlignment(Qt.AlignCenter)
+            if coverage_value >= 6.0:
+                coverage_item.setForeground(QBrush(QColor(98, 194, 135)))
+            elif coverage_value >= 4.5:
+                coverage_item.setForeground(QBrush(QColor(216, 181, 106)))
+            else:
+                coverage_item.setForeground(QBrush(QColor(190, 145, 40)))
+
+            risk_value = float(stage["risk"])
+            risk_item = QTableWidgetItem(f"{risk_value:.0f}%")
+            risk_item.setTextAlignment(Qt.AlignCenter)
+            if risk_value >= 20:
+                risk_item.setForeground(QBrush(QColor(217, 119, 119)))
+            elif risk_value > 0:
+                risk_item.setForeground(QBrush(QColor(216, 181, 106)))
+            else:
+                risk_item.setForeground(QBrush(QColor(98, 194, 135)))
+
+            details_item = QTableWidgetItem(stage["details"])
+            mutation_ratio = float(stage.get("mutation_ratio", 0.0))
+            if abs(mutation_ratio) > 1e-6:
+                mutation_color = _planner_trait_color(mutation_ratio)
+                mutation_color.setAlpha(85)
+                stage_item.setBackground(QBrush(mutation_color))
+
+            self._table.setItem(row_idx, 0, stage_item)
+            self._table.setItem(row_idx, 1, goal_item)
+            self._table.setItem(row_idx, 2, pair_item)
+            self._table.setItem(row_idx, 3, coverage_item)
+            self._table.setItem(row_idx, 4, risk_item)
+            self._table.setItem(row_idx, 5, details_item)
+
+        # Restore tracker rows (re-resolve Cat objects)
+        restored_tracker: list[dict] = []
+        for row in tracker_rows:
+            cat_a = cat_lookup.get(row.get("cat_a_key"))
+            cat_b = cat_lookup.get(row.get("cat_b_key"))
+            if cat_a is None or cat_b is None:
+                continue
+            offspring = [cat_lookup[k] for k in row.get("offspring_keys", []) if k in cat_lookup]
+            restored_tracker.append({
+                "pair_index": row.get("pair_index", 0),
+                "cat_a": cat_a,
+                "cat_b": cat_b,
+                "known_offspring": offspring,
+                "projection": row.get("projection", {}),
+                "risk": row.get("risk", 0.0),
+                "coi": row.get("coi", 0.0),
+                "shared": tuple(row.get("shared", (0, 0))),
+                "source": row.get("source", "suggested"),
+                "slot_index": row.get("slot_index"),
+            })
+        self._offspring_tracker.set_rows(restored_tracker)
+
+        # Restore cat locator
+        if locator_data:
+            self._cat_locator.show_assignments(locator_data)
+
+        # Restore summary
+        if summary_text:
+            self._summary.setText(summary_text)
+
+        # Select first stage row
+        if stage_rows:
+            self._selected_stage_row = 0
+            self._table.selectRow(0)
+            self._show_stage_row(0)
+
     def _restore_session_state(self):
         state = _load_planner_state_value("perfect_planner_state", {}, self._save_path)
         if not isinstance(state, dict):
@@ -2454,127 +2656,35 @@ class PerfectCatPlannerView(QWidget):
         sa_temperature: float,
         sa_neighbors: int,
     ) -> list[dict]:
-        """
-        Refine greedy perfect-planner pair picks using simulated annealing.
-
-        The SA pass only works with pairs that already satisfy hard constraints:
-        sexuality compatibility and max-risk filtering are enforced before this
-        method is called.
-        """
+        """Refine greedy pair picks using parallel simulated annealing."""
         if len(selected_pairs) < 2:
             return sorted(selected_pairs, key=lambda pair: pair["score"], reverse=True)
 
         pair_by_id = {pair["pair_index"]: pair for pair in evaluated_pairs}
         if len(pair_by_id) < 2:
             return sorted(selected_pairs, key=lambda pair: pair["score"], reverse=True)
-        neighbors_per_temp = max(1, int(sa_neighbors))
 
-        def _state_key(pair_ids: list[int]) -> tuple[int, ...]:
-            return tuple(sorted(pair_ids))
+        # Serialize pair data for subprocess workers (no Cat objects)
+        serial_pairs = [
+            {
+                "pair_index": p["pair_index"],
+                "cat_a_key": p["cat_a"].db_key,
+                "cat_b_key": p["cat_b"].db_key,
+                "score": p["score"],
+            }
+            for p in evaluated_pairs
+        ]
+        initial_ids = sorted(p["pair_index"] for p in selected_pairs)
 
-        def _state_pairs(pair_ids: list[int]) -> list[dict]:
-            return [pair_by_id[pid] for pid in pair_ids if pid in pair_by_id]
+        best_ids = run_parallel_p7p_sa(
+            pair_data=serial_pairs,
+            initial_ids=initial_ids,
+            starter_pairs=starter_pairs,
+            sa_temperature=sa_temperature,
+            sa_neighbors=sa_neighbors,
+        )
 
-        def _state_score(pair_ids: list[int]) -> float:
-            pairs = _state_pairs(pair_ids)
-            if not pairs:
-                return float("-inf")
-            score = sum(pair["score"] for pair in pairs)
-            score += len(pairs) * 1000.0
-            return score
-
-        def _cats_for_state(pair_ids: list[int], skip_index: Optional[int] = None) -> set[int]:
-            used: set[int] = set()
-            for idx, pid in enumerate(pair_ids):
-                if skip_index is not None and idx == skip_index:
-                    continue
-                pair = pair_by_id.get(pid)
-                if pair is None:
-                    continue
-                used.add(pair["cat_a"].db_key)
-                used.add(pair["cat_b"].db_key)
-            return used
-
-        def _candidate_pool(blocked_pair_ids: set[int], used_cats: set[int]) -> list[int]:
-            candidates: list[int] = []
-            for pair in evaluated_pairs:
-                pid = pair["pair_index"]
-                if pid in blocked_pair_ids:
-                    continue
-                cat_ids = {pair["cat_a"].db_key, pair["cat_b"].db_key}
-                if cat_ids & used_cats:
-                    continue
-                candidates.append(pid)
-            return candidates
-
-        def _neighbor(pair_ids: list[int]) -> Optional[list[int]]:
-            if not pair_ids:
-                return None
-
-            if len(pair_ids) < starter_pairs and random.random() < 0.35:
-                used_cats = _cats_for_state(pair_ids)
-                blocked = set(pair_ids)
-                candidates = _candidate_pool(blocked, used_cats)
-                if candidates:
-                    new_ids = pair_ids[:] + [random.choice(candidates)]
-                    return list(_state_key(new_ids))
-
-            if len(pair_ids) > 1 and random.random() < 0.15:
-                drop_idx = random.randrange(len(pair_ids))
-                new_ids = pair_ids[:drop_idx] + pair_ids[drop_idx + 1:]
-                return list(_state_key(new_ids))
-
-            replace_idx = random.randrange(len(pair_ids))
-            used_cats = _cats_for_state(pair_ids, skip_index=replace_idx)
-            blocked = set(pair_ids)
-            blocked.discard(pair_ids[replace_idx])
-            candidates = _candidate_pool(blocked, used_cats)
-            if not candidates:
-                return None
-            new_ids = pair_ids[:]
-            new_ids[replace_idx] = random.choice(candidates)
-            return list(_state_key(new_ids))
-
-        current_ids = list(_state_key([pair["pair_index"] for pair in selected_pairs]))
-        current_score = _state_score(current_ids)
-        best_ids = current_ids[:]
-        best_score = current_score
-
-        positive_deltas: list[float] = []
-        probe_ids = current_ids[:]
-        probe_score = current_score
-        for _ in range(neighbors_per_temp):
-            neighbor_ids = _neighbor(probe_ids)
-            if neighbor_ids is None:
-                break
-            neighbor_score = _state_score(neighbor_ids)
-            if neighbor_score > probe_score:
-                positive_deltas.append(neighbor_score - probe_score)
-            probe_ids = neighbor_ids
-            probe_score = neighbor_score
-
-        avg_delta = sum(positive_deltas) / len(positive_deltas) if positive_deltas else 1.0
-        if sa_temperature > 0:
-            temperature = float(sa_temperature)
-        else:
-            temperature = max(1.0, -avg_delta / math.log(0.8))
-
-        while temperature > 0.1:
-            for _ in range(neighbors_per_temp):
-                neighbor_ids = _neighbor(current_ids)
-                if neighbor_ids is None:
-                    continue
-                neighbor_score = _state_score(neighbor_ids)
-                delta = neighbor_score - current_score
-                if delta > 0 or math.exp(delta / temperature) > random.random():
-                    current_ids = neighbor_ids
-                    current_score = neighbor_score
-                    if current_score > best_score:
-                        best_ids = current_ids[:]
-                        best_score = current_score
-            temperature *= 0.9
-
-        refined = _state_pairs(best_ids)
+        refined = [pair_by_id[pid] for pid in best_ids if pid in pair_by_id]
         refined.sort(key=lambda pair: pair["score"], reverse=True)
         return refined
 
@@ -3391,3 +3501,10 @@ class PerfectCatPlannerView(QWidget):
                 self._table.sortItems(sort_column, sort_order)
             else:
                 self._table.sortItems(0, Qt.AscendingOrder)
+
+        # Cache results for cross-session restore
+        self._save_cached_results(
+            stage_rows, tracker_rows,
+            list(locator_cats.values()),
+            self._summary.text(),
+        )

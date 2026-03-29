@@ -70,6 +70,7 @@ class OptimizationParams:
     sa_neighbors_per_temp: int = 120
     risk_barrier_lambda: float = 20.0
     move_penalty_weight: float = 0.5
+    sa_chains: int = 0  # 0 = auto (min(cpu_count, 4)), 1 = single-chain
     planner_traits: list[dict] = field(default_factory=list)
 
 

@@ -5,6 +5,7 @@ from save_parser import ROOM_KEYS
 
 from mewgenics.utils.config import (
     _load_app_config, _save_app_config, _coerce_int, _coerce_float,
+    _set_optimizer_flag,
 )
 from mewgenics.utils.planner_state import (
     _load_planner_state_value, _save_planner_state_value,
@@ -134,6 +135,9 @@ def _load_room_priority_config(save_path: Optional[str] = None) -> list[dict]:
             defaults = _default_room_priority_config()
             _save_planner_state_value("room_priority_config", defaults, save_path=save_path)
             _save_planner_state_value("room_priority_config_version", _ROOM_CONFIG_VERSION, save_path=save_path)
+            # Also reset SA/"More Depth" flags to off
+            _set_optimizer_flag("use_sa", False)
+            _set_optimizer_flag("perfect_planner_use_sa", False)
             return defaults
         cfg = _load_planner_state_value("room_priority_config", [], save_path=save_path)
         if isinstance(cfg, list) and cfg:
