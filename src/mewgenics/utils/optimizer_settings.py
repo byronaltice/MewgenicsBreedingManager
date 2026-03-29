@@ -12,6 +12,7 @@ from mewgenics.utils.planner_state import (
 
 
 _OPTIMIZER_SEARCH_SETTINGS_KEY = "optimizer_search_settings"
+_ROOM_CONFIG_VERSION = 2  # bump to force all users back to defaults
 _OPTIMIZER_SEARCH_DEFAULTS = {
     "temperature": 8.0,
     "neighbors": 120,
@@ -77,6 +78,7 @@ def _default_room_priority_config() -> list[dict]:
 def _normalize_room_priority_config(config: list[dict]) -> tuple[list[dict], bool]:
     """Normalize room priority config and migrate legacy default capacities."""
     normalized: list[dict] = []
+    seen_rooms: set[str] = set()
     for slot in config or []:
         if not isinstance(slot, dict):
             continue
@@ -84,6 +86,9 @@ def _normalize_room_priority_config(config: list[dict]) -> tuple[list[dict], boo
         slot_type = slot.get("type", "breeding")
         if room not in ROOM_KEYS or slot_type not in ("breeding", "fallback"):
             continue
+        if room in seen_rooms:
+            continue  # deduplicate — keep first occurrence only
+        seen_rooms.add(room)
         normalized.append({
             "room": room,
             "type": slot_type,
@@ -121,6 +126,15 @@ def _normalize_room_priority_config(config: list[dict]) -> tuple[list[dict], boo
 
 def _load_room_priority_config(save_path: Optional[str] = None) -> list[dict]:
     try:
+        stored_version = _load_planner_state_value(
+            "room_priority_config_version", 0, save_path=save_path,
+        )
+        if stored_version != _ROOM_CONFIG_VERSION:
+            # Version mismatch — reset to defaults and stamp new version
+            defaults = _default_room_priority_config()
+            _save_planner_state_value("room_priority_config", defaults, save_path=save_path)
+            _save_planner_state_value("room_priority_config_version", _ROOM_CONFIG_VERSION, save_path=save_path)
+            return defaults
         cfg = _load_planner_state_value("room_priority_config", [], save_path=save_path)
         if isinstance(cfg, list) and cfg:
             valid, migrated = _normalize_room_priority_config(cfg)
@@ -136,6 +150,7 @@ def _load_room_priority_config(save_path: Optional[str] = None) -> list[dict]:
 def _save_room_priority_config(config: list[dict], save_path: Optional[str] = None):
     try:
         cleaned: list[dict] = []
+        seen_rooms: set[str] = set()
         for slot in config or []:
             if not isinstance(slot, dict):
                 continue
@@ -143,6 +158,9 @@ def _save_room_priority_config(config: list[dict], save_path: Optional[str] = No
             slot_type = slot.get("type", "breeding")
             if room not in ROOM_KEYS or slot_type not in ("breeding", "fallback"):
                 continue
+            if room in seen_rooms:
+                continue  # deduplicate
+            seen_rooms.add(room)
             cleaned.append({
                 "room": room,
                 "type": slot_type,
@@ -150,5 +168,6 @@ def _save_room_priority_config(config: list[dict], save_path: Optional[str] = No
                 "base_stim": slot.get("base_stim", slot.get("stimulation")),
             })
         _save_planner_state_value("room_priority_config", cleaned, save_path=save_path)
+        _save_planner_state_value("room_priority_config_version", _ROOM_CONFIG_VERSION, save_path=save_path)
     except Exception:
         pass

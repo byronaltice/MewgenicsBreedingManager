@@ -60,7 +60,7 @@ class BreedingCache:
 
     # ── disk persistence ──
 
-    _CACHE_VERSION = 7  # bump to invalidate stale disk caches
+    _CACHE_VERSION = 8  # bump to invalidate stale disk caches
 
     def save_to_disk(self, save_path: str, save_signature: str = ""):
         """Persist pairwise results alongside the save file."""
