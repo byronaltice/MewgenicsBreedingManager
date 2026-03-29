@@ -1718,7 +1718,28 @@ def _get_house_info(conn) -> dict:
     return result
 
 
-def _get_unlocked_house_rooms(conn) -> list[str]:
+def _get_unlocked_house_rooms(conn, house: dict | None = None, furniture: list[FurnitureItem] | None = None) -> list[str]:
+    """Return the house rooms that are actually present in this save.
+
+    The ``house_unlocks`` blob is useful as a fallback, but on some saves it
+    over-reports rooms that are not actually present in the save layout. The
+    ``house_state`` and furniture tables are a better source for the concrete
+    room set, so prefer those when available.
+    """
+    present_rooms: set[str] = set()
+
+    if isinstance(house, dict):
+        present_rooms.update(room for room in house.values() if room in ROOM_KEYS)
+
+    if furniture:
+        present_rooms.update(
+            item.room for item in furniture
+            if getattr(item, "room", None) in ROOM_KEYS
+        )
+
+    if present_rooms:
+        return [room for room in ROOM_KEYS if room in present_rooms]
+
     row = conn.execute("SELECT data FROM files WHERE key = 'house_unlocks'").fetchone()
     if not row or not row[0]:
         return []
@@ -1735,7 +1756,7 @@ def _get_unlocked_house_rooms(conn) -> list[str]:
         unlocked.add("Floor1_Small")
     if "SmallHouse_Attic" in tokens:
         unlocked.add("Attic")
-    if tokens & {"MediumHouse", "LargeHouse_Floor2Large"}:
+    if tokens & {"LargeHouse", "LargeHouse_Floor2Large"}:
         unlocked.add("Floor2_Large")
     if "LargeHouse_Floor2Small" in tokens:
         unlocked.add("Floor2_Small")
@@ -1885,9 +1906,9 @@ def _parse_pedigree(conn) -> dict:
 def parse_save(path: str) -> SaveData:
     conn  = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
     house = _get_house_info(conn)
-    unlocked_house_rooms = _get_unlocked_house_rooms(conn)
     adv   = _get_adventure_keys(conn)
     furniture = _get_furniture_items(conn)
+    unlocked_house_rooms = _get_unlocked_house_rooms(conn, house=house, furniture=furniture)
     rows  = conn.execute("SELECT key, data FROM cats").fetchall()
     ped_map, pedigree_coi_memos, accessible_cats = _parse_pedigree_tables(conn)
     current_day_row = conn.execute("SELECT data FROM properties WHERE key='current_day'").fetchone()

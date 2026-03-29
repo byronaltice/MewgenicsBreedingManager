@@ -113,10 +113,28 @@ class RoomPriorityPanel(QWidget):
         choices = [room for room in ROOM_DISPLAY.keys() if room in set(self._available_rooms)]
         return choices or list(ROOM_DISPLAY.keys())
 
+    def _room_limit(self) -> int:
+        return len(self._room_choices())
+
+    def _trim_excess_slots(self, *, persist: bool = False):
+        """Drop any rows that exceed the current room limit."""
+        limit = self._room_limit()
+        if len(self._slots) <= limit:
+            self._refresh_room_choices()
+            return
+
+        for slot in self._slots[limit:]:
+            self._slots_layout.removeWidget(slot["widget"])
+            slot["widget"].deleteLater()
+        self._slots = self._slots[:limit]
+        self._refresh_room_choices()
+        if persist:
+            self._on_changed()
+
     def _refresh_room_choices(self):
         """Keep each row's room combo unique across the panel."""
         if not self._slots:
-            self._add_btn.setEnabled(len(self._slots) < len(self._room_choices()))
+            self._add_btn.setEnabled(len(self._slots) < self._room_limit())
             return
 
         current_rooms = [slot["combo"].currentData() for slot in self._slots]
@@ -138,7 +156,7 @@ class RoomPriorityPanel(QWidget):
                 slot["combo"].setCurrentIndex(idx)
             slot["combo"].blockSignals(False)
 
-        self._add_btn.setEnabled(len(self._slots) < len(self._room_choices()))
+        self._add_btn.setEnabled(len(self._slots) < self._room_limit())
 
     def _update_expected_pairs_label(self, slot: dict):
         room = slot["combo"].currentData()
@@ -411,13 +429,13 @@ class RoomPriorityPanel(QWidget):
                 max_cats=slot.get("max_cats", slot.get("capacity")),
                 base_stim=slot.get("base_stim", slot.get("stimulation")),
             )
-        self._refresh_room_choices()
+        self._trim_excess_slots()
 
     def set_available_rooms(self, rooms: list[str]):
         ordered = [room for room in ROOM_DISPLAY.keys() if room in set(rooms or [])]
         self._available_rooms = ordered or list(ROOM_DISPLAY.keys())
         current = self.get_config()
-        max_slots = len(self._available_rooms)
+        max_slots = self._room_limit()
         normalized: list[dict] = []
         for slot in current[:max_slots]:
             room = slot.get("room")
@@ -429,8 +447,7 @@ class RoomPriorityPanel(QWidget):
             updated["room"] = room
             normalized.append(updated)
         self.set_config(normalized)
-        # Refresh dependent views without treating the load-time normalization as a user edit.
-        self._on_changed(persist=False)
+        self._trim_excess_slots(persist=True)
 
     def set_room_summaries(self, summaries: list[FurnitureRoomSummary] | dict[str, FurnitureRoomSummary]):
         if isinstance(summaries, dict):
