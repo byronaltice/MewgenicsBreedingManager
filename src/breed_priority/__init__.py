@@ -12,6 +12,7 @@ import json
 from .filters import FilterState, FilterDialog, cat_passes_filter
 from .stat_text_formatter import StatTextFormatter
 from .color_utils import ColorUtils
+from .chip_colors import ChipColors
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSplitter,
@@ -34,13 +35,13 @@ from .scoring import (  # noqa: F401 — re-exported
 
 # ── Internal imports from split modules ──────────────────────────────────────
 from .constants import (
-    _LEFT_PANEL_W, _CollapseSplitter,
+    LEFT_PANEL_W, CollapseSplitter,
     BREED_PRIORITY_WEIGHTS, WEIGHT_UI_ROWS, SCORE_COLUMNS, _NUM_PROFILES,
     _SEL_BG, _SEL_FG, _SEL_BORDER, _DIM_LABEL_FG, _SEG_BTN_STYLE,
     COL_NAME, COL_LOC, COL_INJ, _STAT_COL_NAMES, _COL_STAT_START,
     _NUM_STAT_COLS, _SCORE_COLS, _COL_SCORE_START, COL_SCORE,
     _ALL_HEADERS, _SEP_COLS, _SEP_WIDTH,
-    _room_style,
+    _ROOM_STYLE, INJURY_STAT_NAMES,
     TRAIT_RATING_VALUES, RATING_ITEM_COLORS,
     CLR_TOP_PRIORITY, CLR_DESIRABLE, CLR_NEUTRAL, CLR_UNDECIDED,
     CLR_UNDESIRABLE, CLR_HIGHLIGHT,
@@ -52,15 +53,12 @@ from .constants import (
     _INTERACTIVE_BTN_ACTIVE, _INTERACTIVE_BTN_ON,
     _DIM_BTN, _DIM_BTN_LG, _TOGGLE_OFF_BTN,
     _SEX_EMOJI_GAY, _SEX_EMOJI_BI,
-    _cat_injuries,
     _PRIORITY_TABLE_STYLE, _PRIORITY_COMBO_STYLE,
     _CHIP_ROLE, _SCORE_SECONDARY_ROLE, _HEATMAP_ROLE,
     _CHIP_TOP_PRIORITY, _CHIP_DESIRABLE, _CHIP_UNDESIRABLE,
     _CHIP_DIM, _CHIP_LOVE_SCOPE, _CHIP_LOVE_ROOM,
     _CHIP_HATE_SCOPE, _CHIP_HATE_ROOM, _CHIP_AGE_WARN,
-    _COL_EMOJI, _score_to_chip,
-    _paired_weight_colors, _rarity_chip_colors,
-    _sevens_color, _sex_indicator_to_chip,
+    _COL_EMOJI,
     CLR_TEXT_PRIMARY, CLR_TEXT_SECONDARY, CLR_TEXT_UI_LABEL,
     CLR_TEXT_GROUP, CLR_TEXT_SUBLABEL, CLR_TEXT_COUNT, CLR_TEXT_GRAYEDOUT,
     CLR_TEXT_MUTED, _GROUP_LABEL_STYLE,
@@ -79,6 +77,23 @@ from .delegates import (
     _SortHighlightHeader, _TraitChipDelegate, _TraitNameDelegate,
     _WeightSpin,
 )
+
+def _cat_injuries(cat, stat_names: list) -> list:
+    """Return list of (injury_name, stat_key, delta) for stats with a negative total-vs-base delta."""
+    injuries = []
+    total = getattr(cat, 'total_stats', None)
+    base  = getattr(cat, 'base_stats', None)
+    if total is None or base is None:
+        return injuries
+    for sn in stat_names:
+        b = base.get(sn, 0)
+        t = total.get(sn, b)
+        delta = t - b
+        if delta < 0:
+            name = INJURY_STAT_NAMES.get(sn, sn)
+            injuries.append((name, sn, delta))
+    return injuries
+
 
 # ── Main view ─────────────────────────────────────────────────────────────────
 
@@ -929,7 +944,7 @@ class BreedPriorityView(QWidget):
 
         vb.addWidget(top_bar)
 
-        hs = _CollapseSplitter(Qt.Horizontal)
+        hs = CollapseSplitter(Qt.Horizontal)
         hs.setHandleWidth(14)
         vb.addWidget(hs)
 
@@ -1114,7 +1129,7 @@ class BreedPriorityView(QWidget):
         hs.setCollapsible(1, False)
         hs.setStretchFactor(0, 0)
         hs.setStretchFactor(1, 1)
-        hs.setSizes([_LEFT_PANEL_W, 10000])
+        hs.setSizes([LEFT_PANEL_W, 10000])
 
         self._score_table = QTableWidget()
         self._score_table.setColumnCount(len(_ALL_HEADERS))
@@ -2122,7 +2137,7 @@ class BreedPriorityView(QWidget):
 
         if hdr == "Loc":
             loc = self._room_display.get(cat.room, cat.room or "")
-            _clr = _room_style(loc)
+            _clr = _ROOM_STYLE.get(loc)
             return (loc, 0, _clr or CLR_VALUE_NEUTRAL)
 
         if hdr in _STAT_COL_NAMES:
@@ -2160,7 +2175,7 @@ class BreedPriorityView(QWidget):
                 return ("?", 0.0, "#666")
             _high_ag_w = self._weights.get("high_aggression", 0.0)
             _low_ag_w  = self._weights.get("low_aggression",  0.0)
-            _high_clr, _low_clr = _paired_weight_colors(_high_ag_w, _low_ag_w)
+            _high_clr, _low_clr = ChipColors.paired_weights(_high_ag_w, _low_ag_w)
             if a >= TRAIT_HIGH_THRESHOLD:
                 return ("▲Hi", a, _high_clr)
             elif a < TRAIT_LOW_THRESHOLD:
@@ -2182,7 +2197,7 @@ class BreedPriorityView(QWidget):
                 return ("?", 0.0, "#666")
             _high_lb_w = self._weights.get("high_libido", 0.0)
             _low_lb_w  = self._weights.get("low_libido",  0.0)
-            _high_clr, _low_clr = _paired_weight_colors(_high_lb_w, _low_lb_w)
+            _high_clr, _low_clr = ChipColors.paired_weights(_high_lb_w, _low_lb_w)
             if lb >= TRAIT_HIGH_THRESHOLD:
                 return ("❤️", lb, _high_clr)
             elif lb < TRAIT_LOW_THRESHOLD:
@@ -2196,7 +2211,7 @@ class BreedPriorityView(QWidget):
                 return ("", 0.0, CLR_TEXT_COUNT)
             gay_w = self._weights.get("gay_pref", 0.0)
             bi_w  = self._weights.get("bi_pref",  0.0)
-            gay_clr, bi_clr = _paired_weight_colors(gay_w, bi_w)
+            gay_clr, bi_clr = ChipColors.paired_weights(gay_w, bi_w)
             if sex == 'gay':
                 return (f"{_SEX_EMOJI_GAY}", gay_w, gay_clr)
             else:  # bi
@@ -2379,7 +2394,7 @@ class BreedPriorityView(QWidget):
 
             # ── Location ──
             loc_text = self._room_display.get(cat.room, cat.room or "")
-            _loc_color = _room_style(loc_text)
+            _loc_color = _ROOM_STYLE.get(loc_text)
             loc_item = QTableWidgetItem(loc_text)
             loc_item.setForeground(QColor(_loc_color or CLR_VALUE_NEUTRAL))
             loc_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
@@ -2508,9 +2523,9 @@ class BreedPriorityView(QWidget):
                     if _sex != 'straight':
                         _gay_w = _cw.get("gay_pref", 0.0)
                         _bi_w  = _cw.get("bi_pref",  0.0)
-                        _gay_clr, _bi_clr = _paired_weight_colors(_gay_w, _bi_w)
+                        _gay_clr, _bi_clr = ChipColors.paired_weights(_gay_w, _bi_w)
                         _sx_ind_clr = _gay_clr if _sex == 'gay' else _bi_clr
-                        _sx_bg, _sx_fg = _sex_indicator_to_chip(_sx_ind_clr)
+                        _sx_bg, _sx_fg = ChipColors.sex_indicator(_sx_ind_clr)
                         _sx_emoji = _SEX_EMOJI_GAY if _sex == 'gay' else _SEX_EMOJI_BI
                         # "BI" label: teal text; slightly darker bg when grey
                         if _sex == 'bi':
@@ -2556,14 +2571,14 @@ class BreedPriorityView(QWidget):
                             if cat.base_stats.get(_sn) == 7:
                                 _n_sc = sum(1 for _sc in scope_cats if _sc.base_stats.get(_sn) == 7)
                                 _n = _n_sc if _cat_in_scope else _n_sc + 1
-                                _bg, _fg = _rarity_chip_colors(_n, _thr)
+                                _bg, _fg = ChipColors.rarity(_n, _thr)
                                 _chips.append((_sn, _bg, _fg))
                         text = ""   # rendered by delegate
                         color = _score_color(score_val)
                     elif hdr == "7cnt":
                         count_7 = sum(1 for v in cat.base_stats.values() if v == 7)
                         w_7 = _cw.get(keys[0], 0.0)
-                        color = _sevens_color(count_7, _max_7_count, w_7 >= 0)
+                        color = ChipColors.sevens(count_7, _max_7_count, w_7 >= 0)
                         text = f"{count_7}x7s"
                     elif hdr == "Trait":
                         # Value mode: individual colored chips per rated trait
@@ -2585,7 +2600,7 @@ class BreedPriorityView(QWidget):
                     elif hdr == "Aggro":
                         _high_ag_w = _cw.get("high_aggression", 0.0)
                         _low_ag_w  = _cw.get("low_aggression",  0.0)
-                        _high_ag_clr, _low_ag_clr = _paired_weight_colors(_high_ag_w, _low_ag_w)
+                        _high_ag_clr, _low_ag_clr = ChipColors.paired_weights(_high_ag_w, _low_ag_w)
                         a = cat.aggression
                         if a is None:
                             text, color = "?", "#666"
@@ -2597,14 +2612,14 @@ class BreedPriorityView(QWidget):
                             text, color = "—", CLR_TEXT_GRAYEDOUT
                     elif hdr == "4+Ch":
                         if ch_in_scope >= 4:
-                            _cbg, _cfg = _score_to_chip(score_val)
+                            _cbg, _cfg = ChipColors.from_score(score_val)
                             _chips = [("👶", _cbg, _cfg)]
                             text, color = "", _cfg
                         else:
                             text, color = "", CLR_TEXT_GRAYEDOUT
                     elif hdr == "Gene":
                         if scope_rel_count == 0:
-                            _cbg, _cfg = _score_to_chip(score_val) if score_val != 0 else _CHIP_DESIRABLE
+                            _cbg, _cfg = ChipColors.from_score(score_val) if score_val != 0 else _CHIP_DESIRABLE
                             _chips = [("✦", _cbg, _cfg)]
                             text, color = "", _cfg
                         else:
@@ -2618,17 +2633,17 @@ class BreedPriorityView(QWidget):
                             _chips = [("F", *_CHIP_GENDER_FEMALE)]
                             text, color = "", CLR_GENDER_FEMALE
                         else:
-                            _cbg, _cfg = _score_to_chip(score_val) if score_val != 0 else _CHIP_GENDER_UNKNOWN
+                            _cbg, _cfg = ChipColors.from_score(score_val) if score_val != 0 else _CHIP_GENDER_UNKNOWN
                             _chips = [("?", _cbg, _cfg)]
                             text, color = "", CLR_GENDER_UNKNOWN
                     elif hdr == "Lib":
                         lb = cat.libido
                         if lb is not None and lb >= TRAIT_HIGH_THRESHOLD:
-                            _cbg, _cfg = _score_to_chip(score_val) if score_val != 0 else _CHIP_DIM
+                            _cbg, _cfg = ChipColors.from_score(score_val) if score_val != 0 else _CHIP_DIM
                             _chips = [("❤️", _cbg, _cfg)]
                             text, color = "", _cfg
                         elif lb is not None and lb < TRAIT_LOW_THRESHOLD:
-                            _cbg, _cfg = _score_to_chip(score_val) if score_val != 0 else _CHIP_DIM
+                            _cbg, _cfg = ChipColors.from_score(score_val) if score_val != 0 else _CHIP_DIM
                             _chips = [("💙", _cbg, _cfg)]
                             text, color = "", _cfg
                         else:
@@ -2669,9 +2684,9 @@ class BreedPriorityView(QWidget):
                     if hdr == "7cnt":
                         count_7 = sum(1 for v in cat.base_stats.values() if v == 7)
                         w_7 = _cw.get(keys[0], 0.0)
-                        color = _sevens_color(count_7, _max_7_count, w_7 >= 0)
+                        color = ChipColors.sevens(count_7, _max_7_count, w_7 >= 0)
                     elif hdr == "Aggro":
-                        _hi, _lo = _paired_weight_colors(
+                        _hi, _lo = ChipColors.paired_weights(
                             _cw.get("high_aggression", 0.0), _cw.get("low_aggression", 0.0))
                         a = cat.aggression
                         if a is None:       color = "#666"
@@ -2679,7 +2694,7 @@ class BreedPriorityView(QWidget):
                         elif a < TRAIT_LOW_THRESHOLD:   color = _lo
                         else:               color = CLR_VALUE_NEUTRAL
                     elif hdr == "Lib":
-                        _hi, _lo = _paired_weight_colors(
+                        _hi, _lo = ChipColors.paired_weights(
                             _cw.get("high_libido", 0.0), _cw.get("low_libido", 0.0))
                         lb = cat.libido
                         if lb is None:      color = "#666"
@@ -2687,7 +2702,7 @@ class BreedPriorityView(QWidget):
                         elif lb < TRAIT_LOW_THRESHOLD:   color = _lo
                         else:               color = CLR_VALUE_NEUTRAL
                     elif hdr == "Sex":
-                        _gay_clr, _bi_clr = _paired_weight_colors(
+                        _gay_clr, _bi_clr = ChipColors.paired_weights(
                             _cw.get("gay_pref", 0.0), _cw.get("bi_pref", 0.0))
                         _sex = getattr(cat, 'sexuality', 'straight') or 'straight'
                         if _sex == 'gay':   color = _gay_clr

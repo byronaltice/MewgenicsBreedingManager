@@ -20,8 +20,8 @@ from .constants import (
     _CHIP_H, _CHIP_PAD_X, _CHIP_GAP, _CHIP_RADIUS,
     _CHIP_DESIRABLE, _CHIP_UNDESIRABLE, _CHIP_DIM,
     _TRAIT_NAME_ROLE, _TRAIT_SUMMARY_ROLE,
-    _SEP_COL_COLOR, _paint_heatmap_bar,
-    _fit_chips,
+    _SEP_COL_COLOR,
+    _HEAT_POS, _HEAT_NEG,
     CLR_DESIRABLE, CLR_UNDESIRABLE,
     CLR_VALUE_POS, CLR_VALUE_NEG,
     CLR_VALUE_NEUTRAL,
@@ -33,6 +33,43 @@ from .constants import (
     RATING_ITEM_COLORS,
     _PRIORITY_COMBO_STYLE,
 )
+
+
+# ── Chip layout ──────────────────────────────────────────────────────────────
+
+def _fit_chips(chips: list, available_width: int, fm: QFontMetrics) -> tuple:
+    """Return (visible_chips, hidden_count) given available pixel width.
+
+    Reserves room for a '+N' indicator pill when chips would overflow.
+    """
+    IND_W = fm.horizontalAdvance("+99") + 2 * _CHIP_PAD_X
+    x = 4
+    for i, (name, bg, fg) in enumerate(chips):
+        chip_w = fm.horizontalAdvance(name) + 2 * _CHIP_PAD_X
+        hidden = len(chips) - i
+        extra = (_CHIP_GAP + IND_W) if hidden > 1 else 0
+        if x + chip_w + extra > available_width - 2:
+            return chips[:i], hidden
+        x += chip_w + _CHIP_GAP
+    return chips, 0
+
+
+# ── Heatmap painting ─────────────────────────────────────────────────────────
+
+def _paint_heatmap_bar(painter, rect, heat: float):
+    """Draw a heatmap background bar into *rect*.  *heat* is signed normalised intensity."""
+    intensity = abs(heat)
+    if intensity < 0.001:
+        return
+    base = _HEAT_POS if heat > 0 else _HEAT_NEG
+    wash = QColor(base.red(), base.green(), base.blue(), 18)
+    painter.fillRect(rect, wash)
+    alpha = int(30 + 130 * min(1.0, intensity))
+    bar_color = QColor(base.red(), base.green(), base.blue(), alpha)
+    bar_w = max(2, int(rect.width() * min(1.0, intensity)))
+    painter.fillRect(QRect(rect.x(), rect.y(), bar_w, rect.height()), bar_color)
+    edge_color = QColor(base.red(), base.green(), base.blue(), 200)
+    painter.fillRect(QRect(rect.x(), rect.y(), 1, rect.height()), edge_color)
 
 
 class _ChipOverflowPopup(QFrame):

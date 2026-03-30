@@ -8,12 +8,8 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 
 from .color_utils import ColorUtils
-from .helpers import (  # noqa: F401 — re-exported for consumers
-    _room_style,
-    _rarity_chip_colors, _sevens_color, _rank_colors,
-    _paired_weight_colors, _sex_indicator_to_chip, _score_to_chip,
-    _cat_injuries, _fit_chips, _paint_heatmap_bar,
-    _LEFT_PANEL_W, _CollapseHandle, _CollapseSplitter,
+from .collapsible_splitter import (  # noqa: F401 — re-exported for consumers
+    LEFT_PANEL_W, CollapseSplitter,
 )
 
 
