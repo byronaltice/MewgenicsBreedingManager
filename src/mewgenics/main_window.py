@@ -36,7 +36,7 @@ from mewgenics.constants import (
     _NAME_STYLE, _META_STYLE,
 )
 from mewgenics.utils.paths import (
-    APPDATA_SAVE_DIR, APP_VERSION, _breeding_cache_path,
+    APPDATA_SAVE_DIR, APPDATA_CONFIG_DIR, APP_VERSION, _breeding_cache_path,
 )
 from mewgenics.utils.config import (
     _save_root_dir, _saved_default_save, _set_default_save,
@@ -74,6 +74,9 @@ from mewgenics.utils.cat_persistence import (
 from mewgenics.utils.cat_analysis import (
     _is_exceptional_breeder, _is_donation_candidate,
 )
+from mewgenics.utils.abilities import (
+    _mutation_display_name, _ability_tip,
+)
 from mewgenics.utils.game_data import (
     _set_gpak_path, _GPAK_PATH, _FURNITURE_DATA,
 )
@@ -107,6 +110,8 @@ from mewgenics.views.perfect_planner import PerfectCatPlannerView
 from mewgenics.views.calibration import CalibrationView
 from mewgenics.views.mutation_planner import MutationDisorderPlannerView
 from mewgenics.views.furniture import FurnitureView
+
+from breed_priority import BreedPriorityView
 
 
 class MainWindow(QMainWindow):
@@ -228,6 +233,7 @@ class MainWindow(QMainWindow):
         self._perfect_planner_view: Optional[PerfectCatPlannerView] = None
         self._calibration_view: Optional[CalibrationView] = None
         self._furniture_view: Optional[FurnitureView] = None
+        self._breed_priority_view: Optional[BreedPriorityView] = None
         self._breeding_cache: Optional[BreedingCache] = None
         self._cache_worker: Optional[BreedingCacheWorker] = None
         self._save_load_worker: Optional[SaveLoadWorker] = None
@@ -694,6 +700,9 @@ class MainWindow(QMainWindow):
         self._btn_calibration = _sidebar_btn(_tr("sidebar.button.calibration"))
         self._btn_calibration.clicked.connect(self._open_calibration_view)
         vb.addWidget(self._btn_calibration)
+        self._btn_breed_priority = _sidebar_btn("Breed Priority")
+        self._btn_breed_priority.clicked.connect(self._open_breed_priority_view)
+        vb.addWidget(self._btn_breed_priority)
 
         vb.addWidget(_hsep())
         self._rooms_section_label = sl(_tr("sidebar.section.rooms"))
@@ -1165,6 +1174,16 @@ class MainWindow(QMainWindow):
         self._mutation_planner_view = MutationDisorderPlannerView(self)
         self._mutation_planner_view.hide()
         vb.addWidget(self._mutation_planner_view, 1)
+        _ratings_path = os.path.join(APPDATA_CONFIG_DIR, "breed_priority.json")
+        self._breed_priority_view = BreedPriorityView(
+            _ratings_path,
+            STAT_NAMES,
+            ROOM_DISPLAY,
+            _mutation_display_name,
+            _ability_tip,
+        )
+        self._breed_priority_view.hide()
+        vb.addWidget(self._breed_priority_view, 1)
         self._furniture_view = FurnitureView(self)
         self._furniture_view.hide()
         vb.addWidget(self._furniture_view, 1)
@@ -1602,6 +1621,8 @@ class MainWindow(QMainWindow):
             self._mutation_planner_view.hide()
         if hasattr(self, "_furniture_view") and self._furniture_view is not None:
             self._furniture_view.hide()
+        if hasattr(self, "_breed_priority_view") and self._breed_priority_view is not None:
+            self._breed_priority_view.hide()
         if hasattr(self, "_header"):
             self._header.show()
         if hasattr(self, "_table_view_container"):
@@ -1622,6 +1643,8 @@ class MainWindow(QMainWindow):
             self._btn_mutation_planner.setChecked(False)
         if hasattr(self, "_btn_furniture_view"):
             self._btn_furniture_view.setChecked(False)
+        if hasattr(self, "_btn_breed_priority"):
+            self._btn_breed_priority.setChecked(False)
 
     def _show_tree_view(self):
         if self._active_btn is not None:
@@ -1645,6 +1668,8 @@ class MainWindow(QMainWindow):
             self._mutation_planner_view.hide()
         if hasattr(self, "_furniture_view") and self._furniture_view is not None:
             self._furniture_view.hide()
+        if hasattr(self, "_breed_priority_view") and self._breed_priority_view is not None:
+            self._breed_priority_view.hide()
         if self._tree_view is not None:
             self._tree_view.set_cats(self._cats)
             self._tree_view.show()
@@ -1664,6 +1689,8 @@ class MainWindow(QMainWindow):
             self._btn_mutation_planner.setChecked(False)
         if hasattr(self, "_btn_furniture_view"):
             self._btn_furniture_view.setChecked(False)
+        if hasattr(self, "_btn_breed_priority"):
+            self._btn_breed_priority.setChecked(False)
 
     def _show_safe_breeding_view(self):
         if self._active_btn is not None:
@@ -1687,6 +1714,8 @@ class MainWindow(QMainWindow):
             self._mutation_planner_view.hide()
         if hasattr(self, "_furniture_view") and self._furniture_view is not None:
             self._furniture_view.hide()
+        if hasattr(self, "_breed_priority_view") and self._breed_priority_view is not None:
+            self._breed_priority_view.hide()
         if self._safe_breeding_view is not None:
             self._safe_breeding_view.set_cats(self._cats)
             self._safe_breeding_view.show()
@@ -1706,6 +1735,8 @@ class MainWindow(QMainWindow):
             self._btn_mutation_planner.setChecked(False)
         if hasattr(self, "_btn_furniture_view"):
             self._btn_furniture_view.setChecked(False)
+        if hasattr(self, "_btn_breed_priority"):
+            self._btn_breed_priority.setChecked(False)
 
     def _show_breeding_partners_view(self):
         if self._active_btn is not None:
@@ -1729,6 +1760,8 @@ class MainWindow(QMainWindow):
             self._perfect_planner_view.hide()
         if hasattr(self, "_furniture_view") and self._furniture_view is not None:
             self._furniture_view.hide()
+        if hasattr(self, "_breed_priority_view") and self._breed_priority_view is not None:
+            self._breed_priority_view.hide()
         if self._breeding_partners_view is not None:
             self._breeding_partners_view.set_cats(self._cats)
             self._breeding_partners_view.show()
@@ -1748,6 +1781,8 @@ class MainWindow(QMainWindow):
             self._btn_mutation_planner.setChecked(False)
         if hasattr(self, "_btn_furniture_view"):
             self._btn_furniture_view.setChecked(False)
+        if hasattr(self, "_btn_breed_priority"):
+            self._btn_breed_priority.setChecked(False)
 
     def _show_room_optimizer_view(self):
         if self._active_btn is not None:
@@ -1771,6 +1806,8 @@ class MainWindow(QMainWindow):
             self._mutation_planner_view.hide()
         if hasattr(self, "_furniture_view") and self._furniture_view is not None:
             self._furniture_view.hide()
+        if hasattr(self, "_breed_priority_view") and self._breed_priority_view is not None:
+            self._breed_priority_view.hide()
         if self._room_optimizer_view is not None:
             self._room_optimizer_view.set_cats(self._cats)
             self._room_optimizer_view.show()
@@ -1790,6 +1827,8 @@ class MainWindow(QMainWindow):
             self._btn_mutation_planner.setChecked(False)
         if hasattr(self, "_btn_furniture_view"):
             self._btn_furniture_view.setChecked(False)
+        if hasattr(self, "_btn_breed_priority"):
+            self._btn_breed_priority.setChecked(False)
 
     def _show_perfect_planner_view(self):
         if self._active_btn is not None:
@@ -1813,6 +1852,8 @@ class MainWindow(QMainWindow):
             self._mutation_planner_view.hide()
         if hasattr(self, "_furniture_view") and self._furniture_view is not None:
             self._furniture_view.hide()
+        if hasattr(self, "_breed_priority_view") and self._breed_priority_view is not None:
+            self._breed_priority_view.hide()
         if self._perfect_planner_view is not None:
             self._perfect_planner_view.set_cats(self._cats)
             self._perfect_planner_view.show()
@@ -1832,6 +1873,8 @@ class MainWindow(QMainWindow):
             self._btn_mutation_planner.setChecked(False)
         if hasattr(self, "_btn_furniture_view"):
             self._btn_furniture_view.setChecked(False)
+        if hasattr(self, "_btn_breed_priority"):
+            self._btn_breed_priority.setChecked(False)
 
     def _show_calibration_view(self):
         if self._active_btn is not None:
@@ -1853,6 +1896,8 @@ class MainWindow(QMainWindow):
             self._perfect_planner_view.hide()
         if hasattr(self, "_furniture_view") and self._furniture_view is not None:
             self._furniture_view.hide()
+        if hasattr(self, "_breed_priority_view") and self._breed_priority_view is not None:
+            self._breed_priority_view.hide()
         if self._calibration_view is not None:
             if self._current_save:
                 self._calibration_view.set_context(self._current_save, self._cats)
@@ -1873,6 +1918,8 @@ class MainWindow(QMainWindow):
             self._btn_mutation_planner.setChecked(False)
         if hasattr(self, "_btn_furniture_view"):
             self._btn_furniture_view.setChecked(False)
+        if hasattr(self, "_btn_breed_priority"):
+            self._btn_breed_priority.setChecked(False)
         if hasattr(self, "_mutation_planner_view") and self._mutation_planner_view is not None:
             self._mutation_planner_view.hide()
 
@@ -1898,6 +1945,8 @@ class MainWindow(QMainWindow):
             self._calibration_view.hide()
         if hasattr(self, "_furniture_view") and self._furniture_view is not None:
             self._furniture_view.hide()
+        if hasattr(self, "_breed_priority_view") and self._breed_priority_view is not None:
+            self._breed_priority_view.hide()
         if self._mutation_planner_view is not None:
             self._mutation_planner_view.set_cats(self._cats)
             self._mutation_planner_view.show()
@@ -1917,6 +1966,8 @@ class MainWindow(QMainWindow):
             self._btn_mutation_planner.setChecked(True)
         if hasattr(self, "_btn_furniture_view"):
             self._btn_furniture_view.setChecked(False)
+        if hasattr(self, "_btn_breed_priority"):
+            self._btn_breed_priority.setChecked(False)
 
     def _show_furniture_view(self):
         if self._active_btn is not None:
@@ -1940,6 +1991,8 @@ class MainWindow(QMainWindow):
             self._calibration_view.hide()
         if hasattr(self, "_mutation_planner_view") and self._mutation_planner_view is not None:
             self._mutation_planner_view.hide()
+        if hasattr(self, "_breed_priority_view") and self._breed_priority_view is not None:
+            self._breed_priority_view.hide()
         if self._furniture_view is not None:
             if self._current_save:
                 self._furniture_view.set_context(self._cats, self._furniture, self._furniture_data, available_rooms=self._available_house_rooms)
@@ -1960,6 +2013,8 @@ class MainWindow(QMainWindow):
             self._btn_mutation_planner.setChecked(False)
         if hasattr(self, "_btn_furniture_view"):
             self._btn_furniture_view.setChecked(True)
+        if hasattr(self, "_btn_breed_priority"):
+            self._btn_breed_priority.setChecked(False)
 
     def _navigate_to_cat(self, db_key: int):
         """Switch to Alive Cats view and select the given cat by db_key."""
@@ -2556,6 +2611,8 @@ class MainWindow(QMainWindow):
                 self._perfect_planner_view.set_cats(cats)
             if self._calibration_view is not None and self._calibration_view.isVisible():
                 self._calibration_view.set_context(self._current_save, cats)
+            if self._breed_priority_view is not None and self._breed_priority_view.isVisible():
+                self._breed_priority_view.set_cats(cats)
             name = os.path.basename(self._current_save)
             self._save_lbl.setText(name)
             self.setWindowTitle(_tr("app.title_with_save", name=name))
@@ -2885,6 +2942,56 @@ class MainWindow(QMainWindow):
         _save_current_view("furniture")
         self._show_furniture_view()
 
+    def _show_breed_priority_view(self):
+        if self._active_btn is not None:
+            self._active_btn.setChecked(False)
+        self._active_btn = None
+        if hasattr(self, "_header"):
+            self._header.hide()
+        if hasattr(self, "_table_view_container"):
+            self._table_view_container.hide()
+        if hasattr(self, "_tree_view") and self._tree_view is not None:
+            self._tree_view.hide()
+        if hasattr(self, "_safe_breeding_view") and self._safe_breeding_view is not None:
+            self._safe_breeding_view.hide()
+        if hasattr(self, "_breeding_partners_view") and self._breeding_partners_view is not None:
+            self._breeding_partners_view.hide()
+        if hasattr(self, "_room_optimizer_view") and self._room_optimizer_view is not None:
+            self._room_optimizer_view.hide()
+        if hasattr(self, "_perfect_planner_view") and self._perfect_planner_view is not None:
+            self._perfect_planner_view.hide()
+        if hasattr(self, "_calibration_view") and self._calibration_view is not None:
+            self._calibration_view.hide()
+        if hasattr(self, "_mutation_planner_view") and self._mutation_planner_view is not None:
+            self._mutation_planner_view.hide()
+        if hasattr(self, "_furniture_view") and self._furniture_view is not None:
+            self._furniture_view.hide()
+        if self._breed_priority_view is not None:
+            self._breed_priority_view.set_cats(self._cats)
+            self._breed_priority_view.show()
+        if hasattr(self, "_btn_tree_view"):
+            self._btn_tree_view.setChecked(False)
+        if hasattr(self, "_btn_safe_breeding_view"):
+            self._btn_safe_breeding_view.setChecked(False)
+        if hasattr(self, "_btn_breeding_partners_view"):
+            self._btn_breeding_partners_view.setChecked(False)
+        if hasattr(self, "_btn_room_optimizer"):
+            self._btn_room_optimizer.setChecked(False)
+        if hasattr(self, "_btn_perfect_planner"):
+            self._btn_perfect_planner.setChecked(False)
+        if hasattr(self, "_btn_calibration"):
+            self._btn_calibration.setChecked(False)
+        if hasattr(self, "_btn_mutation_planner"):
+            self._btn_mutation_planner.setChecked(False)
+        if hasattr(self, "_btn_furniture_view"):
+            self._btn_furniture_view.setChecked(False)
+        if hasattr(self, "_btn_breed_priority"):
+            self._btn_breed_priority.setChecked(True)
+
+    def _open_breed_priority_view(self):
+        _save_current_view("breed_priority")
+        self._show_breed_priority_view()
+
     def _restore_current_view(self):
         """Restore the last-used view after a save is loaded."""
         view = _load_current_view()
@@ -2897,6 +3004,7 @@ class MainWindow(QMainWindow):
             "calibration":        self._show_calibration_view,
             "mutation_planner":   self._show_mutation_planner_view,
             "furniture":          self._show_furniture_view,
+            "breed_priority":     self._show_breed_priority_view,
         }
         fn = _restore_map.get(view)
         if fn:

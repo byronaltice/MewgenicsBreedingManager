@@ -10,11 +10,12 @@ PySide6 desktop app that reads Mewgenics save files and provides breeding manage
 pip install -r requirements.txt
 python src/mewgenics_manager.py
 
+# Run tests
+pytest
+
 # Build standalone Windows exe
 build.bat
 ```
-
-No test suite or linter. Testing is manual through the GUI.
 
 ## Module Structure
 
@@ -25,6 +26,11 @@ src/
   mewgenics_manager.py              # Backwards-compatible entry point (thin wrapper)
   save_parser.py                    # Binary parser, Cat model, genetics/kinship logic
   breeding.py                       # Breeding compatibility, scoring, offspring tracking
+  breed_priority.py                 # BreedPriorityView widget and orchestration
+  breed_priority_constants.py       # Shared constants, styles, and column indices
+  breed_priority_scoring.py         # Score computation helpers for breed priority
+  breed_priority_delegates.py       # Custom Qt delegates and controls for score table
+  breed_priority_filters.py         # Breed priority filter dialog and state
   room_optimizer/
     types.py                        # Dataclasses: RoomConfig, OptimizationParams, ScoredPair, etc.
     optimizer.py                    # Room assignment algorithm
@@ -72,6 +78,28 @@ src/
       abilities.py                  # Ability/mutation descriptions, tooltips, effect lines
       table_state.py                # Table view header/sort state persistence
 ```
+
+### Breed Priority Column Layout
+
+The score table uses thin separator columns (`_SEP_HEADER = "│"`) as visual dividers:
+
+```
+Name | Loc | Inj | STR..LCK | [SEP1] | Sum..Trait | [SEP2] | Score
+ 0      1     2    3..9        10       11..26       27       28
+```
+
+Use constants and avoid hard-coded indices:
+- `COL_SEP1`, `_COL_SCORE_START`, `COL_SEP2`, `COL_SCORE`
+- `_SEP_COLS = frozenset({COL_SEP1, COL_SEP2})` for guard checks
+
+When column count changes, invalidate saved width maps using a persisted `col_count` stamp in the sidecar state.
+
+### Breed Priority Display Mode and Heatmap
+
+- `self._display_mode` supports `"score" | "values" | "both"` and controls text format in scored columns.
+- `self._heatmap_on` is independent and overlays bars on any display mode.
+- `_BothModeDelegate` handles plain text, both-mode subscript rendering, and heatmap bar overlay.
+- Column widths persist per display mode (`self._col_widths`), not per profile.
 
 ### `save_parser.py` — Core Data Layer
 
@@ -139,6 +167,10 @@ All PySide6 code lives here. `mewgenics/__init__.py` runs one-time initializatio
 - `workers/room_refresh.py` — `QuickRoomRefreshWorker`
 - `workers/optimizer_worker.py` — `RoomOptimizerWorker`
 
+### Circular Import Prevention
+
+`breeding.py`, `breed_priority.py`, `breed_priority_constants.py`, `breed_priority_scoring.py`, `breed_priority_delegates.py`, and `breed_priority_filters.py` are intentionally standalone and should not import from `mewgenics_manager.py`. Inject game-specific data via parameters.
+
 ## Data Flow
 
 1. User selects a `.sav` file -> `SaveLoadWorker` calls `parse_save()` -> `Cat` objects created
@@ -147,13 +179,38 @@ All PySide6 code lives here. `mewgenics/__init__.py` runs one-time initializatio
 4. `BreedingCache` pre-computes all pair outcomes in a background thread
 5. `QFileSystemWatcher` triggers auto-refresh when the save file changes on disk
 
+## Standing Development Rules
+
+- Prefer extending existing systems over introducing parallel implementations.
+- Use semantic, role-based naming for shared styles and constants.
+- Do not hard-code derived values or descriptions from parsed save data.
+- If parsed data exists but lookup text is missing, use a generic fallback text.
+- Keep completion reports focused on what changed, why, and notable risks.
+
+## Testing
+
+Tests live in `tests/` and run with `pytest` from the repo root.
+
+Coverage includes parser, donation logic, cat detail views, UI persistence, room optimizer, perfect planner, trait labels, and visual helpers.
+
+## Git
+
+- Do not add `Co-Authored-By` lines.
+- Only commit when asked; only push when asked.
+- When amending, use `--date=now`.
+- **Commit message style**: Describe what the program *does* differently — the behavior changed, feature added, or bug fixed. Omit low-level technical details that don't affect behavior. For purely technical changes (refactoring, style consolidation, test restructuring), use a high-level functional description: e.g. "Consolidated styles to increase modularity" rather than "Added _SOME_VAR to breed_priority.py, replacing _SOME_OTHER_VAR".
+
 ## Conventions
 
 - Windows-targeted: save paths use `%LOCALAPPDATA%`, build produces `.exe`
 - Qt signals/slots for all UI reactivity; `blockSignals(True)` prevents cascading updates during programmatic changes
+- Styles are inline Qt stylesheet strings (dark theme, hex colors)
+- `.editorconfig`: UTF-8, 4-space indents, LF line endings
 - Views persist user choices to a JSON sidecar file alongside the save (load on `__init__`, save on every change)
 - Utility modules use `_` prefix convention — functions are module-private but importable across the package
 - Mutable module-level state (dicts, lists) must use in-place mutation (`.clear()` + `.update()`, slice assignment) when shared across modules, not rebinding
+- Internationalization via locale JSON files in `locales/` (en, ru, zh_CN, pl)
+- Version string is managed in `VERSION` at repo root
 
 ## Known Design Decisions
 

@@ -10,6 +10,14 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Signal
 
+from .constants import (
+    _INTERACTIVE_BTN_LG, _INTERACTIVE_BTN_ON_SM,
+    _DIM_BTN_LG, _TOGGLE_OFF_BTN_SM,
+    CLR_TEXT_PRIMARY, CLR_TEXT_SECONDARY, CLR_TEXT_UI_LABEL,
+    CLR_TEXT_COUNT, CLR_TEXT_MUTED, _GROUP_LABEL_STYLE,
+    CLR_BG_MAIN, CLR_BG_ALT, CLR_SURFACE_SEPARATOR,
+)
+
 # ── Thresholds (must match breed_priority.py TRAIT_*_THRESHOLD) ──────────────
 FILTER_TRAIT_LOW  = 0.3
 FILTER_TRAIT_HIGH = 0.7
@@ -17,39 +25,23 @@ FILTER_TRAIT_HIGH = 0.7
 _OP_OPTIONS = ["Less Than", "Equals", "Greater Than"]
 
 # ── Styles ────────────────────────────────────────────────────────────────────
-_DLG_STYLE    = "background:#0d0d1c; color:#ddd;"
-_SCROLL_STYLE = "QScrollArea { background:#0d0d1c; border:none; } QWidget { background:#0d0d1c; }"
-_SECTION_LBL  = "color:#444; font-size:9px; font-weight:bold; letter-spacing:1px; margin-top:2px;"
-_ROW_LBL_ON   = "color:#aaa; font-size:11px;"
-_ROW_LBL_OFF  = "color:#333; font-size:11px;"
-_BTN_STYLE = (
-    "QPushButton { color:#ccc; background:#1a1a32; border:1px solid #2a2a4a;"
-    " border-radius:4px; padding:4px 14px; font-size:11px; }"
-    "QPushButton:hover { background:#252545; color:#ddd; }"
-)
-_APPLY_BTN_STYLE = (
-    "QPushButton { color:#fff; background:#143a2a; border:1px solid #1ec8a0;"
-    " border-radius:4px; padding:4px 14px; font-size:11px; }"
-    "QPushButton:hover { background:#1a5038; }"
-)
+_DLG_STYLE    = f"background:{CLR_BG_MAIN}; color:{CLR_TEXT_PRIMARY};"
+_SCROLL_STYLE = f"QScrollArea {{ background:{CLR_BG_MAIN}; border:none; }} QWidget {{ background:{CLR_BG_MAIN}; }}"
+_SECTION_LBL  = f"color:{CLR_TEXT_COUNT}; font-size:9px; font-weight:bold; letter-spacing:1px; margin-top:2px;"
+_ROW_LBL_ON   = f"color:{CLR_TEXT_SECONDARY}; font-size:11px;"
+_ROW_LBL_OFF  = f"color:{CLR_TEXT_MUTED}; font-size:11px;"
+_BTN_STYLE       = _DIM_BTN_LG            # dialog-level inactive button
+_APPLY_BTN_STYLE = _INTERACTIVE_BTN_LG    # dialog-level confirm/apply button
 _COMBO_STYLE = (
-    "QComboBox { background:#131326; color:#ccc; border:1px solid #252545;"
+    f"QComboBox {{ background:{CLR_BG_ALT}; color:{CLR_TEXT_SECONDARY}; border:1px solid {CLR_SURFACE_SEPARATOR};"
     " padding:1px 4px; font-size:11px; }"
     "QComboBox::drop-down { border:none; }"
-    "QComboBox QAbstractItemView { background:#131326; color:#ccc;"
-    " selection-background-color:#1e3060; border:1px solid #252545; }"
+    f"QComboBox QAbstractItemView {{ background:{CLR_BG_ALT}; color:{CLR_TEXT_SECONDARY};"
+    f" selection-background-color:#1e3060; border:1px solid {CLR_SURFACE_SEPARATOR}; }}"
 )
-_CHK_STYLE = "QCheckBox { color:#aaa; font-size:11px; }"
-_TOG_ON  = (
-    "QPushButton { background:#143030; color:#1ec8a0; border:1px solid #1a5040;"
-    " border-radius:2px; font-size:9px; padding:0 2px; }"
-    "QPushButton:hover { background:#1a4040; }"
-)
-_TOG_OFF = (
-    "QPushButton { background:#1a1a2e; color:#555566; border:1px solid #2a2a44;"
-    " border-radius:2px; font-size:9px; padding:0 2px; }"
-    "QPushButton:hover { background:#222238; color:#7777aa; }"
-)
+_CHK_STYLE = f"QCheckBox {{ color:{CLR_TEXT_SECONDARY}; font-size:11px; }}"
+_TOG_ON  = _INTERACTIVE_BTN_ON_SM    # compact row toggle — On state
+_TOG_OFF = _TOGGLE_OFF_BTN_SM        # compact row toggle — Off state
 
 
 # ── FilterState ───────────────────────────────────────────────────────────────
@@ -276,14 +268,14 @@ class _FilterSpin(QWidget):
     valueChanged = Signal(object)
 
     _BTN = (
-        "QPushButton { color:#ccc; background:#3a3a60; border:1px solid #4a4a80;"
+        f"QPushButton {{ color:{CLR_TEXT_SECONDARY}; background:#3a3a60; border:1px solid #4a4a80;"
         " font-size:8px; padding:0; }"
         "QPushButton:hover { background:#5050a0; }"
         "QPushButton:pressed { background:#6060c0; }"
     )
     _EDIT = (
-        "QLineEdit { color:#ccc; font-size:10px; background:#131326;"
-        " border:1px solid #252545; border-right:none; padding:0 2px; }"
+        f"QLineEdit {{ color:{CLR_TEXT_SECONDARY}; font-size:10px; background:{CLR_BG_ALT};"
+        f" border:1px solid {CLR_SURFACE_SEPARATOR}; border-right:none; padding:0 2px; }}"
         "QLineEdit:focus { border-color:#3a3a7a; }"
     )
 
