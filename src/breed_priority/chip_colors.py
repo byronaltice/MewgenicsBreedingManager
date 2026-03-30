@@ -18,7 +18,7 @@ class ChipColors:
         n >= threshold + 10   → full grey   (very common, no score contribution)
         Values in between fade linearly from green to grey.
         """
-        from .constants import _CHIP_DESIRABLE, _CHIP_UNDECIDED
+        from .theme import _CHIP_DESIRABLE, _CHIP_UNDECIDED
         t = min(1.0, max(0.0, (n - threshold) / 10.0))
         return (
             ColorUtils.lerp(_CHIP_DESIRABLE[0], _CHIP_UNDECIDED[0], t),
@@ -32,7 +32,7 @@ class ChipColors:
         With positive_weight=True:  0→red, max_7→green, midpoint→yellow
         With positive_weight=False: reversed (0→green, max_7→red)
         """
-        from .constants import (
+        from .theme import (
             CLR_TEXT_GRAYEDOUT, CLR_DESIRABLE, _CLR_RED, _CLR_YELLOW,
         )
         if max_7 == 0:
@@ -55,7 +55,7 @@ class ChipColors:
           - 2 distinct values: highest=green, lower=grey  (no red - tied pair)
           - 1 distinct value : all grey  (3-way tie)
         """
-        from .constants import (
+        from .theme import (
             CLR_DESIRABLE, CLR_UNDESIRABLE, CLR_VALUE_NEUTRAL,
         )
         unique = sorted(set(score_map.values()), reverse=True)
@@ -86,7 +86,7 @@ class ChipColors:
           Mixed signs            -> positive=green, negative=red
           Zero                   -> grey (no preference expressed)
         """
-        from .constants import (
+        from .theme import (
             CLR_DESIRABLE, CLR_NEUTRAL, CLR_UNDESIRABLE, CLR_VALUE_NEUTRAL,
         )
         def _sign(v): return 1 if v > 0 else (-1 if v < 0 else 0)
@@ -109,7 +109,7 @@ class ChipColors:
     @staticmethod
     def sex_indicator(color: str) -> tuple:
         """Map an indicator color string to a (bg, fg) chip pair."""
-        from .constants import (
+        from .theme import (
             CLR_DESIRABLE, CLR_UNDESIRABLE, CLR_NEUTRAL,
             CLR_TEXT_GRAYEDOUT, CLR_TEXT_SECONDARY,
             _CHIP_DESIRABLE, _CHIP_UNDESIRABLE, _CHIP_NEUTRAL,
@@ -125,7 +125,7 @@ class ChipColors:
     @staticmethod
     def from_score(score_val: float) -> tuple:
         """Map a score value to a (bg, fg) chip pair based on sign."""
-        from .constants import _CHIP_DESIRABLE, _CHIP_UNDESIRABLE, _CHIP_DIM
+        from .theme import _CHIP_DESIRABLE, _CHIP_UNDESIRABLE, _CHIP_DIM
         if score_val > 0:
             return _CHIP_DESIRABLE
         if score_val < 0:

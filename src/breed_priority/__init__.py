@@ -24,47 +24,48 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QColor, QBrush
 
-# ── Re-exports for mewgenics_manager and external consumers ──────────────────
-from .constants import (  # noqa: F401 — re-exported
-    SPLITTER_V_STYLE, SPLITTER_H_STYLE,
-    TRAIT_LOW_THRESHOLD, TRAIT_HIGH_THRESHOLD,
-)
-from .scoring import (  # noqa: F401 — re-exported
-    compute_breed_priority_score,
-)
+# ── Re-exports for external consumers ────────────────────────────────────────
+from .styles import SPLITTER_V_STYLE, SPLITTER_H_STYLE  # noqa: F401
+from .scoring import compute_breed_priority_score         # noqa: F401
 
-# ── Internal imports from split modules ──────────────────────────────────────
-from .constants import (
-    LEFT_PANEL_W, CollapseSplitter,
-    BREED_PRIORITY_WEIGHTS, WEIGHT_UI_ROWS, SCORE_COLUMNS, _NUM_PROFILES,
-    _SEL_BG, _SEL_FG, _SEL_BORDER, _DIM_LABEL_FG, _SEG_BTN_STYLE,
-    COL_NAME, COL_LOC, COL_INJ, _STAT_COL_NAMES, _COL_STAT_START,
-    _NUM_STAT_COLS, _SCORE_COLS, _COL_SCORE_START, COL_SCORE,
-    _ALL_HEADERS, _SEP_COLS, _SEP_WIDTH,
-    _ROOM_STYLE, INJURY_STAT_NAMES,
-    TRAIT_RATING_VALUES, RATING_ITEM_COLORS,
+# ── Internal imports ──────────────────────────────────────────────────────────
+from .collapsible_splitter import LEFT_PANEL_W, CollapseSplitter
+from .scoring import (
+    BREED_PRIORITY_WEIGHTS, WEIGHT_UI_ROWS, SCORE_COLUMNS,
+    TRAIT_LOW_THRESHOLD, TRAIT_HIGH_THRESHOLD,
+    TRAIT_RATING_VALUES,
+)
+from .theme import (
     CLR_TOP_PRIORITY, CLR_DESIRABLE, CLR_NEUTRAL, CLR_UNDECIDED,
-    CLR_UNDESIRABLE, CLR_HIGHLIGHT,
+    CLR_UNDESIRABLE, CLR_HIGHLIGHT, RATING_ITEM_COLORS,
+    _SEL_BG, _SEL_FG, _SEL_BORDER, _DIM_LABEL_FG,
     CLR_GENDER_MALE, CLR_GENDER_FEMALE, CLR_GENDER_UNKNOWN,
     _CHIP_GENDER_MALE, _CHIP_GENDER_FEMALE, _CHIP_GENDER_UNKNOWN,
     CLR_INTERACTIVE, CLR_INTERACTIVE_BG, CLR_INTERACTIVE_BDR,
     CLR_VALUE_POS, CLR_VALUE_NEG, CLR_VALUE_NEUTRAL,
-    _CLR_AGE_OLD,
-    _INTERACTIVE_BTN_ACTIVE, _INTERACTIVE_BTN_ON,
-    _DIM_BTN, _DIM_BTN_LG, _TOGGLE_OFF_BTN,
-    _SEX_EMOJI_GAY, _SEX_EMOJI_BI,
-    _PRIORITY_TABLE_STYLE, _PRIORITY_COMBO_STYLE,
-    _CHIP_ROLE, _SCORE_SECONDARY_ROLE, _HEATMAP_ROLE,
+    _CLR_AGE_OLD, _SEX_EMOJI_GAY, _SEX_EMOJI_BI,
     _CHIP_TOP_PRIORITY, _CHIP_DESIRABLE, _CHIP_UNDESIRABLE,
     _CHIP_DIM, _CHIP_LOVE_SCOPE, _CHIP_LOVE_ROOM,
     _CHIP_HATE_SCOPE, _CHIP_HATE_ROOM, _CHIP_AGE_WARN,
-    _COL_EMOJI,
     CLR_TEXT_PRIMARY, CLR_TEXT_SECONDARY, CLR_TEXT_UI_LABEL,
     CLR_TEXT_GROUP, CLR_TEXT_SUBLABEL, CLR_TEXT_COUNT, CLR_TEXT_GRAYEDOUT,
-    CLR_TEXT_MUTED, _GROUP_LABEL_STYLE,
+    CLR_TEXT_MUTED,
     CLR_BG_MAIN, CLR_BG_ALT, CLR_BG_SCORE_AREA, CLR_BG_PANEL,
     CLR_BG_HEADER, CLR_BG_HEADER_BDR, CLR_BG_DEEP,
     CLR_SURFACE_SEPARATOR, _NEUTRAL_SURFACE,
+)
+from .styles import (
+    _SEG_BTN_STYLE, _GROUP_LABEL_STYLE,
+    _INTERACTIVE_BTN_ACTIVE, _INTERACTIVE_BTN_ON,
+    _DIM_BTN, _DIM_BTN_LG, _TOGGLE_OFF_BTN,
+    _PRIORITY_TABLE_STYLE, _PRIORITY_COMBO_STYLE,
+)
+from .columns import (
+    COL_NAME, COL_LOC, COL_INJ, _STAT_COL_NAMES, _COL_STAT_START,
+    _NUM_STAT_COLS, _SCORE_COLS, _COL_SCORE_START, COL_SCORE,
+    _ALL_HEADERS, _SEP_COLS, _SEP_WIDTH,
+    _CHIP_ROLE, _SCORE_SECONDARY_ROLE, _HEATMAP_ROLE,
+    _ROOM_STYLE, INJURY_STAT_NAMES, _COL_EMOJI,
 )
 from .scoring import (
     ScoreResult, ability_base, is_basic_trait,
@@ -77,6 +78,9 @@ from .delegates import (
     _SortHighlightHeader, _TraitChipDelegate, _TraitNameDelegate,
     _WeightSpin,
 )
+
+_NUM_PROFILES = 5
+
 
 def _cat_injuries(cat, stat_names: list) -> list:
     """Return list of (injury_name, stat_key, delta) for stats with a negative total-vs-base delta."""

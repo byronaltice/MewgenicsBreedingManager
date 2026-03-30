@@ -10,11 +10,14 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Signal
 
-from .constants import (
+from .styles import (
     _INTERACTIVE_BTN_LG, _INTERACTIVE_BTN_ON_SM,
     _DIM_BTN_LG, _TOGGLE_OFF_BTN_SM,
+    _GROUP_LABEL_STYLE,
+)
+from .theme import (
     CLR_TEXT_PRIMARY, CLR_TEXT_SECONDARY, CLR_TEXT_UI_LABEL,
-    CLR_TEXT_COUNT, CLR_TEXT_MUTED, _GROUP_LABEL_STYLE,
+    CLR_TEXT_COUNT, CLR_TEXT_MUTED,
     CLR_BG_MAIN, CLR_BG_ALT, CLR_SURFACE_SEPARATOR,
 )
 

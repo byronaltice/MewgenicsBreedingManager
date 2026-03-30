@@ -1,13 +1,117 @@
-"""Breed Priority — scoring helpers and main scoring function.
+"""Breed Priority — scoring config, helpers, and main scoring function.
 
 Standalone module — no imports from mewgenics_manager to avoid circular deps.
 """
 
-from .constants import (
-    BREED_PRIORITY_WEIGHTS, BREED_PRIORITY_TIERS, SCORE_COLUMNS,
-    TRAIT_LOW_THRESHOLD, TRAIT_HIGH_THRESHOLD,
-    _STAT_COL_NAMES,
-)
+# ── Personality trait thresholds ─────────────────────────────────────────────
+
+TRAIT_LOW_THRESHOLD  = 0.3   # < this  → "low"
+TRAIT_HIGH_THRESHOLD = 0.7   # >= this → "high"
+
+# ── Scoring weights ───────────────────────────────────────────────────────────
+
+BREED_PRIORITY_WEIGHTS = {
+    "stat_7":           5.0,
+    "stat_7_threshold": 7.0,   # cats with 7 in a stat before score scales down
+    "stat_7_count":     2.0,   # flat bonus per stat the cat personally has at 7 (additive)
+    "unique_ma_max":    2.0,
+    "low_aggression":  1.0,
+    "unknown_gender":  1.0,
+    "high_libido":     0.5,
+    "high_aggression": -1.0,
+    "low_libido":      -0.5,
+    "gay_pref":        0.0,
+    "bi_pref":         0.0,
+    "no_children":     4.0,
+    "many_children":   -3.0,
+    "stat_sum":        4.0,
+    "age_penalty":    -2.0,
+    "age_threshold":  10.0,
+    "love_interest":      1.0,
+    "rivalry":           -2.0,
+    "love_interest_room": 0.0,
+    "rivalry_room":       0.0,
+    "seven_sub":           0.0,
+    "seven_sub_threshold": 1.0,
+}
+
+# Weight editor UI rows
+WEIGHT_UI_ROWS = [
+    ("stat_sum",         "Stat Sum"),
+    (None, None),
+    ("age_penalty",      "Age penalty"),
+    ("age_threshold",    "  └ threshold"),
+    (None, None),
+    ("stat_7",           "7rare"),
+    ("stat_7_threshold", "  └ threshold"),
+    ("stat_7_count",     "7-count"),
+    (None, None),
+    ("seven_sub",          "7-Sub score"),
+    ("seven_sub_threshold","  └ threshold"),
+    (None, None),
+    ("gay_pref",         ("Sex", "Gay")),
+    ("bi_pref",          ("",       "Bi")),
+    (None, None),
+    ("high_libido",      ("Lib", "High")),
+    ("low_libido",       ("",       "Low")),
+    (None, None),
+    ("unknown_gender",   "Unknown gender"),
+    (None, None),
+    ("no_children",      "Genetic Novelty"),
+    ("many_children",    "4+ children"),
+    (None, None),
+    ("high_aggression",  ("Aggro", "High")),
+    ("low_aggression",   ("",      "Low")),
+    (None, None),
+    ("rivalry",            ("Hate", "In Scope")),
+    ("rivalry_room",       ("",     "In Room")),
+    (None, None),
+    ("love_interest",      ("Love", "In Scope")),
+    ("love_interest_room", ("",     "In Room")),
+    (None, None),
+    ("unique_ma_max",    "Trait"),
+]
+
+# Score table columns
+SCORE_COLUMNS = [
+    ("Sum",   ["stat_sum"]),
+    ("Age",   ["age_penalty"]),
+    ("7rare", ["stat_7"]),
+    ("7cnt",  ["stat_7_count"]),
+    ("7sub",  ["seven_sub"]),
+    ("Sex",   ["gay_pref", "bi_pref"]),
+    ("Lib",   ["high_libido", "low_libido"]),
+    ("Gender", ["unknown_gender"]),
+    ("Gene",  ["no_children"]),
+    ("4+Ch",  ["many_children"]),
+    ("Aggro", ["low_aggression", "high_aggression"]),
+    ("💥🔭",    ["rivalry"]),
+    ("💥🏠",    ["rivalry_room"]),
+    ("💗🔭",    ["love_interest"]),
+    ("💗🏠",    ["love_interest_room"]),
+    ("Trait", ["unique_ma_max"]),
+]
+
+# Scoring tiers: (threshold, label, color) — first match wins; None = catch-all
+BREED_PRIORITY_TIERS = [
+    (10,   "Keep",     "#f0c060"),
+    ( 4,   "Good",     "#1ec8a0"),
+    ( 0,   "Neutral",  "#777777"),
+    (-5,   "Consider", "#e08030"),
+    (None, "Cull",     "#e04040"),
+]
+
+# Trait rating options
+TRAIT_RATING_OPTIONS = [
+    ("Top Priority - sole owner +20, shared +10÷n", 2),
+    ("Desirable - sole owner +4, shared +2÷n",     1),
+    ("Neutral - reviewed, not scored",              0),
+    ("Undecided - not yet reviewed",                None),
+    ("Undesirable - scored −2",                    -1),
+]
+TRAIT_RATING_LABELS = [label for label, _ in TRAIT_RATING_OPTIONS]
+TRAIT_RATING_VALUES = [val   for _, val  in TRAIT_RATING_OPTIONS]
+RATING_SHORT_LABELS = ["Top Priority", "Desirable", "Neutral", "Undecided", "Undesirable"]
 
 
 # ── Scoring helpers ───────────────────────────────────────────────────────────

@@ -14,25 +14,28 @@ from PySide6.QtCore import Qt, Signal, QTimer, QObject, QEvent, QRect, QSize
 from PySide6.QtGui import QColor, QBrush, QPainter, QPen, QFont, QFontMetrics
 from PySide6.QtWidgets import QToolTip
 
-from .constants import (
+from .columns import (
     COL_NAME, _SEP_COLS, _SEP_WIDTH,
     _CHIP_ROLE, _SCORE_SECONDARY_ROLE, _HEATMAP_ROLE,
+    _TRAIT_NAME_ROLE, _TRAIT_SUMMARY_ROLE,
+)
+from .theme import (
     _CHIP_H, _CHIP_PAD_X, _CHIP_GAP, _CHIP_RADIUS,
     _CHIP_DESIRABLE, _CHIP_UNDESIRABLE, _CHIP_DIM,
-    _TRAIT_NAME_ROLE, _TRAIT_SUMMARY_ROLE,
     _SEP_COL_COLOR,
     _HEAT_POS, _HEAT_NEG,
     CLR_DESIRABLE, CLR_UNDESIRABLE,
-    CLR_VALUE_POS, CLR_VALUE_NEG,
-    CLR_VALUE_NEUTRAL,
+    CLR_VALUE_POS, CLR_VALUE_NEG, CLR_VALUE_NEUTRAL,
     CLR_TEXT_PRIMARY, CLR_TEXT_UI_LABEL, CLR_TEXT_SECONDARY, CLR_TEXT_GRAYEDOUT,
     CLR_BG_MAIN, CLR_BG_ALT,
     CLR_BG_HEADER, CLR_BG_HEADER_BDR, CLR_BG_SCORE_AREA,
     CLR_SURFACE_SEPARATOR, CLR_SURFACE_NEUTRAL,
-    TRAIT_RATING_LABELS, TRAIT_RATING_VALUES, RATING_SHORT_LABELS,
     RATING_ITEM_COLORS,
-    _PRIORITY_COMBO_STYLE,
 )
+from .scoring import (
+    TRAIT_RATING_LABELS, TRAIT_RATING_VALUES, RATING_SHORT_LABELS,
+)
+from .styles import _PRIORITY_COMBO_STYLE
 
 
 # ── Chip layout ──────────────────────────────────────────────────────────────
