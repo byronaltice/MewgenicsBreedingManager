@@ -70,6 +70,9 @@ from .columns import (
 from .scoring import (
     ScoreResult, ability_base, is_basic_trait,
 )
+from .tooltips import build_cat_tooltip, build_child_tooltip
+from .column_values import raw_col_value
+from .weight_popup import show_weights_popup
 from .delegates import (
     _BothModeDelegate, _ConfirmDialog,
     _FastTooltipFilter, _HateRowOverlay, _HeaderTooltipFilter,
@@ -1484,48 +1487,7 @@ class BreedPriorityView(QWidget):
 
     def _build_child_tooltip(self, cat) -> str:
         """Build a rich HTML tooltip with full cat info for the children panel."""
-        html_parts = [
-            f'<html><body style="font-family:monospace;font-size:11px;background:{CLR_BG_MAIN}">',
-            f'<b style="color:{CLR_HIGHLIGHT};font-size:12px">{cat.name}</b>'
-            f' <span style="color:#88aacc;font-size:11px">{cat.gender_display}</span>'
-            f' <span style="color:{CLR_TEXT_UI_LABEL};font-size:10px">age {getattr(cat, "age", "?")}</span>',
-        ]
-        # Stats row
-        stats_str = "  ".join(
-            f'{sn}:<b style="color:#ddddee">{cat.base_stats.get(sn, "?")}</b>'
-            for sn in _STAT_COL_NAMES
-        )
-        html_parts.append(
-            f'<br><span style="color:#888;font-size:10px">{stats_str}</span>'
-        )
-        # Trait sections
-        active_abs  = [self._display_name(ability_base(a))
-                       for a in cat.abilities if not is_basic_trait(a)]
-        passive_abs = [self._display_name(ability_base(a))
-                       for a in cat.passive_abilities if not is_basic_trait(a)]
-        disorders   = [self._display_name(ability_base(d))
-                       for d in getattr(cat, 'disorders', []) if not is_basic_trait(d)]
-        mutations   = [m for m in cat.mutations if not is_basic_trait(m)]
-        defects     = [d for d in getattr(cat, 'defects', []) if not is_basic_trait(d)]
-
-        for title, items, color in (
-            ("ACTIVE ABILITIES",  active_abs,  CLR_DESIRABLE),
-            ("PASSIVE ABILITIES", passive_abs, "#88aacc"),
-            ("DISORDERS",         disorders,   CLR_UNDESIRABLE),
-            ("MUTATIONS",         mutations,   "#cc88ff"),
-            ("BIRTH DEFECTS",     defects,     "#cc4444"),
-        ):
-            if items:
-                rows = "".join(
-                    f'<tr><td style="color:{color};padding:0 8px 0 0">{it}</td></tr>'
-                    for it in items
-                )
-                html_parts.append(
-                    f'<br><span style="color:{CLR_TEXT_UI_LABEL};font-size:10px">{title}</span>'
-                    f'<table cellspacing="0" cellpadding="1">{rows}</table>'
-                )
-        html_parts.append('</body></html>')
-        return "".join(html_parts)
+        return build_child_tooltip(cat, self._display_name)
 
     # ── Scope helpers ─────────────────────────────────────────────────────────
 
@@ -1932,322 +1894,26 @@ class BreedPriorityView(QWidget):
     # ── Score computation ─────────────────────────────────────────────────────
 
     def _build_cat_tooltip(self, cat, result: ScoreResult, scope_cats: list) -> str:
-        def row(color: str, label: str, score: str) -> str:
-            return (
-                f'<tr>'
-                f'<td style="color:{color};padding:0 8px 0 0">{label}</td>'
-                f'<td style="color:{color};text-align:right">{score}</td>'
-                f'</tr>'
-            )
-
-        _scope_base = {
-            id(c): (
-                {ability_base(a) for a in list(c.abilities) + list(c.passive_abilities) + list(getattr(c, 'disorders', []))
-                 if not is_basic_trait(a)}
-                | set(c.mutations)
-                | set(getattr(c, 'defects', []))
-            )
-            for c in scope_cats
-        }
-        _u = self._weights["unique_ma_max"]
-
-        passive_base = {
-            ability_base(p) for p in cat.passive_abilities if not is_basic_trait(p)
-        }
-        disorder_base = {
-            ability_base(d) for d in getattr(cat, 'disorders', []) if not is_basic_trait(d)
-        }
-        seen: set = set()
-        active_traits = [
-            t for t in (
-                ability_base(a) for a in cat.abilities
-                if not is_basic_trait(a) and ability_base(a) not in passive_base
-                and ability_base(a) not in disorder_base
-            )
-            if not (t in seen or seen.add(t))
-        ]
-        passive_traits = sorted(passive_base)
-        disorder_traits = sorted(disorder_base)
-        mutation_traits = [t for t in cat.mutations if not is_basic_trait(t)]
-        defect_traits = [t for t in getattr(cat, 'defects', []) if not is_basic_trait(t)]
-
-        def _trait_rows_for(traits: list) -> list:
-            rows = []
-            for trait in traits:
-                display = self._display_name(trait)
-                rating = self._ma_ratings.get(trait)
-                sharing = [c for c in scope_cats
-                           if c is not cat and trait in _scope_base[id(c)]]
-                n = len(sharing) + 1  # +1 for the cat itself
-                cats_str = f" ({n} cats)"
-                if rating in (None, 0):
-                    color = CLR_UNDECIDED if rating is None else CLR_NEUTRAL
-                    label = f"{display}  ?" if rating is None else display
-                    rows.append(row(color, label, "+0.00"))
-                elif n == 1:
-                    if rating == 2:
-                        pts = 10 * _u
-                        clr, star = CLR_TOP_PRIORITY, "★★★"
-                    elif rating == 1:
-                        pts = 2 * _u
-                        clr, star = CLR_DESIRABLE, "★★"
-                    else:
-                        pts = -_u
-                        clr, star = CLR_UNDESIRABLE, "★"
-                    rows.append(row(clr, f"{display}  {star}", f"{pts:+.2f}"))
-                elif rating == 2:
-                    pts = round(5 * _u / n, 3)
-                    rows.append(row(CLR_TOP_PRIORITY, display, f"{pts:+.2f}{cats_str}"))
-                elif rating == 1:
-                    pts = round(_u / n, 3)
-                    rows.append(row(CLR_DESIRABLE, display, f"{pts:+.2f}{cats_str}"))
-                elif rating == -1:
-                    rows.append(row(CLR_UNDESIRABLE, display, f"{-_u:+.2f}{cats_str}"))
-                else:
-                    rows.append(row(CLR_NEUTRAL, display, f"+0.00{cats_str}"))
-                if sharing:
-                    names = [c.name for c in sharing[:5]]
-                    extra = len(sharing) - 5
-                    names_text = ", ".join(names)
-                    if extra > 0:
-                        names_text += f", +{extra} more"
-                    rows.append(row(CLR_HIGHLIGHT, f"&nbsp;&nbsp;↳ {names_text}", ""))
-            return rows
-
-        active_rows   = _trait_rows_for(active_traits)
-        passive_rows  = _trait_rows_for(passive_traits)
-        disorder_rows = _trait_rows_for(disorder_traits)
-        mutation_rows = _trait_rows_for(mutation_traits)
-        defect_rows   = _trait_rows_for(defect_traits)
-
-        # Build injury rows
-        _injuries = _cat_injuries(cat, self._stat_names)
-        injury_rows = []
-        for _iname, _isn, _idelta in _injuries:
-            injury_rows.append(row("#cc4444", _isn, f"{_idelta:+d}"))
-
-        scope_set = {id(c) for c in scope_cats}
-        children_in_scope = [c for c in cat.children if id(c) in scope_set]
-        other_rows = []
-        for desc, pts in result.breakdown:
-            if desc.startswith(("Sole owner", "Top Priority (÷", "Desirable (÷", "Undesirable:")):
-                continue
-            color = CLR_VALUE_POS if pts > 0 else CLR_VALUE_NEG
-            other_rows.append(row(color, desc, f"{pts:+.2f}"))
-            if "children in scope" in desc and children_in_scope:
-                for child in children_in_scope:
-                    room = self._room_display.get(child.room, child.room or "?")
-                    other_rows.append(row(CLR_HIGHLIGHT, f"&nbsp;&nbsp;↳ {child.name}  ({room})", ""))
-
-        total_color = CLR_VALUE_POS if result.total > 0 else CLR_VALUE_NEG if result.total < 0 else CLR_VALUE_NEUTRAL
-        _sex = getattr(cat, 'sexuality', 'straight') or 'straight'
-        _sex_glyph = (
-            f' <span style="font-size:14px">{_SEX_EMOJI_GAY}</span>' if _sex == 'gay' else
-            f' <span style="font-size:14px">{_SEX_EMOJI_BI}</span>'  if _sex == 'bi'  else
-            ''
+        return build_cat_tooltip(
+            cat, result, scope_cats,
+            weights=self._weights,
+            ma_ratings=self._ma_ratings,
+            display_name_fn=self._display_name,
+            room_display=self._room_display,
+            hated_by_map=self._hated_by_map,
+            loved_by_map=self._loved_by_map,
+            cat_injuries_fn=lambda c: _cat_injuries(c, self._stat_names),
         )
-        html_parts = [
-            f'<html><body style="font-family:monospace;font-size:11px;background:{CLR_BG_MAIN}">',
-            f'<b style="color:{CLR_HIGHLIGHT};font-size:12px">{cat.name}</b>'
-            f'{_sex_glyph}'
-            f' <span style="color:#88aacc;font-size:11px">{cat.gender_display}</span>'
-            f' <span style="color:{CLR_TEXT_UI_LABEL};font-size:10px">age {getattr(cat, "age", "?")}</span>',
-        ]
-        if injury_rows:
-            html_parts.append('<br><span style="color:#cc4444;font-size:10px">INJURIES</span>')
-            html_parts.append('<table cellspacing="0" cellpadding="1">' + "".join(injury_rows) + '</table>')
-        _TT_SECTION = f'<br><span style="color:{CLR_TEXT_UI_LABEL};font-size:10px">'
-        if active_rows:
-            html_parts.append(f'{_TT_SECTION}ACTIVE ABILITIES</span>')
-            html_parts.append('<table cellspacing="0" cellpadding="1">' + "".join(active_rows) + '</table>')
-        if passive_rows:
-            html_parts.append(f'{_TT_SECTION}PASSIVE ABILITIES</span>')
-            html_parts.append('<table cellspacing="0" cellpadding="1">' + "".join(passive_rows) + '</table>')
-        if disorder_rows:
-            html_parts.append(f'{_TT_SECTION}DISORDERS</span>')
-            html_parts.append('<table cellspacing="0" cellpadding="1">' + "".join(disorder_rows) + '</table>')
-        if mutation_rows:
-            html_parts.append(f'{_TT_SECTION}MUTATIONS</span>')
-            html_parts.append('<table cellspacing="0" cellpadding="1">' + "".join(mutation_rows) + '</table>')
-        if defect_rows:
-            html_parts.append(f'{_TT_SECTION}BIRTH DEFECTS</span>')
-            html_parts.append('<table cellspacing="0" cellpadding="1">' + "".join(defect_rows) + '</table>')
-        if other_rows:
-            html_parts.append(f'{_TT_SECTION}OTHER</span>')
-            html_parts.append('<table cellspacing="0" cellpadding="1">' + "".join(other_rows) + '</table>')
-
-        # ── Relationships (hate / love) with room/scope context ──
-        _cat_room = getattr(cat, 'room', None)
-        _rel_rows = []
-        _room_display = self._room_display
-        scope_set = {id(c) for c in scope_cats}
-        def _rel_context(other):
-            """Return (context_str, color) for a relationship target."""
-            _or = getattr(other, 'room', None)
-            _same_room = _cat_room and _or == _cat_room
-            _in_scope = id(other) in scope_set
-            if _same_room and _in_scope:
-                return "room + scope", "#ddaa44"
-            elif _same_room:
-                return "room", "#dd8844"
-            elif _in_scope:
-                return "scope", "#88aacc"
-            else:
-                return "out of scope", "#666666"
-        # Cats this cat hates
-        for h in getattr(cat, 'haters', []):
-            ctx, clr = _rel_context(h)
-            _rel_rows.append(row(clr, f"Hates {h.name}", f"({ctx})"))
-        # Cats that hate this cat (reverse)
-        for h in self._hated_by_map.get(id(cat), []):
-            if h not in getattr(cat, 'haters', []):
-                ctx, clr = _rel_context(h)
-                _rel_rows.append(row(clr, f"Hated by {h.name}", f"({ctx})"))
-        # Cats this cat loves
-        for lv in getattr(cat, 'lovers', []):
-            ctx, clr = _rel_context(lv)
-            _rel_rows.append(row(clr, f"Loves {lv.name}", f"({ctx})"))
-        # Cats that love this cat (reverse)
-        for lv in self._loved_by_map.get(id(cat), []):
-            if lv not in getattr(cat, 'lovers', []):
-                ctx, clr = _rel_context(lv)
-                _rel_rows.append(row(clr, f"Loved by {lv.name}", f"({ctx})"))
-        if _rel_rows:
-            html_parts.append(f'{_TT_SECTION}RELATIONSHIPS</span>')
-            html_parts.append('<table cellspacing="0" cellpadding="1">' + "".join(_rel_rows) + '</table>')
-
-        html_parts.append(
-            f'<br><b style="color:{total_color}">Total: {result.total:+.2f}</b>'
-        )
-        html_parts.append('</body></html>')
-        return "".join(html_parts)
 
     def _raw_col_value(self, cat, col_idx: int,
                        scope_relatives_count: int,
                        all_scope_relatives_counts: list) -> tuple:
         """Return (text, sort_val, color) for a column in value mode."""
-        hdr = _ALL_HEADERS[col_idx]
-
-        if hdr == "Age":
-            age = getattr(cat, 'age', None)
-            if age is None:
-                return ("-", -1.0, "#666")
-            _age_thr = int(round(self._weights.get("age_threshold", 10.0)))
-            _over = age - _age_thr
-            t = 0.0 if _over <= 0 else min(1.0, _over / 20.0)
-            color = ColorUtils.lerp(CLR_VALUE_NEUTRAL, _CLR_AGE_OLD, t)
-            text = f"⏳{age}" if _over > 0 else str(age)
-            return (text, float(age), color)
-
-        if hdr == "Loc":
-            loc = self._room_display.get(cat.room, cat.room or "")
-            _clr = _ROOM_STYLE.get(loc)
-            return (loc, 0, _clr or CLR_VALUE_NEUTRAL)
-
-        if hdr in _STAT_COL_NAMES:
-            val = cat.base_stats.get(hdr, 0)
-            # 7=green, 6=medium yellow, 5=greyer yellow, 4=grey
-            _STAT_VAL_COLORS = {7: "#44cc66", 6: "#bba844", 5: "#998855", 4: CLR_VALUE_NEUTRAL}
-            color = _STAT_VAL_COLORS.get(val, CLR_VALUE_NEUTRAL)
-            return (str(val), float(val), color)
-
-        if hdr == "Sum":
-            s = sum(cat.base_stats.values())
-            # gradient: low=brown, mid=teal, high=purple
-            # use percentile of all scope cats
-            return (str(s), float(s), "#aaaaaa")
-
-        if hdr == "777":
-            count_7 = sum(1 for v in cat.base_stats.values() if v == 7)
-            if count_7 == 0:
-                color = CLR_TEXT_GRAYEDOUT
-            else:
-                # grey→gold
-                t = min(1.0, count_7 / 7.0)
-                color = ColorUtils.lerp(CLR_VALUE_NEUTRAL, "#ffcc00", t)
-            return (str(count_7) if count_7 else "", float(count_7), color)
-
-        if hdr == "Trait":
-            val = sum(result_subtotals.get(k, 0.0)
-                      for k in ["unique_ma_max"]
-                      for result_subtotals in [{}])  # placeholder
-            return ("", 0.0, CLR_VALUE_NEUTRAL)
-
-        if hdr == "Aggro":
-            a = cat.aggression
-            if a is None:
-                return ("?", 0.0, "#666")
-            _high_ag_w = self._weights.get("high_aggression", 0.0)
-            _low_ag_w  = self._weights.get("low_aggression",  0.0)
-            _high_clr, _low_clr = ChipColors.paired_weights(_high_ag_w, _low_ag_w)
-            if a >= TRAIT_HIGH_THRESHOLD:
-                return ("▲Hi", a, _high_clr)
-            elif a < TRAIT_LOW_THRESHOLD:
-                return ("▼Lo", a, _low_clr)
-            else:
-                return ("—",   a, CLR_TEXT_GRAYEDOUT)
-
-        if hdr == "Gender":
-            gd = getattr(cat, 'gender_display', '?')
-            if gd in ('M', 'Male'):
-                return ("M", 0.0, CLR_GENDER_MALE)
-            elif gd in ('F', 'Female'):
-                return ("F", 0.0, CLR_GENDER_FEMALE)
-            return ("?", 1.0, CLR_GENDER_UNKNOWN)
-
-        if hdr == "Lib":
-            lb = cat.libido
-            if lb is None:
-                return ("?", 0.0, "#666")
-            _high_lb_w = self._weights.get("high_libido", 0.0)
-            _low_lb_w  = self._weights.get("low_libido",  0.0)
-            _high_clr, _low_clr = ChipColors.paired_weights(_high_lb_w, _low_lb_w)
-            if lb >= TRAIT_HIGH_THRESHOLD:
-                return ("❤️", lb, _high_clr)
-            elif lb < TRAIT_LOW_THRESHOLD:
-                return ("💙", lb, _low_clr)
-            else:
-                return ("—", lb, CLR_TEXT_GRAYEDOUT)
-
-        if hdr == "Sex":
-            sex = getattr(cat, 'sexuality', 'straight') or 'straight'
-            if sex == 'straight':
-                return ("", 0.0, CLR_TEXT_COUNT)
-            gay_w = self._weights.get("gay_pref", 0.0)
-            bi_w  = self._weights.get("bi_pref",  0.0)
-            gay_clr, bi_clr = ChipColors.paired_weights(gay_w, bi_w)
-            if sex == 'gay':
-                return (f"{_SEX_EMOJI_GAY}", gay_w, gay_clr)
-            else:  # bi
-                return (f"{_SEX_EMOJI_BI}", bi_w, bi_clr)
-
-        if hdr == "Gene":
-            n = scope_relatives_count
-            total = len(all_scope_relatives_counts)
-            if total > 0:
-                rank = sum(1 for v in all_scope_relatives_counts if v <= n)
-                pct = rank / total * 100
-                # fewer relatives = better (greener)
-                if n == 0:
-                    color = CLR_DESIRABLE
-                elif pct >= 75:
-                    color = CLR_UNDESIRABLE
-                elif pct >= 50:
-                    color = "#e08030"
-                else:
-                    color = "#b0a040"
-            else:
-                color = CLR_VALUE_NEUTRAL
-            text = "✦" if n == 0 else ""
-            return (text, float(n), color)
-
-        if hdr == "4+Ch":
-            # This is called with scope_relatives_count but we need children_in_scope
-            # which is passed separately. We return a placeholder here; the actual
-            # value is set in the main loop where ch_in_scope is available.
-            return ("", 0.0, CLR_VALUE_NEUTRAL)
-
-        return ("", 0.0, CLR_VALUE_NEUTRAL)
+        return raw_col_value(
+            cat, col_idx, scope_relatives_count, all_scope_relatives_counts,
+            weights=self._weights,
+            room_display=self._room_display,
+        )
 
     def recompute(self, *_):
         if self._populating:
@@ -2816,92 +2482,4 @@ class BreedPriorityView(QWidget):
     # ── Weights popup ─────────────────────────────────────────────────────────
 
     def _show_weights_popup(self):
-        dlg = QDialog(self)
-        dlg.setWindowTitle("Scoring Weights")
-        dlg.setModal(True)
-        dlg.setStyleSheet(f"background:{CLR_BG_SCORE_AREA}; color:{CLR_TEXT_PRIMARY};")
-        dlg.resize(440, 380)
-
-        vb = QVBoxLayout(dlg)
-        vb.setContentsMargins(16, 16, 16, 16)
-        vb.setSpacing(8)
-
-        title = QLabel("Breed Priority - Scoring Weights")
-        title.setStyleSheet(f"color:{CLR_TEXT_PRIMARY}; font-size:13px; font-weight:bold;")
-        vb.addWidget(title)
-
-        table = QTableWidget()
-        table.setColumnCount(2)
-        table.setHorizontalHeaderLabels(["Attribute", "Weight"])
-        table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        table.setSelectionMode(QAbstractItemView.NoSelection)
-        table.verticalHeader().setVisible(False)
-        table.setShowGrid(False)
-        table.setAlternatingRowColors(True)
-        table.setStyleSheet(_PRIORITY_TABLE_STYLE)
-        hh = table.horizontalHeader()
-        hh.setSectionResizeMode(0, QHeaderView.Stretch)
-        hh.setSectionResizeMode(1, QHeaderView.Fixed)
-        table.setColumnWidth(1, 90)
-
-        w = self._weights
-        _thr = int(round(w.get("stat_7_threshold", 7.0)))
-        _n_stats = 7
-        rows_data = [
-            ("── 7-rare: bonus per stat where few scope cats share that 7 ──", ""),
-            (f"  7 in a stat (≤{_thr} cats in scope have it)",  f"+{w['stat_7']:.0f}"),
-            (f"  7 in a stat ({_thr+1} cats in scope)",         f"+{max(0.1, round(w['stat_7']*_thr/(_thr+1),1)):.1f}"),
-            (f"  7 in a stat ({_thr+3} cats in scope)",         f"+{max(0.1, round(w['stat_7']*_thr/(_thr+3),1)):.1f}"),
-            (f"  7 in a stat ({_thr+6} cats in scope)",         f"+{max(0.1, round(w['stat_7']*_thr/(_thr+6),1)):.1f}"),
-            (f"  7 in a stat (sole owner, none in scope)",      f"+{w['stat_7']*2:.0f} (★★ bonus)"),
-            ("── 7-cnt: bonus for total 7's this cat personally owns ──", ""),
-            (f"  1 stat at 7",   f"+{w['stat_7_count']*1:.2f}"),
-            (f"  3 stats at 7",  f"+{w['stat_7_count']*3:.2f}"),
-            (f"  5 stats at 7",  f"+{w['stat_7_count']*5:.2f}"),
-            (f"  7 stats at 7",  f"+{w['stat_7_count']*7:.2f} (max)"),
-            ("Trait - desirable sole owner",                   f"+{2*w['unique_ma_max']:.1f}"),
-            ("Trait - desirable, shared with N cats",         f"+{w['unique_ma_max']:.1f} ÷ N"),
-            ("Trait - neutral or undecided",                   "+0.00"),
-            ("Trait - undesirable",                           f"-{w['unique_ma_max']:.1f}"),
-            (f"Low aggression (<{TRAIT_LOW_THRESHOLD*100:.0f}%)",   f"+{w['low_aggression']:.1f}"),
-            ("Unknown gender (?)",                                    f"+{w['unknown_gender']:.1f}"),
-            (f"High libido (≥{TRAIT_HIGH_THRESHOLD*100:.0f}%)",      f"+{w['high_libido']:.1f}"),
-            (f"High aggression (≥{TRAIT_HIGH_THRESHOLD*100:.0f}%)",  f"{w['high_aggression']:.1f}"),
-            (f"Low libido (<{TRAIT_LOW_THRESHOLD*100:.0f}%)",        f"{w['low_libido']:.1f}"),
-            ("Genetic Novelty (no relatives in scope)",        f"+{w['no_children']:.1f}"),
-            ("4+ children in scope",                           f"{w['many_children']:.1f}"),
-            ("Love interest in scope",                         f"+{w['love_interest']:.1f}"),
-            ("Rival in scope",                                 f"{w['rivalry']:.1f}"),
-            ("── age penalty: multiplies per 3 years above threshold ──", ""),
-            (f"  Age ≤ {int(round(w.get('age_threshold',10)))} (at or below threshold)",  "+0"),
-            (f"  Age {int(round(w.get('age_threshold',10)))+1} (+1 over, 1×)",  f"{w['age_penalty']:.1f}"),
-            (f"  Age {int(round(w.get('age_threshold',10)))+4} (+4 over, 2×)",  f"{2*w['age_penalty']:.1f}"),
-            (f"  Age {int(round(w.get('age_threshold',10)))+7} (+7 over, 3×)",  f"{3*w['age_penalty']:.1f}"),
-        ]
-        table.setRowCount(len(rows_data))
-        for r, (attr, wt) in enumerate(rows_data):
-            is_header = wt == ""
-            a_item = QTableWidgetItem(attr)
-            a_item.setFlags(Qt.ItemIsEnabled)
-            if is_header:
-                a_item.setForeground(QColor("#7070c0"))
-                f = a_item.font()
-                f.setItalic(True)
-                a_item.setFont(f)
-            w_item = QTableWidgetItem(wt)
-            w_item.setFlags(Qt.ItemIsEnabled)
-            w_item.setTextAlignment(Qt.AlignCenter)
-            if wt.startswith("+"):
-                w_item.setForeground(QColor(CLR_VALUE_POS))
-            elif wt.startswith("-"):
-                w_item.setForeground(QColor(CLR_VALUE_NEG))
-            table.setItem(r, 0, a_item)
-            table.setItem(r, 1, w_item)
-            table.setRowHeight(r, 22 if is_header else 24)
-        vb.addWidget(table)
-
-        close_btn = QPushButton("Close")
-        close_btn.setStyleSheet(_DIM_BTN_LG)
-        close_btn.clicked.connect(dlg.accept)
-        vb.addWidget(close_btn, alignment=Qt.AlignRight)
-        dlg.exec()
+        show_weights_popup(self, self._weights)
