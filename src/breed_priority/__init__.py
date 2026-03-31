@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
     QSizePolicy, QFrame,
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
     QListWidget, QListWidgetItem, QButtonGroup,
-    QCheckBox, QComboBox, QLineEdit, QPushButton, QDialog, QGridLayout,
+    QCheckBox, QComboBox, QLineEdit, QPushButton, QGridLayout,
 )
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QColor, QBrush
@@ -38,7 +38,7 @@ from .scoring import (
 from .theme import (
     CLR_TOP_PRIORITY, CLR_DESIRABLE, CLR_NEUTRAL, CLR_UNDECIDED,
     CLR_UNDESIRABLE, CLR_HIGHLIGHT, RATING_ITEM_COLORS,
-    _SEL_BG, _SEL_FG, _SEL_BORDER, _DIM_LABEL_FG,
+    _DIM_LABEL_FG,
     CLR_GENDER_MALE, CLR_GENDER_FEMALE, CLR_GENDER_UNKNOWN,
     _CHIP_GENDER_MALE, _CHIP_GENDER_FEMALE, _CHIP_GENDER_UNKNOWN,
     CLR_INTERACTIVE, CLR_INTERACTIVE_BG, CLR_INTERACTIVE_BDR,
@@ -73,11 +73,22 @@ from .scoring import (
 from .tooltips import build_cat_tooltip, build_child_tooltip
 from .column_values import raw_col_value
 from .weight_popup import show_weights_popup
+from .recompute_helpers import (
+    build_relationship_maps, compute_seven_sets,
+    compute_all_scores, compute_heatmap_norms,
+)
+from .profiles import (
+    build_profile_bar as _build_profile_bar_impl,
+    update_profile_bar as _update_profile_bar_impl,
+    handle_profile_load as _handle_profile_load_impl,
+    handle_profile_save as _handle_profile_save_impl,
+    handle_profile_delete as _handle_profile_delete_impl,
+)
 from .delegates import (
-    _BothModeDelegate, _ConfirmDialog,
+    _BothModeDelegate,
     _FastTooltipFilter, _HateRowOverlay, _HeaderTooltipFilter,
     _IntParamSpin, _ListTooltipFilter, _NumericSortItem,
-    _ProfileNameEdit, _RatingCombo, _SeparatorDelegate,
+    _RatingCombo, _SeparatorDelegate,
     _SortHighlightHeader, _TraitChipDelegate, _TraitNameDelegate,
     _WeightSpin,
 )
@@ -467,193 +478,40 @@ class BreedPriorityView(QWidget):
 
     def _update_profile_bar(self):
         """Refresh profile button styles, name widgets, and status indicators."""
-        if not hasattr(self, "_profile_btns"):
+        if not hasattr(self, "_profile_widget_refs"):
             return
-        dirty  = self._is_dirty()
-        active = self._active_profile
-        loaded = self._loaded_profile
-        for n, btn in self._profile_btns.items():
-            sel   = (n == active)
-            ld    = (n == loaded)
-            has   = (n in self._profiles)
-            if sel and ld:
-                style = f"background:{_SEL_BG}; color:{_SEL_FG}; border:2px solid {_SEL_BORDER};"
-            elif sel and has:
-                style = "background:#0e1828; color:#88aadd; border:2px solid #3355aa;"
-            elif sel:
-                # selected but empty — dim blue dashed
-                style = "background:#090916; color:#445577; border:2px dashed #1e2d55;"
-            elif ld:
-                style = "background:#0a1a16; color:#5a9a88; border:2px solid #1a4a44;"
-            elif has:
-                # filled, not selected/loaded — slightly brighter than empty
-                style = "background:#0e0e26; color:#404070; border:1px solid #22224a;"
-            else:
-                # empty, unselected — very dim
-                style = "background:#080818; color:#22223a; border:1px dashed #141428;"
-            btn.setStyleSheet(
-                f"QPushButton {{ {style} border-radius:6px; font-size:22px; font-weight:bold; }}"
-                f"QPushButton:hover {{ color:#aaaaee; border-color:#4444aa; }}"
-            )
-        # Name row: show selected profile's name as a preview when it differs from loaded
-        if hasattr(self, "_profile_name_edit"):
-            if active != loaded:
-                sel_name = self._profiles.get(active, {}).get("name", "") or ""
-                self._profile_sel_name_lbl.setText(sel_name or f"Profile {active}")
-                self._profile_sel_name_lbl.setVisible(True)
-                self._profile_sel_arrow_lbl.setVisible(True)
-            else:
-                self._profile_sel_name_lbl.setVisible(False)
-                self._profile_sel_arrow_lbl.setVisible(False)
-        if active != loaded:
-            self._profile_loaded_lbl.setText(f"Loaded: {loaded}  -  Load or Save to sync")
-            self._profile_loaded_lbl.setVisible(True)
-        else:
-            self._profile_loaded_lbl.setVisible(False)
-        self._profile_dirty_lbl.setVisible(dirty)
+        _update_profile_bar_impl(
+            self._profile_widget_refs,
+            self._active_profile,
+            self._loaded_profile,
+            self._profiles,
+            self._is_dirty(),
+        )
 
     def _build_profile_bar(self) -> QWidget:
         """Build the centered profile selector bar above the score table."""
-        bar = QWidget()
-        bar.setStyleSheet("background:#07071a; border-bottom:1px solid #111130;")
-        vb = QVBoxLayout(bar)
-        vb.setContentsMargins(0, 4, 0, 4)
-        vb.setSpacing(4)
-
-        # ── Name row ──────────────────────────────────────────────────────────
-        name_row = QWidget()
-        name_row.setStyleSheet("background:transparent;")
-        nh = QHBoxLayout(name_row)
-        nh.setContentsMargins(0, 0, 0, 0)
-        nh.setSpacing(6)
-        nh.addStretch()
-
-        # Editable name for the currently-loaded profile (green tint)
-        self._profile_name_edit = _ProfileNameEdit()
-        self._profile_name_edit.setFixedWidth(200)
-        self._profile_name_edit.setFixedHeight(24)
-        self._profile_name_edit.setPlaceholderText("Profile name…")
-        self._profile_name_edit.setText(self._profile_name_text)
-        self._profile_name_edit.setStyleSheet(
-            "QLineEdit {"
-            f"  background:#071812; color:{_SEL_FG};"
-            f"  border:1px solid {CLR_INTERACTIVE_BDR}; border-radius:4px;"
-            "  padding:0 6px; font-size:11px;"
-            "}"
-            f"QLineEdit:focus {{ border-color:{CLR_INTERACTIVE}; }}"
+        bar, refs = _build_profile_bar_impl(
+            parent=self,
+            profile_name_text=self._profile_name_text,
+            profile_traits_only=self._profile_traits_only,
+            on_name_changed=self._on_profile_name_changed,
+            on_traits_only_changed=self._on_traits_only_changed,
+            on_btn_clicked=self._on_profile_btn_clicked,
+            on_load=self._on_profile_load,
+            on_save=self._on_profile_save,
+            on_delete=self._on_profile_delete,
         )
-        self._profile_name_edit.textChanged.connect(self._on_profile_name_changed)
-        nh.addWidget(self._profile_name_edit)
-
-        # Arrow + selected profile name preview (blue tint) — shown when active != loaded
-        self._profile_sel_arrow_lbl = QLabel("➜")
-        self._profile_sel_arrow_lbl.setStyleSheet("color:#334466; font-size:18px;")
-        self._profile_sel_arrow_lbl.setVisible(False)
-        nh.addWidget(self._profile_sel_arrow_lbl)
-
-        self._profile_sel_name_lbl = QLabel()
-        self._profile_sel_name_lbl.setFixedWidth(160)
-        self._profile_sel_name_lbl.setStyleSheet(
-            "color:#88aadd; background:#080e1a; border:1px solid #223366;"
-            " border-radius:4px; padding:0 6px; font-size:11px;"
-        )
-        self._profile_sel_name_lbl.setVisible(False)
-        nh.addWidget(self._profile_sel_name_lbl)
-
-        nh.addSpacing(16)
-
-        # "Traits only" checkbox — affects Save/Load behaviour
-        self._chk_traits_only = QCheckBox("Only Trait Desirability")
-        self._chk_traits_only.setChecked(self._profile_traits_only)
-        self._chk_traits_only.setToolTip(
-            "When checked, Save only stores Trait Desirability ratings into the profile\n"
-            "and Load only restores those ratings — weights and other settings are untouched."
-        )
-        self._chk_traits_only.setStyleSheet(
-            "QCheckBox { color:#8899aa; font-size:10px; }"
-            "QCheckBox::indicator { width:13px; height:13px; border:1px solid #556677; border-radius:2px; background:#0a0e14; }"
-            "QCheckBox::indicator:checked { background:#1a5533; border-color:#22aa66; }"
-            "QCheckBox::indicator:hover { border-color:#7799bb; }"
-        )
-        self._chk_traits_only.stateChanged.connect(self._on_traits_only_changed)
-        nh.addWidget(self._chk_traits_only)
-
-        nh.addStretch()
-        vb.addWidget(name_row)
-
-        # ── Button row ────────────────────────────────────────────────────────
-        btn_row = QWidget()
-        btn_row.setStyleSheet("background:transparent;")
-        hb = QHBoxLayout(btn_row)
-        hb.setContentsMargins(16, 0, 16, 0)
-        hb.setSpacing(0)
-        hb.addStretch()
-
-        lbl = QLabel("PROFILES")
-        lbl.setStyleSheet(
-            "color:#282850; font-size:10px; font-weight:bold; letter-spacing:2px;"
-        )
-        hb.addWidget(lbl)
-        hb.addSpacing(12)
-
-        self._profile_btns = {}
-        for n in range(1, _NUM_PROFILES + 1):
-            btn = QPushButton(str(n))
-            btn.setFixedSize(44, 36)
-            btn.clicked.connect(lambda _=False, n=n: self._on_profile_btn_clicked(n))
-            self._profile_btns[n] = btn
-            hb.addWidget(btn)
-            if n < _NUM_PROFILES:
-                hb.addSpacing(4)
-
-        hb.addSpacing(20)
-
-        _act_style = (
-            "QPushButton { background:#0e1a2e; color:#7799bb; border:1px solid #1a2a44;"
-            "  border-radius:4px; padding:2px 12px; font-size:11px; }"
-            "QPushButton:hover { background:#122236; color:#99bbdd; border-color:#2a4a6a; }"
-        )
-        self._profile_load_btn = QPushButton("Load")
-        self._profile_load_btn.setFixedHeight(28)
-        self._profile_load_btn.setStyleSheet(_act_style)
-        self._profile_load_btn.clicked.connect(self._on_profile_load)
-        hb.addWidget(self._profile_load_btn)
-        hb.addSpacing(6)
-
-        self._profile_save_btn = QPushButton("Save")
-        self._profile_save_btn.setFixedHeight(28)
-        self._profile_save_btn.setStyleSheet(_act_style)
-        self._profile_save_btn.clicked.connect(self._on_profile_save)
-        hb.addWidget(self._profile_save_btn)
-        hb.addSpacing(6)
-
-        _del_style = (
-            "QPushButton { background:#1a0e0e; color:#885555; border:1px solid #3a1a1a;"
-            "  border-radius:4px; padding:2px 10px; font-size:11px; }"
-            "QPushButton:hover { background:#2a1212; color:#cc7777; border-color:#662222; }"
-        )
-        self._profile_delete_btn = QPushButton("Delete")
-        self._profile_delete_btn.setFixedHeight(28)
-        self._profile_delete_btn.setStyleSheet(_del_style)
-        self._profile_delete_btn.setToolTip("Delete the selected profile slot, restoring it to empty")
-        self._profile_delete_btn.clicked.connect(self._on_profile_delete)
-        hb.addWidget(self._profile_delete_btn)
-        hb.addSpacing(16)
-
-        self._profile_loaded_lbl = QLabel()
-        self._profile_loaded_lbl.setStyleSheet(f"color:{CLR_TEXT_COUNT}; font-size:11px;")
-        self._profile_loaded_lbl.setVisible(False)
-        hb.addWidget(self._profile_loaded_lbl)
-        hb.addSpacing(8)
-
-        self._profile_dirty_lbl = QLabel("● Modified")
-        self._profile_dirty_lbl.setStyleSheet("color:#bb8822; font-size:11px;")  # intentional amber accent
-        self._profile_dirty_lbl.setVisible(False)
-        hb.addWidget(self._profile_dirty_lbl)
-
-        hb.addStretch()
-        vb.addWidget(btn_row)
-
+        self._profile_widget_refs = refs
+        self._profile_name_edit = refs["name_edit"]
+        self._profile_sel_arrow_lbl = refs["sel_arrow_lbl"]
+        self._profile_sel_name_lbl = refs["sel_name_lbl"]
+        self._profile_btns = refs["profile_btns"]
+        self._profile_load_btn = refs["load_btn"]
+        self._profile_save_btn = refs["save_btn"]
+        self._profile_delete_btn = refs["delete_btn"]
+        self._profile_loaded_lbl = refs["loaded_lbl"]
+        self._profile_dirty_lbl = refs["dirty_lbl"]
+        self._chk_traits_only = refs["chk_traits_only"]
         self._update_profile_bar()
         return bar
 
@@ -671,32 +529,14 @@ class BreedPriorityView(QWidget):
         self._update_profile_bar()
 
     def _on_profile_load(self):
-        n = self._active_profile
-        profile_data = self._profiles.get(n)
+        profile_data = _handle_profile_load_impl(
+            self, self._active_profile, self._profiles,
+            self._profile_traits_only, self._is_dirty(),
+        )
         if profile_data is None:
-            from PySide6.QtWidgets import QMessageBox
-            QMessageBox.information(
-                self, "Empty Profile",
-                f"Profile {n} has no saved settings yet.\n\nUse Save to store current settings here.",
-                QMessageBox.Ok,
-            )
             return
-        _TD = "<span style='color:#d8c050; font-weight:bold;'>Trait Desirability</span>"
+        n = self._active_profile
         if self._profile_traits_only:
-            msg = (f"Load Profile {n}?<br><br>"
-                   f"Only {_TD} ratings will be loaded.<br>"
-                   f"Weights and other settings will not change.")
-            if self._is_dirty():
-                msg += "<br><br>Unsaved changes to the current profile will be lost."
-        else:
-            msg = f"Load Profile {n}?\n\nYour current settings will be replaced with those saved in Profile {n}."
-            if self._is_dirty():
-                msg += "\n\nUnsaved changes to the current profile will be lost."
-        dlg = _ConfirmDialog("Load Profile", msg, f"Load Profile {n}", parent=self)
-        if dlg.exec() != QDialog.Accepted:
-            return
-        if self._profile_traits_only:
-            # Only restore trait ratings and profile name
             self._ma_ratings = {k: v for k, v in profile_data.get("ma_ratings", {}).items()
                                  if v in (-1, 0, 1, 2)}
             self._profile_name_text = profile_data.get("name", "")
@@ -720,38 +560,14 @@ class BreedPriorityView(QWidget):
         self._save_ratings()
 
     def _on_profile_save(self):
+        snapshot = _handle_profile_save_impl(
+            self, self._active_profile, self._profiles,
+            self._profile_traits_only, self._ma_ratings,
+            self._serialize_current,
+        )
+        if snapshot is None:
+            return
         n = self._active_profile
-        has_data = n in self._profiles
-        if self._profile_traits_only and not has_data:
-            from PySide6.QtWidgets import QMessageBox
-            QMessageBox.warning(
-                self, "Profile Empty",
-                f"Profile {n} has no saved settings yet.\n\n"
-                f"\"Only Trait Desirability\" mode can only update an existing profile.\n\n"
-                f"To proceed: uncheck \"Only Trait Desirability\", save a full profile to "
-                f"slot {n}, then re-enable the option for future trait-only saves.",
-                QMessageBox.Ok,
-            )
-            return
-        _TD = "<span style='color:#d8c050; font-weight:bold;'>Trait Desirability</span>"
-        if self._profile_traits_only:
-            msg = (f"Save to Profile {n}?<br><br>"
-                   f"Only {_TD} ratings will be updated.<br>"
-                   f"Weights and other settings will not be changed.")
-        elif has_data:
-            msg = f"Save to Profile {n}?\n\nThis will overwrite Profile {n} with your current settings."
-        else:
-            msg = f"Save to Profile {n}?\n\nProfile {n} is currently empty. Your settings will be saved here."
-        dlg = _ConfirmDialog("Save Profile", msg, f"Save to Profile {n}", parent=self)
-        if dlg.exec() != QDialog.Accepted:
-            return
-        if self._profile_traits_only:
-            # Preserve any existing full profile data; only update the traits portion
-            existing = dict(self._profiles.get(n, {}))
-            existing["ma_ratings"] = dict(self._ma_ratings)
-            snapshot = existing
-        else:
-            snapshot = self._serialize_current()
         self._profiles[n] = snapshot
         self._loaded_profile = n
         self._active_profile = n
@@ -759,36 +575,10 @@ class BreedPriorityView(QWidget):
         self._save_ratings()
 
     def _on_profile_delete(self):
-        n = self._active_profile
-        if n not in self._profiles:
-            from PySide6.QtWidgets import QMessageBox
-            QMessageBox.information(
-                self, "Nothing to Delete",
-                f"Profile {n} is already empty — there is nothing to delete.",
-                QMessageBox.Ok,
-            )
+        slot = _handle_profile_delete_impl(self, self._active_profile, self._profiles)
+        if slot is None:
             return
-        if len(self._profiles) <= 1:
-            from PySide6.QtWidgets import QMessageBox
-            QMessageBox.warning(
-                self, "Cannot Delete",
-                "You cannot delete the only remaining saved profile.\n\n"
-                "Save your settings to another slot first, then delete this one.",
-                QMessageBox.Ok,
-            )
-            return
-        pname = self._profiles[n].get("name", "") or f"Profile {n}"
-        dlg = _ConfirmDialog(
-            "Delete Profile",
-            f"Delete Profile {n} (\"{pname}\")?\n\n"
-            f"This will erase all settings saved in slot {n} and cannot be undone.",
-            f"Delete Profile {n}",
-            parent=self,
-        )
-        if dlg.exec() != QDialog.Accepted:
-            return
-        del self._profiles[n]
-        # Load the lowest-numbered remaining profile
+        del self._profiles[slot]
         next_n = min(self._profiles.keys())
         self._apply_profile_data(self._profiles[next_n])
         self._loaded_profile = next_n
@@ -847,18 +637,10 @@ class BreedPriorityView(QWidget):
         w.setFixedHeight(38)
         return w
 
-    def _build_ui(self):
-        vb = QVBoxLayout(self)
-        vb.setContentsMargins(0, 0, 0, 0)
-        vb.setSpacing(0)
+    # ── UI builder helpers ──────────────────────────────────────────────────
 
-        # TEMP: green stripe at top for visual version distinction (-t flag)
-        if "-t" in sys.argv:
-            _top_stripe = QWidget()
-            _top_stripe.setFixedHeight(4)
-            _top_stripe.setStyleSheet("background:#00cc44;")
-            vb.addWidget(_top_stripe)
-
+    def _build_top_bar(self) -> QWidget:
+        """Build the header bar with display mode, heatmap, and show-stats controls."""
         top_bar = QWidget()
         top_bar.setStyleSheet(f"background:{CLR_BG_HEADER}; border-bottom:1px solid {CLR_BG_HEADER_BDR};")
         top_bar.setFixedHeight(46)
@@ -905,7 +687,7 @@ class BreedPriorityView(QWidget):
         self._btn_heatmap_toggle.toggled.connect(self._on_heatmap_toggled)
         hb.addWidget(self._btn_heatmap_toggle)
 
-        # Heatmap algorithm selector (Column vs Row normalisation) — always visible
+        # Heatmap algorithm selector (Column vs Row normalisation)
         self._btn_heat_col = QPushButton("Column")
         self._btn_heat_col.setToolTip(
             "Compare cats against each other within each column.\n"
@@ -948,24 +730,13 @@ class BreedPriorityView(QWidget):
         self._chk_show_stats.setChecked(self._show_stats)
         self._chk_show_stats.stateChanged.connect(self._on_show_stats_changed)
         hb.addWidget(self._chk_show_stats)
+        return top_bar
 
-        vb.addWidget(top_bar)
-
-        hs = CollapseSplitter(Qt.Horizontal)
-        hs.setHandleWidth(14)
-        vb.addWidget(hs)
-
-        # Left: scope + weights panel
-        left = QWidget()
-        left.setMinimumWidth(0)
-        left.setStyleSheet(f"background:{CLR_BG_PANEL};")
-        lv = QVBoxLayout(left)
-        lv.setContentsMargins(8, 12, 8, 8)
-        lv.setSpacing(4)
-
+    def _build_scope_panel(self, layout):
+        """Build the scope + options + filters section into the given layout."""
         scope_lbl = QLabel("COMPARISON SCOPE")
         scope_lbl.setStyleSheet(_GROUP_LABEL_STYLE)
-        lv.addWidget(scope_lbl)
+        layout.addWidget(scope_lbl)
 
         _ac_row = QWidget()
         _ac_row.setStyleSheet("background:transparent;")
@@ -984,29 +755,29 @@ class BreedPriorityView(QWidget):
             _leg.setStyleSheet(f"color:{_leg_clr}; font-size:10px; font-weight:bold;")
             _leg.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
             _ac_h.addWidget(_leg)
-        lv.addWidget(_ac_row)
+        layout.addWidget(_ac_row)
 
         sep = QFrame()
         sep.setFrameShape(QFrame.HLine)
         sep.setStyleSheet(f"color:{CLR_SURFACE_SEPARATOR}; margin:2px 0;")
-        lv.addWidget(sep)
+        layout.addWidget(sep)
 
         self._room_checks_widget = QWidget()
         self._room_checks_vb = QVBoxLayout(self._room_checks_widget)
         self._room_checks_vb.setContentsMargins(6, 0, 0, 0)
         self._room_checks_vb.setSpacing(2)
-        lv.addWidget(self._room_checks_widget)
+        layout.addWidget(self._room_checks_widget)
 
         _small_btn_style = _DIM_BTN
 
         sep2 = QFrame()
         sep2.setFrameShape(QFrame.HLine)
         sep2.setStyleSheet(f"color:{CLR_SURFACE_SEPARATOR}; margin:6px 0 2px 0;")
-        lv.addWidget(sep2)
+        layout.addWidget(sep2)
 
         opts_lbl = QLabel("OPTIONS")
         opts_lbl.setStyleSheet(_GROUP_LABEL_STYLE)
-        lv.addWidget(opts_lbl)
+        layout.addWidget(opts_lbl)
 
         self._chk_hide_kittens = QCheckBox("Hide Kittens")
         self._chk_hide_kittens.setStyleSheet(f"color:{CLR_TEXT_SECONDARY}; font-size:11px;")
@@ -1015,7 +786,7 @@ class BreedPriorityView(QWidget):
         )
         self._chk_hide_kittens.setChecked(self._hide_kittens)
         self._chk_hide_kittens.stateChanged.connect(self._on_hide_kittens_changed)
-        lv.addWidget(self._chk_hide_kittens)
+        layout.addWidget(self._chk_hide_kittens)
 
         self._chk_hide_out_of_scope = QCheckBox("Hide Out-of-Scope")
         self._chk_hide_out_of_scope.setStyleSheet(f"color:{CLR_TEXT_SECONDARY}; font-size:11px;")
@@ -1024,12 +795,12 @@ class BreedPriorityView(QWidget):
         )
         self._chk_hide_out_of_scope.setChecked(self._hide_out_of_scope)
         self._chk_hide_out_of_scope.stateChanged.connect(self._on_hide_out_of_scope_changed)
-        lv.addWidget(self._chk_hide_out_of_scope)
+        layout.addWidget(self._chk_hide_out_of_scope)
 
         sep_f = QFrame()
         sep_f.setFrameShape(QFrame.HLine)
         sep_f.setStyleSheet(f"color:{CLR_SURFACE_SEPARATOR}; margin:4px 0 2px 0;")
-        lv.addWidget(sep_f)
+        layout.addWidget(sep_f)
 
         _filter_row = QHBoxLayout()
         _filter_row.setContentsMargins(0, 0, 0, 0)
@@ -1049,17 +820,19 @@ class BreedPriorityView(QWidget):
         self._filter_toggle.clicked.connect(self._on_filter_toggle)
         _filter_row.addWidget(self._filter_toggle)
 
-        lv.addLayout(_filter_row)
+        layout.addLayout(_filter_row)
         self._update_filter_btn()
 
+    def _build_weights_panel(self, layout):
+        """Build the weights grid + reset/info buttons into the given layout."""
         sep3 = QFrame()
         sep3.setFrameShape(QFrame.HLine)
         sep3.setStyleSheet(f"color:{CLR_SURFACE_SEPARATOR}; margin:6px 0 2px 0;")
-        lv.addWidget(sep3)
+        layout.addWidget(sep3)
 
         weights_lbl = QLabel("WEIGHTS")
         weights_lbl.setStyleSheet(_GROUP_LABEL_STYLE)
-        lv.addWidget(weights_lbl)
+        layout.addWidget(weights_lbl)
 
         weights_widget = QWidget()
         weights_widget.setStyleSheet(f"background:{CLR_BG_PANEL};")
@@ -1108,6 +881,7 @@ class BreedPriorityView(QWidget):
             self._weight_spins[key] = spin
             r += 1
 
+        _small_btn_style = _DIM_BTN
         reset_btn = QPushButton("Reset")
         reset_btn.setStyleSheet(_small_btn_style)
         reset_btn.setToolTip("Reset all weights to defaults")
@@ -1122,30 +896,17 @@ class BreedPriorityView(QWidget):
         btn_row = r
         wg.addWidget(reset_btn, btn_row, 0)
         wg.addWidget(info_btn,  btn_row, 1)
-        lv.addWidget(weights_widget)
+        layout.addWidget(weights_widget)
 
-        lv.addStretch()
-        hs.addWidget(left)
-
-        # Right: score table (top) + trait editor (bottom)
-        vs = QSplitter(Qt.Vertical)
-        vs.setHandleWidth(6)
-        vs.setStyleSheet(SPLITTER_V_STYLE)
-        hs.addWidget(vs)
-        hs.setCollapsible(0, True)
-        hs.setCollapsible(1, False)
-        hs.setStretchFactor(0, 0)
-        hs.setStretchFactor(1, 1)
-        hs.setSizes([LEFT_PANEL_W, 10000])
-
+    def _build_score_table_section(self) -> QWidget:
+        """Build the score table with profile bar, banners, and delegates."""
         self._score_table = QTableWidget()
         self._score_table.setColumnCount(len(_ALL_HEADERS))
         shh = _SortHighlightHeader(self._score_table)
-        shh.setSectionsClickable(True)   # must be explicit; not inherited from QTableWidget's default header
+        shh.setSectionsClickable(True)
         self._score_table.setHorizontalHeader(shh)
         self._score_table.setHorizontalHeaderLabels(_ALL_HEADERS)
-        # Column header tooltips - use event filter since QHeaderView item tooltips
-        # are unreliable without explicit mouse tracking on the header viewport.
+        # Column header tooltips
         _HEADER_TIPS_TEXT = {
             "Name":    "Cat name",
             "Age":     "Age in days",
@@ -1188,7 +949,7 @@ class BreedPriorityView(QWidget):
         self._score_table.setSortingEnabled(True)
         self._score_table.setStyleSheet(_PRIORITY_TABLE_STYLE)
         shh.setSectionResizeMode(QHeaderView.Interactive)
-        shh.setMinimumSectionSize(_SEP_WIDTH)  # low enough for separator columns
+        shh.setMinimumSectionSize(_SEP_WIDTH)
         self._score_table.setColumnWidth(COL_NAME, 120)
         self._score_table.setColumnWidth(COL_LOC, 112)
         self._score_table.setColumnWidth(COL_INJ, 100)
@@ -1197,7 +958,7 @@ class BreedPriorityView(QWidget):
         for ci in range(_COL_SCORE_START, _COL_SCORE_START + len(_SCORE_COLS)):
             self._score_table.setColumnWidth(ci, 52)
         _sex_col = _COL_SCORE_START + _SCORE_COLS.index("Sex")
-        self._score_table.setColumnWidth(_sex_col, 72)   # wider for emoji glyph
+        self._score_table.setColumnWidth(_sex_col, 72)
         _age_col = _COL_SCORE_START + _SCORE_COLS.index("Age")
         self._score_table.setColumnWidth(_age_col, 46)
         _loves_col = _COL_SCORE_START + _SCORE_COLS.index("💗🔭")
@@ -1211,40 +972,39 @@ class BreedPriorityView(QWidget):
         _7sub_col = _COL_SCORE_START + _SCORE_COLS.index("7sub")
         self._score_table.setColumnWidth(_7sub_col, 52)
         self._score_table.setColumnWidth(COL_SCORE, 55)
-        # Separator columns: narrow, non-resizable, painted as a thin vertical line
+        # Separator columns
         _sep_delegate = _SeparatorDelegate(self._score_table)
         for _sep_ci in _SEP_COLS:
             self._score_table.setColumnWidth(_sep_ci, _SEP_WIDTH)
             shh.setSectionResizeMode(_sep_ci, QHeaderView.Fixed)
             self._score_table.setItemDelegateForColumn(_sep_ci, _sep_delegate)
-        # Trait and 7-rare columns use chip delegates for colored pill rendering
+        # Chip delegates
         _chip_delegate = _TraitChipDelegate(self._score_table)
         _trait_col   = _COL_SCORE_START + _SCORE_COLS.index("Trait")
         _rare7_col   = _COL_SCORE_START + _SCORE_COLS.index("7rare")
         self._score_table.setItemDelegateForColumn(_trait_col,    _chip_delegate)
         self._score_table.setItemDelegateForColumn(_rare7_col,    _chip_delegate)
-        # All chip columns use the standard short-pill chip delegate
         for _ehdr in ("Sex", "💗🔭", "💗🏠", "💥🔭", "💥🏠",
                        "Lib", "4+Ch", "Age", "Gene", "Gender"):
             _ecol = _COL_SCORE_START + _SCORE_COLS.index(_ehdr)
             self._score_table.setItemDelegateForColumn(_ecol, _chip_delegate)
-        # Default delegate for "both" mode (non-chip score columns)
-        self._both_delegate    = _BothModeDelegate(self._score_table)
+        # Default delegate for "both" mode
+        self._both_delegate = _BothModeDelegate(self._score_table)
         self._score_table.setItemDelegate(self._both_delegate)
-        # Apply any user-saved column widths for the current display mode
+        # Apply saved column widths
         _mode_widths = self._col_widths.get(self._display_mode, {})
         for ci, w in _mode_widths.items():
             self._score_table.setColumnWidth(ci, w)
-        # Hide stat columns by default
         self._apply_stat_column_visibility()
         shh.sortIndicatorChanged.connect(self._on_sort_indicator_changed)
         shh.sectionResized.connect(self._on_col_resized)
+
+        # Wrap table + profile bar + banners in a container
         score_container = QWidget()
         score_container.setStyleSheet(f"background:{CLR_BG_SCORE_AREA};")
         sc_vb = QVBoxLayout(score_container)
         sc_vb.setContentsMargins(0, 0, 0, 0)
         sc_vb.setSpacing(0)
-
         sc_vb.addWidget(self._build_profile_bar())
 
         self._filters_active_lbl = self._make_banner(
@@ -1261,12 +1021,15 @@ class BreedPriorityView(QWidget):
         self._no_scope_banner.setVisible(False)
         sc_vb.addWidget(self._no_scope_banner)
         sc_vb.addWidget(self._score_table)
-        vs.addWidget(score_container)
+
         self._score_table.itemSelectionChanged.connect(self._on_cat_selected)
         _FastTooltipFilter(self._score_table)
         self._hate_overlay = _HateRowOverlay(self._score_table)
         self._update_sort_label()
+        return score_container
 
+    def _build_trait_section(self) -> QWidget:
+        """Build the trait desirability tables + children panel as a horizontal splitter."""
         ma_widget = QWidget()
         ma_widget.setStyleSheet(f"background:{CLR_BG_MAIN};")
         ma_vb = QVBoxLayout(ma_widget)
@@ -1295,7 +1058,6 @@ class BreedPriorityView(QWidget):
             ma_hs.addWidget(w)
         ma_vb.addWidget(ma_hs, stretch=1)
 
-        # Bottom row: Trait Desirability (left ~2/3) + Cat Details panel (right ~1/3)
         bottom_hs = QSplitter(Qt.Horizontal)
         bottom_hs.setHandleWidth(6)
         bottom_hs.setStyleSheet(SPLITTER_H_STYLE)
@@ -1304,7 +1066,51 @@ class BreedPriorityView(QWidget):
         bottom_hs.setSizes([440, 220])
         bottom_hs.setStretchFactor(0, 2)
         bottom_hs.setStretchFactor(1, 1)
-        vs.addWidget(bottom_hs)
+        return bottom_hs
+
+    def _build_ui(self):
+        vb = QVBoxLayout(self)
+        vb.setContentsMargins(0, 0, 0, 0)
+        vb.setSpacing(0)
+
+        # TEMP: green stripe at top for visual version distinction (-t flag)
+        if "-t" in sys.argv:
+            _top_stripe = QWidget()
+            _top_stripe.setFixedHeight(4)
+            _top_stripe.setStyleSheet("background:#00cc44;")
+            vb.addWidget(_top_stripe)
+
+        vb.addWidget(self._build_top_bar())
+
+        hs = CollapseSplitter(Qt.Horizontal)
+        hs.setHandleWidth(14)
+        vb.addWidget(hs)
+
+        # Left: scope + weights panel
+        left = QWidget()
+        left.setMinimumWidth(0)
+        left.setStyleSheet(f"background:{CLR_BG_PANEL};")
+        lv = QVBoxLayout(left)
+        lv.setContentsMargins(8, 12, 8, 8)
+        lv.setSpacing(4)
+        self._build_scope_panel(lv)
+        self._build_weights_panel(lv)
+        lv.addStretch()
+        hs.addWidget(left)
+
+        # Right: score table (top) + trait editor (bottom)
+        vs = QSplitter(Qt.Vertical)
+        vs.setHandleWidth(6)
+        vs.setStyleSheet(SPLITTER_V_STYLE)
+        hs.addWidget(vs)
+        hs.setCollapsible(0, True)
+        hs.setCollapsible(1, False)
+        hs.setStretchFactor(0, 0)
+        hs.setStretchFactor(1, 1)
+        hs.setSizes([LEFT_PANEL_W, 10000])
+
+        vs.addWidget(self._build_score_table_section())
+        vs.addWidget(self._build_trait_section())
         vs.setSizes([500, 220])
         vs.setStretchFactor(0, 1)
         vs.setStretchFactor(1, 0)
@@ -1933,91 +1739,27 @@ class BreedPriorityView(QWidget):
 
         scope_set = {id(c) for c in scope_cats}
 
-        # Pre-compute sorted stat sums for scope cats (percentile ranking)
-        _scope_stat_sums = sorted(sum(c.base_stats.values()) for c in scope_cats)
+        # Pre-compute relationship maps, 7-sets, and scores
+        _seven_sets, _scope_7_sets = compute_seven_sets(alive, scope_set)
 
-        # Pre-compute 7-sets for 7-Sub column (strict-subset dominance detection)
-        # Maps id(cat) → frozenset of stat names where base value == 7
-        _seven_sets: dict[int, frozenset] = {
-            id(c): frozenset(sn for sn in _STAT_COL_NAMES if c.base_stats.get(sn) == 7)
-            for c in alive
-        }
-        # Only scope cats can act as dominators
-        _scope_7_sets: dict[int, frozenset] = {
-            cid: s for cid, s in _seven_sets.items()
-            if cid in scope_set
-        }
-
-        # Pre-compute reverse-hated-by map from ALL in-house cats (not just
-        # the filtered alive list) so out-of-scope / hidden-kitten hate
-        # relationships still show up in tooltips and chips.
-        _all_in_house = [c for c in self._cats if c.status == "In House"]
-        _hated_by_map: dict[int, list] = {}
-        for c in _all_in_house:
-            for h in getattr(c, 'haters', []):
-                _hated_by_map.setdefault(id(h), []).append(c)
+        _hated_by_map, _loved_by_map = build_relationship_maps(self._cats)
         self._hated_by_map = _hated_by_map
-        # Same for reverse-loved-by map
-        _loved_by_map: dict[int, list] = {}
-        for c in _all_in_house:
-            for lv in getattr(c, 'lovers', []):
-                _loved_by_map.setdefault(id(lv), []).append(c)
         self._loved_by_map = _loved_by_map
 
-        # ── Pass 1: compute all ScoreResults + 7-sub contributions ──
-        results: dict[int, ScoreResult] = {}
-        _cat_sub_counts: dict[int, int] = {}  # id(cat) → 7-sub count
-        for cat in alive:
-            results[id(cat)] = compute_breed_priority_score(
-                cat, scope_cats, self._ma_ratings,
-                stat_names=self._stat_names,
-                weights=self._weights,
-                mutation_display_name=self._display_name,
-                scope_stat_sums=_scope_stat_sums,
-                hated_by=_hated_by_map.get(id(cat), []),
-            )
-            _my_sevens = _seven_sets.get(id(cat), frozenset())
-            _sub_cnt = sum(
-                1 for _oc, _os in _scope_7_sets.items()
-                if _oc != id(cat) and _my_sevens < _os
-            ) if _my_sevens else 0
-            _cat_sub_counts[id(cat)] = _sub_cnt
-            _sub_w   = self._weights.get("seven_sub", 0.0)
-            _sub_thr = max(1, int(round(self._weights.get("seven_sub_threshold", 1.0))))
-            _sub_pts = _sub_w * min(_sub_cnt / _sub_thr, 1.0) if _sub_cnt > 0 else 0.0
-            results[id(cat)].subtotals["seven_sub"] = _sub_pts
-            results[id(cat)].total += _sub_pts
-            if _sub_pts != 0:
-                results[id(cat)].breakdown.append(("7sub", _sub_pts))
-
-        # Sorted score list for Score column quartile coloring (includes 7-sub)
-        _all_scores_sorted = sorted(results[id(c)].total for c in alive)
-
-        # Build sorted relatives-in-scope list (for Gene percentile coloring)
-        # Only from scope cats
-        _all_scope_rel_counts = sorted(
-            results[id(c)].scope_relatives_count
-            for c in scope_cats if id(c) in results
+        (results, _cat_sub_counts, _all_scores_sorted,
+         _all_scope_rel_counts, _all_scope_children, _max_7_count,
+         _scope_stat_sums) = compute_all_scores(
+            alive, scope_cats, scope_set,
+            _seven_sets, _scope_7_sets, _hated_by_map,
+            self._ma_ratings, self._stat_names, self._weights, self._display_name,
         )
 
-        # Also compute children-in-scope counts for 4+Ch display
         def _children_in_scope(cat):
             return sum(1 for ch in cat.children if id(ch) in scope_set)
 
-        _all_scope_children = sorted(_children_in_scope(c) for c in scope_cats)
-
-        # Max 7-count across all visible cats - used for relative gradient coloring
-        _max_7_count = max(
-            (sum(1 for v in c.base_stats.values() if v == 7) for c in alive),
-            default=0,
-        )
-
-        # Capture the current visible row order (by cat id) so we can restore
-        # it as the insertion order.  This makes toggling Show Values a pure
-        # cosmetic change - sortItems() will produce the exact same result
-        # because the tiebreaker (insertion order) is identical to before.
+        # Capture current visible row order for stable re-sort
         _cat_id_map = {id(c): c for c in alive}
-        _prev_order: dict[int, int] = {}  # cat_id → previous display position
+        _prev_order: dict[int, int] = {}
         for _r in range(self._score_table.rowCount()):
             _ni = self._score_table.item(_r, COL_NAME)
             if _ni is not None:
@@ -2027,25 +1769,12 @@ class BreedPriorityView(QWidget):
         if _prev_order:
             alive.sort(key=lambda c: _prev_order.get(id(c), 999999))
 
-        # Pre-compute heatmap normalisation data
-        _col_max_abs: dict[int, float] = {}   # column algo: per-column max
-        _row_max_abs: dict[int, float] = {}   # row algo: per-cat max across columns
-        _score_max_abs: float = 1.0
+        # Heatmap normalisation
         _is_heat = self._heatmap_on
         _heat_row = _is_heat and self._heat_algo == "row"
-        if _is_heat:
-            for ci, (_, keys) in enumerate(SCORE_COLUMNS):
-                _mx = max((abs(sum(results[id(c)].subtotals.get(k, 0.0) for k in keys))
-                           for c in alive), default=0.0)
-                _col_max_abs[ci] = _mx if _mx > 0 else 1.0
-            _smx = max((abs(results[id(c)].total) for c in alive), default=0.0)
-            _score_max_abs = _smx if _smx > 0 else 1.0
-            if _heat_row:
-                for c in alive:
-                    r = results[id(c)]
-                    _mx = max((abs(sum(r.subtotals.get(k, 0.0) for k in keys))
-                               for _, keys in SCORE_COLUMNS), default=0.0)
-                    _row_max_abs[id(c)] = _mx if _mx > 0 else 1.0
+        _col_max_abs, _row_max_abs, _score_max_abs = compute_heatmap_norms(
+            results, alive, _is_heat, self._heat_algo,
+        )
 
         self._score_table.setSortingEnabled(False)
         self._score_table.setRowCount(len(alive))
@@ -2439,18 +2168,22 @@ class BreedPriorityView(QWidget):
                     item.setToolTip(tooltip)
             self._score_table.setRowHeight(row, 36 if self._display_mode == "both" else 22)
 
+        self._finalize_recompute(alive, results, _children_in_scope, _restore_name)
+
+    def _finalize_recompute(self, alive, results, children_in_scope_fn, restore_name):
+        """Sort, filter, restore selection, and sync overlays after table population."""
         self._score_table.setSortingEnabled(True)
         shh = self._score_table.horizontalHeader()
         shh.blockSignals(True)
         self._score_table.sortItems(self._sort_col, self._sort_order)
         shh.blockSignals(False)
 
-        # Apply row filters (hide cats that don't match active filters)
+        # Apply row filters
         if self._filters_enabled and self._filters.is_any_active():
             _alive_by_name = {c.name: c for c in alive}
             _passes = {
                 id(cat): cat_passes_filter(
-                    cat, results[id(cat)], _children_in_scope(cat),
+                    cat, results[id(cat)], children_in_scope_fn(cat),
                     self._filters, TRAIT_LOW_THRESHOLD, TRAIT_HIGH_THRESHOLD,
                     self._room_display,
                 )
@@ -2465,18 +2198,16 @@ class BreedPriorityView(QWidget):
             for _r in range(self._score_table.rowCount()):
                 self._score_table.setRowHidden(_r, False)
 
-        if _restore_name:
+        if restore_name:
             for r in range(self._score_table.rowCount()):
                 item = self._score_table.item(r, 0)
-                if item and item.text() == _restore_name:
+                if item and item.text() == restore_name:
                     self._score_table.blockSignals(True)
                     self._score_table.selectRow(r)
                     self._score_table.blockSignals(False)
                     break
 
-        # Keep hate overlay in sync after the table is rebuilt
         self._hate_overlay.update()
-        # Keep children panel in sync (scope filter may have changed)
         self._refresh_children_panel()
 
     # ── Weights popup ─────────────────────────────────────────────────────────
