@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
     QLabel, QComboBox, QLineEdit, QSpinBox, QPushButton,
     QSplitter, QFrame, QScrollArea,
     QTableWidget, QTableWidgetItem, QToolButton,
-    QAbstractItemView, QHeaderView,
+    QAbstractItemView, QHeaderView, QSizePolicy,
 )
 from PySide6.QtCore import Qt, Signal, QSize
 from PySide6.QtGui import QColor
@@ -918,6 +918,7 @@ class MutationDisorderPlannerView(QWidget):
                 "category": category,
                 "key": key,
                 "display": row_data["display"],
+                "desc": row_data.get("desc", ""),
                 "weight": existing_weights.get((category, key), 5),
             })
 
@@ -1029,11 +1030,16 @@ class MutationDisorderPlannerView(QWidget):
             row_layout.setSpacing(6)
 
             lbl = QToolButton()
-            lbl.setText(trait["display"])
+            summary = str(trait.get("desc") or "").strip()
+            full_label = f"{trait['display']} - {summary}" if summary else trait["display"]
+            lbl.setText(full_label)
+            lbl.setToolTip(full_label)
             lbl.setToolButtonStyle(Qt.ToolButtonTextOnly)
             lbl.setAutoRaise(True)
             lbl.setCursor(Qt.PointingHandCursor)
             lbl.setStyleSheet("QToolButton { color:#ccc; font-size:10px; border:none; background:transparent; text-align:left; }")
+            lbl.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+            lbl.setMinimumWidth(0)
             lbl.clicked.connect(lambda _checked=False, t=trait: self._activate_trait_filter((t["category"], t["key"]), source="selected_trait"))
             row_layout.addWidget(lbl, 1)
 

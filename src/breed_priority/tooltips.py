@@ -7,7 +7,7 @@ All required context is passed in explicitly.
 from .columns import _STAT_COL_NAMES
 from .scoring import ScoreResult, ability_base, is_basic_trait
 from .theme import (
-    CLR_BG_MAIN, CLR_HIGHLIGHT, CLR_TEXT_UI_LABEL,
+    CLR_HIGHLIGHT, CLR_TEXT_UI_LABEL,
     CLR_TOP_PRIORITY, CLR_DESIRABLE, CLR_UNDESIRABLE,
     CLR_NEUTRAL, CLR_UNDECIDED,
     CLR_VALUE_POS, CLR_VALUE_NEG, CLR_VALUE_NEUTRAL,
@@ -23,7 +23,7 @@ def build_child_tooltip(cat, display_name_fn) -> str:
         display_name_fn: Callable(trait_key) -> str  (e.g. BreedPriorityView._display_name)
     """
     html_parts = [
-        f'<html><body style="font-family:monospace;font-size:11px;background:{CLR_BG_MAIN}">',
+        f'<html><body style="font-family:monospace;font-size:11px;margin:0;padding:0;">',
         f'<b style="color:{CLR_HIGHLIGHT};font-size:12px">{cat.name}</b>'
         f' <span style="color:#88aacc;font-size:11px">{cat.gender_display}</span>'
         f' <span style="color:{CLR_TEXT_UI_LABEL};font-size:10px">age {getattr(cat, "age", "?")}</span>',
@@ -78,6 +78,7 @@ def build_cat_tooltip(
     hated_by_map: dict,
     loved_by_map: dict,
     cat_injuries_fn,
+    top_gene_risks: list | None = None,
 ) -> str:
     """Build a rich HTML tooltip showing traits, relationships and score breakdown.
 
@@ -208,7 +209,7 @@ def build_cat_tooltip(
         ''
     )
     html_parts = [
-        f'<html><body style="font-family:monospace;font-size:11px;background:{CLR_BG_MAIN}">',
+        f'<html><body style="font-family:monospace;font-size:11px;margin:0;padding:0;">',
         f'<b style="color:{CLR_HIGHLIGHT};font-size:12px">{cat.name}</b>'
         f'{_sex_glyph}'
         f' <span style="color:#88aacc;font-size:11px">{cat.gender_display}</span>'
@@ -277,6 +278,14 @@ def build_cat_tooltip(
     if _rel_rows:
         html_parts.append(f'{_TT_SECTION}RELATIONSHIPS</span>')
         html_parts.append('<table cellspacing="0" cellpadding="1">' + "".join(_rel_rows) + '</table>')
+
+    if top_gene_risks:
+        _risk_rows = []
+        for partner_name, risk_pct in top_gene_risks[:3]:
+            clr = CLR_VALUE_NEG if risk_pct >= 20.0 else CLR_NEUTRAL if risk_pct >= 10.0 else CLR_DESIRABLE
+            _risk_rows.append(row(clr, partner_name, f"{risk_pct:.1f}%"))
+        html_parts.append(f'{_TT_SECTION}TOP RISKY PARTNERS (SCOPE)</span>')
+        html_parts.append('<table cellspacing="0" cellpadding="1">' + "".join(_risk_rows) + '</table>')
 
     html_parts.append(
         f'<br><b style="color:{total_color}">Total: {result.total:+.2f}</b>'

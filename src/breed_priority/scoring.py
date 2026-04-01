@@ -3,10 +3,13 @@
 Standalone module — no imports from mewgenics_manager to avoid circular deps.
 """
 
+from save_parser import risk_percent
+
 # ── Personality trait thresholds ─────────────────────────────────────────────
 
 TRAIT_LOW_THRESHOLD  = 0.3   # < this  → "low"
 TRAIT_HIGH_THRESHOLD = 0.7   # >= this → "high"
+GENETIC_SAFE_RISK_FLOOR = 2.0  # baseline/non-blood-risk floor (%)
 
 # ── Scoring weights ───────────────────────────────────────────────────────────
 
@@ -22,8 +25,8 @@ BREED_PRIORITY_WEIGHTS = {
     "low_libido":      -0.5,
     "gay_pref":        0.0,
     "bi_pref":         0.0,
-    "no_children":     4.0,
-    "many_children":   -3.0,
+    "no_children":    -2.0,
+    "zero_risk_bonus": 2.0,
     "stat_sum":        4.0,
     "age_penalty":    -2.0,
     "age_threshold":  10.0,
@@ -57,8 +60,8 @@ WEIGHT_UI_ROWS = [
     (None, None),
     ("unknown_gender",   "Unknown gender"),
     (None, None),
-    ("no_children",      "Genetic Novelty"),
-    ("many_children",    "4+ children"),
+    ("no_children",      "Genetic Safety Risk"),
+    ("zero_risk_bonus",  "Genetic Safety Bonus"),
     (None, None),
     ("high_aggression",  ("Aggro", "High")),
     ("low_aggression",   ("",      "Low")),
@@ -73,17 +76,18 @@ WEIGHT_UI_ROWS = [
 ]
 
 # Score table columns
+SCORE_HEADER_7_COUNT = "7cnt"
+
 SCORE_COLUMNS = [
     ("Sum",   ["stat_sum"]),
     ("Age",   ["age_penalty"]),
     ("7rare", ["stat_7"]),
-    ("7cnt",  ["stat_7_count"]),
+    (SCORE_HEADER_7_COUNT,  ["stat_7_count"]),
     ("7sub",  ["seven_sub"]),
     ("Sex",   ["gay_pref", "bi_pref"]),
     ("Lib",   ["high_libido", "low_libido"]),
     ("Gender", ["unknown_gender"]),
-    ("Gene",  ["no_children"]),
-    ("4+Ch",  ["many_children"]),
+    ("Gene",  ["no_children", "zero_risk_bonus"]),
     ("Aggro", ["low_aggression", "high_aggression"]),
     ("💥🔭",    ["rivalry"]),
     ("💥🏠",    ["rivalry_room"]),
@@ -118,16 +122,16 @@ RATING_SHORT_LABELS = ["Top Priority", "Desirable", "Neutral", "Undecided", "Und
 
 class ScoreResult:
     __slots__ = ("total", "tier", "tier_color", "breakdown", "subtotals",
-                 "scope_relatives_count")
+                 "scope_gene_risk")
 
     def __init__(self, total: float, tier: str, tier_color: str, breakdown: list,
-                 subtotals: dict | None = None, scope_relatives_count: int = 0):
+                 subtotals: dict | None = None, scope_gene_risk: float = 0.0):
         self.total = total
         self.tier = tier
         self.tier_color = tier_color
         self.breakdown = breakdown
         self.subtotals = subtotals or {}
-        self.scope_relatives_count = scope_relatives_count
+        self.scope_gene_risk = scope_gene_risk
 
 
 def priority_tier(score: float) -> tuple:
@@ -153,7 +157,9 @@ def compute_breed_priority_score(cat, scope_cats: list, ma_ratings: dict,
                          stat_names: list, weights: dict = None,
                          mutation_display_name=None,
                          scope_stat_sums: list = None,
-                         hated_by: list = None) -> ScoreResult:
+                         hated_by: list = None,
+                         gene_risk_lookup=None,
+                         gene_risk_cache: dict | None = None) -> ScoreResult:
     """Compute breed priority score for a cat.
 
     stat_names: ordered list of stat keys (e.g. ["STR","DEX",...]).
@@ -172,7 +178,7 @@ def compute_breed_priority_score(cat, scope_cats: list, ma_ratings: dict,
         "low_aggression": 0.0, "high_aggression": 0.0,
         "unknown_gender": 0.0,
         "high_libido": 0.0, "low_libido": 0.0,
-        "no_children": 0.0, "many_children": 0.0,
+        "no_children": 0.0, "zero_risk_bonus": 0.0,
         "stat_sum": 0.0, "age_penalty": 0.0,
         "love_interest": 0.0, "rivalry": 0.0,
     }
@@ -307,30 +313,35 @@ def compute_breed_priority_score(cat, scope_cats: list, ma_ratings: dict,
         breakdown.append(("Low libido", _w["low_libido"]))
         subtotals["low_libido"] = _w["low_libido"]
 
-    # Genetic Novelty: no relatives in comparison scope
-    relatives_in_scope: list = []
-    frontier = [cat]
-    visited = {id(cat)}
-    while frontier:
-        node = frontier.pop()
-        for rel in [node.parent_a, node.parent_b] + list(node.children):
-            if rel is None or id(rel) in visited:
-                continue
-            visited.add(id(rel))
-            if id(rel) in scope_set and id(rel) != id(cat):
-                relatives_in_scope.append(rel)
-                frontier.append(rel)
-    children_in_scope = [c for c in cat.children if id(c) in scope_set]
-
-    if not relatives_in_scope:
-        breakdown.append(("Genetic Novelty", _w["no_children"]))
-        subtotals["no_children"] = _w["no_children"]
-    if len(children_in_scope) >= 4:
-        breakdown.append((
-            f"{len(children_in_scope)} children in scope (≥4)",
-            _w["many_children"],
-        ))
-        subtotals["many_children"] = _w["many_children"]
+    # Genetic Safety: average in-scope pair risk.
+    risk_fn = gene_risk_lookup if callable(gene_risk_lookup) else risk_percent
+    _risk_vals = []
+    for partner in scope_cats:
+        if partner is cat:
+            continue
+        if gene_risk_cache is not None:
+            _rk = (id(cat), id(partner)) if id(cat) < id(partner) else (id(partner), id(cat))
+            _rv = gene_risk_cache.get(_rk)
+            if _rv is None:
+                _rv = float(risk_fn(cat, partner))
+                gene_risk_cache[_rk] = _rv
+        else:
+            _rv = float(risk_fn(cat, partner))
+        _risk_vals.append(_rv)
+    gene_risk = (sum(_risk_vals) / len(_risk_vals)) if _risk_vals else 0.0
+    # Keep scoring aligned with displayed Gene buckets (R0, R1, R2, ...).
+    _gene_risk_display = float(int(round(gene_risk)))
+    _effective_gene_risk = max(0.0, _gene_risk_display - GENETIC_SAFE_RISK_FLOOR)
+    gene_units = round(_effective_gene_risk / 10.0, 3)
+    if gene_units > 0:
+        gene_pts = round(_w["no_children"] * gene_units, 3)
+        breakdown.append((f"Genetic risk {gene_risk:.1f}% (R{int(_gene_risk_display)}, {GENETIC_SAFE_RISK_FLOOR:.0f}% floor)", gene_pts))
+        subtotals["no_children"] = gene_pts
+    elif _gene_risk_display <= GENETIC_SAFE_RISK_FLOOR:
+        safe_pts = float(_w.get("zero_risk_bonus", 0.0))
+        if safe_pts != 0.0:
+            breakdown.append((f"Genetic safety (R{int(_gene_risk_display)} ≤ {GENETIC_SAFE_RISK_FLOOR:.0f})", safe_pts))
+            subtotals["zero_risk_bonus"] = safe_pts
 
     # ── Stat sum percentile scoring ───────────────────────────────────────────
     w_sum = _w.get("stat_sum", 0.0)
@@ -428,4 +439,4 @@ def compute_breed_priority_score(cat, scope_cats: list, ma_ratings: dict,
     tier, color = priority_tier(total)
     return ScoreResult(total=total, tier=tier, tier_color=color,
                        breakdown=breakdown, subtotals=subtotals,
-                       scope_relatives_count=len(relatives_in_scope))
+                       scope_gene_risk=gene_risk)

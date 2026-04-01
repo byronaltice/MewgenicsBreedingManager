@@ -35,3 +35,12 @@ desktop.ini
 
 # Repo-local scratch space
 tmp/
+.cursor/
+AGENTS.md
+COMPATIBILITY_CHANGE_LIST.md
+REBASE_MAIN_PLAN.md
+TODO.md
+breed-priority-2.md
+push.sh
+test-saves/
+

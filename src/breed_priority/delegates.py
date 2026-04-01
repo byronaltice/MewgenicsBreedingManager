@@ -18,19 +18,21 @@ from .columns import (
     COL_NAME, _SEP_COLS, _SEP_WIDTH,
     _CHIP_ROLE, _SCORE_SECONDARY_ROLE, _HEATMAP_ROLE,
     _TRAIT_NAME_ROLE, _TRAIT_SUMMARY_ROLE,
+    _LOVE_SCORE_COLS, _HATE_SCORE_COLS,
 )
 from .theme import (
     _CHIP_H, _CHIP_PAD_X, _CHIP_GAP, _CHIP_RADIUS,
     _CHIP_DESIRABLE, _CHIP_UNDESIRABLE, _CHIP_DIM,
-    _SEP_COL_COLOR,
+    _SEP_BAND_BG, _SEP_LINE_COLOR,
     _HEAT_POS, _HEAT_NEG,
     CLR_DESIRABLE, CLR_UNDESIRABLE,
     CLR_VALUE_POS, CLR_VALUE_NEG, CLR_VALUE_NEUTRAL,
-    CLR_TEXT_PRIMARY, CLR_TEXT_UI_LABEL, CLR_TEXT_SECONDARY, CLR_TEXT_GRAYEDOUT,
-    CLR_BG_MAIN, CLR_BG_ALT,
-    CLR_BG_HEADER, CLR_BG_HEADER_BDR, CLR_BG_SCORE_AREA,
-    CLR_SURFACE_SEPARATOR, CLR_SURFACE_NEUTRAL,
+    CLR_TEXT_CONTENT_PRIMARY, CLR_TEXT_LABEL_UI, CLR_TEXT_CONTENT_SECONDARY, CLR_TEXT_CONTENT_UNSCORED,
+    CLR_SURFACE_APP_MAIN, CLR_SURFACE_APP_ALT,
+    CLR_SURFACE_HEADER, CLR_SURFACE_HEADER_BORDER, CLR_SURFACE_SCORE_AREA,
+    CLR_SURFACE_SEPARATOR, CLR_SURFACE_NEUTRAL, CLR_SURFACE_NEUTRAL_OVERLAY,
     RATING_ITEM_COLORS,
+    _CHIP_OVERFLOW_LOVE, _CHIP_OVERFLOW_HATE,
 )
 from .scoring import (
     TRAIT_RATING_LABELS, TRAIT_RATING_VALUES, RATING_SHORT_LABELS,
@@ -55,6 +57,49 @@ def _fit_chips(chips: list, available_width: int, fm: QFontMetrics) -> tuple:
             return chips[:i], hidden
         x += chip_w + _CHIP_GAP
     return chips, 0
+
+
+def _to_qcolor(value) -> QColor:
+    """Normalize QColor-compatible values to QColor."""
+    if isinstance(value, QColor):
+        return QColor(value)
+    return QColor(value or CLR_SURFACE_NEUTRAL)
+
+
+def _avg_qcolor(values: list[QColor], fallback: QColor) -> QColor:
+    """Average a list of colors channel-by-channel."""
+    if not values:
+        return QColor(fallback)
+    n = len(values)
+    r = sum(c.red() for c in values) // n
+    g = sum(c.green() for c in values) // n
+    b = sum(c.blue() for c in values) // n
+    a = sum(c.alpha() for c in values) // n
+    return QColor(r, g, b, a)
+
+
+def _readable_text_for_bg(bg: QColor, preferred: QColor) -> QColor:
+    """Keep averaged text color when readable, otherwise use a safe high-contrast tone."""
+    def _luma(c: QColor) -> float:
+        return 0.2126 * c.redF() + 0.7152 * c.greenF() + 0.0722 * c.blueF()
+
+    if abs(_luma(preferred) - _luma(bg)) >= 0.34:
+        return preferred
+    return QColor("#f0f0f0" if _luma(bg) < 0.45 else "#181820")
+
+
+def _overflow_chip_style(index, hidden_chips: list) -> tuple[QColor, QColor]:
+    """Derive overflow chip style from hidden chips, with semantic overrides."""
+    if index.column() in _LOVE_SCORE_COLS:
+        return QColor(_CHIP_OVERFLOW_LOVE[0]), QColor(_CHIP_OVERFLOW_LOVE[1])
+    if index.column() in _HATE_SCORE_COLS:
+        return QColor(_CHIP_OVERFLOW_HATE[0]), QColor(_CHIP_OVERFLOW_HATE[1])
+
+    bg_colors = [_to_qcolor(bg) for _, bg, _ in hidden_chips]
+    fg_colors = [_to_qcolor(fg) for _, _, fg in hidden_chips]
+    avg_bg = _avg_qcolor(bg_colors, QColor(CLR_SURFACE_NEUTRAL))
+    avg_fg = _avg_qcolor(fg_colors, QColor(CLR_TEXT_LABEL_UI))
+    return avg_bg, _readable_text_for_bg(avg_bg, avg_fg)
 
 
 # ── Heatmap painting ─────────────────────────────────────────────────────────
@@ -115,7 +160,7 @@ class _ChipOverflowPopup(QFrame):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
         painter.setPen(Qt.NoPen)
-        painter.setBrush(QColor(CLR_BG_ALT))
+        painter.setBrush(QColor(CLR_SURFACE_APP_ALT))
         painter.drawRoundedRect(self.rect(), 6, 6)
         painter.setPen(QColor("#334466"))
         painter.setBrush(Qt.NoBrush)
@@ -139,6 +184,42 @@ class _ChipOverflowPopup(QFrame):
         painter.end()
 
 
+class _HoverTooltipPopup(QFrame):
+    """Custom hover tooltip with fixed width for reliable sizing."""
+
+    _W = 540
+    _PAD = 8
+
+    def __init__(self):
+        super().__init__(None, Qt.ToolTip | Qt.FramelessWindowHint)
+        self.setAttribute(Qt.WA_ShowWithoutActivating, True)
+        self.setStyleSheet(
+            f"QFrame {{ background:{CLR_SURFACE_APP_ALT}; border:1px solid #2c3e5a; border-radius:4px; }}"
+            f"QLabel {{ background:transparent; color:{CLR_TEXT_CONTENT_SECONDARY}; }}"
+        )
+        vb = QVBoxLayout(self)
+        vb.setContentsMargins(self._PAD, self._PAD, self._PAD, self._PAD)
+        vb.setSpacing(0)
+        self._label = QLabel("")
+        self._label.setTextFormat(Qt.RichText)
+        self._label.setWordWrap(True)
+        self._label.setFixedWidth(self._W - (self._PAD * 2))
+        self._label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+        vb.addWidget(self._label)
+
+    def show_html(self, html: str, global_pos):
+        self._label.setText(html or "")
+        self._label.adjustSize()
+        h = self._label.sizeHint().height() + (self._PAD * 2)
+        self.setFixedSize(self._W, max(40, h))
+        screen = QApplication.primaryScreen().availableGeometry()
+        px = min(global_pos.x() + 12, screen.right() - self.width())
+        py = min(global_pos.y() + 18, screen.bottom() - self.height())
+        self.move(px, py)
+        self.show()
+        self.raise_()
+
+
 class _TraitNameDelegate(QStyledItemDelegate):
     """Paints trait name in normal color and stat summary in a dimmer color."""
 
@@ -153,8 +234,8 @@ class _TraitNameDelegate(QStyledItemDelegate):
         painter.save()
         r = option.rect.adjusted(4, 0, -4, 0)
         fg = index.data(Qt.ForegroundRole)
-        name_color = fg.color() if fg and hasattr(fg, "color") else QColor(CLR_TEXT_PRIMARY)
-        summary_color = QColor("#777799")
+        name_color = fg.color() if fg and hasattr(fg, "color") else QColor(CLR_TEXT_CONTENT_PRIMARY)
+        summary_color = QColor(CLR_TEXT_LABEL_UI)
 
         fm = QFontMetrics(painter.font())
         name_w = fm.horizontalAdvance(name)
@@ -233,10 +314,12 @@ class _TraitChipDelegate(QStyledItemDelegate):
             ind_text = f"+{hidden_count}"
             ind_w    = fm.horizontalAdvance(ind_text) + 2 * _CHIP_PAD_X
             ind_rect = QRect(x, chip_top, ind_w, _CHIP_H)
-            painter.setBrush(QColor(CLR_SURFACE_NEUTRAL))
+            _hidden_chips = chips[len(visible):]
+            _ov_bg, _ov_fg = _overflow_chip_style(index, _hidden_chips)
+            painter.setBrush(_ov_bg)
             painter.setPen(Qt.NoPen)
             painter.drawRoundedRect(ind_rect, _CHIP_RADIUS, _CHIP_RADIUS)
-            painter.setPen(QColor("#8888bb"))
+            painter.setPen(_ov_fg)
             painter.drawText(ind_rect, Qt.AlignCenter, ind_text)
 
         _score_sub = index.data(_SCORE_SECONDARY_ROLE)
@@ -355,7 +438,7 @@ class _BothModeDelegate(QStyledItemDelegate):
                 pill_x = option.rect.x() + (option.rect.width() - tw) // 2
                 pill_y = option.rect.y() + (option.rect.height() - pill_h) // 2
                 pill_rect = QRect(pill_x, pill_y, tw, pill_h)
-                painter.setBrush(QColor(0, 0, 0, 140))
+                painter.setBrush(QColor(CLR_SURFACE_NEUTRAL_OVERLAY))
                 painter.setPen(Qt.NoPen)
                 painter.setRenderHint(QPainter.Antialiasing)
                 painter.drawRoundedRect(pill_rect, _CHIP_RADIUS, _CHIP_RADIUS)
@@ -399,12 +482,12 @@ class _BothModeDelegate(QStyledItemDelegate):
 # Separator columns are now dedicated thin columns (see _SEP_COLS) rather than painted lines
 
 class _SeparatorDelegate(QStyledItemDelegate):
-    """Paints a thin vertical divider line for separator columns."""
+    """Paints a subtle divider band for separator columns."""
 
     def paint(self, painter, option, index):
-        painter.fillRect(option.rect, QColor(CLR_BG_SCORE_AREA))  # match table bg
+        painter.fillRect(option.rect, _SEP_BAND_BG)
         mid_x = option.rect.x() + option.rect.width() // 2
-        painter.fillRect(QRect(mid_x, option.rect.y(), 1, option.rect.height()), _SEP_COL_COLOR)
+        painter.fillRect(QRect(mid_x, option.rect.y(), 1, option.rect.height()), _SEP_LINE_COLOR)
 
     def sizeHint(self, option, index):
         return QSize(_SEP_WIDTH, 22)
@@ -444,7 +527,7 @@ class _HeatmapDelegate(QStyledItemDelegate):
             pill_x = r.x() + (r.width() - tw) // 2
             pill_y = r.y() + (r.height() - pill_h) // 2
             pill_rect = QRect(pill_x, pill_y, tw, pill_h)
-            painter.setBrush(QColor(0, 0, 0, 140))
+            painter.setBrush(QColor(CLR_SURFACE_NEUTRAL_OVERLAY))
             painter.setPen(Qt.NoPen)
             painter.drawRoundedRect(pill_rect, _CHIP_RADIUS, _CHIP_RADIUS)
             if fg:
@@ -573,12 +656,12 @@ class _SortHighlightHeader(QHeaderView):
     the sort-direction arrow drawn explicitly - no separate sort-label needed.
     """
 
-    _NORMAL_BG   = QColor(CLR_BG_HEADER)
+    _NORMAL_BG   = QColor(CLR_SURFACE_HEADER)
     _SORTED_BG   = QColor("#1a3060")
-    _NORMAL_FG   = QColor(CLR_TEXT_UI_LABEL)
+    _NORMAL_FG   = QColor(CLR_TEXT_LABEL_UI)
     _SORTED_FG   = QColor("#ccd8f0")
-    _BORDER_R    = QColor(CLR_BG_HEADER)
-    _BORDER_B    = QColor(CLR_BG_HEADER_BDR)
+    _BORDER_R    = QColor(CLR_SURFACE_HEADER)
+    _BORDER_B    = QColor(CLR_SURFACE_HEADER_BORDER)
 
     def __init__(self, parent=None):
         super().__init__(Qt.Horizontal, parent)
@@ -606,12 +689,12 @@ class _SortHighlightHeader(QHeaderView):
         super().mousePressEvent(event)
 
     def paintSection(self, painter, rect, logical_idx):
-        # Separator columns: paint a thin vertical line, no text
+        # Separator columns: paint a subtle divider band, no text.
         if logical_idx in _SEP_COLS:
             painter.save()
-            painter.fillRect(rect, self._NORMAL_BG)
+            painter.fillRect(rect, _SEP_BAND_BG)
             mid_x = rect.x() + rect.width() // 2
-            painter.fillRect(QRect(mid_x, rect.y(), 1, rect.height()), _SEP_COL_COLOR)
+            painter.fillRect(QRect(mid_x, rect.y(), 1, rect.height()), _SEP_LINE_COLOR)
             painter.restore()
             return
 
@@ -695,6 +778,7 @@ class _FastTooltipFilter(QObject):
         self._timer.setInterval(self.DELAY_MS)
         self._timer.timeout.connect(self._show)
         self._chip_popup       = None   # keep reference to prevent GC
+        self._hover_popup      = _HoverTooltipPopup()
         self._pending_popup    = None   # (chips, gpos) deferred until event loop clears
         table.viewport().setMouseTracking(True)
         table.viewport().installEventFilter(self)
@@ -710,7 +794,7 @@ class _FastTooltipFilter(QObject):
             if tip != self._tip:
                 self._tip = tip
                 self._timer.stop()
-                QToolTip.hideText()
+                self._hover_popup.hide()
                 if tip:
                     self._timer.start()
         elif t == QEvent.MouseButtonRelease:
@@ -731,7 +815,7 @@ class _FastTooltipFilter(QObject):
                         QTimer.singleShot(0, self._show_chip_popup)
         elif t == QEvent.Leave:
             self._timer.stop()
-            QToolTip.hideText()
+            self._hover_popup.hide()
             self._tip = ""
         elif t == QEvent.Type.ToolTip:
             # Suppress the platform-delayed tooltip; we handle it ourselves
@@ -740,7 +824,7 @@ class _FastTooltipFilter(QObject):
 
     def _show(self):
         if self._tip and self._gpos:
-            QToolTip.showText(self._gpos, self._tip)
+            self._hover_popup.show_html(self._tip, self._gpos)
 
     def _show_chip_popup(self):
         if self._pending_popup:
@@ -764,6 +848,7 @@ class _ListTooltipFilter(QObject):
         self._timer.setSingleShot(True)
         self._timer.setInterval(self.DELAY_MS)
         self._timer.timeout.connect(self._show)
+        self._hover_popup = _HoverTooltipPopup()
         lst.viewport().setMouseTracking(True)
         lst.viewport().installEventFilter(self)
 
@@ -778,12 +863,12 @@ class _ListTooltipFilter(QObject):
             if tip != self._tip:
                 self._tip = tip
                 self._timer.stop()
-                QToolTip.hideText()
+                self._hover_popup.hide()
                 if tip:
                     self._timer.start()
         elif t == QEvent.Leave:
             self._timer.stop()
-            QToolTip.hideText()
+            self._hover_popup.hide()
             self._tip = ""
         elif t == QEvent.Type.ToolTip:
             return True
@@ -791,7 +876,7 @@ class _ListTooltipFilter(QObject):
 
     def _show(self):
         if self._tip and self._gpos:
-            QToolTip.showText(self._gpos, self._tip)
+            self._hover_popup.show_html(self._tip, self._gpos)
 
 
 class _WeightSpin(QWidget):
@@ -805,7 +890,7 @@ class _WeightSpin(QWidget):
         "QPushButton:pressed { background:#6060c0; }"
     )
     _LBL_BASE = (
-        f"background:{CLR_BG_ALT};"
+        f"background:{CLR_SURFACE_APP_ALT};"
         f" border:1px solid {CLR_SURFACE_SEPARATOR}; border-right:none;"
     )
 
@@ -858,7 +943,7 @@ class _WeightSpin(QWidget):
         elif self._value < 0:
             clr = CLR_UNDESIRABLE
         else:
-            clr = CLR_TEXT_GRAYEDOUT
+            clr = CLR_TEXT_CONTENT_UNSCORED
         self._lbl.setStyleSheet(f"color:{clr}; {self._LBL_BASE}")
 
     def _set(self, val: float):
@@ -890,7 +975,7 @@ class _IntParamSpin(_WeightSpin):
 
     def _update_color(self):
         # Threshold / count parameters: always plain; no sign-based colouring
-        self._lbl.setStyleSheet(f"color:{CLR_TEXT_SECONDARY}; {self._LBL_BASE}")
+        self._lbl.setStyleSheet(f"color:{CLR_TEXT_CONTENT_SECONDARY}; {self._LBL_BASE}")
 
     def __init__(self, value: int, min_val=1, max_val=20, step=1):
         super().__init__(float(value), float(min_val), float(max_val), float(step))
@@ -929,8 +1014,8 @@ class _ConfirmDialog(QDialog):
         self.setWindowTitle(title)
         self.setModal(True)
         self.setStyleSheet(
-            f"QDialog {{ background:{CLR_BG_MAIN}; }}"
-            f"QLabel  {{ color:{CLR_TEXT_SECONDARY}; font-size:12px; background:transparent; border:none; }}"
+            f"QDialog {{ background:{CLR_SURFACE_APP_MAIN}; }}"
+            f"QLabel  {{ color:{CLR_TEXT_CONTENT_SECONDARY}; font-size:12px; background:transparent; border:none; }}"
             "QPushButton { background:#14142e; color:#8899bb; border:1px solid #2a2a55;"
             "  border-radius:4px; padding:5px 18px; font-size:12px; }"
             "QPushButton:hover { background:#1c1c3a; color:#ccd; border-color:#4444aa; }"

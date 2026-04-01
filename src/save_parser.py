@@ -315,14 +315,33 @@ def _load_gpak_text_strings(file_obj, file_offsets: dict[str, tuple[int, int]]) 
         if not fname.endswith(".csv"):
             continue
         file_obj.seek(offset)
-        text = file_obj.read(size).decode("utf-8", errors="replace")
+        text = file_obj.read(size).decode("utf-8-sig", errors="replace")
+        reader = csv.DictReader(io.StringIO(text))
+        if reader.fieldnames:
+            for row in reader:
+                key = (row.get("KEY") or "").strip()
+                if not key:
+                    continue
+                value = (row.get("en") or "").strip()
+                if not value:
+                    for column in reader.fieldnames:
+                        if column in {"KEY", "notes"}:
+                            continue
+                        candidate = (row.get(column) or "").strip()
+                        if candidate:
+                            value = candidate
+                            break
+                if value:
+                    game_strings[key] = _extract_primary_language_text(html.unescape(value))
+            continue
+
         for line in text.splitlines():
             parts = line.split(",", 1)
             if len(parts) != 2:
                 continue
             key, value = parts[0].strip(), parts[1].strip()
-            if key:
-                game_strings[key] = value
+            if key and value:
+                game_strings[key] = _extract_primary_language_text(html.unescape(value))
     return game_strings
 
 
@@ -360,8 +379,51 @@ def _load_gpak_csv_strings(
                     value = candidate
                     break
         if value:
-            values[key] = html.unescape(value)
+            values[key] = _extract_primary_language_text(html.unescape(value))
     return values
+
+
+def _extract_primary_language_text(value: str) -> str:
+    """Return the primary-language segment from packed localized strings."""
+    text = str(value or "").replace("\u00a0", " ").strip()
+    if not text:
+        return ""
+
+    # Common packed format where languages are concatenated with triple bars.
+    if "|||" in text:
+        first = text.split("|||", 1)[0].strip()
+        return first or text
+
+    lang_token = r"(?:en(?:[-_](?:us|gb))?|english|ru|russian|pl|polish|zh(?:[-_]cn)?|chinese|ja|japanese|ko|korean)"
+    token_prefix = re.compile(rf"^\s*(?:\[{lang_token}\]|{lang_token})\s*[:=\-]\s*", flags=re.IGNORECASE)
+    token_anywhere = re.compile(rf"(?:^|\s*[|/;]\s*)(?:\[{lang_token}\]|{lang_token})\s*[:=\-]\s*", flags=re.IGNORECASE)
+
+    if token_anywhere.search(text):
+        chunks = [chunk.strip() for chunk in re.split(r"\s*[|/;]\s*", text) if chunk.strip()]
+        parsed: list[tuple[str, str]] = []
+        for chunk in chunks:
+            match = re.match(
+                rf"^\s*(?:\[(?P<btag>{lang_token})\]|(?P<tag>{lang_token}))\s*[:=\-]\s*(?P<body>.+)$",
+                chunk,
+                flags=re.IGNORECASE,
+            )
+            if not match:
+                continue
+            tag = (match.group("btag") or match.group("tag") or "").strip().lower()
+            body = (match.group("body") or "").strip()
+            if body:
+                parsed.append((tag, body))
+        if parsed:
+            for tag, body in parsed:
+                if tag.startswith("en") or tag == "english":
+                    return body
+            return parsed[0][1]
+
+    if token_prefix.match(text):
+        cleaned = token_prefix.sub("", text, count=1).strip()
+        return cleaned or text
+
+    return text
 
 
 def _resolve_game_string(value: str, game_strings: dict[str, str]) -> str:
@@ -377,7 +439,7 @@ def _resolve_game_string(value: str, game_strings: dict[str, str]) -> str:
         if next_value is None:
             break
         current = next_value.strip()
-    return current
+    return _extract_primary_language_text(current)
 
 
 def _parse_mutation_gon(content: str, game_strings: dict[str, str], category: str) -> dict[int, tuple[str, str]]:
@@ -624,13 +686,15 @@ def _read_visual_mutation_entries(table: list[int]) -> list[dict[str, object]]:
         if mutation_id in (0, 0xFFFF_FFFF):
             continue
 
+        part_label = _VISUAL_MUTATION_PART_LABELS.get(group_key, slot_label)
+        is_defect = (700 <= mutation_id <= 706) or mutation_id == 0xFFFF_FFFE
         display_name = ""
         detail = ""
         gpak_info = _VISUAL_MUT_DATA.get(gpak_category, {}).get(mutation_id)
         if gpak_info:
             raw_name, stat_desc = gpak_info
             if re.match(r'^Mutation \d+$', raw_name):
-                display_name = f"{_VISUAL_MUTATION_PART_LABELS.get(group_key, slot_label)} Mutation"
+                display_name = f"{part_label} Mutation"
             else:
                 display_name = raw_name
             detail = stat_desc
@@ -640,19 +704,22 @@ def _read_visual_mutation_entries(table: list[int]) -> list[dict[str, object]]:
                 if mutation_id < 300:
                     continue
                 if mutation_id == 0xFFFF_FFFE:
-                    fallback_name = f"No {_VISUAL_MUTATION_PART_LABELS.get(group_key, slot_label)}"
+                    fallback_name = f"No {part_label}"
                 else:
-                    fallback_name = f"{_VISUAL_MUTATION_PART_LABELS.get(group_key, slot_label)} {mutation_id}"
+                    fallback_name = f"{part_label} {mutation_id}"
             display_name = fallback_name
 
-        is_defect = (700 <= mutation_id <= 706) or mutation_id == 0xFFFF_FFFE
+        if is_defect:
+            # Defects are shown in-game as part-level defect labels (e.g. "Leg Birth Defect").
+            # Keep detail/effect text from the existing source data pipeline.
+            display_name = f"{part_label} Birth Defect"
 
         display_name = str(display_name).strip() or f"{slot_label} {mutation_id}"
         entries.append({
             "slot_key": slot_key,
             "slot_label": slot_label,
             "group_key": group_key,
-            "part_label": _VISUAL_MUTATION_PART_LABELS.get(group_key, slot_label),
+            "part_label": part_label,
             "mutation_id": mutation_id,
             "name": display_name,
             "detail": str(detail).strip(),

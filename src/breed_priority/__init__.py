@@ -6,8 +6,9 @@ ability_tip) are injected via BreedPriorityView.__init__() arguments.
 """
 
 import os
-import sys
 import json
+
+from save_parser import risk_percent
 
 from .filters import FilterState, FilterDialog, cat_passes_filter
 from .stat_text_formatter import StatTextFormatter
@@ -32,20 +33,21 @@ from .scoring import compute_breed_priority_score         # noqa: F401
 from .collapsible_splitter import LEFT_PANEL_W, CollapseSplitter
 from .scoring import (
     BREED_PRIORITY_WEIGHTS, WEIGHT_UI_ROWS, SCORE_COLUMNS,
-    TRAIT_LOW_THRESHOLD, TRAIT_HIGH_THRESHOLD,
+    TRAIT_LOW_THRESHOLD, TRAIT_HIGH_THRESHOLD, GENETIC_SAFE_RISK_FLOOR,
     TRAIT_RATING_VALUES,
 )
 from .theme import (
     CLR_TOP_PRIORITY, CLR_DESIRABLE, CLR_NEUTRAL, CLR_UNDECIDED,
     CLR_UNDESIRABLE, CLR_HIGHLIGHT, RATING_ITEM_COLORS,
-    _DIM_LABEL_FG,
+    CLR_LABEL_SUBDUED,
     CLR_GENDER_MALE, CLR_GENDER_FEMALE, CLR_GENDER_UNKNOWN,
     _CHIP_GENDER_MALE, _CHIP_GENDER_FEMALE, _CHIP_GENDER_UNKNOWN,
     CLR_INTERACTIVE, CLR_INTERACTIVE_BG, CLR_INTERACTIVE_BDR,
     CLR_VALUE_POS, CLR_VALUE_NEG, CLR_VALUE_NEUTRAL,
     _CLR_AGE_OLD, _SEX_EMOJI_GAY, _SEX_EMOJI_BI,
     _CHIP_TOP_PRIORITY, _CHIP_DESIRABLE, _CHIP_UNDESIRABLE,
-    _CHIP_DIM, _CHIP_LOVE_SCOPE, _CHIP_LOVE_ROOM,
+    _CHIP_DIM, _CHIP_NEUTRAL_STABLE, _CHIP_NEUTRAL_FAINT,
+    _CHIP_LOVE_SCOPE, _CHIP_LOVE_ROOM,
     _CHIP_HATE_SCOPE, _CHIP_HATE_ROOM, _CHIP_AGE_WARN,
     CLR_TEXT_PRIMARY, CLR_TEXT_SECONDARY, CLR_TEXT_UI_LABEL,
     CLR_TEXT_GROUP, CLR_TEXT_SUBLABEL, CLR_TEXT_COUNT, CLR_TEXT_GRAYEDOUT,
@@ -55,10 +57,11 @@ from .theme import (
     CLR_SURFACE_SEPARATOR, _NEUTRAL_SURFACE,
 )
 from .styles import (
-    _SEG_BTN_STYLE, _GROUP_LABEL_STYLE,
-    _INTERACTIVE_BTN_ACTIVE, _INTERACTIVE_BTN_ON,
-    _DIM_BTN, _DIM_BTN_LG, _TOGGLE_OFF_BTN,
-    _PRIORITY_TABLE_STYLE, _PRIORITY_COMBO_STYLE,
+    SEGMENTED_CONTROL_BUTTON_STYLE, GROUP_LABEL_TEXT_STYLE,
+    ACTION_BUTTON_PRIMARY_EMPHASIS_STYLE, ACTION_BUTTON_PRIMARY_STYLE,
+    ACTION_BUTTON_SECONDARY_STYLE, ACTION_BUTTON_SECONDARY_LARGE_STYLE, TOGGLE_BUTTON_INACTIVE_STYLE,
+    PRIORITY_TABLE_STYLE, PRIORITY_COMBO_STYLE,
+    checkbox_style,
 )
 from .columns import (
     COL_NAME, COL_LOC, COL_INJ, _STAT_COL_NAMES, _COL_STAT_START,
@@ -66,6 +69,7 @@ from .columns import (
     _ALL_HEADERS, _SEP_COLS, _SEP_WIDTH,
     _CHIP_ROLE, _SCORE_SECONDARY_ROLE, _HEATMAP_ROLE,
     _ROOM_STYLE, INJURY_STAT_NAMES, _COL_EMOJI,
+    _SINGLE_VALUE_CENTER_SCORE_COLS, _MULTI_VALUE_LEFT_SCORE_COLS,
 )
 from .scoring import (
     ScoreResult, ability_base, is_basic_trait,
@@ -146,8 +150,10 @@ class BreedPriorityView(QWidget):
         self._selected_cat = None
         self._hated_by_map: dict[int, list] = {}
         self._loved_by_map: dict[int, list] = {}
+        self._scope_pair_risks: dict[tuple[int, int], float] = {}
         self._hide_kittens = False
         self._hide_out_of_scope = False
+        self._filters_enabled = True
         self._display_mode = "score"   # "score" | "values" | "both"
         self._heatmap_on = False       # separate toggle for heatmap overlay
         self._heat_algo = "column"     # "column" | "row"
@@ -164,6 +170,10 @@ class BreedPriorityView(QWidget):
         self._profile_traits_only: bool = False  # only save/load trait desirability ratings
         self._load_ratings()
         self._build_ui()
+        self.setStyleSheet(
+            f"QToolTip {{ background:{CLR_BG_PANEL}; color:{CLR_TEXT_SECONDARY};"
+            f" border:1px solid {CLR_BG_HEADER_BDR}; }}"
+        )
         self._col_save_timer = QTimer(self)
         self._col_save_timer.setSingleShot(True)
         self._col_save_timer.setInterval(600)
@@ -597,10 +607,11 @@ class BreedPriorityView(QWidget):
         t.verticalHeader().setVisible(False)
         t.setShowGrid(False)
         t.setAlternatingRowColors(True)
-        t.setStyleSheet(_PRIORITY_TABLE_STYLE)
+        t.setStyleSheet(PRIORITY_TABLE_STYLE)
         hh = t.horizontalHeader()
-        hh.setSectionResizeMode(0, QHeaderView.Stretch)
+        hh.setSectionResizeMode(0, QHeaderView.Interactive)
         hh.setSectionResizeMode(1, QHeaderView.Fixed)
+        t.setColumnWidth(0, 180)
         t.setColumnWidth(1, 115)
         _FastTooltipFilter(t)   # fast tooltip on the trait name column
         t.setItemDelegateForColumn(0, _TraitNameDelegate(t))
@@ -652,14 +663,18 @@ class BreedPriorityView(QWidget):
         hb.addWidget(title_lbl)
         hb.addStretch()
 
-        _chk_style = f"color:{CLR_TEXT_SECONDARY}; font-size:11px;"
+        _chk_style = checkbox_style(
+            font_size=11,
+            emphasize_checked=True,
+            text_color=CLR_TEXT_UI_LABEL,
+        )
         # Segmented Score / Values / Both control
         self._btn_mode_score   = QPushButton("Score")
         self._btn_mode_values  = QPushButton("Values")
         self._btn_mode_both    = QPushButton("Both")
         for _b in (self._btn_mode_score, self._btn_mode_values, self._btn_mode_both):
             _b.setCheckable(True)
-            _b.setStyleSheet(_SEG_BTN_STYLE)
+            _b.setStyleSheet(SEGMENTED_CONTROL_BUTTON_STYLE)
             _b.setFixedHeight(20)
         _mode_init = {"score": self._btn_mode_score, "values": self._btn_mode_values,
                       "both": self._btn_mode_both}
@@ -682,7 +697,7 @@ class BreedPriorityView(QWidget):
         self._btn_heatmap_toggle = QPushButton("Heatmap")
         self._btn_heatmap_toggle.setCheckable(True)
         self._btn_heatmap_toggle.setChecked(self._heatmap_on)
-        self._btn_heatmap_toggle.setStyleSheet(_SEG_BTN_STYLE)
+        self._btn_heatmap_toggle.setStyleSheet(SEGMENTED_CONTROL_BUTTON_STYLE)
         self._btn_heatmap_toggle.setFixedHeight(20)
         self._btn_heatmap_toggle.toggled.connect(self._on_heatmap_toggled)
         hb.addWidget(self._btn_heatmap_toggle)
@@ -702,7 +717,7 @@ class BreedPriorityView(QWidget):
         )
         for _hb in (self._btn_heat_col, self._btn_heat_row):
             _hb.setCheckable(True)
-            _hb.setStyleSheet(_SEG_BTN_STYLE)
+            _hb.setStyleSheet(SEGMENTED_CONTROL_BUTTON_STYLE)
             _hb.setFixedHeight(20)
         (self._btn_heat_col if self._heat_algo == "column" else self._btn_heat_row).setChecked(True)
         self._heat_algo_group = QButtonGroup(self)
@@ -715,7 +730,7 @@ class BreedPriorityView(QWidget):
         _hal.setSpacing(0)
         _hal.setContentsMargins(0, 0, 0, 0)
         self._ha_lbl = QLabel("Heat:")
-        self._ha_lbl.setStyleSheet(f"color:{_DIM_LABEL_FG}; font-size:10px;")
+        self._ha_lbl.setStyleSheet(f"color:{CLR_LABEL_SUBDUED}; font-size:10px;")
         _hal.addWidget(self._ha_lbl)
         _hal.addWidget(self._btn_heat_col)
         _hal.addWidget(self._btn_heat_row)
@@ -735,7 +750,7 @@ class BreedPriorityView(QWidget):
     def _build_scope_panel(self, layout):
         """Build the scope + options + filters section into the given layout."""
         scope_lbl = QLabel("COMPARISON SCOPE")
-        scope_lbl.setStyleSheet(_GROUP_LABEL_STYLE)
+        scope_lbl.setStyleSheet(GROUP_LABEL_TEXT_STYLE)
         layout.addWidget(scope_lbl)
 
         _ac_row = QWidget()
@@ -755,6 +770,11 @@ class BreedPriorityView(QWidget):
             _leg.setStyleSheet(f"color:{_leg_clr}; font-size:10px; font-weight:bold;")
             _leg.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
             _ac_h.addWidget(_leg)
+        _gen_leg = QLabel("Gen")
+        _gen_leg.setFixedWidth(44)
+        _gen_leg.setStyleSheet(f"color:{CLR_TEXT_COUNT}; font-size:10px; font-weight:bold;")
+        _gen_leg.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        _ac_h.addWidget(_gen_leg)
         layout.addWidget(_ac_row)
 
         sep = QFrame()
@@ -768,7 +788,7 @@ class BreedPriorityView(QWidget):
         self._room_checks_vb.setSpacing(2)
         layout.addWidget(self._room_checks_widget)
 
-        _small_btn_style = _DIM_BTN
+        _small_btn_style = ACTION_BUTTON_SECONDARY_STYLE
 
         sep2 = QFrame()
         sep2.setFrameShape(QFrame.HLine)
@@ -776,11 +796,11 @@ class BreedPriorityView(QWidget):
         layout.addWidget(sep2)
 
         opts_lbl = QLabel("OPTIONS")
-        opts_lbl.setStyleSheet(_GROUP_LABEL_STYLE)
+        opts_lbl.setStyleSheet(GROUP_LABEL_TEXT_STYLE)
         layout.addWidget(opts_lbl)
 
         self._chk_hide_kittens = QCheckBox("Hide Kittens")
-        self._chk_hide_kittens.setStyleSheet(f"color:{CLR_TEXT_SECONDARY}; font-size:11px;")
+        self._chk_hide_kittens.setStyleSheet(checkbox_style(font_size=11, emphasize_checked=True))
         self._chk_hide_kittens.setToolTip(
             "Exclude kittens (age 1) from the list and from scoring comparisons."
         )
@@ -789,7 +809,7 @@ class BreedPriorityView(QWidget):
         layout.addWidget(self._chk_hide_kittens)
 
         self._chk_hide_out_of_scope = QCheckBox("Hide Out-of-Scope")
-        self._chk_hide_out_of_scope.setStyleSheet(f"color:{CLR_TEXT_SECONDARY}; font-size:11px;")
+        self._chk_hide_out_of_scope.setStyleSheet(checkbox_style(font_size=11, emphasize_checked=True))
         self._chk_hide_out_of_scope.setToolTip(
             "Only show cats that are within the current comparison scope."
         )
@@ -813,8 +833,7 @@ class BreedPriorityView(QWidget):
 
         self._filter_toggle = QPushButton("On")
         self._filter_toggle.setCheckable(True)
-        self._filter_toggle.setChecked(True)
-        self._filters_enabled = True
+        self._filter_toggle.setChecked(bool(self._filters_enabled))
         self._filter_toggle.setFixedWidth(36)
         self._filter_toggle.setToolTip("Toggle filters on/off without clearing them.")
         self._filter_toggle.clicked.connect(self._on_filter_toggle)
@@ -831,7 +850,7 @@ class BreedPriorityView(QWidget):
         layout.addWidget(sep3)
 
         weights_lbl = QLabel("WEIGHTS")
-        weights_lbl.setStyleSheet(_GROUP_LABEL_STYLE)
+        weights_lbl.setStyleSheet(GROUP_LABEL_TEXT_STYLE)
         layout.addWidget(weights_lbl)
 
         weights_widget = QWidget()
@@ -881,7 +900,7 @@ class BreedPriorityView(QWidget):
             self._weight_spins[key] = spin
             r += 1
 
-        _small_btn_style = _DIM_BTN
+        _small_btn_style = ACTION_BUTTON_SECONDARY_STYLE
         reset_btn = QPushButton("Reset")
         reset_btn.setStyleSheet(_small_btn_style)
         reset_btn.setToolTip("Reset all weights to defaults")
@@ -927,8 +946,7 @@ class BreedPriorityView(QWidget):
             "Gender": "Gender — M/F shown; ? (unknown) gets a flat score weight.",
             "Lib":  "Libido — flat weight if High or Low.",
             "Sex":  "Sexuality — flat Gay or Bi weight (straight = no score).",
-            "Gene":    "Genetic Novelty — flat weight if no blood relatives in scope.",
-            "4+Ch":    "4+ Children — flat weight if ≥4 children in scope.",
+            "Gene":    "Genetic Safety — average in-scope inbreeding risk; penalties start above 2% baseline.",
             "Age":     "Age penalty. No penalty at/below threshold. Each 3 years over = +1× multiplier (1 over=1×, 4 over=2×, 7 over=3×…).",
             "💗🔭": "Love interest (scope) — flat weight if love interest is in scope. Pink = in scope, grey = out.",
             "💥🔭": "Rivalry (scope) — weight per rival in scope (both directions: hates + hated by).",
@@ -947,7 +965,7 @@ class BreedPriorityView(QWidget):
         self._score_table.setShowGrid(False)
         self._score_table.setAlternatingRowColors(True)
         self._score_table.setSortingEnabled(True)
-        self._score_table.setStyleSheet(_PRIORITY_TABLE_STYLE)
+        self._score_table.setStyleSheet(PRIORITY_TABLE_STYLE)
         shh.setSectionResizeMode(QHeaderView.Interactive)
         shh.setMinimumSectionSize(_SEP_WIDTH)
         self._score_table.setColumnWidth(COL_NAME, 120)
@@ -980,12 +998,14 @@ class BreedPriorityView(QWidget):
             self._score_table.setItemDelegateForColumn(_sep_ci, _sep_delegate)
         # Chip delegates
         _chip_delegate = _TraitChipDelegate(self._score_table)
+        for _stat_ci in range(_COL_STAT_START, _COL_STAT_START + _NUM_STAT_COLS):
+            self._score_table.setItemDelegateForColumn(_stat_ci, _chip_delegate)
         _trait_col   = _COL_SCORE_START + _SCORE_COLS.index("Trait")
         _rare7_col   = _COL_SCORE_START + _SCORE_COLS.index("7rare")
         self._score_table.setItemDelegateForColumn(_trait_col,    _chip_delegate)
         self._score_table.setItemDelegateForColumn(_rare7_col,    _chip_delegate)
         for _ehdr in ("Sex", "💗🔭", "💗🏠", "💥🔭", "💥🏠",
-                       "Lib", "4+Ch", "Age", "Gene", "Gender"):
+                       "Lib", "Age", "Gene", "Gender", "Sum", "7cnt"):
             _ecol = _COL_SCORE_START + _SCORE_COLS.index(_ehdr)
             self._score_table.setItemDelegateForColumn(_ecol, _chip_delegate)
         # Default delegate for "both" mode
@@ -1036,7 +1056,7 @@ class BreedPriorityView(QWidget):
         ma_vb.setContentsMargins(8, 6, 8, 6)
         ma_vb.setSpacing(4)
         ma_lbl = QLabel("TRAIT DESIRABILITY")
-        ma_lbl.setStyleSheet(_GROUP_LABEL_STYLE)
+        ma_lbl.setStyleSheet(GROUP_LABEL_TEXT_STYLE)
         ma_lbl.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
         ma_vb.addWidget(ma_lbl)
         ma_vb.setStretchFactor(ma_lbl, 0)
@@ -1058,12 +1078,21 @@ class BreedPriorityView(QWidget):
             ma_hs.addWidget(w)
         ma_vb.addWidget(ma_hs, stretch=1)
 
+        right_hs = QSplitter(Qt.Horizontal)
+        right_hs.setHandleWidth(6)
+        right_hs.setStyleSheet(SPLITTER_H_STYLE)
+        right_hs.addWidget(self._make_children_panel())
+        right_hs.addWidget(self._make_risk_panel())
+        right_hs.setSizes([220, 260])
+        right_hs.setStretchFactor(0, 1)
+        right_hs.setStretchFactor(1, 1)
+
         bottom_hs = QSplitter(Qt.Horizontal)
         bottom_hs.setHandleWidth(6)
         bottom_hs.setStyleSheet(SPLITTER_H_STYLE)
         bottom_hs.addWidget(ma_widget)
-        bottom_hs.addWidget(self._make_children_panel())
-        bottom_hs.setSizes([440, 220])
+        bottom_hs.addWidget(right_hs)
+        bottom_hs.setSizes([420, 300])
         bottom_hs.setStretchFactor(0, 2)
         bottom_hs.setStretchFactor(1, 1)
         return bottom_hs
@@ -1072,13 +1101,6 @@ class BreedPriorityView(QWidget):
         vb = QVBoxLayout(self)
         vb.setContentsMargins(0, 0, 0, 0)
         vb.setSpacing(0)
-
-        # TEMP: green stripe at top for visual version distinction (-t flag)
-        if "-t" in sys.argv:
-            _top_stripe = QWidget()
-            _top_stripe.setFixedHeight(4)
-            _top_stripe.setStyleSheet("background:#00cc44;")
-            vb.addWidget(_top_stripe)
 
         vb.addWidget(self._build_top_bar())
 
@@ -1115,13 +1137,6 @@ class BreedPriorityView(QWidget):
         vs.setStretchFactor(0, 1)
         vs.setStretchFactor(1, 0)
 
-        # TEMP: green stripe at bottom for visual version distinction (-t flag)
-        if "-t" in sys.argv:
-            _bot_stripe = QWidget()
-            _bot_stripe.setFixedHeight(4)
-            _bot_stripe.setStyleSheet("background:#00cc44;")
-            vb.addWidget(_bot_stripe)
-
         # Final pass: sync banner/button state now that all widgets exist
         self._update_filter_btn()
 
@@ -1146,6 +1161,7 @@ class BreedPriorityView(QWidget):
         self._hate_overlay.set_hate_ids(hate_ids)
         self._refresh_trait_table_order()
         self._refresh_children_panel()
+        self._refresh_risk_panel()
 
     def _refresh_trait_table_order(self):
         cat = self._selected_cat
@@ -1185,7 +1201,7 @@ class BreedPriorityView(QWidget):
         # Header row: label + count
         hdr = QHBoxLayout()
         self._children_hdr_lbl = QLabel("CHILDREN")
-        self._children_hdr_lbl.setStyleSheet(_GROUP_LABEL_STYLE)
+        self._children_hdr_lbl.setStyleSheet(GROUP_LABEL_TEXT_STYLE)
         self._children_hdr_lbl.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
         hdr.addWidget(self._children_hdr_lbl)
         hdr.addStretch()
@@ -1197,9 +1213,9 @@ class BreedPriorityView(QWidget):
 
         # Filter toggle: All | In Scope | Same Room
         _seg_base = (
-            "QPushButton { background:#161628; color:#666; border:1px solid #252545;"
+            f"QPushButton {{ background:{CLR_BG_ALT}; color:{CLR_TEXT_COUNT}; border:1px solid {CLR_SURFACE_SEPARATOR};"
             " padding:2px 7px; font-size:10px; }"
-            "QPushButton:hover { background:#1e1e3c; color:#aaa; }"
+            f"QPushButton:hover {{ background:{CLR_BG_PANEL}; color:{CLR_TEXT_SECONDARY}; }}"
             "QPushButton:checked { background:#1e2050; color:#99aaff;"
             " border-color:#3a3a88; }"
         )
@@ -1250,7 +1266,7 @@ class BreedPriorityView(QWidget):
             f"QListWidget {{ background:{CLR_BG_DEEP}; border:1px solid {CLR_BG_HEADER_BDR};"
             f" color:{CLR_TEXT_SECONDARY}; font-size:11px; outline:none; }}"
             "QListWidget::item { padding:2px 6px; }"
-            "QListWidget::item:hover { background:#181830; }"
+            f"QListWidget::item:hover {{ background:{CLR_BG_ALT}; }}"
             f"QListWidget::item:selected {{ background:{CLR_SURFACE_SEPARATOR}; }}"
         )
         self._children_list.setSelectionMode(QAbstractItemView.NoSelection)
@@ -1294,6 +1310,68 @@ class BreedPriorityView(QWidget):
     def _build_child_tooltip(self, cat) -> str:
         """Build a rich HTML tooltip with full cat info for the children panel."""
         return build_child_tooltip(cat, self._display_name)
+
+    # ── Top breeding-risk panel ───────────────────────────────────────────────
+
+    def _make_risk_panel(self) -> QWidget:
+        w = QWidget()
+        w.setStyleSheet(f"background:{CLR_BG_MAIN};")
+        vb = QVBoxLayout(w)
+        vb.setContentsMargins(8, 6, 8, 6)
+        vb.setSpacing(4)
+
+        hdr = QHBoxLayout()
+        self._risk_hdr_lbl = QLabel("TOP BREEDING RISKS")
+        self._risk_hdr_lbl.setStyleSheet(GROUP_LABEL_TEXT_STYLE)
+        self._risk_hdr_lbl.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        hdr.addWidget(self._risk_hdr_lbl)
+        hdr.addStretch()
+        self._risk_count_lbl = QLabel("")
+        self._risk_count_lbl.setStyleSheet(f"color:{CLR_TEXT_COUNT}; font-size:10px;")
+        self._risk_count_lbl.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        hdr.addWidget(self._risk_count_lbl)
+        vb.addLayout(hdr)
+
+        self._risk_list = QListWidget()
+        self._risk_list.setStyleSheet(
+            f"QListWidget {{ background:{CLR_BG_DEEP}; border:1px solid {CLR_BG_HEADER_BDR};"
+            f" color:{CLR_TEXT_SECONDARY}; font-size:11px; outline:none; }}"
+            "QListWidget::item { padding:2px 6px; }"
+            f"QListWidget::item:hover {{ background:{CLR_BG_ALT}; }}"
+            f"QListWidget::item:selected {{ background:{CLR_SURFACE_SEPARATOR}; }}"
+        )
+        self._risk_list.setSelectionMode(QAbstractItemView.NoSelection)
+        _ListTooltipFilter(self._risk_list)
+        vb.addWidget(self._risk_list, stretch=1)
+        return w
+
+    def _refresh_risk_panel(self):
+        self._risk_list.clear()
+        cat = self._selected_cat
+        if not cat:
+            self._risk_hdr_lbl.setText("TOP BREEDING RISKS")
+            self._risk_count_lbl.setText("")
+            return
+
+        _possessive = cat.name + ("'" if cat.name.endswith("s") else "'s")
+        self._risk_hdr_lbl.setText(f"{_possessive} TOP BREEDING RISKS".upper())
+
+        scope_cats = self._get_scope_cats()
+        risks = []
+        for other in scope_cats:
+            if other is cat:
+                continue
+            risks.append((other, self._scope_pair_risk(cat, other)))
+
+        risks.sort(key=lambda x: x[1], reverse=True)
+        top_risks = risks[:20]
+        self._risk_count_lbl.setText(f"({len(top_risks)}/{len(risks)})" if risks else "")
+
+        for other, risk_pct in top_risks:
+            room = self._room_display.get(other.room, other.room or "?")
+            item = QListWidgetItem(f"{other.name}  {risk_pct:.1f}%  ({room})")
+            item.setToolTip(f"{cat.name} x {other.name}: {risk_pct:.1f}% risk")
+            self._risk_list.addItem(item)
 
     # ── Scope helpers ─────────────────────────────────────────────────────────
 
@@ -1409,18 +1487,25 @@ class BreedPriorityView(QWidget):
         _on = self._heatmap_on
         _disabled_style = """
             QPushButton {{
-                color: #555566; background: #111118; border: 1px solid #222;
+                color: {fg}; background: {bg}; border: 1px solid {border};
                 padding: 1px 7px; font-size: 10px; border-radius: 0px;
             }}
             QPushButton:checked {{
-                color: #667788; background: #151520; border-color: #333;
+                color: {fg_checked}; background: {bg_checked}; border-color: {border_checked};
             }}
-        """.format()
+        """.format(
+            fg=CLR_TEXT_COUNT,
+            bg=CLR_BG_SCORE_AREA,
+            border=CLR_SURFACE_SEPARATOR,
+            fg_checked=CLR_TEXT_UI_LABEL,
+            bg_checked=CLR_BG_ALT,
+            border_checked=CLR_BG_HEADER_BDR,
+        )
         for _hb in (self._btn_heat_col, self._btn_heat_row):
             _hb.setEnabled(_on)
-            _hb.setStyleSheet(_SEG_BTN_STYLE if _on else _disabled_style)
+            _hb.setStyleSheet(SEGMENTED_CONTROL_BUTTON_STYLE if _on else _disabled_style)
         self._ha_lbl.setStyleSheet(
-            f"color:{_DIM_LABEL_FG}; font-size:10px;" if _on
+            f"color:{CLR_LABEL_SUBDUED}; font-size:10px;" if _on
             else f"color:{CLR_TEXT_COUNT}; font-size:10px;")
 
     def _on_heat_algo_changed(self, btn_id: int, checked: bool):
@@ -1449,6 +1534,14 @@ class BreedPriorityView(QWidget):
             else:
                 self._score_table.hideColumn(ci)
 
+    @staticmethod
+    def _score_col_alignment(col_idx: int):
+        if col_idx in _MULTI_VALUE_LEFT_SCORE_COLS:
+            return Qt.AlignLeft | Qt.AlignVCenter
+        if col_idx in _SINGLE_VALUE_CENTER_SCORE_COLS:
+            return Qt.AlignCenter
+        return Qt.AlignCenter
+
     def _on_col_resized(self, logical_idx: int, _old: int, new_size: int):
         if new_size == 0:
             return  # hideColumn() fires sectionResized(0) - don't save that
@@ -1474,10 +1567,10 @@ class BreedPriorityView(QWidget):
         if isinstance(hh, _SortHighlightHeader):
             hh.set_sort(self._sort_col, self._sort_order)
 
-    _FILTER_BTN_ACTIVE   = _INTERACTIVE_BTN_ACTIVE
-    _FILTER_BTN_INACTIVE = _DIM_BTN
-    _FILTER_TOGGLE_ON    = _INTERACTIVE_BTN_ON
-    _FILTER_TOGGLE_OFF   = _TOGGLE_OFF_BTN
+    _FILTER_BTN_ACTIVE = ACTION_BUTTON_PRIMARY_EMPHASIS_STYLE
+    _FILTER_BTN_INACTIVE = ACTION_BUTTON_SECONDARY_STYLE
+    _FILTER_TOGGLE_ON = ACTION_BUTTON_PRIMARY_STYLE
+    _FILTER_TOGGLE_OFF = TOGGLE_BUTTON_INACTIVE_STYLE
 
     def _update_filter_btn(self):
         active = self._filters.is_any_active()
@@ -1525,6 +1618,7 @@ class BreedPriorityView(QWidget):
     def set_cats(self, cats: list):
         self._cats = cats
         alive = [c for c in cats if c.status == "In House"]
+        _risk_memo: dict = {}
 
         saved_rooms = self._saved_scope.get("rooms", {})
         self._chk_all_cats.blockSignals(True)
@@ -1556,6 +1650,18 @@ class BreedPriorityView(QWidget):
             _nm = sum(1 for c in room_cats if getattr(c, 'gender_display', '?') in ('M', 'Male'))
             _nf = sum(1 for c in room_cats if getattr(c, 'gender_display', '?') in ('F', 'Female'))
             _nu = _n - _nm - _nf
+            _room_avg_r = 0.0
+            if _n > 1:
+                _per_cat = []
+                for _cat in room_cats:
+                    _vals = [
+                        float(risk_percent(_cat, _other, _risk_memo))
+                        for _other in room_cats if _other is not _cat
+                    ]
+                    if _vals:
+                        _per_cat.append(sum(_vals) / len(_vals))
+                if _per_cat:
+                    _room_avg_r = sum(_per_cat) / len(_per_cat)
 
             row_w = QWidget()
             row_w.setStyleSheet("background:transparent;")
@@ -1581,6 +1687,19 @@ class BreedPriorityView(QWidget):
                     )
                     _glbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
                     row_h.addWidget(_glbl)
+                _r_lbl = QLabel(f"R{_room_avg_r:.1f}")
+                _r_lbl.setFixedWidth(44)
+                if _room_avg_r <= 2.0:
+                    _r_color = CLR_DESIRABLE
+                elif _room_avg_r <= 4.0:
+                    _r_color = "#b0a040"
+                elif _room_avg_r <= 8.0:
+                    _r_color = "#e08030"
+                else:
+                    _r_color = CLR_UNDESIRABLE
+                _r_lbl.setStyleSheet(f"color:{_r_color}; font-size:10px;")
+                _r_lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                row_h.addWidget(_r_lbl)
 
             self._room_checks_vb.addWidget(row_w)
             self._room_checks[room] = chk
@@ -1623,8 +1742,8 @@ class BreedPriorityView(QWidget):
         self._populating = True
         table.setSortingEnabled(False)
         table.setRowCount(len(visible))
-        _HL_BG    = QColor("#1a2a40")
-        _UNSET_BG = QColor("#111128")
+        _HL_BG    = QColor(CLR_BG_HEADER)
+        _UNSET_BG = QColor(CLR_BG_SCORE_AREA)
         _RATED_BG = QBrush()
 
         for row, trait in enumerate(visible):
@@ -1665,7 +1784,7 @@ class BreedPriorityView(QWidget):
                                    is_highlighted: bool):
                 clr = RATING_ITEM_COLORS[idx] if 0 <= idx < len(RATING_ITEM_COLORS) else "#ccc"
                 cb.setStyleSheet(
-                    _PRIORITY_COMBO_STYLE + f"QComboBox {{ color:{clr}; }}"
+                    PRIORITY_COMBO_STYLE + f"QComboBox {{ color:{clr}; }}"
                 )
                 if is_highlighted:
                     pass
@@ -1699,7 +1818,24 @@ class BreedPriorityView(QWidget):
 
     # ── Score computation ─────────────────────────────────────────────────────
 
+    def _scope_pair_risk(self, a, b) -> float:
+        _k = (id(a), id(b)) if id(a) < id(b) else (id(b), id(a))
+        _cached = self._scope_pair_risks.get(_k)
+        if _cached is not None:
+            return float(_cached)
+        return float(risk_percent(a, b))
+
     def _build_cat_tooltip(self, cat, result: ScoreResult, scope_cats: list) -> str:
+        _top_gene_risks = []
+        _risk_floor = 2.0
+        for _other in scope_cats:
+            if _other is cat:
+                continue
+            _risk = self._scope_pair_risk(cat, _other)
+            if _risk <= _risk_floor:
+                continue
+            _top_gene_risks.append((_other.name, _risk))
+        _top_gene_risks.sort(key=lambda x: x[1], reverse=True)
         return build_cat_tooltip(
             cat, result, scope_cats,
             weights=self._weights,
@@ -1709,14 +1845,15 @@ class BreedPriorityView(QWidget):
             hated_by_map=self._hated_by_map,
             loved_by_map=self._loved_by_map,
             cat_injuries_fn=lambda c: _cat_injuries(c, self._stat_names),
+            top_gene_risks=_top_gene_risks[:3],
         )
 
     def _raw_col_value(self, cat, col_idx: int,
-                       scope_relatives_count: int,
-                       all_scope_relatives_counts: list) -> tuple:
+                       scope_gene_risk: float,
+                       all_scope_gene_risks: list) -> tuple:
         """Return (text, sort_val, color) for a column in value mode."""
         return raw_col_value(
-            cat, col_idx, scope_relatives_count, all_scope_relatives_counts,
+            cat, col_idx, scope_gene_risk, all_scope_gene_risks,
             weights=self._weights,
             room_display=self._room_display,
         )
@@ -1746,13 +1883,17 @@ class BreedPriorityView(QWidget):
         self._hated_by_map = _hated_by_map
         self._loved_by_map = _loved_by_map
 
+        _gene_risk_memo: dict = {}
         (results, _cat_sub_counts, _all_scores_sorted,
-         _all_scope_rel_counts, _all_scope_children, _max_7_count,
-         _scope_stat_sums) = compute_all_scores(
+         _all_scope_gene_risks, _all_scope_children, _max_7_count,
+         _scope_stat_sums, _pair_risk_cache) = compute_all_scores(
             alive, scope_cats, scope_set,
             _seven_sets, _scope_7_sets, _hated_by_map,
             self._ma_ratings, self._stat_names, self._weights, self._display_name,
+            gene_risk_lookup=lambda a, b, _m=_gene_risk_memo: risk_percent(a, b, _m),
         )
+        self._scope_pair_risks = _pair_risk_cache
+        _max_scope_gene_risk = max(_all_scope_gene_risks, default=0.0)
 
         def _children_in_scope(cat):
             return sum(1 for ch in cat.children if id(ch) in scope_set)
@@ -1781,13 +1922,14 @@ class BreedPriorityView(QWidget):
 
         for row, cat in enumerate(alive):
             result = results[id(cat)]
-            scope_rel_count = result.scope_relatives_count
+            scope_gene_risk = result.scope_gene_risk
             ch_in_scope = _children_in_scope(cat)
             _sub_count = _cat_sub_counts.get(id(cat), 0)
 
             # ── Name ──
             name_item = QTableWidgetItem(cat.name)
             name_item.setData(Qt.UserRole + 1, id(cat))  # used to restore row order on recompute
+            name_item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
             name_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
             self._score_table.setItem(row, COL_NAME, name_item)
 
@@ -1796,6 +1938,7 @@ class BreedPriorityView(QWidget):
             _loc_color = _ROOM_STYLE.get(loc_text)
             loc_item = QTableWidgetItem(loc_text)
             loc_item.setForeground(QColor(_loc_color or CLR_VALUE_NEUTRAL))
+            loc_item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
             loc_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
             if id(cat) in scope_set:
                 _lf = loc_item.font()
@@ -1816,6 +1959,7 @@ class BreedPriorityView(QWidget):
                 inj_item = QTableWidgetItem("-")
                 inj_item.setForeground(QColor(CLR_TEXT_MUTED))
                 inj_item.setData(Qt.UserRole, 0.0)
+            inj_item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
             inj_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
             self._score_table.setItem(row, COL_INJ, inj_item)
 
@@ -1826,9 +1970,13 @@ class BreedPriorityView(QWidget):
                 stat_item.setData(Qt.UserRole, float(val))
                 stat_item.setTextAlignment(Qt.AlignCenter)
                 stat_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
-                # 7=green, 6=medium yellow, 5=greyer yellow, 4+=grey
+                # Keep the legacy stat-value emphasis colors while rendering chips.
                 _STAT_CLR = {7: "#44cc66", 6: "#bba844", 5: "#998855"}
-                stat_item.setForeground(QColor(_STAT_CLR.get(val, CLR_VALUE_NEUTRAL)))
+                _val_fg = _STAT_CLR.get(val, CLR_VALUE_NEUTRAL)
+                _sb, _sf = _CHIP_NEUTRAL_STABLE if val == 7 else _CHIP_NEUTRAL_FAINT
+                stat_item.setForeground(QColor(_val_fg))
+                stat_item.setData(_CHIP_ROLE, [(str(val), _sb, _val_fg)])
+                stat_item.setText("")
                 self._score_table.setItem(row, _COL_STAT_START + si, stat_item)
 
             # ── Separator columns ──
@@ -1885,7 +2033,7 @@ class BreedPriorityView(QWidget):
                     _do_vals = self._display_mode in ("values", "both")
                     _rel_item = _NumericSortItem("")
                     _rel_item.setData(Qt.UserRole, score_val)
-                    _rel_item.setTextAlignment(Qt.AlignCenter)
+                    _rel_item.setTextAlignment(self._score_col_alignment(col_idx))
                     _rel_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
                     if _do_vals:
                         _emoji = _COL_EMOJI.get(hdr, "?")
@@ -1917,7 +2065,7 @@ class BreedPriorityView(QWidget):
                     _sex = getattr(cat, 'sexuality', 'straight') or 'straight'
                     _sx_item = _NumericSortItem("")
                     _sx_item.setData(Qt.UserRole, score_val)
-                    _sx_item.setTextAlignment(Qt.AlignCenter)
+                    _sx_item.setTextAlignment(self._score_col_alignment(col_idx))
                     _sx_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
                     if _sex != 'straight':
                         _gay_w = _cw.get("gay_pref", 0.0)
@@ -1962,6 +2110,13 @@ class BreedPriorityView(QWidget):
                         else:
                             color = CLR_VALUE_NEUTRAL
                         text = str(s)
+                        # Keep percentile-driven text color; chip bg is score-aware.
+                        _chip_bg = (
+                            ColorUtils.derive_chip_bg(color, CLR_BG_SCORE_AREA)
+                            if _score_for_sub != 0 else _CHIP_NEUTRAL_STABLE[0]
+                        )
+                        _chip_fg = color if _score_for_sub != 0 else _CHIP_NEUTRAL_STABLE[1]
+                        _chips = [(text, _chip_bg, _chip_fg)]
                     elif hdr == "7rare":
                         # Chips: one per stat at 7, colored by rarity vs threshold
                         _cat_in_scope = id(cat) in scope_set
@@ -1979,6 +2134,12 @@ class BreedPriorityView(QWidget):
                         w_7 = _cw.get(keys[0], 0.0)
                         color = ChipColors.sevens(count_7, _max_7_count, w_7 >= 0)
                         text = f"{count_7}x7s"
+                        _chip_bg = (
+                            ColorUtils.derive_chip_bg(color, CLR_BG_SCORE_AREA)
+                            if _score_for_sub != 0 else _CHIP_NEUTRAL_STABLE[0]
+                        )
+                        _chip_fg = color if _score_for_sub != 0 else _CHIP_NEUTRAL_STABLE[1]
+                        _chips = [(text, _chip_bg, _chip_fg)]
                     elif hdr == "Trait":
                         # Value mode: individual colored chips per rated trait
                         # Hide entirely when the trait weight is 0 (no scoring context)
@@ -2009,20 +2170,21 @@ class BreedPriorityView(QWidget):
                             text, color = "▼Lo", _low_ag_clr
                         else:
                             text, color = "—", CLR_TEXT_GRAYEDOUT
-                    elif hdr == "4+Ch":
-                        if ch_in_scope >= 4:
-                            _cbg, _cfg = ChipColors.from_score(score_val)
-                            _chips = [("👶", _cbg, _cfg)]
-                            text, color = "", _cfg
-                        else:
-                            text, color = "", CLR_TEXT_GRAYEDOUT
                     elif hdr == "Gene":
-                        if scope_rel_count == 0:
-                            _cbg, _cfg = ChipColors.from_score(score_val) if score_val != 0 else _CHIP_DESIRABLE
-                            _chips = [("✦", _cbg, _cfg)]
+                        if scope_gene_risk <= GENETIC_SAFE_RISK_FLOOR:
+                            _safe_score = float(result.subtotals.get("zero_risk_bonus", 0.0))
+                            _score_for_sub = _safe_score
+                            score_val = _safe_score
+                            _cbg, _cfg = ChipColors.from_score(_safe_score) if _safe_score != 0 else _CHIP_DESIRABLE
+                            _chips = [("🛡", _cbg, _cfg)]
                             text, color = "", _cfg
                         else:
-                            text, color = "", CLR_TEXT_GRAYEDOUT
+                            _risk_txt = f"R{int(round(scope_gene_risk))}"
+                            _gene_clr = ChipColors.sevens(scope_gene_risk, _max_scope_gene_risk, False)
+                            _cbg = ColorUtils.derive_chip_bg(_gene_clr, CLR_BG_SCORE_AREA)
+                            _cfg = _gene_clr
+                            _chips = [(_risk_txt, _cbg, _cfg)]
+                            text, color = "", _cfg
                     elif hdr == "Gender":
                         gd = getattr(cat, 'gender_display', '?')
                         if gd in ('M', 'Male'):
@@ -2059,7 +2221,8 @@ class BreedPriorityView(QWidget):
                                 _chips = [(f"⏳{age}", _cbg, _cfg)]
                                 text, color = "", _cfg
                             else:
-                                text, color = str(age), CLR_VALUE_NEUTRAL
+                                _chips = [(str(age), *_CHIP_NEUTRAL_STABLE)]
+                                text, color = "", CLR_VALUE_NEUTRAL
                         score_val = float(age) if age is not None else 0.0
                     elif hdr == "7sub":
                         text  = f"▲{_sub_count}" if _sub_count else ""
@@ -2071,7 +2234,7 @@ class BreedPriorityView(QWidget):
                     sub_item.setData(Qt.UserRole, score_val)
                     if _chips:
                         sub_item.setData(_CHIP_ROLE, _chips)
-                    sub_item.setTextAlignment(Qt.AlignCenter)
+                    sub_item.setTextAlignment(self._score_col_alignment(col_idx))
                     sub_item.setForeground(QColor(color))
                     if self._display_mode == "both" and _score_for_sub != 0:
                         sub_item.setData(_SCORE_SECONDARY_ROLE, f"{_score_for_sub:+.1f}")
@@ -2112,7 +2275,7 @@ class BreedPriorityView(QWidget):
                     text = f"{score_val:+.1f}" if score_val != 0 else ""
                     sub_item = _NumericSortItem(text)
                     sub_item.setData(Qt.UserRole, score_val)
-                    sub_item.setTextAlignment(Qt.AlignCenter)
+                    sub_item.setTextAlignment(self._score_col_alignment(col_idx))
                     sub_item.setForeground(QColor(color))
                     if _is_heat and score_val != 0:
                         _norm = _row_max_abs.get(id(cat), 1.0) if _heat_row else _col_max_abs.get(ci, 1.0)
@@ -2209,6 +2372,7 @@ class BreedPriorityView(QWidget):
 
         self._hate_overlay.update()
         self._refresh_children_panel()
+        self._refresh_risk_panel()
 
     # ── Weights popup ─────────────────────────────────────────────────────────
 

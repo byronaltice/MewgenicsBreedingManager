@@ -11,10 +11,13 @@ from PySide6.QtWidgets import (
 
 from .delegates import _ConfirmDialog, _ProfileNameEdit
 from .theme import (
-    _SEL_BG, _SEL_FG, _SEL_BORDER,
+    CLR_STATE_SELECTED_BG, CLR_STATE_SELECTED_FG, CLR_STATE_SELECTED_BORDER,
     CLR_INTERACTIVE, CLR_INTERACTIVE_BDR,
-    CLR_TEXT_COUNT,
+    CLR_TEXT_LABEL_COUNT, CLR_TEXT_LABEL_GROUP,
+    CLR_SURFACE_APP_MAIN, CLR_SURFACE_HEADER_BORDER, CLR_SURFACE_SCORE_AREA,
+    CLR_SURFACE_PANEL, CLR_SURFACE_SEPARATOR,
 )
+from .styles import checkbox_style
 
 
 _NUM_PROFILES = 5
@@ -49,7 +52,7 @@ def build_profile_bar(
             chk_traits_only
     """
     bar = QWidget()
-    bar.setStyleSheet("background:#07071a; border-bottom:1px solid #111130;")
+    bar.setStyleSheet(f"background:{CLR_SURFACE_APP_MAIN}; border-bottom:1px solid {CLR_SURFACE_HEADER_BORDER};")
     vb = QVBoxLayout(bar)
     vb.setContentsMargins(0, 4, 0, 4)
     vb.setSpacing(4)
@@ -69,7 +72,7 @@ def build_profile_bar(
     name_edit.setText(profile_name_text)
     name_edit.setStyleSheet(
         "QLineEdit {"
-        f"  background:#071812; color:{_SEL_FG};"
+        f"  background:{CLR_SURFACE_SCORE_AREA}; color:{CLR_STATE_SELECTED_FG};"
         f"  border:1px solid {CLR_INTERACTIVE_BDR}; border-radius:4px;"
         "  padding:0 6px; font-size:11px;"
         "}"
@@ -79,14 +82,14 @@ def build_profile_bar(
     nh.addWidget(name_edit)
 
     sel_arrow_lbl = QLabel("➜")
-    sel_arrow_lbl.setStyleSheet("color:#334466; font-size:18px;")
+    sel_arrow_lbl.setStyleSheet(f"color:{CLR_TEXT_LABEL_GROUP}; font-size:18px;")
     sel_arrow_lbl.setVisible(False)
     nh.addWidget(sel_arrow_lbl)
 
     sel_name_lbl = QLabel()
     sel_name_lbl.setFixedWidth(160)
     sel_name_lbl.setStyleSheet(
-        "color:#88aadd; background:#080e1a; border:1px solid #223366;"
+        f"color:{CLR_TEXT_LABEL_COUNT}; background:{CLR_SURFACE_SCORE_AREA}; border:1px solid {CLR_SURFACE_SEPARATOR};"
         " border-radius:4px; padding:0 6px; font-size:11px;"
     )
     sel_name_lbl.setVisible(False)
@@ -100,12 +103,7 @@ def build_profile_bar(
         "When checked, Save only stores Trait Desirability ratings into the profile\n"
         "and Load only restores those ratings — weights and other settings are untouched."
     )
-    chk_traits_only.setStyleSheet(
-        "QCheckBox { color:#8899aa; font-size:10px; }"
-        "QCheckBox::indicator { width:13px; height:13px; border:1px solid #556677; border-radius:2px; background:#0a0e14; }"
-        "QCheckBox::indicator:checked { background:#1a5533; border-color:#22aa66; }"
-        "QCheckBox::indicator:hover { border-color:#7799bb; }"
-    )
+    chk_traits_only.setStyleSheet(checkbox_style(font_size=10, emphasize_checked=True))
     chk_traits_only.stateChanged.connect(on_traits_only_changed)
     nh.addWidget(chk_traits_only)
 
@@ -122,7 +120,7 @@ def build_profile_bar(
 
     lbl = QLabel("PROFILES")
     lbl.setStyleSheet(
-        "color:#282850; font-size:10px; font-weight:bold; letter-spacing:2px;"
+        f"color:{CLR_TEXT_LABEL_GROUP}; font-size:10px; font-weight:bold; letter-spacing:2px;"
     )
     hb.addWidget(lbl)
     hb.addSpacing(12)
@@ -172,7 +170,7 @@ def build_profile_bar(
     hb.addSpacing(16)
 
     loaded_lbl = QLabel()
-    loaded_lbl.setStyleSheet(f"color:{CLR_TEXT_COUNT}; font-size:11px;")
+    loaded_lbl.setStyleSheet(f"color:{CLR_TEXT_LABEL_COUNT}; font-size:11px;")
     loaded_lbl.setVisible(False)
     hb.addWidget(loaded_lbl)
     hb.addSpacing(8)
@@ -222,17 +220,20 @@ def update_profile_bar(
         ld    = (n == loaded)
         has   = (n in profiles)
         if sel and ld:
-            style = f"background:{_SEL_BG}; color:{_SEL_FG}; border:2px solid {_SEL_BORDER};"
+            style = (
+                f"background:{CLR_STATE_SELECTED_BG}; color:{CLR_STATE_SELECTED_FG};"
+                f" border:2px solid {CLR_STATE_SELECTED_BORDER};"
+            )
         elif sel and has:
-            style = "background:#0e1828; color:#88aadd; border:2px solid #3355aa;"
+            style = f"background:{CLR_SURFACE_SCORE_AREA}; color:{CLR_TEXT_LABEL_COUNT}; border:2px solid #3355aa;"
         elif sel:
-            style = "background:#090916; color:#445577; border:2px dashed #1e2d55;"
+            style = f"background:{CLR_SURFACE_APP_MAIN}; color:{CLR_TEXT_LABEL_GROUP}; border:2px dashed #1e2d55;"
         elif ld:
-            style = "background:#0a1a16; color:#5a9a88; border:2px solid #1a4a44;"
+            style = f"background:{CLR_SURFACE_PANEL}; color:#5a9a88; border:2px solid #1a4a44;"
         elif has:
-            style = "background:#0e0e26; color:#404070; border:1px solid #22224a;"
+            style = f"background:{CLR_SURFACE_PANEL}; color:{CLR_TEXT_LABEL_GROUP}; border:1px solid #22224a;"
         else:
-            style = "background:#080818; color:#22223a; border:1px dashed #141428;"
+            style = f"background:{CLR_SURFACE_SCORE_AREA}; color:{CLR_TEXT_LABEL_GROUP}; border:1px dashed #141428;"
         btn.setStyleSheet(
             f"QPushButton {{ {style} border-radius:6px; font-size:22px; font-weight:bold; }}"
             f"QPushButton:hover {{ color:#aaaaee; border-color:#4444aa; }}"

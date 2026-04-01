@@ -7,7 +7,7 @@ returns a (text, sort_val, color) tuple for rendering a single score-table cell.
 from .chip_colors import ChipColors
 from .color_utils import ColorUtils
 from .columns import _ALL_HEADERS, _STAT_COL_NAMES, _ROOM_STYLE
-from .scoring import TRAIT_HIGH_THRESHOLD, TRAIT_LOW_THRESHOLD
+from .scoring import SCORE_HEADER_7_COUNT, TRAIT_HIGH_THRESHOLD, TRAIT_LOW_THRESHOLD, GENETIC_SAFE_RISK_FLOOR
 from .theme import (
     CLR_DESIRABLE, CLR_GENDER_FEMALE, CLR_GENDER_MALE, CLR_GENDER_UNKNOWN,
     CLR_TEXT_COUNT, CLR_TEXT_GRAYEDOUT, CLR_UNDESIRABLE,
@@ -20,8 +20,8 @@ from .theme import (
 def raw_col_value(
     cat,
     col_idx: int,
-    scope_relatives_count: int,
-    all_scope_relatives_counts: list,
+    scope_gene_risk: float,
+    all_scope_gene_risks: list,
     *,
     weights: dict,
     room_display: dict,
@@ -31,8 +31,8 @@ def raw_col_value(
     Args:
         cat: Cat object.
         col_idx: Absolute column index into _ALL_HEADERS.
-        scope_relatives_count: Number of scope relatives for this cat.
-        all_scope_relatives_counts: List of scope-relative counts for all cats
+        scope_gene_risk: Average in-scope pair risk (%) for this cat.
+        all_scope_gene_risks: List of scope risk values for all cats
             (used for percentile ranking in the Gene column).
         weights: Current scoring weight dict.
         room_display: Dict mapping room id -> display label.
@@ -66,7 +66,7 @@ def raw_col_value(
         s = sum(cat.base_stats.values())
         return (str(s), float(s), "#aaaaaa")
 
-    if hdr == "777":
+    if hdr == SCORE_HEADER_7_COUNT:
         count_7 = sum(1 for v in cat.base_stats.values() if v == 7)
         if count_7 == 0:
             color = CLR_TEXT_GRAYEDOUT
@@ -128,12 +128,12 @@ def raw_col_value(
             return (f"{_SEX_EMOJI_BI}", bi_w, bi_clr)
 
     if hdr == "Gene":
-        n = scope_relatives_count
-        total = len(all_scope_relatives_counts)
+        n = float(scope_gene_risk)
+        total = len(all_scope_gene_risks)
         if total > 0:
-            rank = sum(1 for v in all_scope_relatives_counts if v <= n)
+            rank = sum(1 for v in all_scope_gene_risks if v <= n)
             pct = rank / total * 100
-            # fewer relatives = better (greener)
+            # lower risk = better (greener)
             if n == 0:
                 color = CLR_DESIRABLE
             elif pct >= 75:
@@ -144,10 +144,7 @@ def raw_col_value(
                 color = "#b0a040"
         else:
             color = CLR_VALUE_NEUTRAL
-        text = "✦" if n == 0 else ""
+        text = "🛡" if n <= GENETIC_SAFE_RISK_FLOOR else f"R{int(round(n))}"
         return (text, float(n), color)
-
-    if hdr == "4+Ch":
-        return ("", 0.0, CLR_VALUE_NEUTRAL)
 
     return ("", 0.0, CLR_VALUE_NEUTRAL)

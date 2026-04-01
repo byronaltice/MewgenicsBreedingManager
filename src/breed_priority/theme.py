@@ -13,117 +13,150 @@ from .color_utils import ColorUtils
 # ── Trait rating colors ───────────────────────────────────────────────────────
 
 CLR_TOP_PRIORITY = "#40d0c0"
-CLR_DESIRABLE    = "#6aaa6a"
-CLR_NEUTRAL      = "#b0a040"
-CLR_UNDECIDED    = "#888899"
-CLR_UNDESIRABLE  = "#aa6a6a"
+CLR_DESIRABLE = "#6aaa6a"
+CLR_NEUTRAL = "#b0a040"
+CLR_UNDECIDED = "#888899"
+CLR_UNDESIRABLE = "#aa6a6a"
 RATING_ITEM_COLORS = [CLR_TOP_PRIORITY, CLR_DESIRABLE, CLR_NEUTRAL, CLR_UNDECIDED, CLR_UNDESIRABLE]
 
-# ── Shared accent / selection colors ─────────────────────────────────────────
-
-_SEL_BG     = "#0a1e18"
-_SEL_FG     = "#aaddcc"
-_SEL_BORDER = "#1ec8a0"
-_DIM_FG       = "#ccccdd"
-_DIM_BG       = "#1a1a26"
-_DIM_HOVER_FG = "#ddddf0"
-_DIM_HOVER_BG = "#222230"
-_DIM_LABEL_FG = "#ccccdd"
-
-# ── Base dark theme ───────────────────────────────────────────────────────────
+# ── Base anchors ──────────────────────────────────────────────────────────────
 
 _THEME_DARK = "#0c0c20"
-_CLR_RED    = "#cc3333"
+_CLR_RED = "#cc3333"
 _CLR_YELLOW = "#b0a040"
 
-# ── Text colors ───────────────────────────────────────────────────────────────
+# ── UI state colors ───────────────────────────────────────────────────────────
 
-CLR_TEXT_PRIMARY   = "#dddddd"
-CLR_TEXT_SECONDARY = ColorUtils.blend(CLR_TEXT_PRIMARY, _THEME_DARK, 0.24)
-CLR_TEXT_UI_LABEL  = ColorUtils.blend(CLR_TEXT_PRIMARY, _THEME_DARK, 0.40)
-CLR_TEXT_GROUP     = ColorUtils.blend(CLR_TEXT_PRIMARY, _THEME_DARK, 0.65)
-CLR_TEXT_SUBLABEL  = CLR_TEXT_GROUP
-CLR_TEXT_COUNT     = ColorUtils.blend(CLR_TEXT_PRIMARY, _THEME_DARK, 0.72)
-CLR_TEXT_GRAYEDOUT = CLR_TEXT_GROUP
-CLR_TEXT_MUTED     = ColorUtils.blend(CLR_TEXT_PRIMARY, _THEME_DARK, 0.80)
+CLR_STATE_SELECTED_BG = "#0a1e18"
+CLR_STATE_SELECTED_FG = "#aaddcc"
+CLR_STATE_SELECTED_BORDER = "#1ec8a0"
 
-# ── Background colors ─────────────────────────────────────────────────────────
+CLR_STATE_SUBDUED_FG = "#ccccdd"
+CLR_STATE_SUBDUED_BG = "#1a1a26"
+CLR_STATE_SUBDUED_HOVER_FG = "#ddddf0"
+CLR_STATE_SUBDUED_HOVER_BG = "#222230"
+CLR_LABEL_SUBDUED = "#ccccdd"
 
-CLR_BG_MAIN       = "#0d0d1c"
-CLR_BG_ALT        = "#131326"
-CLR_BG_SCORE_AREA = "#0a0a18"
-CLR_BG_PANEL      = "#14142a"
-CLR_BG_HEADER     = "#16213e"
-CLR_BG_HEADER_BDR = "#1e1e38"
-CLR_BG_DEEP       = "#080818"
+# ── Text roles (defined + derived) ───────────────────────────────────────────
 
-# ── Neutral surfaces ──────────────────────────────────────────────────────────
+CLR_TEXT_CONTENT_PRIMARY = "#dddddd"
+CLR_TEXT_CONTENT_SECONDARY = ColorUtils.blend(CLR_TEXT_CONTENT_PRIMARY, _THEME_DARK, 0.24)
+CLR_TEXT_LABEL_UI = ColorUtils.blend(CLR_TEXT_CONTENT_PRIMARY, _THEME_DARK, 0.40)
+CLR_TEXT_LABEL_GROUP = ColorUtils.blend(CLR_TEXT_CONTENT_PRIMARY, _THEME_DARK, 0.65)
+CLR_TEXT_LABEL_SUBGROUP = CLR_TEXT_LABEL_GROUP
+CLR_TEXT_LABEL_COUNT = ColorUtils.blend(CLR_TEXT_CONTENT_PRIMARY, _THEME_DARK, 0.72)
+CLR_TEXT_CONTENT_UNSCORED = CLR_TEXT_LABEL_GROUP
+CLR_TEXT_CONTENT_MUTED = ColorUtils.blend(CLR_TEXT_CONTENT_PRIMARY, _THEME_DARK, 0.80)
 
-_NEUTRAL_SURFACE      = "rgba(0, 0, 0, 140)"
-CLR_SURFACE_NEUTRAL   = "#1a1a22"
-CLR_SURFACE_SEPARATOR = "#252545"
+# ── Surface roles (defined + derived) ────────────────────────────────────────
 
-# ── Gender colors ─────────────────────────────────────────────────────────────
+CLR_SURFACE_APP_MAIN = "#07071a"
+CLR_SURFACE_APP_ALT = ColorUtils.blend(CLR_SURFACE_APP_MAIN, "#1c1c34", 0.45)
+CLR_SURFACE_PANEL = ColorUtils.blend(CLR_SURFACE_APP_MAIN, "#1f1f38", 0.55)
+CLR_SURFACE_HEADER = ColorUtils.blend(CLR_SURFACE_APP_MAIN, "#2a4478", 0.48)
+CLR_SURFACE_HEADER_BORDER = ColorUtils.blend(CLR_SURFACE_HEADER, _THEME_DARK, 0.35)
+CLR_SURFACE_SCORE_AREA = ColorUtils.blend(CLR_SURFACE_APP_MAIN, _THEME_DARK, 0.50)
+CLR_SURFACE_DEEP = ColorUtils.blend(CLR_SURFACE_SCORE_AREA, _THEME_DARK, 0.30)
 
-CLR_GENDER_MALE    = "#2aaa99"
-CLR_GENDER_FEMALE  = "#bb88dd"
-CLR_GENDER_UNKNOWN = "#ccaa44"
+# ── Neutral surfaces (defined + derived) ─────────────────────────────────────
 
-_CHIP_GENDER_MALE    = (ColorUtils.derive_chip_bg(CLR_GENDER_MALE,    _THEME_DARK), CLR_GENDER_MALE)
-_CHIP_GENDER_FEMALE  = (ColorUtils.derive_chip_bg(CLR_GENDER_FEMALE,  _THEME_DARK), CLR_GENDER_FEMALE)
-_CHIP_GENDER_UNKNOWN = (ColorUtils.derive_chip_bg(CLR_GENDER_UNKNOWN, _THEME_DARK), CLR_GENDER_UNKNOWN)
+CLR_SURFACE_NEUTRAL_OVERLAY = "rgba(0, 0, 0, 140)"
+CLR_SURFACE_NEUTRAL = ColorUtils.blend(CLR_SURFACE_APP_MAIN, "#2a2a36", 0.52)
+CLR_SURFACE_SEPARATOR = ColorUtils.blend(CLR_SURFACE_HEADER_BORDER, "#3a3a66", 0.45)
+CLR_CHIP_NEUTRAL_TEXT = "#9a9ab0"
 
-# ── Interactive accent ────────────────────────────────────────────────────────
+# ── Interaction accent colors ────────────────────────────────────────────────
 
-CLR_INTERACTIVE     = _SEL_BORDER
-CLR_INTERACTIVE_BG  = ColorUtils.blend(_THEME_DARK, CLR_INTERACTIVE, 0.22)
+CLR_INTERACTIVE = CLR_STATE_SELECTED_BORDER
+CLR_INTERACTIVE_BG = ColorUtils.blend(_THEME_DARK, CLR_INTERACTIVE, 0.22)
 CLR_INTERACTIVE_BDR = ColorUtils.blend(_THEME_DARK, CLR_INTERACTIVE, 0.34)
 CLR_INTERACTIVE_HOV = ColorUtils.blend(CLR_INTERACTIVE, "#8ff8e0", 0.30)
-
 CLR_HIGHLIGHT = "#eee"
 
 # ── Value colors ──────────────────────────────────────────────────────────────
 
-CLR_VALUE_POS     = CLR_INTERACTIVE
-CLR_VALUE_POS_BG  = CLR_INTERACTIVE_BG
-CLR_VALUE_NEG     = "#e04040"
-CLR_VALUE_NEG_BG  = ColorUtils.blend(_THEME_DARK, CLR_VALUE_NEG, 0.15)
+CLR_VALUE_POS = CLR_INTERACTIVE
+CLR_VALUE_POS_BG = CLR_INTERACTIVE_BG
+CLR_VALUE_NEG = "#e04040"
+CLR_VALUE_NEG_BG = ColorUtils.blend(_THEME_DARK, CLR_VALUE_NEG, 0.15)
 CLR_VALUE_NEUTRAL = "#888888"
-_CLR_AGE_OLD      = _CLR_RED
+_CLR_AGE_OLD = _CLR_RED
+
+# ── Gender colors ─────────────────────────────────────────────────────────────
+
+CLR_GENDER_MALE = "#2aaa99"
+CLR_GENDER_FEMALE = "#bb88dd"
+CLR_GENDER_UNKNOWN = "#ccaa44"
+
+_CHIP_GENDER_MALE = (ColorUtils.derive_chip_bg(CLR_GENDER_MALE, CLR_SURFACE_SCORE_AREA), CLR_GENDER_MALE)
+_CHIP_GENDER_FEMALE = (ColorUtils.derive_chip_bg(CLR_GENDER_FEMALE, CLR_SURFACE_SCORE_AREA), CLR_GENDER_FEMALE)
+_CHIP_GENDER_UNKNOWN = (ColorUtils.derive_chip_bg(CLR_GENDER_UNKNOWN, CLR_SURFACE_SCORE_AREA), CLR_GENDER_UNKNOWN)
 
 # ── Sexuality display ─────────────────────────────────────────────────────────
 
 _SEX_EMOJI_GAY = "🏳️‍🌈"
-_SEX_EMOJI_BI  = "BI"
+_SEX_EMOJI_BI = "BI"
 
 # ── Chip appearance constants ─────────────────────────────────────────────────
 
-_CHIP_H       = 15
-_CHIP_PAD_X   = 5
-_CHIP_GAP     = 4
-_CHIP_RADIUS  = 5
+_CHIP_H = 15
+_CHIP_PAD_X = 5
+_CHIP_GAP = 4
+_CHIP_RADIUS = 5
 
 # ── Chip color pairs (bg, fg) ─────────────────────────────────────────────────
 
 _CHIP_TOP_PRIORITY = ("#004040", "#60e8d8")
-_CHIP_DESIRABLE   = ("#1d4a1d", "#a0e8a0")
+_CHIP_DESIRABLE = ("#1d4a1d", "#a0e8a0")
 _CHIP_UNDESIRABLE = ("#4a1d1d", "#e8a0a0")
-_CHIP_NEUTRAL     = ("#3a3a10", "#d8d870")
-_CHIP_UNDECIDED   = ("#252535", CLR_VALUE_NEUTRAL)
-_CHIP_LOVE_SCOPE  = ("#2a1a2e", "#dd88cc")
-_CHIP_LOVE_ROOM   = ("#1e1a2e", "#bb88ee")
-_CHIP_HATE_SCOPE  = ("#2e1a1a", "#cc4444")
-_CHIP_HATE_ROOM   = ("#2e1e10", "#cc7733")
-_CHIP_AGGRO_HI    = ("#3a1a1a", "#cc6666")
-_CHIP_AGGRO_LO    = ("#1a2a3a", "#6699cc")
-_CHIP_AGE_WARN    = ("#3a2010", "#cc8833")
-_CHIP_DIM         = (CLR_SURFACE_NEUTRAL, CLR_TEXT_GRAYEDOUT)
+_CHIP_NEUTRAL = ("#3a3a10", "#d8d870")
+_CHIP_UNDECIDED = ("#252535", CLR_VALUE_NEUTRAL)
+_CHIP_LOVE_SCOPE = ("#2a1a2e", "#dd88cc")
+_CHIP_LOVE_ROOM = ("#1e1a2e", "#bb88ee")
+_CHIP_HATE_SCOPE = ("#2e1a1a", "#cc4444")
+_CHIP_HATE_ROOM = ("#2e1e10", "#cc7733")
+_CHIP_AGGRO_HI = ("#3a1a1a", "#cc6666")
+_CHIP_AGGRO_LO = ("#1a2a3a", "#6699cc")
+_CHIP_AGE_WARN = ("#3a2010", "#cc8833")
+_CHIP_DIM = (CLR_SURFACE_NEUTRAL, CLR_TEXT_CONTENT_UNSCORED)
+_CHIP_NEUTRAL_STABLE = (CLR_SURFACE_NEUTRAL, CLR_CHIP_NEUTRAL_TEXT)
+_CHIP_NEUTRAL_FAINT = ("#13131a", "#7d7d96")
+_CHIP_OVERFLOW_LOVE = ("#40203c", "#f08de4")
+_CHIP_OVERFLOW_HATE = ("#3f2818", "#f2a45a")
 
-# ── Separator column color ────────────────────────────────────────────────────
+# ── Table separators / heatmap visuals ───────────────────────────────────────
 
 _SEP_COL_COLOR = QColor("#4a4a88")
-
-# ── Heatmap colors ────────────────────────────────────────────────────────────
-
-_HEAT_POS = QColor(*ColorUtils.parse_hex(CLR_DESIRABLE),   55)
+_SEP_BAND_BG = QColor("#111127")
+_SEP_LINE_COLOR = QColor("#31315a")
+_HEAT_POS = QColor(*ColorUtils.parse_hex(CLR_DESIRABLE), 55)
 _HEAT_NEG = QColor(*ColorUtils.parse_hex(CLR_UNDESIRABLE), 55)
+
+# ── Backward-compatible aliases ───────────────────────────────────────────────
+
+_SEL_BG = CLR_STATE_SELECTED_BG
+_SEL_FG = CLR_STATE_SELECTED_FG
+_SEL_BORDER = CLR_STATE_SELECTED_BORDER
+_DIM_FG = CLR_STATE_SUBDUED_FG
+_DIM_BG = CLR_STATE_SUBDUED_BG
+_DIM_HOVER_FG = CLR_STATE_SUBDUED_HOVER_FG
+_DIM_HOVER_BG = CLR_STATE_SUBDUED_HOVER_BG
+_DIM_LABEL_FG = CLR_LABEL_SUBDUED
+
+CLR_TEXT_PRIMARY = CLR_TEXT_CONTENT_PRIMARY
+CLR_TEXT_SECONDARY = CLR_TEXT_CONTENT_SECONDARY
+CLR_TEXT_UI_LABEL = CLR_TEXT_LABEL_UI
+CLR_TEXT_GROUP = CLR_TEXT_LABEL_GROUP
+CLR_TEXT_SUBLABEL = CLR_TEXT_LABEL_SUBGROUP
+CLR_TEXT_COUNT = CLR_TEXT_LABEL_COUNT
+CLR_TEXT_GRAYEDOUT = CLR_TEXT_CONTENT_UNSCORED
+CLR_TEXT_MUTED = CLR_TEXT_CONTENT_MUTED
+
+CLR_BG_MAIN = CLR_SURFACE_APP_MAIN
+CLR_BG_ALT = CLR_SURFACE_APP_ALT
+CLR_BG_SCORE_AREA = CLR_SURFACE_SCORE_AREA
+CLR_BG_PANEL = CLR_SURFACE_PANEL
+CLR_BG_HEADER = CLR_SURFACE_HEADER
+CLR_BG_HEADER_BDR = CLR_SURFACE_HEADER_BORDER
+CLR_BG_DEEP = CLR_SURFACE_DEEP
+_NEUTRAL_SURFACE = CLR_SURFACE_NEUTRAL_OVERLAY

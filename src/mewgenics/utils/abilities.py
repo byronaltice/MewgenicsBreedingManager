@@ -5,7 +5,7 @@ from typing import Sequence
 
 from save_parser import (
     Cat, _load_gpak_text_strings, _resolve_game_string,
-    _stimulation_inheritance_weight,
+    _stimulation_inheritance_weight, _extract_primary_language_text,
 )
 
 
@@ -344,7 +344,7 @@ def _mutation_display_name(name: str) -> str:
 
 def _trait_selector_summary(tip: str) -> str:
     """Condense a tooltip/detail string for use in the trait selector."""
-    text = str(tip or "").replace("\u00a0", " ").strip()
+    text = _extract_primary_language_text(str(tip or "").replace("\u00a0", " ").strip())
     if not text:
         return ""
 
@@ -410,7 +410,7 @@ def _trait_display_kind(category: str) -> str:
 
 def _trait_description_preview(tip: str) -> str:
     """Return a compact one-line preview of a trait's description."""
-    text = str(tip or "").replace("\u00a0", " ").strip()
+    text = _extract_primary_language_text(str(tip or "").replace("\u00a0", " ").strip())
     if not text:
         return ""
 
@@ -496,13 +496,10 @@ def _ability_effect_lines(cat: "Cat") -> list[str]:
 def _mutation_effect_lines(cat: "Cat") -> list[str]:
     lines: list[str] = []
     for text, tip in cat.mutation_chip_items:
-        cleaned = tip.strip()
-        if not cleaned:
+        detail = _trait_visible_detail(tip).strip()
+        if not detail:
             continue
-        if cleaned == text:
-            lines.append(text)
-        else:
-            lines.append(cleaned.replace("\n", " | "))
+        lines.append(f"{text}: {detail}")
     return lines
 
 

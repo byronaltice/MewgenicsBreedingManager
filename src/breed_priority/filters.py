@@ -11,14 +11,15 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Signal
 
 from .styles import (
-    _INTERACTIVE_BTN_LG, _INTERACTIVE_BTN_ON_SM,
-    _DIM_BTN_LG, _TOGGLE_OFF_BTN_SM,
-    _GROUP_LABEL_STYLE,
+    ACTION_BUTTON_PRIMARY_LARGE_STYLE, ACTION_BUTTON_PRIMARY_COMPACT_STYLE,
+    ACTION_BUTTON_SECONDARY_LARGE_STYLE, TOGGLE_BUTTON_INACTIVE_COMPACT_STYLE,
+    checkbox_style,
 )
 from .theme import (
-    CLR_TEXT_PRIMARY, CLR_TEXT_SECONDARY, CLR_TEXT_UI_LABEL,
-    CLR_TEXT_COUNT, CLR_TEXT_MUTED,
-    CLR_BG_MAIN, CLR_BG_ALT, CLR_SURFACE_SEPARATOR,
+    CLR_TEXT_CONTENT_PRIMARY, CLR_TEXT_CONTENT_SECONDARY, CLR_TEXT_LABEL_UI,
+    CLR_TEXT_LABEL_COUNT, CLR_TEXT_CONTENT_MUTED,
+    CLR_SURFACE_APP_MAIN, CLR_SURFACE_APP_ALT, CLR_SURFACE_PANEL,
+    CLR_SURFACE_HEADER, CLR_SURFACE_HEADER_BORDER, CLR_SURFACE_SEPARATOR,
 )
 
 # ── Thresholds (must match breed_priority.py TRAIT_*_THRESHOLD) ──────────────
@@ -28,23 +29,23 @@ FILTER_TRAIT_HIGH = 0.7
 _OP_OPTIONS = ["Less Than", "Equals", "Greater Than"]
 
 # ── Styles ────────────────────────────────────────────────────────────────────
-_DLG_STYLE    = f"background:{CLR_BG_MAIN}; color:{CLR_TEXT_PRIMARY};"
-_SCROLL_STYLE = f"QScrollArea {{ background:{CLR_BG_MAIN}; border:none; }} QWidget {{ background:{CLR_BG_MAIN}; }}"
-_SECTION_LBL  = f"color:{CLR_TEXT_COUNT}; font-size:9px; font-weight:bold; letter-spacing:1px; margin-top:2px;"
-_ROW_LBL_ON   = f"color:{CLR_TEXT_SECONDARY}; font-size:11px;"
-_ROW_LBL_OFF  = f"color:{CLR_TEXT_MUTED}; font-size:11px;"
-_BTN_STYLE       = _DIM_BTN_LG            # dialog-level inactive button
-_APPLY_BTN_STYLE = _INTERACTIVE_BTN_LG    # dialog-level confirm/apply button
+_DLG_STYLE    = f"background:{CLR_SURFACE_APP_MAIN}; color:{CLR_TEXT_CONTENT_PRIMARY};"
+_SCROLL_STYLE = f"QScrollArea {{ background:{CLR_SURFACE_APP_MAIN}; border:none; }} QWidget {{ background:{CLR_SURFACE_APP_MAIN}; }}"
+_SECTION_LBL  = f"color:{CLR_TEXT_LABEL_COUNT}; font-size:9px; font-weight:bold; letter-spacing:1px; margin-top:2px;"
+_ROW_LBL_ON   = f"color:{CLR_TEXT_CONTENT_SECONDARY}; font-size:11px;"
+_ROW_LBL_OFF  = f"color:{CLR_TEXT_CONTENT_MUTED}; font-size:11px;"
+_BTN_STYLE = ACTION_BUTTON_SECONDARY_LARGE_STYLE  # dialog-level inactive button
+_APPLY_BTN_STYLE = ACTION_BUTTON_PRIMARY_LARGE_STYLE  # dialog-level confirm/apply button
 _COMBO_STYLE = (
-    f"QComboBox {{ background:{CLR_BG_ALT}; color:{CLR_TEXT_SECONDARY}; border:1px solid {CLR_SURFACE_SEPARATOR};"
+    f"QComboBox {{ background:{CLR_SURFACE_APP_ALT}; color:{CLR_TEXT_CONTENT_SECONDARY}; border:1px solid {CLR_SURFACE_SEPARATOR};"
     " padding:1px 4px; font-size:11px; }"
     "QComboBox::drop-down { border:none; }"
-    f"QComboBox QAbstractItemView {{ background:{CLR_BG_ALT}; color:{CLR_TEXT_SECONDARY};"
+    f"QComboBox QAbstractItemView {{ background:{CLR_SURFACE_APP_ALT}; color:{CLR_TEXT_CONTENT_SECONDARY};"
     f" selection-background-color:#1e3060; border:1px solid {CLR_SURFACE_SEPARATOR}; }}"
 )
-_CHK_STYLE = f"QCheckBox {{ color:{CLR_TEXT_SECONDARY}; font-size:11px; }}"
-_TOG_ON  = _INTERACTIVE_BTN_ON_SM    # compact row toggle — On state
-_TOG_OFF = _TOGGLE_OFF_BTN_SM        # compact row toggle — Off state
+_CHK_STYLE = checkbox_style(font_size=11, emphasize_checked=True)
+_TOG_ON = ACTION_BUTTON_PRIMARY_COMPACT_STYLE  # compact row toggle — On state
+_TOG_OFF = TOGGLE_BUTTON_INACTIVE_COMPACT_STYLE  # compact row toggle — Off state
 
 
 # ── FilterState ───────────────────────────────────────────────────────────────
@@ -74,9 +75,9 @@ class FilterState:
         # Libido
         self.libido_active = False; self.libido_not = False
         self.libido_low    = True;  self.libido_med = True;  self.libido_high = True
-        # Gene (relatives in scope)
+        # Gene (average in-scope risk %)
         self.gene_active = False;  self.gene_value = 0;  self.gene_op = "Equals"
-        # Genetically unique (shortcut: 0 relatives in scope)
+        # Genetically unique (shortcut: zero average risk)
         self.gene_unique_active = False
         # Children in scope
         self.children_active = False; self.children_value = 4; self.children_op = "Less Than"
@@ -223,12 +224,12 @@ def cat_passes_filter(cat, score_result, ch_in_scope: int, state: FilterState,
             return False
 
     if f.gene_active:
-        if not _compare(float(score_result.scope_relatives_count),
+        if not _compare(float(score_result.scope_gene_risk),
                         float(f.gene_value), f.gene_op):
             return False
 
     if f.gene_unique_active:
-        if score_result.scope_relatives_count != 0:
+        if score_result.scope_gene_risk != 0:
             return False
 
     if f.children_active:
@@ -271,13 +272,13 @@ class _FilterSpin(QWidget):
     valueChanged = Signal(object)
 
     _BTN = (
-        f"QPushButton {{ color:{CLR_TEXT_SECONDARY}; background:#3a3a60; border:1px solid #4a4a80;"
+        f"QPushButton {{ color:{CLR_TEXT_CONTENT_SECONDARY}; background:#3a3a60; border:1px solid #4a4a80;"
         " font-size:8px; padding:0; }"
         "QPushButton:hover { background:#5050a0; }"
         "QPushButton:pressed { background:#6060c0; }"
     )
     _EDIT = (
-        f"QLineEdit {{ color:{CLR_TEXT_SECONDARY}; font-size:10px; background:{CLR_BG_ALT};"
+        f"QLineEdit {{ color:{CLR_TEXT_CONTENT_SECONDARY}; font-size:10px; background:{CLR_SURFACE_APP_ALT};"
         f" border:1px solid {CLR_SURFACE_SEPARATOR}; border-right:none; padding:0 2px; }}"
         "QLineEdit:focus { border-color:#3a3a7a; }"
     )
@@ -452,7 +453,7 @@ class _CheckFilterRow(_FilterRow):
 
         sep = QFrame()
         sep.setFrameShape(QFrame.VLine)
-        sep.setStyleSheet("color:#252545;")
+        sep.setStyleSheet(f"color:{CLR_SURFACE_SEPARATOR};")
         sep.setFixedWidth(1)
         layout.addWidget(sep)
 
@@ -594,12 +595,12 @@ class FilterDialog(QDialog):
 
         # ── Header ────────────────────────────────────────────────────────────
         hdr = QWidget()
-        hdr.setStyleSheet("background:#0a0a16; border-bottom:1px solid #1a1a30;")
+        hdr.setStyleSheet(f"background:{CLR_SURFACE_HEADER}; border-bottom:1px solid {CLR_SURFACE_HEADER_BORDER};")
         hdr.setFixedHeight(42)
         hh = QHBoxLayout(hdr)
         hh.setContentsMargins(14, 0, 14, 0)
         title = QLabel("Filters")
-        title.setStyleSheet("color:#ddd; font-size:14px; font-weight:bold;")
+        title.setStyleSheet(f"color:{CLR_TEXT_CONTENT_PRIMARY}; font-size:14px; font-weight:bold;")
         hh.addWidget(title)
         hh.addStretch()
         reset_btn = QPushButton("Reset All")
@@ -615,7 +616,7 @@ class FilterDialog(QDialog):
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
         content = QWidget()
-        content.setStyleSheet("background:#0d0d1c;")
+        content.setStyleSheet(f"background:{CLR_SURFACE_PANEL};")
         cv = QVBoxLayout(content)
         cv.setContentsMargins(14, 10, 14, 10)
         cv.setSpacing(3)
@@ -627,7 +628,7 @@ class FilterDialog(QDialog):
         def _sep():
             s = QFrame()
             s.setFrameShape(QFrame.HLine)
-            s.setStyleSheet("color:#1a1a2e; margin:2px 0;")
+            s.setStyleSheet(f"color:{CLR_SURFACE_SEPARATOR}; margin:2px 0;")
             cv.addWidget(s)
 
         def _section(text: str):
@@ -696,7 +697,7 @@ class FilterDialog(QDialog):
 
         # ── Gene ──────────────────────────────────────────────────────────────
         self._gene_row = _NumericFilterRow(
-            "Gene Relatives", f.gene_active, f.gene_value, f.gene_op,
+            "Gene Risk %", f.gene_active, f.gene_value, f.gene_op,
             min_val=0, max_val=100, is_float=False)
         cv.addWidget(self._gene_row)
 
@@ -737,7 +738,7 @@ class FilterDialog(QDialog):
 
         # ── Footer ────────────────────────────────────────────────────────────
         ftr = QWidget()
-        ftr.setStyleSheet("background:#0a0a16; border-top:1px solid #1a1a30;")
+        ftr.setStyleSheet(f"background:{CLR_SURFACE_HEADER}; border-top:1px solid {CLR_SURFACE_HEADER_BORDER};")
         ftr.setFixedHeight(46)
         fh = QHBoxLayout(ftr)
         fh.setContentsMargins(14, 0, 14, 0)

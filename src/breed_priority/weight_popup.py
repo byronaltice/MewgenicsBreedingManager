@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 
-from .scoring import TRAIT_HIGH_THRESHOLD, TRAIT_LOW_THRESHOLD
+from .scoring import TRAIT_HIGH_THRESHOLD, TRAIT_LOW_THRESHOLD, GENETIC_SAFE_RISK_FLOOR
 from .styles import _DIM_BTN_LG, _PRIORITY_TABLE_STYLE
 from .theme import (
     CLR_BG_SCORE_AREA, CLR_TEXT_PRIMARY,
@@ -73,8 +73,8 @@ def show_weights_popup(parent, weights: dict) -> None:
         (f"High libido (≥{TRAIT_HIGH_THRESHOLD*100:.0f}%)",      f"+{w['high_libido']:.1f}"),
         (f"High aggression (≥{TRAIT_HIGH_THRESHOLD*100:.0f}%)",  f"{w['high_aggression']:.1f}"),
         (f"Low libido (<{TRAIT_LOW_THRESHOLD*100:.0f}%)",        f"{w['low_libido']:.1f}"),
-        ("Genetic Novelty (no relatives in scope)",        f"+{w['no_children']:.1f}"),
-        ("4+ children in scope",                           f"{w['many_children']:.1f}"),
+        (f"Genetic safety penalty (avg in-scope risk above {GENETIC_SAFE_RISK_FLOOR:.0f}%, scaled)", f"{w['no_children']:.1f} × ((risk%-{GENETIC_SAFE_RISK_FLOOR:.0f})/10)"),
+        (f"Genetic safety bonus (avg in-scope risk ≤ {GENETIC_SAFE_RISK_FLOOR:.0f}%)", f"+{w['zero_risk_bonus']:.1f}"),
         ("Love interest in scope",                         f"+{w['love_interest']:.1f}"),
         ("Rival in scope",                                 f"{w['rivalry']:.1f}"),
         ("── age penalty: multiplies per 3 years above threshold ──", ""),

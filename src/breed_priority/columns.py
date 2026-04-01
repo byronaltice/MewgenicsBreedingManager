@@ -7,7 +7,7 @@ No Qt widget dependencies — only QtCore for UserRole.
 
 from PySide6.QtCore import Qt
 
-from .scoring import SCORE_COLUMNS
+from .scoring import SCORE_COLUMNS, SCORE_HEADER_7_COUNT
 
 
 # ── Column indices ────────────────────────────────────────────────────────────
@@ -34,6 +34,36 @@ _ALL_HEADERS      = (
 )
 _SEP_COLS         = frozenset({COL_SEP1, COL_SEP2})
 _SEP_WIDTH        = 2
+
+
+def _score_col_idx(header: str) -> int:
+    """Return absolute score-table column index for a SCORE_COLUMNS header."""
+    return _COL_SCORE_START + _SCORE_COLS.index(header)
+
+
+# ── Semantic score-table column roles ────────────────────────────────────────
+
+# Value cells that should stay chip-backed when no heatmap bar is present.
+_NEUTRAL_VALUE_CHIP_SCORE_HEADERS = frozenset({"Sum", "Age", SCORE_HEADER_7_COUNT})
+_NEUTRAL_VALUE_CHIP_COLS = frozenset(_score_col_idx(h) for h in _NEUTRAL_VALUE_CHIP_SCORE_HEADERS)
+
+# Score-table relationship columns with semantic overflow colors.
+_LOVE_SCORE_HEADERS = frozenset({"💗🔭", "💗🏠"})
+_HATE_SCORE_HEADERS = frozenset({"💥🔭", "💥🏠"})
+_LOVE_SCORE_COLS = frozenset(_score_col_idx(h) for h in _LOVE_SCORE_HEADERS)
+_HATE_SCORE_COLS = frozenset(_score_col_idx(h) for h in _HATE_SCORE_HEADERS)
+_RELATIONSHIP_SCORE_COLS = frozenset(_LOVE_SCORE_COLS | _HATE_SCORE_COLS)
+
+# Alignment roles by content behavior.
+_SINGLE_VALUE_CENTER_SCORE_HEADERS = frozenset({
+    "Sum", "Age", SCORE_HEADER_7_COUNT, "7sub", "Sex", "Lib", "Gene", "Aggro", "Gender",
+})
+_SINGLE_VALUE_CENTER_SCORE_COLS = frozenset(_score_col_idx(h) for h in _SINGLE_VALUE_CENTER_SCORE_HEADERS)
+
+_MULTI_VALUE_LEFT_SCORE_HEADERS = frozenset({
+    "7rare", "Trait", "💗🔭", "💗🏠", "💥🔭", "💥🏠",
+})
+_MULTI_VALUE_LEFT_SCORE_COLS = frozenset(_score_col_idx(h) for h in _MULTI_VALUE_LEFT_SCORE_HEADERS)
 
 
 # ── Custom Qt data roles ──────────────────────────────────────────────────────

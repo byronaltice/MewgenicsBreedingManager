@@ -54,15 +54,17 @@ def compute_all_scores(
     alive, scope_cats, scope_set,
     seven_sets, scope_7_sets, hated_by_map,
     ma_ratings, stat_names, weights, display_name_fn,
+    gene_risk_lookup=None,
 ):
     """Run Pass 1: compute ScoreResults + 7-sub contributions for all cats.
 
     Returns:
         (results, cat_sub_counts, all_scores_sorted,
-         all_scope_rel_counts, all_scope_children, max_7_count,
-         scope_stat_sums)
+         all_scope_gene_risks, all_scope_children, max_7_count,
+         scope_stat_sums, pair_risk_cache)
     """
     scope_stat_sums = sorted(sum(c.base_stats.values()) for c in scope_cats)
+    pair_risk_cache: dict[tuple[int, int], float] = {}
 
     results: dict[int, object] = {}
     cat_sub_counts: dict[int, int] = {}
@@ -74,6 +76,8 @@ def compute_all_scores(
             mutation_display_name=display_name_fn,
             scope_stat_sums=scope_stat_sums,
             hated_by=hated_by_map.get(id(cat), []),
+            gene_risk_lookup=gene_risk_lookup,
+            gene_risk_cache=pair_risk_cache,
         )
         my_sevens = seven_sets.get(id(cat), frozenset())
         sub_cnt = sum(
@@ -92,7 +96,7 @@ def compute_all_scores(
     all_scores_sorted = sorted(results[id(c)].total for c in alive)
 
     all_scope_rel_counts = sorted(
-        results[id(c)].scope_relatives_count
+        results[id(c)].scope_gene_risk
         for c in scope_cats if id(c) in results
     )
 
@@ -108,7 +112,7 @@ def compute_all_scores(
 
     return (results, cat_sub_counts, all_scores_sorted,
             all_scope_rel_counts, all_scope_children, max_7_count,
-            scope_stat_sums)
+            scope_stat_sums, pair_risk_cache)
 
 
 def compute_heatmap_norms(results, alive, is_heat, heat_algo):
