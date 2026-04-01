@@ -17,7 +17,9 @@ BREED_PRIORITY_WEIGHTS = {
     "stat_7":           5.0,
     "stat_7_threshold": 7.0,   # cats with 7 in a stat before score scales down
     "stat_7_count":     2.0,   # flat bonus per stat the cat personally has at 7 (additive)
-    "unique_ma_max":    2.0,
+    "trait_top_priority": 2.0,
+    "trait_desirable":   2.0,
+    "trait_undesirable": -2.0,
     "low_aggression":  1.0,
     "unknown_gender":  1.0,
     "high_libido":     0.5,
@@ -72,7 +74,9 @@ WEIGHT_UI_ROWS = [
     ("love_interest",      ("Love", "In Scope")),
     ("love_interest_room", ("",     "In Room")),
     (None, None),
-    ("unique_ma_max",    "Trait"),
+    ("trait_top_priority", ("Trait", "Top Priority")),
+    ("trait_desirable",    ("",      "Desirable")),
+    ("trait_undesirable",  ("",      "Undesirable")),
 ]
 
 # Score table columns
@@ -93,7 +97,7 @@ SCORE_COLUMNS = [
     ("💥🏠",    ["rivalry_room"]),
     ("💗🔭",    ["love_interest"]),
     ("💗🏠",    ["love_interest_room"]),
-    ("Trait", ["unique_ma_max"]),
+    ("Trait", ["trait_top_priority", "trait_desirable", "trait_undesirable"]),
 ]
 
 # Scoring tiers: (threshold, label, color) — first match wins; None = catch-all
@@ -174,7 +178,8 @@ def compute_breed_priority_score(cat, scope_cats: list, ma_ratings: dict,
     _display = mutation_display_name if mutation_display_name else (lambda n: n)
     breakdown: list = []
     subtotals: dict = {
-        "stat_7": 0.0, "stat_7_count": 0.0, "unique_ma_max": 0.0,
+        "stat_7": 0.0, "stat_7_count": 0.0,
+        "trait_top_priority": 0.0, "trait_desirable": 0.0, "trait_undesirable": 0.0,
         "low_aggression": 0.0, "high_aggression": 0.0,
         "unknown_gender": 0.0,
         "high_libido": 0.0, "low_libido": 0.0,
@@ -246,7 +251,9 @@ def compute_breed_priority_score(cat, scope_cats: list, ma_ratings: dict,
         )
         for c in scope_cats
     }
-    _u = _w["unique_ma_max"]
+    _w_top = _w.get("trait_top_priority", 0.0)
+    _w_des = _w.get("trait_desirable", 0.0)
+    _w_und = _w.get("trait_undesirable", 0.0)
 
     # Score abilities (active + passive), normalized to base names
     all_ability_bases = list({
@@ -258,27 +265,32 @@ def compute_breed_priority_score(cat, scope_cats: list, ma_ratings: dict,
             return
         if n == 1:
             if rating == 2:
-                pts = 10 * _u
+                pts = 10 * _w_top
                 tag = "Sole owner (top priority)"
             elif rating == 1:
-                pts = 2 * _u
+                pts = 2 * _w_des
                 tag = "Sole owner (desirable)"
             else:
-                pts = -_u
+                pts = _w_und
                 tag = "Sole owner (undesirable)"
         elif rating == 2:
-            pts = round(5 * _u / n, 3)
+            pts = round(5 * _w_top / n, 3)
             tag = f"Top Priority (÷{n})"
         elif rating == 1:
-            pts = round(_u / n, 3)
+            pts = round(_w_des / n, 3)
             tag = f"Desirable (÷{n})"
         elif rating == -1:
-            pts = -_u
+            pts = _w_und
             tag = "Undesirable"
         else:
             return
         breakdown.append((f"{tag}: {label}", pts))
-        subtotals["unique_ma_max"] += pts
+        if rating == 2:
+            subtotals["trait_top_priority"] += pts
+        elif rating == 1:
+            subtotals["trait_desirable"] += pts
+        elif rating == -1:
+            subtotals["trait_undesirable"] += pts
 
     for ma in all_ability_bases:
         rating = ma_ratings.get(ma)

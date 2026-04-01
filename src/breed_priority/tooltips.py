@@ -111,7 +111,9 @@ def build_cat_tooltip(
         )
         for c in scope_cats
     }
-    _u = weights["unique_ma_max"]
+    _w_top = float(weights.get("trait_top_priority", 0.0))
+    _w_des = float(weights.get("trait_desirable", 0.0))
+    _w_und = float(weights.get("trait_undesirable", 0.0))
 
     passive_base = {
         ability_base(p) for p in cat.passive_abilities if not is_basic_trait(p)
@@ -148,23 +150,23 @@ def build_cat_tooltip(
                 rows.append(row(color, label, "+0.00"))
             elif n == 1:
                 if rating == 2:
-                    pts = 10 * _u
+                    pts = 10 * _w_top
                     clr, star = CLR_TOP_PRIORITY, "★★★"
                 elif rating == 1:
-                    pts = 2 * _u
+                    pts = 2 * _w_des
                     clr, star = CLR_DESIRABLE, "★★"
                 else:
-                    pts = -_u
+                    pts = _w_und
                     clr, star = CLR_UNDESIRABLE, "★"
                 rows.append(row(clr, f"{display}  {star}", f"{pts:+.2f}"))
             elif rating == 2:
-                pts = round(5 * _u / n, 3)
+                pts = round(5 * _w_top / n, 3)
                 rows.append(row(CLR_TOP_PRIORITY, display, f"{pts:+.2f}{cats_str}"))
             elif rating == 1:
-                pts = round(_u / n, 3)
+                pts = round(_w_des / n, 3)
                 rows.append(row(CLR_DESIRABLE, display, f"{pts:+.2f}{cats_str}"))
             elif rating == -1:
-                rows.append(row(CLR_UNDESIRABLE, display, f"{-_u:+.2f}{cats_str}"))
+                rows.append(row(CLR_UNDESIRABLE, display, f"{_w_und:+.2f}{cats_str}"))
             else:
                 rows.append(row(CLR_NEUTRAL, display, f"+0.00{cats_str}"))
             if sharing:

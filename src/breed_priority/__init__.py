@@ -218,6 +218,15 @@ class BreedPriorityView(QWidget):
             for key in BREED_PRIORITY_WEIGHTS:
                 if key in data.get("weights", {}):
                     self._weights[key] = float(data["weights"][key])
+            _old_trait_w = data.get("weights", {}).get("unique_ma_max")
+            if _old_trait_w is not None and not any(
+                k in data.get("weights", {})
+                for k in ("trait_top_priority", "trait_desirable", "trait_undesirable")
+            ):
+                _old_trait_w = float(_old_trait_w)
+                self._weights["trait_top_priority"] = _old_trait_w
+                self._weights["trait_desirable"] = _old_trait_w
+                self._weights["trait_undesirable"] = -_old_trait_w
             self._hide_kittens = bool(data.get("hide_kittens", False))
             self._hide_out_of_scope = bool(data.get("hide_out_of_scope", False))
             _sv = data.get("display_mode", "values" if data.get("show_values", False) else "score")
@@ -371,6 +380,15 @@ class BreedPriorityView(QWidget):
         """Apply a profile blob to all instance vars and refresh every UI widget."""
         # Weights
         new_w = data.get("weights", {})
+        _old_trait_w = new_w.get("unique_ma_max")
+        if _old_trait_w is not None and not any(
+            k in new_w for k in ("trait_top_priority", "trait_desirable", "trait_undesirable")
+        ):
+            _old_trait_w = float(_old_trait_w)
+            new_w = dict(new_w)
+            new_w["trait_top_priority"] = _old_trait_w
+            new_w["trait_desirable"] = _old_trait_w
+            new_w["trait_undesirable"] = -_old_trait_w
         for key in BREED_PRIORITY_WEIGHTS:
             self._weights[key] = float(new_w.get(key, BREED_PRIORITY_WEIGHTS[key]))
         if self._weight_spins:
@@ -941,7 +959,7 @@ class BreedPriorityView(QWidget):
             "Sum":     "Stat sum score. Percentile vs scope: full weight if top 10%, −1 per quartile drop, 0 below median.",
             "7rare":  "Rare 7s. Per stat at 7: full weight up to threshold owners; scaled down beyond; 2× if sole owner.",
             "7cnt":   "7-Count — flat weight × number of stats at 7.",
-            "Trait":   "Trait score. Desirable sole owner = 2× weight; shared = weight ÷ N owners. Undesirable = −weight always.",
+            "Trait":   "Trait score. Top Priority and Desirable use separate weights; Undesirable uses its own penalty weight.",
             "Aggro":   "Aggression — flat weight if High or Low.",
             "Gender": "Gender — M/F shown; ? (unknown) gets a flat score weight.",
             "Lib":  "Libido — flat weight if High or Low.",
@@ -2144,7 +2162,10 @@ class BreedPriorityView(QWidget):
                         # Value mode: individual colored chips per rated trait
                         # Hide entirely when the trait weight is 0 (no scoring context)
                         _chips = []
-                        if _cw.get("unique_ma_max", 0.0) != 0.0:
+                        if any(
+                            _cw.get(_k, 0.0) != 0.0
+                            for _k in ("trait_top_priority", "trait_desirable", "trait_undesirable")
+                        ):
                             for _desc, _pts in result.breakdown:
                                 if _desc.startswith(("Sole owner", "Top Priority (÷", "Desirable (÷", "Undesirable:")):
                                     _tname = _desc.split(": ", 1)[1]
