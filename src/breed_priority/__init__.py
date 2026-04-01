@@ -877,7 +877,11 @@ class BreedPriorityView(QWidget):
         wg.setContentsMargins(0, 0, 0, 0)
         wg.setHorizontalSpacing(4)
         wg.setVerticalSpacing(3)
-        r = 0   # grid row index (separators consume a row too)
+        _five_hdr = QLabel("5")
+        _five_hdr.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        _five_hdr.setStyleSheet(f"color:{CLR_TEXT_GROUP}; font-size:9px; font-weight:bold;")
+        wg.addWidget(_five_hdr, 0, 1)
+        r = 1   # grid row index (separators consume a row too)
         for key, label in WEIGHT_UI_ROWS:
             if key is None:
                 # Thin separator line spanning both columns

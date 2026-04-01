@@ -889,13 +889,15 @@ class _WeightSpin(QWidget):
         "QPushButton:hover { background:#5050a0; }"
         "QPushButton:pressed { background:#6060c0; }"
     )
+    _BTN_STYLE_5 = (
+        "QPushButton { color:#cfe3ff; background:#24426f; border:1px solid #3f6aa5;"
+        " font-size:8px; padding:0; }"
+        "QPushButton:hover { background:#2f568f; }"
+        "QPushButton:pressed { background:#3c66a3; }"
+    )
     _LBL_BASE = (
         f"background:{CLR_SURFACE_APP_ALT};"
         f" border:1px solid {CLR_SURFACE_SEPARATOR}; border-right:none;"
-    )
-    _STEP_HDR_STYLE = (
-        f"color:{CLR_TEXT_CONTENT_SECONDARY}; font-size:8px;"
-        f"background:{CLR_SURFACE_APP_ALT}; border:1px solid {CLR_SURFACE_SEPARATOR};"
     )
 
     def __init__(self, value: float, min_val=-50.0, max_val=50.0, step=0.5):
@@ -932,34 +934,21 @@ class _WeightSpin(QWidget):
         dn.setStyleSheet(self._BTN_STYLE)
         dn.clicked.connect(self._dec)
 
-        up5 = QPushButton("▲▲")
+        up5 = QPushButton("▲")
         up5.setFixedSize(22, 11)
-        up5.setStyleSheet(self._BTN_STYLE)
+        up5.setStyleSheet(self._BTN_STYLE_5)
         up5.clicked.connect(self._inc5)
 
-        dn5 = QPushButton("▼▼")
+        dn5 = QPushButton("▼")
         dn5.setFixedSize(22, 11)
-        dn5.setStyleSheet(self._BTN_STYLE)
+        dn5.setStyleSheet(self._BTN_STYLE_5)
         dn5.clicked.connect(self._dec5)
-
-        h1 = QLabel("1")
-        h1.setFixedSize(18, 11)
-        h1.setAlignment(Qt.AlignCenter)
-        h1.setStyleSheet(self._STEP_HDR_STYLE)
-
-        h5 = QLabel("5")
-        h5.setFixedSize(22, 11)
-        h5.setAlignment(Qt.AlignCenter)
-        h5.setStyleSheet(self._STEP_HDR_STYLE)
-
-        bv.addWidget(h1)
         bv.addWidget(up)
         bv.addWidget(dn)
         btn_col_5 = QWidget()
         bv5 = QVBoxLayout(btn_col_5)
         bv5.setContentsMargins(0, 0, 0, 0)
         bv5.setSpacing(0)
-        bv5.addWidget(h5)
         bv5.addWidget(up5)
         bv5.addWidget(dn5)
         hb.addWidget(self._lbl)
