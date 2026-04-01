@@ -889,15 +889,13 @@ class _WeightSpin(QWidget):
         "QPushButton:hover { background:#5050a0; }"
         "QPushButton:pressed { background:#6060c0; }"
     )
-    _BTN_STYLE_5 = (
-        f"QPushButton {{ color:{CLR_TEXT_CONTENT_PRIMARY}; background:{CLR_SURFACE_HEADER};"
-        f" border:1px solid {CLR_DESIRABLE}; font-size:8px; padding:0; }}"
-        f"QPushButton:hover {{ background:{CLR_SURFACE_SCORE_AREA}; }}"
-        f"QPushButton:pressed {{ background:{CLR_SURFACE_APP_ALT}; color:{CLR_DESIRABLE}; }}"
-    )
     _LBL_BASE = (
         f"background:{CLR_SURFACE_APP_ALT};"
         f" border:1px solid {CLR_SURFACE_SEPARATOR}; border-right:none;"
+    )
+    _STEP_HDR_STYLE = (
+        f"color:{CLR_TEXT_CONTENT_PRIMARY}; font-size:9px; font-weight:bold;"
+        f"background:{CLR_SURFACE_HEADER}; border:1px solid {CLR_SURFACE_SEPARATOR};"
     )
 
     def __init__(self, value: float, min_val=-50.0, max_val=50.0, step=0.5):
@@ -909,7 +907,7 @@ class _WeightSpin(QWidget):
 
         hb = QHBoxLayout(self)
         hb.setContentsMargins(0, 0, 0, 0)
-        hb.setSpacing(0)
+        hb.setSpacing(2)
 
         self._lbl = QLabel(self._fmt(self._value))
         self._lbl.setFixedWidth(36)
@@ -919,10 +917,20 @@ class _WeightSpin(QWidget):
         self._lbl.setFont(_f)
         self._update_color()
 
-        btn_col = QWidget()
-        bv = QVBoxLayout(btn_col)
-        bv.setContentsMargins(0, 0, 0, 0)
-        bv.setSpacing(0)
+        h1 = QLabel("1")
+        h1.setFixedSize(18, 11)
+        h1.setAlignment(Qt.AlignCenter)
+        h1.setStyleSheet(self._STEP_HDR_STYLE)
+
+        h5 = QLabel("5")
+        h5.setFixedSize(18, 11)
+        h5.setAlignment(Qt.AlignCenter)
+        h5.setStyleSheet(self._STEP_HDR_STYLE)
+
+        btn_col_1 = QWidget()
+        bv1 = QVBoxLayout(btn_col_1)
+        bv1.setContentsMargins(0, 0, 0, 0)
+        bv1.setSpacing(0)
 
         up = QPushButton("▲")
         up.setFixedSize(18, 11)
@@ -935,24 +943,27 @@ class _WeightSpin(QWidget):
         dn.clicked.connect(self._dec)
 
         up5 = QPushButton("▲")
-        up5.setFixedSize(22, 11)
-        up5.setStyleSheet(self._BTN_STYLE_5)
+        up5.setFixedSize(18, 11)
+        up5.setStyleSheet(self._BTN_STYLE)
         up5.clicked.connect(self._inc5)
 
         dn5 = QPushButton("▼")
-        dn5.setFixedSize(22, 11)
-        dn5.setStyleSheet(self._BTN_STYLE_5)
+        dn5.setFixedSize(18, 11)
+        dn5.setStyleSheet(self._BTN_STYLE)
         dn5.clicked.connect(self._dec5)
-        bv.addWidget(up)
-        bv.addWidget(dn)
+        bv1.addWidget(h1)
+        bv1.addWidget(up)
+        bv1.addWidget(dn)
         btn_col_5 = QWidget()
         bv5 = QVBoxLayout(btn_col_5)
         bv5.setContentsMargins(0, 0, 0, 0)
         bv5.setSpacing(0)
+        bv5.addWidget(h5)
         bv5.addWidget(up5)
         bv5.addWidget(dn5)
+        hb.addWidget(btn_col_1)
         hb.addWidget(self._lbl)
-        hb.addWidget(btn_col)
+        hb.addSpacing(2)
         hb.addWidget(btn_col_5)
 
     @staticmethod
