@@ -890,10 +890,10 @@ class _WeightSpin(QWidget):
         "QPushButton:pressed { background:#6060c0; }"
     )
     _BTN_STYLE_5 = (
-        "QPushButton { color:#cfe3ff; background:#24426f; border:1px solid #3f6aa5;"
-        " font-size:8px; padding:0; }"
-        "QPushButton:hover { background:#2f568f; }"
-        "QPushButton:pressed { background:#3c66a3; }"
+        f"QPushButton {{ color:{CLR_TEXT_CONTENT_PRIMARY}; background:{CLR_SURFACE_HEADER};"
+        f" border:1px solid {CLR_DESIRABLE}; font-size:8px; padding:0; }}"
+        f"QPushButton:hover {{ background:{CLR_SURFACE_SCORE_AREA}; }}"
+        f"QPushButton:pressed {{ background:{CLR_SURFACE_APP_ALT}; color:{CLR_DESIRABLE}; }}"
     )
     _LBL_BASE = (
         f"background:{CLR_SURFACE_APP_ALT};"
