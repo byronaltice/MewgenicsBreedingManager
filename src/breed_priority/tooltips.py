@@ -150,7 +150,7 @@ def build_cat_tooltip(
                 rows.append(row(color, label, "+0.00"))
             elif n == 1:
                 if rating == 2:
-                    pts = 10 * _w_top
+                    pts = 2 * _w_top
                     clr, star = CLR_TOP_PRIORITY, "★★★"
                 elif rating == 1:
                     pts = 2 * _w_des
@@ -160,7 +160,7 @@ def build_cat_tooltip(
                     clr, star = CLR_UNDESIRABLE, "★"
                 rows.append(row(clr, f"{display}  {star}", f"{pts:+.2f}"))
             elif rating == 2:
-                pts = round(5 * _w_top / n, 3)
+                pts = round(_w_top / n, 3)
                 rows.append(row(CLR_TOP_PRIORITY, display, f"{pts:+.2f}{cats_str}"))
             elif rating == 1:
                 pts = round(_w_des / n, 3)

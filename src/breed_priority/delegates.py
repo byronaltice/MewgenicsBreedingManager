@@ -894,7 +894,7 @@ class _WeightSpin(QWidget):
         f" border:1px solid {CLR_SURFACE_SEPARATOR}; border-right:none;"
     )
 
-    def __init__(self, value: float, min_val=-20.0, max_val=20.0, step=0.5):
+    def __init__(self, value: float, min_val=-50.0, max_val=50.0, step=0.5):
         super().__init__()
         self._value = float(value)
         self._min   = min_val
@@ -928,10 +928,27 @@ class _WeightSpin(QWidget):
         dn.setStyleSheet(self._BTN_STYLE)
         dn.clicked.connect(self._dec)
 
+        up5 = QPushButton("+5")
+        up5.setFixedSize(22, 11)
+        up5.setStyleSheet(self._BTN_STYLE)
+        up5.clicked.connect(self._inc5)
+
+        dn5 = QPushButton("-5")
+        dn5.setFixedSize(22, 11)
+        dn5.setStyleSheet(self._BTN_STYLE)
+        dn5.clicked.connect(self._dec5)
+
         bv.addWidget(up)
         bv.addWidget(dn)
+        btn_col_5 = QWidget()
+        bv5 = QVBoxLayout(btn_col_5)
+        bv5.setContentsMargins(0, 0, 0, 0)
+        bv5.setSpacing(0)
+        bv5.addWidget(up5)
+        bv5.addWidget(dn5)
         hb.addWidget(self._lbl)
         hb.addWidget(btn_col)
+        hb.addWidget(btn_col_5)
 
     @staticmethod
     def _fmt(v: float) -> str:
@@ -957,6 +974,8 @@ class _WeightSpin(QWidget):
 
     def _inc(self): self._set(self._value + self._step)
     def _dec(self): self._set(self._value - self._step)
+    def _inc5(self): self._set(self._value + 5.0)
+    def _dec5(self): self._set(self._value - 5.0)
 
     def value(self) -> float:
         return self._value

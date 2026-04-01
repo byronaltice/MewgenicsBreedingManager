@@ -111,7 +111,7 @@ BREED_PRIORITY_TIERS = [
 
 # Trait rating options
 TRAIT_RATING_OPTIONS = [
-    ("Top Priority - sole owner +20, shared +10÷n", 2),
+    ("Top Priority - sole owner +2x, shared +1x÷n", 2),
     ("Desirable - sole owner +4, shared +2÷n",     1),
     ("Neutral - reviewed, not scored",              0),
     ("Undecided - not yet reviewed",                None),
@@ -265,7 +265,7 @@ def compute_breed_priority_score(cat, scope_cats: list, ma_ratings: dict,
             return
         if n == 1:
             if rating == 2:
-                pts = 10 * _w_top
+                pts = 2 * _w_top
                 tag = "Sole owner (top priority)"
             elif rating == 1:
                 pts = 2 * _w_des
@@ -274,7 +274,7 @@ def compute_breed_priority_score(cat, scope_cats: list, ma_ratings: dict,
                 pts = _w_und
                 tag = "Sole owner (undesirable)"
         elif rating == 2:
-            pts = round(5 * _w_top / n, 3)
+            pts = round(_w_top / n, 3)
             tag = f"Top Priority (÷{n})"
         elif rating == 1:
             pts = round(_w_des / n, 3)
