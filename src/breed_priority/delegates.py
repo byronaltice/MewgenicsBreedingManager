@@ -893,10 +893,6 @@ class _WeightSpin(QWidget):
         f"background:{CLR_SURFACE_APP_ALT};"
         f" border:1px solid {CLR_SURFACE_SEPARATOR}; border-right:none;"
     )
-    _STEP_HDR_STYLE = (
-        f"color:{CLR_TEXT_CONTENT_PRIMARY}; font-size:9px; font-weight:bold;"
-        f"background:{CLR_SURFACE_HEADER}; border:1px solid {CLR_SURFACE_SEPARATOR};"
-    )
 
     def __init__(self, value: float, min_val=-50.0, max_val=50.0, step=0.5):
         super().__init__()
@@ -916,16 +912,6 @@ class _WeightSpin(QWidget):
         _f.setPointSize(8)
         self._lbl.setFont(_f)
         self._update_color()
-
-        h1 = QLabel("1")
-        h1.setFixedSize(18, 11)
-        h1.setAlignment(Qt.AlignCenter)
-        h1.setStyleSheet(self._STEP_HDR_STYLE)
-
-        h5 = QLabel("5")
-        h5.setFixedSize(18, 11)
-        h5.setAlignment(Qt.AlignCenter)
-        h5.setStyleSheet(self._STEP_HDR_STYLE)
 
         btn_col_1 = QWidget()
         bv1 = QVBoxLayout(btn_col_1)
@@ -951,14 +937,12 @@ class _WeightSpin(QWidget):
         dn5.setFixedSize(18, 11)
         dn5.setStyleSheet(self._BTN_STYLE)
         dn5.clicked.connect(self._dec5)
-        bv1.addWidget(h1)
         bv1.addWidget(up)
         bv1.addWidget(dn)
         btn_col_5 = QWidget()
         bv5 = QVBoxLayout(btn_col_5)
         bv5.setContentsMargins(0, 0, 0, 0)
         bv5.setSpacing(0)
-        bv5.addWidget(h5)
         bv5.addWidget(up5)
         bv5.addWidget(dn5)
         hb.addWidget(btn_col_1)
