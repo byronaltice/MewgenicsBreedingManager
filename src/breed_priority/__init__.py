@@ -2442,11 +2442,12 @@ class BreedPriorityView(QWidget):
 
     def _open_stats_overview(self):
         """Open (or raise) the current-stats overview window."""
-        if not hasattr(self, '_stats_overview_dlg') or self._stats_overview_dlg is None:
+        dlg = getattr(self, '_stats_overview_dlg', None)
+        if dlg is None or not dlg.isVisible():
             self._stats_overview_dlg = show_stats_overview(
-                self, self._cats, self._stat_names
+                self, self._cats, self._stat_names,
+                room_display=self._room_display,
             )
         else:
             self._stats_overview_dlg.refresh(self._cats)
-            self._stats_overview_dlg.show()
             self._stats_overview_dlg.raise_()

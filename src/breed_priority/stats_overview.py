@@ -1,7 +1,9 @@
 """Breed Priority — Current Stats Overview popup.
 
-Standalone QDialog showing per-cat effective (or base) stats with injury details.
+Standalone QDialog showing per-cat effective (or base) stats with effects breakdown.
 Opens as a non-blocking window from the Breed Priority top bar.
+
+Only alive cats are shown (status != "Gone").
 """
 
 from PySide6.QtWidgets import (
@@ -11,63 +13,108 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 
-from .columns import INJURY_STAT_NAMES, _INJ_SHORT
+from save_parser import STAT_NAMES as _PARSER_STAT_NAMES
+
 from .styles import (
     ACTION_BUTTON_SECONDARY_LARGE_STYLE, checkbox_style, PRIORITY_TABLE_STYLE,
 )
 from .theme import (
     CLR_BG_SCORE_AREA, CLR_TEXT_PRIMARY, CLR_TEXT_MUTED,
-    CLR_BG_HEADER, CLR_VALUE_NEG, CLR_DESIRABLE, CLR_NEUTRAL,
-    CLR_SURFACE_SEPARATOR, CLR_VALUE_POS,
+    CLR_BG_HEADER, CLR_VALUE_NEG, CLR_VALUE_POS, CLR_DESIRABLE, CLR_NEUTRAL,
+    CLR_SURFACE_SEPARATOR,
 )
 
 
-_STAT_NAMES = ["STR", "DEX", "CON", "INT", "SPD", "CHA", "LCK"]
-
 _STAT_MAX_BASE = 7   # highest achievable base value in-game
 
-# Stat value → foreground color (base-stat range)
+# Stat value → foreground color
 _STAT_COLOR = {
     7: CLR_DESIRABLE,
     6: CLR_NEUTRAL,
 }
 
-_COL_HEADERS = ["Name"] + _STAT_NAMES + ["Sum", "Injuries"]
-_COL_NAME  = 0
-_COL_SUM   = 8
-_COL_INJ   = 9
+_COL_NAME = 0
+_COL_LOC  = 1
+# Stat columns: 2 .. 2+len(stat_names)-1
+# Sum = 2 + len(stat_names)
+# Effects = 3 + len(stat_names)
 
 
-def _injuries_for(cat, stat_names: list) -> list:
-    """Return [(display_name, stat_key, delta), ...] for stats with a negative modifier."""
+def _stat_idx(sn: str) -> int:
+    """Return save-parser list index for a stat name, or -1 if unknown."""
+    try:
+        return _PARSER_STAT_NAMES.index(sn)
+    except ValueError:
+        return -1
+
+
+def _effects_for(cat, stat_names: list) -> list:
+    """Return [(stat_key, total_delta, mod_part, sec_part), ...] for all non-zero deltas.
+
+    total_delta = total_stats - base_stats (positive = buff, negative = debuff/injury).
+    mod_part / sec_part are the two underlying components when available.
+    """
+    base  = getattr(cat, 'base_stats',  None)
     total = getattr(cat, 'total_stats', None)
-    base  = getattr(cat, 'base_stats', None)
-    if total is None or base is None:
+    if base is None or total is None:
         return []
+
+    stat_mod = getattr(cat, 'stat_mod', None) or []
+    stat_sec = getattr(cat, 'stat_sec', None) or []
+
     result = []
     for sn in stat_names:
         b = base.get(sn, 0)
         t = total.get(sn, b)
         delta = t - b
-        if delta < 0:
-            result.append((INJURY_STAT_NAMES.get(sn, sn), sn, delta))
+        if delta == 0:
+            continue
+        idx = _stat_idx(sn)
+        mod = stat_mod[idx] if (idx >= 0 and idx < len(stat_mod)) else 0
+        sec = stat_sec[idx] if (idx >= 0 and idx < len(stat_sec)) else 0
+        result.append((sn, delta, mod, sec))
     return result
 
 
-class StatsOverviewDialog(QDialog):
-    """Non-blocking popup: all cats × current stats with optional injury toggle."""
+def _stat_cell_tooltip(sn: str, base_val: int, total_val: int, cat) -> str:
+    """Build a per-stat tooltip showing the base + mod + sec breakdown."""
+    stat_mod = getattr(cat, 'stat_mod', None) or []
+    stat_sec = getattr(cat, 'stat_sec', None) or []
+    idx = _stat_idx(sn)
+    mod = stat_mod[idx] if (idx >= 0 and idx < len(stat_mod)) else 0
+    sec = stat_sec[idx] if (idx >= 0 and idx < len(stat_sec)) else 0
 
-    def __init__(self, cats: list, stat_names: list | None = None, parent=None):
+    if mod == 0 and sec == 0:
+        return f"{sn}: {total_val} (base)"
+
+    parts = [f"base {base_val}"]
+    if mod != 0:
+        parts.append(f"mod {mod:+d}")
+    if sec != 0:
+        parts.append(f"sec {sec:+d}")
+    return f"{sn}: {total_val}  ({' + '.join(parts) if mod >= 0 and sec >= 0 else ', '.join(parts)})"
+
+
+class StatsOverviewDialog(QDialog):
+    """Non-blocking popup: alive cats × current stats with effects breakdown."""
+
+    def __init__(self, cats: list, stat_names: list | None = None,
+                 room_display: dict | None = None, parent=None):
         super().__init__(parent)
-        self._cats = cats
-        self._stat_names = stat_names or _STAT_NAMES
+        self._all_cats   = cats
+        self._stat_names = stat_names or list(_PARSER_STAT_NAMES)
+        self._room_disp  = room_display or {}
         self._include_injuries = True
+
+        n = len(self._stat_names)
+        self._col_sum    = 2 + n
+        self._col_fx     = 3 + n
+        self._num_cols   = 4 + n   # Name, Loc, n stats, Sum, Effects
 
         self.setWindowTitle("Current Stats Overview")
         self.setWindowFlags(self.windowFlags() | Qt.Window)
-        self.setAttribute(Qt.WA_DeleteOnClose, False)
         self.setStyleSheet(f"background:{CLR_BG_SCORE_AREA}; color:{CLR_TEXT_PRIMARY};")
-        self.resize(860, 560)
+        self.resize(960, 580)
 
         vb = QVBoxLayout(self)
         vb.setContentsMargins(12, 12, 12, 12)
@@ -90,11 +137,11 @@ class StatsOverviewDialog(QDialog):
         hdr_l.addWidget(title)
         hdr_l.addStretch()
 
-        self._chk_injuries = QCheckBox("Include injuries")
+        self._chk_injuries = QCheckBox("Include injuries / effects")
         self._chk_injuries.setChecked(True)
         self._chk_injuries.setToolTip(
-            "Checked: stats shown are base + injury modifiers (effective stat).\n"
-            "Unchecked: stats shown are base values only — injuries excluded from sum."
+            "Checked: stats show effective values (base + all modifiers).\n"
+            "Unchecked: stats show base values only — modifiers excluded from sum."
         )
         self._chk_injuries.setStyleSheet(
             checkbox_style(font_size=11, emphasize_checked=True)
@@ -105,25 +152,33 @@ class StatsOverviewDialog(QDialog):
         vb.addWidget(hdr)
 
         # ── Table ───────────────────────────────────────────────────────────────
+        headers = (
+            ["Name", "Loc"]
+            + list(self._stat_names)
+            + ["Sum", "Effects"]
+        )
         self._table = QTableWidget()
-        self._table.setColumnCount(len(_COL_HEADERS))
-        self._table.setHorizontalHeaderLabels(_COL_HEADERS)
+        self._table.setColumnCount(self._num_cols)
+        self._table.setHorizontalHeaderLabels(headers)
         self._table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self._table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self._table.setSelectionMode(QAbstractItemView.SingleSelection)
         self._table.setAlternatingRowColors(True)
-        self._table.setSortingEnabled(True)
+        self._table.setSortingEnabled(False)   # enabled only after populate
         self._table.setStyleSheet(PRIORITY_TABLE_STYLE)
         self._table.verticalHeader().setVisible(False)
 
         hh = self._table.horizontalHeader()
         hh.setSectionResizeMode(_COL_NAME, QHeaderView.Stretch)
-        for c in range(1, 8):                          # stat columns
+        hh.setSectionResizeMode(_COL_LOC,  QHeaderView.Fixed)
+        self._table.setColumnWidth(_COL_LOC, 68)
+        for c in range(2, 2 + len(self._stat_names)):
             hh.setSectionResizeMode(c, QHeaderView.Fixed)
             self._table.setColumnWidth(c, 38)
-        hh.setSectionResizeMode(_COL_SUM, QHeaderView.Fixed)
-        self._table.setColumnWidth(_COL_SUM, 44)
-        hh.setSectionResizeMode(_COL_INJ, QHeaderView.ResizeToContents)
+        hh.setSectionResizeMode(self._col_sum, QHeaderView.Fixed)
+        self._table.setColumnWidth(self._col_sum, 44)
+        hh.setSectionResizeMode(self._col_fx, QHeaderView.Interactive)
+        self._table.setColumnWidth(self._col_fx, 220)
 
         vb.addWidget(self._table)
 
@@ -146,95 +201,133 @@ class StatsOverviewDialog(QDialog):
         self._populate()
 
     def _populate(self):
-        self._table.setSortingEnabled(False)
-        self._table.setRowCount(len(self._cats))
+        # Only alive cats (status != "Gone")
+        cats = [c for c in self._all_cats if getattr(c, 'status', 'Gone') != 'Gone']
 
-        injured_count = 0
+        self.setUpdatesEnabled(False)
+        try:
+            self._table.setSortingEnabled(False)
+            self._table.setRowCount(0)
+            self._table.setRowCount(len(cats))
 
-        for row, cat in enumerate(self._cats):
-            base  = getattr(cat, 'base_stats',  {}) or {}
-            total = getattr(cat, 'total_stats', {}) or {}
-            stats = total if self._include_injuries else base
+            fx_count = 0   # cats with any non-zero effects
 
-            injuries = _injuries_for(cat, self._stat_names)
-            if injuries:
-                injured_count += 1
+            for row, cat in enumerate(cats):
+                base  = getattr(cat, 'base_stats',  {}) or {}
+                total = getattr(cat, 'total_stats', {}) or {}
+                stats = total if self._include_injuries else base
+                effects = _effects_for(cat, self._stat_names)
+                if effects:
+                    fx_count += 1
 
-            # Name
-            name_item = QTableWidgetItem(getattr(cat, 'name', '?'))
-            name_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
-            self._table.setItem(row, _COL_NAME, name_item)
+                # ── Name ────────────────────────────────────────────────────
+                name_item = QTableWidgetItem(getattr(cat, 'name', '?'))
+                name_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+                self._table.setItem(row, _COL_NAME, name_item)
 
-            # Stat columns
-            cat_sum = 0
-            for ci, sn in enumerate(self._stat_names):
-                val = stats.get(sn, 0)
-                cat_sum += val
-
-                item = QTableWidgetItem()
-                item.setData(Qt.DisplayRole, val)
-                item.setTextAlignment(Qt.AlignCenter)
-                item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
-
-                # Foreground: teal above base-max, green at 7, yellow at 6, muted below 5
-                if val > _STAT_MAX_BASE:
-                    item.setForeground(QColor(CLR_VALUE_POS))
+                # ── Location ─────────────────────────────────────────────────
+                raw_room  = getattr(cat, 'room', '') or ''
+                cat_status = getattr(cat, 'status', '')
+                if cat_status == 'Adventure':
+                    loc_text = 'Adv.'
                 else:
-                    fg = _STAT_COLOR.get(val)
-                    if fg:
-                        item.setForeground(QColor(fg))
-                    elif val < 5:
-                        item.setForeground(QColor(CLR_TEXT_MUTED))
+                    loc_text = self._room_disp.get(raw_room, raw_room or '—')
+                loc_item = QTableWidgetItem(loc_text)
+                loc_item.setTextAlignment(Qt.AlignCenter)
+                loc_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+                self._table.setItem(row, _COL_LOC, loc_item)
 
-                # Dark-red cell background when an injury is depressing this stat
-                base_val = base.get(sn, 0)
-                if self._include_injuries and val < base_val:
-                    item.setBackground(QColor("#2a0505"))
+                # ── Stat columns ─────────────────────────────────────────────
+                cat_sum = 0
+                for ci, sn in enumerate(self._stat_names):
+                    val = stats.get(sn, 0)
+                    cat_sum += val
 
-                self._table.setItem(row, 1 + ci, item)
+                    item = QTableWidgetItem()
+                    item.setData(Qt.DisplayRole, val)
+                    item.setTextAlignment(Qt.AlignCenter)
+                    item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
 
-            # Sum
-            sum_item = QTableWidgetItem()
-            sum_item.setData(Qt.DisplayRole, cat_sum)
-            sum_item.setTextAlignment(Qt.AlignCenter)
-            sum_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
-            self._table.setItem(row, _COL_SUM, sum_item)
+                    # Tooltip: show base / mod / sec breakdown
+                    b_val = base.get(sn, 0)
+                    item.setToolTip(_stat_cell_tooltip(sn, b_val, val, cat))
 
-            # Injuries column — always shows actual injuries regardless of toggle
-            if injuries:
-                parts = [
-                    f"{_INJ_SHORT.get(name, name)} ({sn} {delta:+d})"
-                    for name, sn, delta in injuries
-                ]
-                inj_item = QTableWidgetItem(",  ".join(parts))
-                inj_item.setForeground(QColor(CLR_VALUE_NEG))
-            else:
-                inj_item = QTableWidgetItem("—")
-                inj_item.setForeground(QColor(CLR_TEXT_MUTED))
-            inj_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
-            self._table.setItem(row, _COL_INJ, inj_item)
+                    # Foreground: teal above base-max, green at 7, yellow at 6, muted below 5
+                    if val > _STAT_MAX_BASE:
+                        item.setForeground(QColor(CLR_VALUE_POS))
+                    else:
+                        fg = _STAT_COLOR.get(val)
+                        if fg:
+                            item.setForeground(QColor(fg))
+                        elif val < 5:
+                            item.setForeground(QColor(CLR_TEXT_MUTED))
 
-        self._table.setSortingEnabled(True)
-        self._table.sortByColumn(_COL_SUM, Qt.DescendingOrder)
+                    # Dark-red background when an effect is depressing this stat
+                    if self._include_injuries and val < b_val:
+                        item.setBackground(QColor("#2a0505"))
 
-        mode = "effective" if self._include_injuries else "base (injuries excluded from sum)"
-        self._note.setText(
-            f"{len(self._cats)} cats  ·  {injured_count} injured  ·  showing {mode} stats"
-        )
+                    self._table.setItem(row, 2 + ci, item)
+
+                # ── Sum ─────────────────────────────────────────────────────
+                sum_item = QTableWidgetItem()
+                sum_item.setData(Qt.DisplayRole, cat_sum)
+                sum_item.setTextAlignment(Qt.AlignCenter)
+                sum_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+                self._table.setItem(row, self._col_sum, sum_item)
+
+                # ── Effects column ───────────────────────────────────────────
+                # Shows all non-zero stat deltas (buffs green, debuffs red).
+                # Always reflects reality regardless of the include/exclude toggle.
+                if effects:
+                    parts = []
+                    for sn, delta, mod, sec in effects:
+                        parts.append(f"{sn} {delta:+d}")
+                    fx_text = ",  ".join(parts)
+                    fx_item = QTableWidgetItem(fx_text)
+                    # Color by majority direction
+                    has_neg = any(d < 0 for _, d, _, _ in effects)
+                    has_pos = any(d > 0 for _, d, _, _ in effects)
+                    if has_neg and not has_pos:
+                        fx_item.setForeground(QColor(CLR_VALUE_NEG))
+                    elif has_pos and not has_neg:
+                        fx_item.setForeground(QColor(CLR_VALUE_POS))
+                    # Mixed: leave default color
+                    # Tooltip shows full mod/sec breakdown
+                    tip_lines = []
+                    for sn, delta, mod, sec in effects:
+                        b_val = base.get(sn, 0)
+                        tip_lines.append(_stat_cell_tooltip(sn, b_val, b_val + delta, cat))
+                    fx_item.setToolTip("\n".join(tip_lines))
+                else:
+                    fx_item = QTableWidgetItem("—")
+                    fx_item.setForeground(QColor(CLR_TEXT_MUTED))
+                fx_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+                self._table.setItem(row, self._col_fx, fx_item)
+
+            self._table.setSortingEnabled(True)
+            self._table.sortByColumn(self._col_sum, Qt.DescendingOrder)
+
+            mode = "effective" if self._include_injuries else "base (modifiers excluded from sum)"
+            self._note.setText(
+                f"{len(cats)} alive cats  ·  {fx_count} with stat effects  ·  showing {mode} stats"
+            )
+        finally:
+            self.setUpdatesEnabled(True)
 
     def refresh(self, cats: list):
         """Update cat list and repopulate (call when save reloads)."""
-        self._cats = cats
+        self._all_cats = cats
         self._populate()
 
 
-def show_stats_overview(parent, cats: list, stat_names: list | None = None) -> "StatsOverviewDialog":
-    """Open (or raise) the current-stats overview window.
+def show_stats_overview(parent, cats: list, stat_names: list | None = None,
+                        room_display: dict | None = None) -> StatsOverviewDialog:
+    """Open the current-stats overview as a non-blocking window.
 
     Returns the dialog so the caller can hold a reference and call refresh()
     when new save data arrives.
     """
-    dlg = StatsOverviewDialog(cats, stat_names, parent=parent)
+    dlg = StatsOverviewDialog(cats, stat_names, room_display=room_display, parent=parent)
     dlg.show()
     dlg.raise_()
     return dlg
