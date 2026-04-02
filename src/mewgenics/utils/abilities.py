@@ -690,6 +690,7 @@ def _load_ability_descriptions(gpak_path: str | None) -> dict[str, str]:
                     if not dm:
                         continue
                     desc_val = dm.group(1)
+                    desc_val = game_strings.get(desc_val, desc_val)
                     desc_val = _resolve_game_string(desc_val, game_strings)
                     if not desc_val or desc_val == "nothing":
                         continue
