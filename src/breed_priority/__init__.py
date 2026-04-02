@@ -680,6 +680,16 @@ class BreedPriorityView(QWidget):
         title_lbl = QLabel("Breed Priority")
         title_lbl.setStyleSheet(f"color:{CLR_TEXT_PRIMARY}; font-size:16px; font-weight:bold;")
         hb.addWidget(title_lbl)
+
+        self._btn_stats_overview = QPushButton("Current Stats…")
+        self._btn_stats_overview.setStyleSheet(ACTION_BUTTON_SECONDARY_STYLE)
+        self._btn_stats_overview.setFixedHeight(22)
+        self._btn_stats_overview.setToolTip(
+            "Open a window showing all cats' current stats (base + injuries),\n"
+            "with a toggle to include or exclude injury modifiers."
+        )
+        self._btn_stats_overview.clicked.connect(self._open_stats_overview)
+        hb.addWidget(self._btn_stats_overview)
         hb.addStretch()
 
         _chk_style = checkbox_style(
@@ -764,16 +774,6 @@ class BreedPriorityView(QWidget):
         self._chk_show_stats.setChecked(self._show_stats)
         self._chk_show_stats.stateChanged.connect(self._on_show_stats_changed)
         hb.addWidget(self._chk_show_stats)
-
-        self._btn_stats_overview = QPushButton("Current Stats…")
-        self._btn_stats_overview.setStyleSheet(ACTION_BUTTON_SECONDARY_STYLE)
-        self._btn_stats_overview.setFixedHeight(20)
-        self._btn_stats_overview.setToolTip(
-            "Open a window showing all cats' current stats (base + injuries),\n"
-            "with a toggle to include or exclude injury modifiers."
-        )
-        self._btn_stats_overview.clicked.connect(self._open_stats_overview)
-        hb.addWidget(self._btn_stats_overview)
         return top_bar
 
     def _build_scope_panel(self, layout):
