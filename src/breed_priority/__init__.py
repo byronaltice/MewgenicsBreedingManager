@@ -77,6 +77,7 @@ from .scoring import (
 from .tooltips import build_cat_tooltip, build_child_tooltip
 from .column_values import raw_col_value
 from .weight_popup import show_weights_popup
+from .stats_overview import show_stats_overview
 from .recompute_helpers import (
     build_relationship_maps, compute_seven_sets,
     compute_all_scores, compute_heatmap_norms,
@@ -763,6 +764,16 @@ class BreedPriorityView(QWidget):
         self._chk_show_stats.setChecked(self._show_stats)
         self._chk_show_stats.stateChanged.connect(self._on_show_stats_changed)
         hb.addWidget(self._chk_show_stats)
+
+        self._btn_stats_overview = QPushButton("Current Stats…")
+        self._btn_stats_overview.setStyleSheet(ACTION_BUTTON_SECONDARY_STYLE)
+        self._btn_stats_overview.setFixedHeight(20)
+        self._btn_stats_overview.setToolTip(
+            "Open a window showing all cats' current stats (base + injuries),\n"
+            "with a toggle to include or exclude injury modifiers."
+        )
+        self._btn_stats_overview.clicked.connect(self._open_stats_overview)
+        hb.addWidget(self._btn_stats_overview)
         return top_bar
 
     def _build_scope_panel(self, layout):
@@ -2428,3 +2439,14 @@ class BreedPriorityView(QWidget):
 
     def _show_weights_popup(self):
         show_weights_popup(self, self._weights)
+
+    def _open_stats_overview(self):
+        """Open (or raise) the current-stats overview window."""
+        if not hasattr(self, '_stats_overview_dlg') or self._stats_overview_dlg is None:
+            self._stats_overview_dlg = show_stats_overview(
+                self, self._cats, self._stat_names
+            )
+        else:
+            self._stats_overview_dlg.refresh(self._cats)
+            self._stats_overview_dlg.show()
+            self._stats_overview_dlg.raise_()
