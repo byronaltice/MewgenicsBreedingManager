@@ -38,6 +38,7 @@ BREED_PRIORITY_WEIGHTS = {
     "rivalry_room":       0.0,
     "seven_sub":           0.0,
     "seven_sub_threshold": 1.0,
+    "dex_low":             0.0,
 }
 
 # Weight editor UI rows
@@ -53,6 +54,8 @@ WEIGHT_UI_ROWS = [
     (None, None),
     ("seven_sub",          "7-Sub score"),
     ("seven_sub_threshold","  └ threshold"),
+    (None, None),
+    ("dex_low",            "DEX ≤ 4 penalty"),
     (None, None),
     ("gay_pref",         ("Sex", "Gay")),
     ("bi_pref",          ("",       "Bi")),
@@ -88,6 +91,7 @@ SCORE_COLUMNS = [
     ("7rare", ["stat_7"]),
     (SCORE_HEADER_7_COUNT,  ["stat_7_count"]),
     ("7sub",  ["seven_sub"]),
+    ("DEX",   ["dex_low"]),
     ("Sex",   ["gay_pref", "bi_pref"]),
     ("Lib",   ["high_libido", "low_libido"]),
     ("Gender", ["unknown_gender"]),
@@ -186,6 +190,7 @@ def compute_breed_priority_score(cat, scope_cats: list, ma_ratings: dict,
         "no_children": 0.0, "zero_risk_bonus": 0.0,
         "stat_sum": 0.0, "age_penalty": 0.0,
         "love_interest": 0.0, "rivalry": 0.0,
+        "dex_low": 0.0,
     }
     scope_set = {id(c) for c in scope_cats}
     _cat_in_scope = id(cat) in scope_set
@@ -194,6 +199,18 @@ def compute_breed_priority_score(cat, scope_cats: list, ma_ratings: dict,
     if cat.gender == "?":
         breakdown.append(("Unknown gender (?)", _w["unknown_gender"]))
         subtotals["unknown_gender"] = _w["unknown_gender"]
+
+    # ── DEX penalty ───────────────────────────────────────────────────────────
+    w_dex = _w.get("dex_low", 0.0)
+    if w_dex != 0.0:
+        _dex = cat.base_stats.get("DEX")
+        if _dex == 4:
+            breakdown.append(("DEX = 4", round(w_dex, 3)))
+            subtotals["dex_low"] = round(w_dex, 3)
+        elif _dex == 3:
+            _dex_pts = round(w_dex * 2, 3)
+            breakdown.append(("DEX = 3 (2×)", _dex_pts))
+            subtotals["dex_low"] = _dex_pts
 
     if cat.aggression is not None and cat.aggression < TRAIT_LOW_THRESHOLD:
         breakdown.append(("Low aggression", _w["low_aggression"]))
