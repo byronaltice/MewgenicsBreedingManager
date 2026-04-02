@@ -212,6 +212,30 @@ Coverage includes parser, donation logic, cat detail views, UI persistence, room
 - Internationalization via locale JSON files in `locales/` (en, ru, zh_CN, pl)
 - Version string is managed in `VERSION` at repo root
 
+**Autonomy scope:** Free to move, rename, delete, and restructure files within the repo. Cautious with irreversible actions outside the repo (destructive OS-level operations). Git operations are generally safe — committed code is recoverable from reflog.
+
+## Code Quality
+
+Apply these rules to all code you write or modify. When the explicit purpose of a session is refactoring, these rules are the goal — apply them fully.
+
+**Concrete rules:**
+- No magic numbers — every numeric literal except `0`, `1`, and trivially obvious arithmetic (e.g., `len(x) - 1`) must be a named constant
+- New UI values (colors, sizes, column indices, widths) belong in `constants.py`; user-facing strings go through `_tr()`
+- Meaningful names — no `data`, `result`, `tmp`, `val`, or single-letter names outside of loop counters (`i`, `j`, `k`)
+- One responsibility per function — if describing it requires "and", split it
+- Repeated string literals used as keys, identifiers, or config values belong in constants
+
+**Structural judgment:**
+- Match abstraction level to complexity — don't wrap a 3-line utility in a class, but don't write 300-line procedural functions either
+- Low coupling — modules communicate through public APIs and Qt signals, not by reaching into each other's internals
+- Reuse before creating — before adding a new helper, class, or pattern, search for an existing one to reuse or extend
+- DRY — don't duplicate logic; extract shared behavior into a common location
+- Keep abstraction levels consistent within a function — don't mix high-level orchestration with low-level implementation details in the same function body
+- Before modifying a module, read it and match its style and patterns; extend existing patterns rather than inventing new ones
+- Fix the class of issues, not just the instance — when fixing one violation, search for similar ones nearby
+
+**Judgment over dogma:** If following a rule makes the code demonstrably worse in context, note the deviation briefly.
+
 ## Known Design Decisions
 
 - **Lover conflicts at room level, not pair level**: `breeding.py::is_lover_conflict()` intentionally returns `False`. Lover exclusivity is enforced at room assignment time by `room_optimizer/optimizer.py::_filter_lover_exclusivity()`.
