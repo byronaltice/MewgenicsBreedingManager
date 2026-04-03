@@ -114,6 +114,8 @@ _ZOOM_STEP = 10
 
 _CHIP_STYLE = ("QLabel { background:#252545; color:#ccc; border-radius:6px;"
                " padding:2px 7px; font-size:11px; }")
+_CHIP_UPGRADED_STYLE = ("QLabel { background:#1a3028; color:#78d8a8; border-radius:6px;"
+                        " padding:2px 7px; font-size:11px; }")
 _DEFECT_CHIP_STYLE = ("QLabel { background:#3a1a1a; color:#e0a0a0; border-radius:6px;"
                       " padding:2px 7px; font-size:11px; }")
 _SEC_STYLE  = "color:#555; font-size:10px; font-weight:bold; letter-spacing:1px;"

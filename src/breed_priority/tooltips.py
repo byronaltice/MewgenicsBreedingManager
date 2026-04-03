@@ -5,7 +5,7 @@ All required context is passed in explicitly.
 """
 
 from .columns import _STAT_COL_NAMES
-from .scoring import ScoreResult, ability_base, is_basic_trait
+from .scoring import ScoreResult, ability_base, is_basic_trait, is_upgraded
 from .theme import (
     CLR_HIGHLIGHT, CLR_TEXT_UI_LABEL,
     CLR_TOP_PRIORITY, CLR_DESIRABLE, CLR_UNDESIRABLE,
@@ -37,10 +37,15 @@ def build_child_tooltip(cat, display_name_fn) -> str:
         f'<br><span style="color:#888;font-size:10px">{stats_str}</span>'
     )
     # Trait sections
-    active_abs  = [display_name_fn(ability_base(a))
-                   for a in cat.abilities if not is_basic_trait(a)]
-    passive_abs = [display_name_fn(ability_base(a))
-                   for a in cat.passive_abilities if not is_basic_trait(a)]
+    passive_tiers = getattr(cat, 'passive_tiers', {})
+    active_abs  = [
+        display_name_fn(ability_base(a)) + ("+" if is_upgraded(a) else "")
+        for a in cat.abilities if not is_basic_trait(a)
+    ]
+    passive_abs = [
+        display_name_fn(ability_base(a)) + ("+" if passive_tiers.get(a, 1) > 1 else "")
+        for a in cat.passive_abilities if not is_basic_trait(a)
+    ]
     disorders   = [display_name_fn(ability_base(d))
                    for d in getattr(cat, 'disorders', []) if not is_basic_trait(d)]
     mutations   = [m for m in cat.mutations if not is_basic_trait(m)]
@@ -135,10 +140,18 @@ def build_cat_tooltip(
     mutation_traits = [t for t in cat.mutations if not is_basic_trait(t)]
     defect_traits = [t for t in getattr(cat, 'defects', []) if not is_basic_trait(t)]
 
-    def _trait_rows_for(traits: list) -> list:
+    _upgraded_active = {ability_base(a) for a in cat.abilities if is_upgraded(a)}
+    _passive_tiers = getattr(cat, 'passive_tiers', {})
+    _upgraded_passive = {
+        ability_base(p) for p in cat.passive_abilities
+        if _passive_tiers.get(p, 1) > 1
+    }
+
+    def _trait_rows_for(traits: list, upgraded_set: set = frozenset()) -> list:
         rows = []
         for trait in traits:
-            display = display_name_fn(trait)
+            suffix = "+" if trait in upgraded_set else ""
+            display = display_name_fn(trait) + suffix
             rating = ma_ratings.get(trait)
             sharing = [c for c in scope_cats
                        if c is not cat and trait in _scope_base[id(c)]]
@@ -178,8 +191,8 @@ def build_cat_tooltip(
                 rows.append(row(CLR_HIGHLIGHT, f"&nbsp;&nbsp;↳ {names_text}", ""))
         return rows
 
-    active_rows   = _trait_rows_for(active_traits)
-    passive_rows  = _trait_rows_for(passive_traits)
+    active_rows   = _trait_rows_for(active_traits,  _upgraded_active)
+    passive_rows  = _trait_rows_for(passive_traits, _upgraded_passive)
     disorder_rows = _trait_rows_for(disorder_traits)
     mutation_rows = _trait_rows_for(mutation_traits)
     defect_rows   = _trait_rows_for(defect_traits)

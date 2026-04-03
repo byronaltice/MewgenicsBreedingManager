@@ -1223,8 +1223,11 @@ class Cat:
                 if _valid_str(ri):
                     passives.append(ri)
 
+            passive_tiers: dict[str, int] = {}
             try:
-                r.u32()   # passive1 tier — discard
+                passive1_tier = r.u32()
+                if passives:
+                    passive_tiers[passives[0]] = passive1_tier
             except Exception:
                 logger.debug("Cat %s: passive1 tier read failed", cat_key, exc_info=True)
 
@@ -1242,12 +1245,15 @@ class Cat:
                     else:
                         disorders.append(item)
                 try:
-                    r.u32()
+                    slot_tier = r.u32()
+                    if tail_idx == 0 and item is not None and _IDENT_RE.match(item) and _valid_str(item):
+                        passive_tiers[item] = slot_tier
                 except Exception:
                     logger.debug("Cat %s: tail slot %d tier read failed", cat_key, tail_idx, exc_info=True)
                     break
 
             self.passive_abilities = passives
+            self.passive_tiers = passive_tiers
             self.disorders = disorders
             self.equipment = []
 
@@ -1269,6 +1275,7 @@ class Cat:
             self.equipment = [s for s in [r.str() for _ in range(4)] if _valid_str(s)]
 
             self.passive_abilities = []
+            self.passive_tiers = {}
             self.disorders = []
             first = r.str()
             if _valid_str(first):

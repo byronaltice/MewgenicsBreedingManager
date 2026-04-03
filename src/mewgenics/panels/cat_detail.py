@@ -30,13 +30,13 @@ from mewgenics.utils.config import _load_app_config, _save_app_config
 from mewgenics.utils.cat_analysis import _cat_base_sum, _pair_breakpoint_analysis
 from mewgenics.utils.calibration import _trait_label_from_value, _trait_level_color
 from mewgenics.utils.abilities import (
-    _mutation_display_name, _ability_tip,
+    _mutation_display_name, _ability_tip, _ability_upgraded_tip, _strip_tier,
     _ability_effect_lines, _mutation_effect_lines,
     _trait_inheritance_probabilities,
 )
 from mewgenics.utils.game_data import _GPAK_PATH
 from mewgenics.utils.styling import (
-    _chip, _defect_chip, _sec, _vsep, _hsep,
+    _chip, _upgraded_chip, _defect_chip, _sec, _vsep, _hsep,
     _detail_text_block, _enforce_min_font_in_widget_tree,
 )
 
@@ -53,13 +53,18 @@ def _wrapped_chip_block(items, tooltip_fn=None, display_fn=None, max_per_row: in
         row.setContentsMargins(0, 0, 0, 0)
         row.setSpacing(5)
         for item in items[start:start + max_per_row]:
-            if isinstance(item, tuple):
+            if isinstance(item, tuple) and len(item) == 3:
+                text, tip, is_upgraded = item
+                chip = _upgraded_chip(text, tip) if is_upgraded else _chip(text, tip)
+            elif isinstance(item, tuple):
                 text, tip = item
                 tip = tip or (tooltip_fn(text) if tooltip_fn else "")
+                chip = _chip(text, tip)
             else:
                 text = display_fn(item) if display_fn else item
                 tip = tooltip_fn(item) if tooltip_fn else ""
-            row.addWidget(_chip(text, tip))
+                chip = _chip(text, tip)
+            row.addWidget(chip)
         row.addStretch()
         layout.addLayout(row)
     return box
@@ -72,13 +77,18 @@ class ChipRow(QWidget):
         row.setContentsMargins(0, 0, 0, 0)
         row.setSpacing(5)
         for item in items:
-            if isinstance(item, tuple):
+            if isinstance(item, tuple) and len(item) == 3:
+                text, tip, is_upgraded = item
+                chip = _upgraded_chip(text, tip) if is_upgraded else _chip(text, tip)
+            elif isinstance(item, tuple):
                 text, tip = item
                 tip = tip or (tooltip_fn(text) if tooltip_fn else "")
+                chip = _chip(text, tip)
             else:
                 text = display_fn(item) if display_fn else item
                 tip = tooltip_fn(item) if tooltip_fn else ""
-            row.addWidget(_chip(text, tip))
+                chip = _chip(text, tip)
+            row.addWidget(chip)
         row.addStretch()
 
 
@@ -319,15 +329,27 @@ class CatDetailPanel(QWidget):
         if cat.abilities or cat.passive_abilities or cat.disorders:
             root.addWidget(_vsep())
             ab = QVBoxLayout(); ab.setSpacing(4)
+            passive_tiers = getattr(cat, "passive_tiers", {})
             ab.addWidget(_sec("ABILITIES"))
-            ab.addWidget(ChipRow(cat.abilities, tooltip_fn=_ability_tip))
+            ability_items = [
+                (base if tier == 1 else f"{base}+",
+                 _ability_upgraded_tip(name),
+                 tier > 1)
+                for name in cat.abilities
+                for base, tier in [_strip_tier(name)]
+            ]
+            ab.addWidget(ChipRow(ability_items))
             if cat.passive_abilities:
                 ab.addWidget(_sec("PASSIVE"))
-                ab.addWidget(ChipRow(
-                    cat.passive_abilities,
-                    tooltip_fn=_ability_tip,
-                    display_fn=lambda n: f"● {_mutation_display_name(n)}",
-                ))
+                passive_items = [
+                    (f"● {_mutation_display_name(name)}" if tier == 1
+                     else f"● {_mutation_display_name(name)}+",
+                     _ability_upgraded_tip(name, passive_tier=tier),
+                     tier > 1)
+                    for name in cat.passive_abilities
+                    for tier in [passive_tiers.get(name, 1)]
+                ]
+                ab.addWidget(ChipRow(passive_items))
             if cat.disorders:
                 ab.addWidget(_sec("DISORDERS"))
                 ab.addWidget(ChipRow(
@@ -647,13 +669,23 @@ class CatDetailPanel(QWidget):
         for cat in (a, b):
             if cat.abilities or cat.passive_abilities or cat.disorders:
                 ab_col.addWidget(QLabel(f"{cat.name}:", styleSheet="color:#555; font-size:10px;"))
-                ability_items = [(ab, _ability_tip(ab)) for ab in cat.abilities]
+                _pt = getattr(cat, "passive_tiers", {})
+                ability_items = [
+                    (base if tier == 1 else f"{base}+",
+                     _ability_upgraded_tip(ab),
+                     tier > 1)
+                    for ab in cat.abilities
+                    for base, tier in [_strip_tier(ab)]
+                ]
                 ability_items.extend(
-                    (f"● {_mutation_display_name(pa)}", _ability_tip(pa))
+                    (f"● {_mutation_display_name(pa)}" if _pt.get(pa, 1) == 1
+                     else f"● {_mutation_display_name(pa)}+",
+                     _ability_upgraded_tip(pa, passive_tier=_pt.get(pa, 1)),
+                     _pt.get(pa, 1) > 1)
                     for pa in cat.passive_abilities
                 )
                 ability_items.extend(
-                    (f"⚠ {_mutation_display_name(d)}", _ability_tip(d))
+                    (f"⚠ {_mutation_display_name(d)}", _ability_tip(d), False)
                     for d in cat.disorders
                 )
                 ab_col.addWidget(_wrapped_chip_block(ability_items, max_per_row=4))

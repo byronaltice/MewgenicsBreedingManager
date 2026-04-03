@@ -161,6 +161,11 @@ def ability_base(name: str) -> str:
     return name
 
 
+def is_upgraded(name: str) -> bool:
+    """Return True if the ability name indicates a tier-2 upgrade (trailing '2')."""
+    return len(name) > 1 and name[-1] == "2"
+
+
 def compute_breed_priority_score(cat, scope_cats: list, ma_ratings: dict,
                          stat_names: list, weights: dict = None,
                          mutation_display_name=None,
