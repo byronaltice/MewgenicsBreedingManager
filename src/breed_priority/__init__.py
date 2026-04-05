@@ -7,6 +7,7 @@ ability_tip) are injected via BreedPriorityView.__init__() arguments.
 
 import os
 import json
+from typing import Optional, Callable
 
 from save_parser import risk_percent
 
@@ -14,6 +15,7 @@ from .filters import FilterState, FilterDialog, cat_passes_filter
 from .stat_text_formatter import StatTextFormatter
 from .color_utils import ColorUtils
 from .chip_colors import ChipColors
+from .deck_pull_button import create_pull_deck_save_button
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSplitter,
@@ -169,6 +171,7 @@ class BreedPriorityView(QWidget):
         self._profile_snapshot: dict = {} # serialized state when last profile was loaded
         self._profile_name_text: str = ""  # display name for the currently-loaded profile
         self._profile_traits_only: bool = False  # only save/load trait desirability ratings
+        self._deck_save_puller = None
         self._load_ratings()
         self._build_ui()
         self.setStyleSheet(
@@ -690,6 +693,12 @@ class BreedPriorityView(QWidget):
         )
         self._btn_stats_overview.clicked.connect(self._open_stats_overview)
         hb.addWidget(self._btn_stats_overview)
+
+        self._btn_pull_deck_save = create_pull_deck_save_button(
+            style=ACTION_BUTTON_SECONDARY_STYLE,
+            parent=self,
+        )
+        hb.addWidget(self._btn_pull_deck_save)
         hb.addStretch()
 
         _chk_style = checkbox_style(
@@ -1672,6 +1681,26 @@ class BreedPriorityView(QWidget):
                 self.recompute()
 
     # ── Data ─────────────────────────────────────────────────────────────────
+
+    def configure_deck_save_pull(
+        self,
+        current_save_provider: Callable[[], Optional[str]],
+        on_reload_requested: Callable[[], None],
+        on_status_message: Callable[[str], None],
+    ):
+        """Wire the temporary Deck save pull button and controller for this view."""
+        from mewgenics.utils.deck_save_pull import create_temp_deck_save_puller
+
+        puller = create_temp_deck_save_puller(
+            parent=self,
+            current_save_provider=current_save_provider,
+        )
+        puller.started.connect(lambda: self._btn_pull_deck_save.set_busy(True))
+        puller.finished.connect(lambda: self._btn_pull_deck_save.set_busy(False))
+        puller.message.connect(on_status_message)
+        puller.reloadRequested.connect(on_reload_requested)
+        self._btn_pull_deck_save.set_callback(puller.pull_and_reload)
+        self._deck_save_puller = puller
 
     def set_cats(self, cats: list):
         self._cats = cats
