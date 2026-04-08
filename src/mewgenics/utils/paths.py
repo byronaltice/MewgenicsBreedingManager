@@ -43,7 +43,7 @@ if platform.system() == "Linux":
     APPDATA_SAVE_DIR = os.path.join(
         str(Path.home()), ".steam", "steam", "steamapps",
         "compatdata", "686060", "pfx", "drive_c", "users", "steamuser", "AppData", "Roaming",
-        "Glaiel Games", "Mewgenics",
+        "Glaiel Games", "Mewgenics", ".",
     )
     APPDATA_CONFIG_DIR = os.path.join(
         str(Path.home()), "MewgenicsBreedingManager",
@@ -51,7 +51,7 @@ if platform.system() == "Linux":
 else:
     APPDATA_SAVE_DIR = os.path.join(
         os.environ.get("APPDATA", ""),
-        "Glaiel Games", "Mewgenics",
+        "Glaiel Games", "Mewgenics", ".",
     )
     APPDATA_CONFIG_DIR = os.path.join(
         os.environ.get("APPDATA", str(Path.home())),

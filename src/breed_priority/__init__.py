@@ -19,7 +19,7 @@ from .deck_pull_button import create_pull_deck_save_button
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSplitter,
-    QSizePolicy, QFrame,
+    QSizePolicy, QFrame, QScrollArea,
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
     QListWidget, QListWidgetItem, QButtonGroup,
     QCheckBox, QComboBox, QLineEdit, QPushButton, QGridLayout,
@@ -1175,17 +1175,29 @@ class BreedPriorityView(QWidget):
         hs.setHandleWidth(14)
         vb.addWidget(hs)
 
-        # Left: scope + weights panel
+        # Left: scope + weights panel (scrollable for short displays)
         left = QWidget()
+        left.setObjectName("breed_priority_left_panel")
         left.setMinimumWidth(0)
-        left.setStyleSheet(f"background:{CLR_BG_PANEL};")
+        left.setStyleSheet(f"QWidget#breed_priority_left_panel {{ background:{CLR_BG_PANEL}; }}")
         lv = QVBoxLayout(left)
         lv.setContentsMargins(8, 12, 8, 8)
         lv.setSpacing(4)
         self._build_scope_panel(lv)
         self._build_weights_panel(lv)
         lv.addStretch()
-        hs.addWidget(left)
+        left_scroll = QScrollArea()
+        left_scroll.setWidget(left)
+        left_scroll.setWidgetResizable(True)
+        left_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        left_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        left_scroll.setStyleSheet(
+            "QScrollArea { border: none; background: transparent; }"
+            "QWidget#qt_scrollarea_viewport { background: transparent; }"
+            "QScrollBar:vertical { width: 5px; background: #0d0d1a; }"
+            "QScrollBar::handle:vertical { background: #2a2a4a; border-radius: 2px; }"
+        )
+        hs.addWidget(left_scroll)
 
         # Right: score table (top) + trait editor (bottom)
         vs = QSplitter(Qt.Vertical)
@@ -2012,6 +2024,7 @@ class BreedPriorityView(QWidget):
             scope_gene_risk = result.scope_gene_risk
             ch_in_scope = _children_in_scope(cat)
             _sub_count = _cat_sub_counts.get(id(cat), 0)
+            _has_sevens = bool(_seven_sets.get(id(cat), frozenset()))
 
             # ── Name ──
             name_item = QTableWidgetItem(cat.name)
@@ -2315,8 +2328,13 @@ class BreedPriorityView(QWidget):
                                 text, color = "", CLR_VALUE_NEUTRAL
                         score_val = float(age) if age is not None else 0.0
                     elif hdr == "7sub":
-                        text  = f"▲{_sub_count}" if _sub_count else ""
-                        color = "#cc8844" if _sub_count else "#333333"
+                        if _sub_count > 0:
+                            text, color = f"▲{_sub_count}", "#cc8844"
+                        elif _has_sevens:
+                            # Distinguish unique 7-sets from cats with no 7s.
+                            text, color = "0", CLR_DESIRABLE
+                        else:
+                            text, color = "", "#333333"
                     else:
                         text = f"{score_val:+.1f}" if score_val != 0 else ""
                         color = CLR_VALUE_NEUTRAL

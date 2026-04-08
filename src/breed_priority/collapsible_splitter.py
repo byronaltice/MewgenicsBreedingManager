@@ -9,7 +9,9 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QBrush, QPainter, QFont
 
 
-LEFT_PANEL_W = 180   # expanded width of the left scope/weights panel
+# Keep enough width for dual-step controls (+1/-1 and +5/-5), even when
+# the left panel shows a vertical scrollbar on shorter displays.
+LEFT_PANEL_W = 255   # expanded width of the left scope/weights panel
 
 
 class CollapseHandle(QSplitterHandle):
