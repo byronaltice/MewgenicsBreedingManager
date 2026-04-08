@@ -9,9 +9,10 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QBrush, QPainter, QFont
 
 
-# Keep enough width for dual-step controls (+1/-1 and +5/-5), even when
-# the left panel shows a vertical scrollbar on shorter displays.
-LEFT_PANEL_W = 255   # expanded width of the left scope/weights panel
+# Must fit: room-row fixed labels (3×32 + 44 = 140px) + longest room-name checkbox
+# (~94px) + row spacing + room-checks left margin (6px) + panel margins (16px) ≈ 268px.
+# 280 adds headroom for font variation.
+LEFT_PANEL_W = 280   # expanded width of the left scope/weights panel
 
 
 class CollapseHandle(QSplitterHandle):
