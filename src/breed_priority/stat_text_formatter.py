@@ -57,24 +57,28 @@ class StatTextFormatter:
 
     @classmethod
     def mutation_summary(cls, tip: str) -> str:
-        """Extract the stat effect line from a mutation tooltip.
+        """Extract the effect line from a mutation tooltip.
 
         Mutation tooltips have the format:
             'Body Eyes Mutation (ID 300)\\nBody Mutation\\n+2 DEX, -1 LCK'
-        We want just the stat effect part (last line if it contains +/- numbers).
+        or for non-numeric effects:
+            'Docked Ears (ID 335)\\nDocked Ears\\nStart with Bleed 1 and a bonus attack'
+
+        Strips the header (ID line) and mutation name, then returns the first
+        remaining detail line (emojified).  Trailing "Affects:" lines are ignored.
         """
         if not tip:
             return ""
-        for line in reversed(tip.strip().split("\n")):
-            line = line.strip()
-            if not line:
-                continue
-            if _re.search(r'[+-]\d+\s*\w', line):
-                return cls.emojify(cls._extract_english(line))
-            for stat_name in cls.EMOJI:
-                if stat_name in line:
-                    return cls.emojify(cls._extract_english(line))
-        return ""
+        lines = [ln.strip() for ln in tip.strip().split("\n") if ln.strip()]
+        # Require at least: header (contains "(ID "), name, and one detail line
+        if not lines or "(ID " not in lines[0] or len(lines) < 3:
+            return ""
+        detail_lines = lines[2:]
+        while detail_lines and detail_lines[-1].startswith("Affects:"):
+            detail_lines.pop()
+        if not detail_lines:
+            return ""
+        return cls.emojify(cls._extract_english(detail_lines[0]))
 
     @classmethod
     def ability_summary(cls, tip: str) -> str:
