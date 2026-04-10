@@ -540,7 +540,7 @@ def _mutation_effect_lines(cat: "Cat") -> list[str]:
     lines: list[str] = []
     for text, tip in cat.mutation_chip_items:
         detail = _trait_visible_detail(tip).strip()
-        if not detail:
+        if not detail or detail in text:
             continue
         lines.append(f"{text}: {detail}")
     return lines

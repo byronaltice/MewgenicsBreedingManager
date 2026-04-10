@@ -694,7 +694,8 @@ def _read_visual_mutation_entries(table: list[int]) -> list[dict[str, object]]:
         if gpak_info:
             raw_name, stat_desc = gpak_info
             if re.match(r'^Mutation \d+$', raw_name):
-                display_name = f"{part_label} Mutation"
+                base = f"{part_label} Mutation"
+                display_name = f"{base} {stat_desc}" if stat_desc else base
             else:
                 display_name = raw_name
             detail = stat_desc
@@ -752,7 +753,7 @@ def _visual_mutation_chip_items(entries: list[dict[str, object]]) -> list[tuple[
         kind = "Birth Defect" if is_defect else "Mutation"
         id_str = "-2" if mutation_id == 0xFFFF_FFFE else str(mutation_id)
         tooltip = f"{title_label} {kind} (ID {id_str})\n{name}"
-        if detail:
+        if detail and detail not in name:
             tooltip = f"{tooltip}\n{detail}"
         if len(slot_labels) > 1:
             tooltip = f"{tooltip}\nAffects: {', '.join(slot_labels)}"
