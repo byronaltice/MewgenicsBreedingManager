@@ -9,7 +9,7 @@ import os
 import json
 from typing import Optional, Callable
 
-from save_parser import risk_percent
+from save_parser import risk_percent, can_breed
 
 from .filters import FilterState, FilterDialog, cat_passes_filter
 from .stat_text_formatter import StatTextFormatter
@@ -1440,6 +1440,8 @@ class BreedPriorityView(QWidget):
         for other in scope_cats:
             if other is cat:
                 continue
+            if not can_breed(cat, other)[0]:
+                continue
             risks.append((other, self._scope_pair_risk(cat, other)))
 
         risks.sort(key=lambda x: x[1], reverse=True)
@@ -1755,7 +1757,8 @@ class BreedPriorityView(QWidget):
                 for _cat in room_cats:
                     _vals = [
                         float(risk_percent(_cat, _other, _risk_memo))
-                        for _other in room_cats if _other is not _cat
+                        for _other in room_cats
+                        if _other is not _cat and can_breed(_cat, _other)[0]
                     ]
                     if _vals:
                         _per_cat.append(sum(_vals) / len(_vals))
@@ -1929,6 +1932,8 @@ class BreedPriorityView(QWidget):
         _risk_floor = 2.0
         for _other in scope_cats:
             if _other is cat:
+                continue
+            if not can_breed(cat, _other)[0]:
                 continue
             _risk = self._scope_pair_risk(cat, _other)
             if _risk <= _risk_floor:
