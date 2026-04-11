@@ -1747,17 +1747,20 @@ class BreedPriorityView(QWidget):
         _GC_U = CLR_GENDER_UNKNOWN
         for room in rooms:
             room_cats = [c for c in alive if c.room == room]
+            # For risk calculation, exclude kittens when the option is on.
+            risk_cats = [c for c in room_cats if not self._is_kitten(c)] \
+                if self._hide_kittens else room_cats
             _n = len(room_cats)
             _nm = sum(1 for c in room_cats if getattr(c, 'gender_display', '?') in ('M', 'Male'))
             _nf = sum(1 for c in room_cats if getattr(c, 'gender_display', '?') in ('F', 'Female'))
             _nu = _n - _nm - _nf
             _room_avg_r = 0.0
-            if _n > 1:
+            if len(risk_cats) > 1:
                 _per_cat = []
-                for _cat in room_cats:
+                for _cat in risk_cats:
                     _vals = [
                         float(risk_percent(_cat, _other, _risk_memo))
-                        for _other in room_cats
+                        for _other in risk_cats
                         if _other is not _cat and can_breed(_cat, _other)[0]
                     ]
                     if _vals:
