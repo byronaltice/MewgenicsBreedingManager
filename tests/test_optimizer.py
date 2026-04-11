@@ -95,7 +95,8 @@ def test_build_room_configs_uses_capacity_and_room_stimulation():
     assert best_breeding_room_stimulation(configs) == 17.0
 
 
-def test_optimize_room_distribution_finds_same_sex_pair():
+def test_optimize_room_distribution_does_not_pair_same_sex_cats():
+    # Same-gender cats cannot produce kittens and must not be paired as breeders.
     cat_a = _make_cat(1, gender="male", sexuality="bi", must_breed=True, stat_seed=8)
     cat_b = _make_cat(2, gender="male", sexuality="bi", must_breed=True, stat_seed=8)
     cat_c = _make_cat(3, gender="female", sexuality="straight", stat_seed=4)
@@ -118,8 +119,7 @@ def test_optimize_room_distribution_finds_same_sex_pair():
         for pair in assignment.pairs
     }
 
-    assert (1, 2) in paired_ids
-    assert result.stats.total_pairs >= 1
+    assert (1, 2) not in paired_ids  # same-gender bi+bi — can't breed
 
 
 def test_optimize_room_distribution_uses_disjoint_room_pairs():

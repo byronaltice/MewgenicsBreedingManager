@@ -78,10 +78,10 @@ def planner_pair_bias(a: Cat, b: Cat) -> float:
 
 def planner_pair_allows_breeding(a: Cat, b: Cat) -> bool:
     """
-    Hard planner rule that follows the game's sexuality compatibility.
+    Hard planner rule: returns True only if this pair can produce kittens.
 
-    Same-sex pairs are allowed when their sexuality permits it, and straight
-    same-sex pairs remain blocked.
+    Delegates to can_breed() — ? gender pairs with anyone; same-gender
+    non-? pairs are always blocked; gay cats can only pair with ? gender.
     """
     return can_breed(a, b)[0]
 

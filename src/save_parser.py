@@ -1672,35 +1672,37 @@ def get_grandparents(cat: Cat) -> list[Cat]:
 
 
 def can_breed(a: Cat, b: Cat) -> tuple[bool, str]:
-    """Return (ok, reason). reason is non-empty only when ok is False."""
+    """Return (ok, reason). reason is non-empty only when ok is False.
+
+    Compatibility rules (kittens require M+F or ? involvement):
+      - ? gender pairs with any cat regardless of sexuality.
+      - Same gender (neither ?): never compatible — can't produce kittens.
+      - Opposite gender: compatible only if neither cat is gay.
+        Gay cats will only mate with same-sex partners, but same-sex pairs
+        can't produce kittens, so their only viable partner is ? gender.
+    """
     if a is b:
         return False, "Cannot pair a cat with itself"
     ga = (a.gender or "?").strip().lower()
     gb = (b.gender or "?").strip().lower()
 
-    # Sexuality check
-    sa = (getattr(a, "sexuality", None) or "straight").lower()
-    sb = (getattr(b, "sexuality", None) or "straight").lower()
-
+    # ? gender pairs with anyone; their sexuality is irrelevant.
     if ga == "?" or gb == "?":
         return True, ""
 
-    if ga != "?" and gb != "?":
-        same_gender = ga == gb
-        if same_gender:
-            # Same-sex pairs need both cats to allow same-sex breeding.
-            if sa == "straight" or sb == "straight":
-                if sa == "straight":
-                    return False, f"{a.name} is straight — needs opposite-gender partner"
-                return False, f"{b.name} is straight — needs opposite-gender partner"
-            return True, ""
+    # Same-gender pairs (neither ?) can never produce kittens.
+    if ga == gb:
+        return False, "Same-gender pairs cannot breed"
 
-        # Opposite-sex pairs need both cats to allow opposite-sex breeding.
-        if sa == "gay" or sb == "gay":
-            if sa == "gay":
-                return False, f"{a.name} is gay — needs same-gender partner"
-            return False, f"{b.name} is gay — needs same-gender partner"
-        return True, ""
+    # Opposite-gender pair: gay cats can only breed with ? gender.
+    sa = (getattr(a, "sexuality", None) or "straight").lower()
+    sb = (getattr(b, "sexuality", None) or "straight").lower()
+    if sa == "gay":
+        return False, f"{a.name} is gay — can only breed with ? gender"
+    if sb == "gay":
+        return False, f"{b.name} is gay — can only breed with ? gender"
+
+    return True, ""
 
 
 def _is_hater_pair(a: 'Cat', b: 'Cat') -> bool:

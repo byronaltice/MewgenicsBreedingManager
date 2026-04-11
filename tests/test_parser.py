@@ -461,24 +461,49 @@ class TestCanBreed:
         ok, reason = can_breed(a, b)
         assert not ok
 
-    def test_same_gender_gay_accepted(self):
+    def test_same_gender_gay_rejected(self):
+        # Gay+Gay same gender can't produce kittens — always rejected.
         a = _make_cat(db_key=1, gender="male", sexuality="gay")
         b = _make_cat(db_key=2, gender="male", sexuality="gay")
         ok, _ = can_breed(a, b)
-        assert ok
+        assert not ok
+
+    def test_same_gender_bi_rejected(self):
+        # Bi+Bi same gender can't produce kittens — always rejected.
+        a = _make_cat(db_key=1, gender="female", sexuality="bi")
+        b = _make_cat(db_key=2, gender="female", sexuality="bi")
+        ok, _ = can_breed(a, b)
+        assert not ok
 
     def test_opposite_gender_gay_rejected(self):
+        # Gay cats only breed with ? gender; opposite-gender non-? is rejected.
         a = _make_cat(db_key=1, gender="male", sexuality="gay")
         b = _make_cat(db_key=2, gender="female", sexuality="straight")
         ok, reason = can_breed(a, b)
         assert not ok
+        assert "gay" in reason.lower()
 
-    def test_bi_same_gender_rejected_against_straight(self):
-        a = _make_cat(db_key=1, gender="male", sexuality="bi")
-        b = _make_cat(db_key=2, gender="male", sexuality="straight")
+    def test_opposite_gender_both_gay_rejected(self):
+        # Gay male + Gay female: both are gay, both reject the opposite sex.
+        a = _make_cat(db_key=1, gender="male", sexuality="gay")
+        b = _make_cat(db_key=2, gender="female", sexuality="gay")
+        ok, _ = can_breed(a, b)
+        assert not ok
+
+    def test_bi_opposite_gender_gay_partner_rejected(self):
+        # Bi cat with a gay opposite-gender partner: gay cat won't participate.
+        a = _make_cat(db_key=1, gender="female", sexuality="bi")
+        b = _make_cat(db_key=2, gender="male", sexuality="gay")
         ok, reason = can_breed(a, b)
         assert not ok
-        assert "straight" in reason.lower()
+        assert "gay" in reason.lower()
+
+    def test_bi_same_gender_rejected(self):
+        # Same gender is always rejected regardless of sexuality.
+        a = _make_cat(db_key=1, gender="male", sexuality="bi")
+        b = _make_cat(db_key=2, gender="male", sexuality="straight")
+        ok, _ = can_breed(a, b)
+        assert not ok
 
     def test_bi_opposite_gender_allowed(self):
         a = _make_cat(db_key=1, gender="male", sexuality="bi")
@@ -486,9 +511,22 @@ class TestCanBreed:
         ok, _ = can_breed(a, b)
         assert ok
 
+    def test_bi_bi_opposite_gender_allowed(self):
+        a = _make_cat(db_key=1, gender="male", sexuality="bi")
+        b = _make_cat(db_key=2, gender="female", sexuality="bi")
+        ok, _ = can_breed(a, b)
+        assert ok
+
     def test_unknown_gender_pairs_with_any(self):
         a = _make_cat(db_key=1, gender="?")
         b = _make_cat(db_key=2, gender="female")
+        ok, _ = can_breed(a, b)
+        assert ok
+
+    def test_unknown_gender_pairs_with_gay(self):
+        # ? gender bypasses all sexuality checks.
+        a = _make_cat(db_key=1, gender="?", sexuality="gay")
+        b = _make_cat(db_key=2, gender="female", sexuality="gay")
         ok, _ = can_breed(a, b)
         assert ok
 

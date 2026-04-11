@@ -3,7 +3,7 @@
 Standalone module — no imports from mewgenics_manager to avoid circular deps.
 """
 
-from save_parser import risk_percent
+from save_parser import risk_percent, can_breed
 
 # ── Personality trait thresholds ─────────────────────────────────────────────
 
@@ -348,10 +348,14 @@ def compute_breed_priority_score(cat, scope_cats: list, ma_ratings: dict,
         subtotals["low_libido"] = _w["low_libido"]
 
     # Genetic Safety: average in-scope pair risk.
+    # Only include partners this cat can actually breed with — same-sex and
+    # incompatible-sexuality pairs are excluded since they can't produce kittens.
     risk_fn = gene_risk_lookup if callable(gene_risk_lookup) else risk_percent
     _risk_vals = []
     for partner in scope_cats:
         if partner is cat:
+            continue
+        if not can_breed(cat, partner)[0]:
             continue
         if gene_risk_cache is not None:
             _rk = (id(cat), id(partner)) if id(cat) < id(partner) else (id(partner), id(cat))
