@@ -284,3 +284,20 @@ def _bind_splitter_persistence(root: Optional[QWidget]):
         splitter.setProperty("_splitter_persist_bound", True)
         _restore_splitter_state(splitter)
         splitter.splitterMoved.connect(lambda *_ , s=splitter: _save_splitter_state(s))
+
+
+# ── Window geometry persistence ──────────────────────────────────────────────
+
+def _save_window_geometry(geometry_b64: str):
+    """Persist the main window geometry as a base64-encoded string."""
+    try:
+        data = _load_app_config()
+        data["window_geometry"] = geometry_b64
+        _save_app_config(data)
+    except Exception:
+        pass
+
+
+def _load_window_geometry() -> Optional[str]:
+    """Return the saved window geometry base64 string, or None if absent."""
+    return _load_app_config().get("window_geometry") or None

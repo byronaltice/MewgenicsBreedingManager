@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import (
     Qt, QModelIndex,
-    QFileSystemWatcher, QTimer,
+    QFileSystemWatcher, QTimer, QByteArray,
 )
 from PySide6.QtGui import (
     QColor, QBrush, QAction, QActionGroup, QFont, QKeySequence,
@@ -45,6 +45,7 @@ from mewgenics.utils.config import (
     _saved_room_optimizer_auto_recalc, _set_room_optimizer_auto_recalc,
     _save_splitter_state, _bind_splitter_persistence,
     _candidate_gpak_paths,
+    _save_window_geometry, _load_window_geometry,
 )
 from mewgenics.utils.localization import (
     _SUPPORTED_LANGUAGES, ROOM_DISPLAY, COLUMNS,
@@ -214,6 +215,9 @@ class MainWindow(QMainWindow):
         _refresh_localized_constants()
         self.setWindowTitle(_tr("app.title"))
         self.resize(1440, 900)
+        saved_geometry = _load_window_geometry()
+        if saved_geometry:
+            self.restoreGeometry(QByteArray.fromBase64(saved_geometry.encode("ascii")))
 
         self._current_save = None
         self._cats: list[Cat] = []
@@ -2680,6 +2684,7 @@ class MainWindow(QMainWindow):
             self._furniture_view.save_session_state()
 
     def closeEvent(self, event):
+        _save_window_geometry(self.saveGeometry().toBase64().data().decode("ascii"))
         self._flush_persistent_view_state()
         super().closeEvent(event)
 
