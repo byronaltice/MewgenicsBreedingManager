@@ -1,5 +1,11 @@
 # CLAUDE.md
 
+## Focus
+
+- When working with this project, you will be working only in the Breed Priority module `src\breed_priority\`.
+- The overall mewgenics_manager module that houses the main app and other features is not the focus, though changes to it may be required to support breed_priority.
+- Currently, the tests that exist aren't very useful, so don't worry about running `pytest` when working in breed_priority.
+
 ## Project Overview
 
 PySide6 desktop app that reads Mewgenics save files and provides breeding management tools. Parses binary `.sav` files (LZ4-compressed SQLite) to extract cat data (stats, abilities, mutations, relationships, lineage) and displays it across 12+ specialized views.
@@ -234,7 +240,7 @@ Apply these rules to all code you write or modify. When the explicit purpose of 
 - Before modifying a module, read it and match its style and patterns; extend existing patterns rather than inventing new ones
 - Fix the class of issues, not just the instance — when fixing one violation, search for similar ones nearby
 
-**Judgment over dogma:** If following a rule makes the code demonstrably worse in context, note the deviation briefly.
+**Judgment over dogma:** If following a rule makes the code demonstrably worse in context, note the deviation in your next response as the last line(s) to make it visible, and draw attention to it.
 
 ## Known Design Decisions
 
