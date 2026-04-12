@@ -813,16 +813,20 @@ class BreedPriorityView(QWidget):
         self._chk_all_cats.setChecked(True)
         self._chk_all_cats.stateChanged.connect(self._on_all_cats_changed)
         _ac_h.addWidget(self._chk_all_cats)
-        _ac_h.addStretch()
+        _scope_vsep = QFrame()
+        _scope_vsep.setFrameShape(QFrame.VLine)
+        _scope_vsep.setStyleSheet(f"color:{CLR_SURFACE_SEPARATOR};")
+        _scope_vsep.setFixedWidth(1)
+        _ac_h.addWidget(_scope_vsep)
         for _leg_txt, _leg_clr in (("M", CLR_GENDER_MALE), ("F", CLR_GENDER_FEMALE), ("?", CLR_GENDER_UNKNOWN)):
             _leg = QLabel(_leg_txt)
             _leg.setFixedWidth(32)
-            _leg.setStyleSheet(f"color:{_leg_clr}; font-size:10px; font-weight:bold;")
+            _leg.setStyleSheet(f"color:{_leg_clr}; font-size:12px; font-weight:bold;")
             _leg.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
             _ac_h.addWidget(_leg)
-        _gen_leg = QLabel("Gen")
+        _gen_leg = QLabel("Risk")
         _gen_leg.setFixedWidth(44)
-        _gen_leg.setStyleSheet(f"color:{CLR_TEXT_COUNT}; font-size:10px; font-weight:bold;")
+        _gen_leg.setStyleSheet(f"color:{CLR_TEXT_PRIMARY}; font-size:12px; font-weight:bold;")
         _gen_leg.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         _ac_h.addWidget(_gen_leg)
         layout.addWidget(_ac_row)
@@ -1830,7 +1834,11 @@ class BreedPriorityView(QWidget):
             chk.setChecked(_all_cats_on or saved_rooms.get(room, False))
             chk.stateChanged.connect(self._on_room_changed)
             row_h.addWidget(chk)
-            row_h.addStretch()
+            _row_vsep = QFrame()
+            _row_vsep.setFrameShape(QFrame.VLine)
+            _row_vsep.setStyleSheet(f"color:{CLR_SURFACE_SEPARATOR};")
+            _row_vsep.setFixedWidth(1)
+            row_h.addWidget(_row_vsep)
 
             if _n > 0:
                 for _cnt, _gc in ((_nm, _GC_M), (_nf, _GC_F), (_nu, _GC_U)):
@@ -1838,7 +1846,7 @@ class BreedPriorityView(QWidget):
                     _glbl = QLabel(f"{_pct}%")
                     _glbl.setFixedWidth(32)   # fixed width keeps columns vertically aligned
                     _glbl.setStyleSheet(
-                        f"color:{CLR_TEXT_COUNT if _pct == 0 else _gc}; font-size:10px;"
+                        f"color:{CLR_TEXT_COUNT if _pct == 0 else _gc}; font-size:12px;"
                     )
                     _glbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
                     row_h.addWidget(_glbl)
@@ -1852,7 +1860,7 @@ class BreedPriorityView(QWidget):
                     _r_color = "#e08030"
                 else:
                     _r_color = CLR_UNDESIRABLE
-                _r_lbl.setStyleSheet(f"color:{_r_color}; font-size:10px;")
+                _r_lbl.setStyleSheet(f"color:{_r_color}; font-size:12px;")
                 _r_lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
                 row_h.addWidget(_r_lbl)
 
