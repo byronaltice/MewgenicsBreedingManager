@@ -224,12 +224,14 @@ def cat_passes_filter(cat, score_result, ch_in_scope: int, state: FilterState,
             return False
 
     if f.gene_active:
+        if score_result.scope_gene_risk is None:
+            return False
         if not _compare(float(score_result.scope_gene_risk),
                         float(f.gene_value), f.gene_op):
             return False
 
     if f.gene_unique_active:
-        if score_result.scope_gene_risk != 0:
+        if score_result.scope_gene_risk is None or score_result.scope_gene_risk != 0:
             return False
 
     if f.children_active:

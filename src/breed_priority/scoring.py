@@ -137,7 +137,7 @@ class ScoreResult:
                  "scope_gene_risk")
 
     def __init__(self, total: float, tier: str, tier_color: str, breakdown: list,
-                 subtotals: dict | None = None, scope_gene_risk: float = 0.0):
+                 subtotals: dict | None = None, scope_gene_risk: float | None = None):
         self.total = total
         self.tier = tier
         self.tier_color = tier_color
@@ -370,22 +370,24 @@ def compute_breed_priority_score(cat, scope_cats: list, ma_ratings: dict,
         else:
             _rv = float(risk_fn(cat, partner))
         _risk_vals.append(_rv)
-    gene_risk = (sum(_risk_vals) / len(_risk_vals)) if _risk_vals else 0.0
-    # Keep scoring aligned with displayed Gene buckets (R0, R1, R2, ...).
-    _gene_risk_display = float(int(round(gene_risk)))
-    _gene_threshold = float(_w.get("gene_risk_threshold", GENETIC_SAFE_RISK_FLOOR))
-    _gene_penalty_scale = float(_w.get("gene_risk_penalty_scale", 10.0))
-    _effective_gene_risk = max(0.0, _gene_risk_display - _gene_threshold)
-    gene_units = round(_effective_gene_risk * _gene_penalty_scale / 100.0, 3)
-    if gene_units > 0:
-        gene_pts = round(_w["no_children"] * gene_units, 3)
-        breakdown.append((f"Genetic risk {gene_risk:.1f}% (R{int(_gene_risk_display)}, {_gene_threshold:.0f}% threshold)", gene_pts))
-        subtotals["no_children"] = gene_pts
-    elif _gene_risk_display <= _gene_threshold:
-        safe_pts = float(_w.get("zero_risk_bonus", 0.0))
-        if safe_pts != 0.0:
-            breakdown.append((f"Genetic safety (R{int(_gene_risk_display)} ≤ {_gene_threshold:.0f})", safe_pts))
-            subtotals["zero_risk_bonus"] = safe_pts
+    # None means no breedable partners in scope — no gene score in either direction.
+    gene_risk: float | None = (sum(_risk_vals) / len(_risk_vals)) if _risk_vals else None
+    if gene_risk is not None:
+        # Keep scoring aligned with displayed Gene buckets (R0, R1, R2, ...).
+        _gene_risk_display = float(int(round(gene_risk)))
+        _gene_threshold = float(_w.get("gene_risk_threshold", GENETIC_SAFE_RISK_FLOOR))
+        _gene_penalty_scale = float(_w.get("gene_risk_penalty_scale", 10.0))
+        _effective_gene_risk = max(0.0, _gene_risk_display - _gene_threshold)
+        gene_units = round(_effective_gene_risk * _gene_penalty_scale / 100.0, 3)
+        if gene_units > 0:
+            gene_pts = round(_w["no_children"] * gene_units, 3)
+            breakdown.append((f"Genetic risk {gene_risk:.1f}% (R{int(_gene_risk_display)}, {_gene_threshold:.0f}% threshold)", gene_pts))
+            subtotals["no_children"] = gene_pts
+        elif _gene_risk_display <= _gene_threshold:
+            safe_pts = float(_w.get("zero_risk_bonus", 0.0))
+            if safe_pts != 0.0:
+                breakdown.append((f"Genetic safety (R{int(_gene_risk_display)} ≤ {_gene_threshold:.0f})", safe_pts))
+                subtotals["zero_risk_bonus"] = safe_pts
 
     # ── Stat sum percentile scoring ───────────────────────────────────────────
     w_sum = _w.get("stat_sum", 0.0)

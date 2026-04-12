@@ -97,7 +97,8 @@ def compute_all_scores(
 
     all_scope_rel_counts = sorted(
         results[id(c)].scope_gene_risk
-        for c in scope_cats if id(c) in results
+        for c in scope_cats
+        if id(c) in results and results[id(c)].scope_gene_risk is not None
     )
 
     all_scope_children = sorted(

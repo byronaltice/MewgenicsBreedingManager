@@ -20,7 +20,7 @@ from .theme import (
 def raw_col_value(
     cat,
     col_idx: int,
-    scope_gene_risk: float,
+    scope_gene_risk: float | None,
     all_scope_gene_risks: list,
     *,
     weights: dict,
@@ -128,6 +128,8 @@ def raw_col_value(
             return (f"{_SEX_EMOJI_BI}", bi_w, bi_clr)
 
     if hdr == "Gene":
+        if scope_gene_risk is None:
+            return ("—", -1.0, CLR_VALUE_NEUTRAL)
         n = float(scope_gene_risk)
         total = len(all_scope_gene_risks)
         if total > 0:

@@ -2290,7 +2290,11 @@ class BreedPriorityView(QWidget):
                         else:
                             text, color = "—", CLR_TEXT_GRAYEDOUT
                     elif hdr == "Gene":
-                        if scope_gene_risk <= _cw.get("gene_risk_threshold", GENETIC_SAFE_RISK_FLOOR):
+                        if scope_gene_risk is None:
+                            _chips = [("—", CLR_BG_SCORE_AREA, CLR_TEXT_GRAYEDOUT)]
+                            text, color = "—", CLR_TEXT_GRAYEDOUT
+                            score_val = 0.0
+                        elif scope_gene_risk <= _cw.get("gene_risk_threshold", GENETIC_SAFE_RISK_FLOOR):
                             _safe_score = float(result.subtotals.get("zero_risk_bonus", 0.0))
                             _score_for_sub = _safe_score
                             score_val = _safe_score
