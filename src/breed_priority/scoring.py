@@ -179,7 +179,8 @@ def compute_breed_priority_score(cat, scope_cats: list, ma_ratings: dict,
                          hated_by: list = None,
                          gene_risk_lookup=None,
                          gene_risk_cache: dict | None = None,
-                         use_current_stats: bool = False) -> ScoreResult:
+                         use_current_stats: bool = False,
+                         add_mutation_stats: bool = False) -> ScoreResult:
     """Compute breed priority score for a cat.
 
     stat_names: ordered list of stat keys (e.g. ["STR","DEX",...]).
@@ -192,8 +193,8 @@ def compute_breed_priority_score(cat, scope_cats: list, ma_ratings: dict,
     """
     _w = weights if weights is not None else BREED_PRIORITY_WEIGHTS
     _display = mutation_display_name if mutation_display_name else (lambda n: n)
-    _cat_stats = get_cat_stats(cat, use_current_stats)
-    _scope_stats = {id(c): get_cat_stats(c, use_current_stats) for c in scope_cats}
+    _cat_stats = get_cat_stats(cat, use_current_stats, add_mutation_stats)
+    _scope_stats = {id(c): get_cat_stats(c, use_current_stats, add_mutation_stats) for c in scope_cats}
     breakdown: list = []
     subtotals: dict = {
         "stat_7": 0.0, "stat_7_count": 0.0,

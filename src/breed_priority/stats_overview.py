@@ -6,6 +6,8 @@ Opens as a non-blocking window from the Breed Priority top bar.
 Only alive cats are shown (status != "Gone").
 """
 
+import re
+
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, QTableWidgetItem,
     QHeaderView, QAbstractItemView, QPushButton, QCheckBox, QWidget,
@@ -34,19 +36,52 @@ _STAT_COLOR = {
 }
 
 
-def get_cat_stats(cat, use_current: bool) -> dict:
+# Matches "+2 STR" or "-1 DEX" in mutation detail strings.
+_MUT_STAT_RE = re.compile(r'([+-]?\d+)\s+(STR|CON|INT|DEX|SPD|LCK|CHA)')
+
+
+def get_mutation_stat_bonuses(cat) -> dict:
+    """Return {stat_name: total_delta} summed across all visual mutation entries.
+
+    Parses the 'detail' field on each entry (e.g. "+2 STR, -1 DEX").
+    Entries with no parseable stat effects contribute nothing.
+    """
+    bonuses: dict[str, int] = {}
+    for entry in getattr(cat, 'visual_mutation_entries', []) or []:
+        detail = entry.get('detail', '') or ''
+        for match in _MUT_STAT_RE.finditer(detail):
+            delta = int(match.group(1))
+            stat  = match.group(2)
+            bonuses[stat] = bonuses.get(stat, 0) + delta
+    return bonuses
+
+
+def get_cat_stats(cat, use_current: bool, add_mutation_stats: bool = False) -> dict:
     """Return the stat dict to use for scoring/display.
 
     use_current=True  → total_stats (base + all modifiers/injuries)
     use_current=False → base_stats (genetic base values only)
 
-    Falls back to base_stats if total_stats is unavailable.
+    add_mutation_stats=True adds parsed mutation stat bonuses on top of
+    whichever source is selected.  Falls back to base_stats if total_stats
+    is unavailable.
     """
     if use_current:
-        total = getattr(cat, 'total_stats', None)
-        if total:
-            return total
-    return getattr(cat, 'base_stats', {}) or {}
+        source = getattr(cat, 'total_stats', None) or getattr(cat, 'base_stats', {}) or {}
+    else:
+        source = getattr(cat, 'base_stats', {}) or {}
+
+    if not add_mutation_stats:
+        return source
+
+    bonuses = get_mutation_stat_bonuses(cat)
+    if not bonuses:
+        return source
+    result = dict(source)
+    for stat, delta in bonuses.items():
+        if stat in result:
+            result[stat] = result[stat] + delta
+    return result
 
 _COL_NAME = 0
 _COL_LOC  = 1

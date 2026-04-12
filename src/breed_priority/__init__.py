@@ -157,6 +157,7 @@ class BreedPriorityView(QWidget):
         self._hide_kittens = False
         self._hide_out_of_scope = False
         self._use_current_stats = False
+        self._add_mutation_stats = False
         self._filters_enabled = True
         self._display_mode = "score"   # "score" | "values" | "both"
         self._heatmap_on = False       # separate toggle for heatmap overlay
@@ -235,6 +236,7 @@ class BreedPriorityView(QWidget):
             self._hide_kittens = bool(data.get("hide_kittens", False))
             self._hide_out_of_scope = bool(data.get("hide_out_of_scope", False))
             self._use_current_stats = bool(data.get("use_current_stats", False))
+            self._add_mutation_stats = bool(data.get("add_mutation_stats", False))
             _sv = data.get("display_mode", "values" if data.get("show_values", False) else "score")
             # Migrate old "heatmap" display mode → toggle
             if _sv == "heatmap":
@@ -327,6 +329,7 @@ class BreedPriorityView(QWidget):
             "hide_kittens": self._hide_kittens,
             "hide_out_of_scope": self._hide_out_of_scope,
             "use_current_stats": self._use_current_stats,
+            "add_mutation_stats": self._add_mutation_stats,
             "display_mode": self._display_mode,
             "heatmap_on": self._heatmap_on,
             "heat_algo": self._heat_algo,
@@ -366,6 +369,7 @@ class BreedPriorityView(QWidget):
             "hide_kittens": self._hide_kittens,
             "hide_out_of_scope": self._hide_out_of_scope,
             "use_current_stats": self._use_current_stats,
+            "add_mutation_stats": self._add_mutation_stats,
             "display_mode": self._display_mode,
             "heatmap_on": self._heatmap_on,
             "heat_algo": self._heat_algo,
@@ -415,9 +419,10 @@ class BreedPriorityView(QWidget):
         self._saved_scope = data.get("scope", {})
 
         # Options
-        self._hide_kittens      = bool(data.get("hide_kittens", False))
-        self._hide_out_of_scope = bool(data.get("hide_out_of_scope", False))
-        self._use_current_stats = bool(data.get("use_current_stats", False))
+        self._hide_kittens        = bool(data.get("hide_kittens", False))
+        self._hide_out_of_scope   = bool(data.get("hide_out_of_scope", False))
+        self._use_current_stats   = bool(data.get("use_current_stats", False))
+        self._add_mutation_stats  = bool(data.get("add_mutation_stats", False))
         _sv = data.get("display_mode", "values" if data.get("show_values", False) else "score")
         if _sv == "heatmap":
             self._display_mode = "score"
@@ -454,6 +459,7 @@ class BreedPriorityView(QWidget):
             (self._chk_hide_kittens,        self._hide_kittens),
             (self._chk_hide_out_of_scope,   self._hide_out_of_scope),
             (self._chk_use_current_stats,   self._use_current_stats),
+            (self._chk_add_mutation_stats,  self._add_mutation_stats),
             (self._chk_show_stats,          self._show_stats),
         ]:
             chk.blockSignals(True)
@@ -870,6 +876,16 @@ class BreedPriorityView(QWidget):
         self._chk_use_current_stats.setChecked(self._use_current_stats)
         self._chk_use_current_stats.stateChanged.connect(self._on_use_current_stats_changed)
         layout.addWidget(self._chk_use_current_stats)
+
+        self._chk_add_mutation_stats = QCheckBox("Add Mutation Stats")
+        self._chk_add_mutation_stats.setStyleSheet(checkbox_style(font_size=11, emphasize_checked=True))
+        self._chk_add_mutation_stats.setToolTip(
+            "Add each mutation's stat bonuses (e.g. STR+2, DEX-1) on top of\n"
+            "the selected stat source when scoring and displaying."
+        )
+        self._chk_add_mutation_stats.setChecked(self._add_mutation_stats)
+        self._chk_add_mutation_stats.stateChanged.connect(self._on_add_mutation_stats_changed)
+        layout.addWidget(self._chk_add_mutation_stats)
 
         sep_f = QFrame()
         sep_f.setFrameShape(QFrame.HLine)
@@ -1549,6 +1565,11 @@ class BreedPriorityView(QWidget):
         self._save_ratings()
         self.recompute()
 
+    def _on_add_mutation_stats_changed(self, *_):
+        self._add_mutation_stats = self._chk_add_mutation_stats.isChecked()
+        self._save_ratings()
+        self.recompute()
+
     def _on_display_mode_changed(self, btn_id: int, checked: bool):
         if not checked:
             return
@@ -2014,7 +2035,8 @@ class BreedPriorityView(QWidget):
 
         # Pre-compute relationship maps, 7-sets, and scores
         _seven_sets, _scope_7_sets = compute_seven_sets(alive, scope_set,
-                                                         use_current_stats=self._use_current_stats)
+                                                         use_current_stats=self._use_current_stats,
+                                                         add_mutation_stats=self._add_mutation_stats)
 
         _hated_by_map, _loved_by_map = build_relationship_maps(self._cats)
         self._hated_by_map = _hated_by_map
@@ -2029,6 +2051,7 @@ class BreedPriorityView(QWidget):
             self._ma_ratings, self._stat_names, self._weights, self._display_name,
             gene_risk_lookup=lambda a, b, _m=_gene_risk_memo: risk_percent(a, b, _m),
             use_current_stats=self._use_current_stats,
+            add_mutation_stats=self._add_mutation_stats,
         )
         self._scope_pair_risks = _pair_risk_cache
         _max_scope_gene_risk = max(_all_scope_gene_risks, default=0.0)
@@ -2103,7 +2126,7 @@ class BreedPriorityView(QWidget):
             self._score_table.setItem(row, COL_INJ, inj_item)
 
             # ── Stat columns ──
-            _cat_stats = get_cat_stats(cat, self._use_current_stats)
+            _cat_stats = get_cat_stats(cat, self._use_current_stats, self._add_mutation_stats)
             for si, stat in enumerate(_STAT_COL_NAMES):
                 val = _cat_stats.get(stat, 0)
                 stat_item = _NumericSortItem(str(val))
@@ -2263,7 +2286,7 @@ class BreedPriorityView(QWidget):
                         _thr = _cw.get("stat_7_threshold", 7.0)
                         for _sn in _STAT_COL_NAMES:
                             if _cat_stats.get(_sn) == 7:
-                                _n_sc = sum(1 for _sc in scope_cats if get_cat_stats(_sc, self._use_current_stats).get(_sn) == 7)
+                                _n_sc = sum(1 for _sc in scope_cats if get_cat_stats(_sc, self._use_current_stats, self._add_mutation_stats).get(_sn) == 7)
                                 _n = _n_sc if _cat_in_scope else _n_sc + 1
                                 _bg, _fg = ChipColors.rarity(_n, _thr)
                                 _chips.append((_sn, _bg, _fg))

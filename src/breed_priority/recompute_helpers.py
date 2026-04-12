@@ -30,19 +30,21 @@ def build_relationship_maps(cats):
     return hated_by_map, loved_by_map
 
 
-def compute_seven_sets(alive, scope_set, use_current_stats: bool = False):
+def compute_seven_sets(alive, scope_set, use_current_stats: bool = False,
+                       add_mutation_stats: bool = False):
     """Pre-compute 7-stat sets for subset dominance detection.
 
     Args:
         alive: List of cats to compute for.
         scope_set: Set of id(cat) for cats in scope.
         use_current_stats: If True, use total_stats instead of base_stats.
+        add_mutation_stats: If True, add parsed mutation stat bonuses.
 
     Returns:
         (seven_sets, scope_7_sets) — both are dict[int, frozenset].
     """
     seven_sets: dict[int, frozenset] = {
-        id(c): frozenset(sn for sn in _STAT_COL_NAMES if get_cat_stats(c, use_current_stats).get(sn) == 7)
+        id(c): frozenset(sn for sn in _STAT_COL_NAMES if get_cat_stats(c, use_current_stats, add_mutation_stats).get(sn) == 7)
         for c in alive
     }
     scope_7_sets: dict[int, frozenset] = {
@@ -58,6 +60,7 @@ def compute_all_scores(
     ma_ratings, stat_names, weights, display_name_fn,
     gene_risk_lookup=None,
     use_current_stats: bool = False,
+    add_mutation_stats: bool = False,
 ):
     """Run Pass 1: compute ScoreResults + 7-sub contributions for all cats.
 
@@ -66,7 +69,7 @@ def compute_all_scores(
          all_scope_gene_risks, all_scope_children, max_7_count,
          scope_stat_sums, pair_risk_cache)
     """
-    scope_stat_sums = sorted(sum(get_cat_stats(c, use_current_stats).values()) for c in scope_cats)
+    scope_stat_sums = sorted(sum(get_cat_stats(c, use_current_stats, add_mutation_stats).values()) for c in scope_cats)
     pair_risk_cache: dict[tuple[int, int], float] = {}
 
     results: dict[int, object] = {}
@@ -82,6 +85,7 @@ def compute_all_scores(
             gene_risk_lookup=gene_risk_lookup,
             gene_risk_cache=pair_risk_cache,
             use_current_stats=use_current_stats,
+            add_mutation_stats=add_mutation_stats,
         )
         my_sevens = seven_sets.get(id(cat), frozenset())
         sub_cnt = sum(
@@ -111,7 +115,7 @@ def compute_all_scores(
     )
 
     max_7_count = max(
-        (sum(1 for v in get_cat_stats(c, use_current_stats).values() if v == 7) for c in alive),
+        (sum(1 for v in get_cat_stats(c, use_current_stats, add_mutation_stats).values() if v == 7) for c in alive),
         default=0,
     )
 
