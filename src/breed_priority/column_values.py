@@ -144,7 +144,8 @@ def raw_col_value(
                 color = "#b0a040"
         else:
             color = CLR_VALUE_NEUTRAL
-        text = "🛡" if n <= GENETIC_SAFE_RISK_FLOOR else f"R{int(round(n))}"
+        _gene_thr = float(weights.get("gene_risk_threshold", GENETIC_SAFE_RISK_FLOOR))
+        text = "🛡" if n <= _gene_thr else f"R{int(round(n))}"
         return (text, float(n), color)
 
     return ("", 0.0, CLR_VALUE_NEUTRAL)

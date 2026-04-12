@@ -957,8 +957,16 @@ class BreedPriorityView(QWidget):
                 lbl.setStyleSheet(
                     f"color:{CLR_TEXT_SUBLABEL}; font-size:10px;" if is_subitem else f"color:{CLR_TEXT_UI_LABEL}; font-size:10px;"
                 )
-            if key in ("stat_7_threshold", "age_threshold", "seven_sub_threshold"):
-                spin = _IntParamSpin(int(round(self._weights[key])))
+            _INT_PARAM_RANGES = {
+                "stat_7_threshold":      (1, 20),
+                "age_threshold":         (1, 30),
+                "seven_sub_threshold":   (1, 20),
+                "gene_risk_threshold":   (0, 50),
+                "gene_risk_penalty_scale": (1, 100),
+            }
+            if key in _INT_PARAM_RANGES:
+                _mn, _mx = _INT_PARAM_RANGES[key]
+                spin = _IntParamSpin(int(round(self._weights[key])), min_val=_mn, max_val=_mx)
             else:
                 spin = _WeightSpin(self._weights[key])
             spin.valueChanged.connect(lambda val, k=key: self._on_weight_changed(k, val))
@@ -2282,7 +2290,7 @@ class BreedPriorityView(QWidget):
                         else:
                             text, color = "—", CLR_TEXT_GRAYEDOUT
                     elif hdr == "Gene":
-                        if scope_gene_risk <= GENETIC_SAFE_RISK_FLOOR:
+                        if scope_gene_risk <= _cw.get("gene_risk_threshold", GENETIC_SAFE_RISK_FLOOR):
                             _safe_score = float(result.subtotals.get("zero_risk_bonus", 0.0))
                             _score_for_sub = _safe_score
                             score_val = _safe_score
