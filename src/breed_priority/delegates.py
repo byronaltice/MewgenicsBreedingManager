@@ -23,7 +23,7 @@ from .columns import (
 from .theme import (
     _CHIP_H, _CHIP_PAD_X, _CHIP_GAP, _CHIP_RADIUS,
     _CHIP_DESIRABLE, _CHIP_UNDESIRABLE, _CHIP_DIM,
-    _SEP_BAND_BG, _SEP_LINE_COLOR,
+    _SEP_BAND_BG,
     _HEAT_POS, _HEAT_NEG,
     CLR_DESIRABLE, CLR_UNDESIRABLE,
     CLR_VALUE_POS, CLR_VALUE_NEG, CLR_VALUE_NEUTRAL,
@@ -486,8 +486,6 @@ class _SeparatorDelegate(QStyledItemDelegate):
 
     def paint(self, painter, option, index):
         painter.fillRect(option.rect, _SEP_BAND_BG)
-        mid_x = option.rect.x() + option.rect.width() // 2
-        painter.fillRect(QRect(mid_x, option.rect.y(), 1, option.rect.height()), _SEP_LINE_COLOR)
 
     def sizeHint(self, option, index):
         return QSize(_SEP_WIDTH, 22)
@@ -674,30 +672,19 @@ class _SortHighlightHeader(QHeaderView):
         self.viewport().update()
 
     def mousePressEvent(self, event):
-        # Ignore clicks on separator columns
         col = self.logicalIndexAt(event.pos())
-        if col in _SEP_COLS:
-            return
         # Qt toggles sort direction when the indicator is already on the
         # clicked column.  By silently pre-seeding the indicator to Ascending
         # on a *new* column (signals blocked so no sort fires), Qt's normal
         # click handler will toggle it to Descending - one sort, correct order.
-        if col != self._sort_col and col >= 0:
+        # Skip pre-seeding for separator columns (sorting by them is meaningless).
+        if col not in _SEP_COLS and col != self._sort_col and col >= 0:
             self.blockSignals(True)
             self.setSortIndicator(col, Qt.AscendingOrder)
             self.blockSignals(False)
         super().mousePressEvent(event)
 
     def paintSection(self, painter, rect, logical_idx):
-        # Separator columns: paint a subtle divider band, no text.
-        if logical_idx in _SEP_COLS:
-            painter.save()
-            painter.fillRect(rect, _SEP_BAND_BG)
-            mid_x = rect.x() + rect.width() // 2
-            painter.fillRect(QRect(mid_x, rect.y(), 1, rect.height()), _SEP_LINE_COLOR)
-            painter.restore()
-            return
-
         if logical_idx != self._sort_col:
             super().paintSection(painter, rect, logical_idx)
             return

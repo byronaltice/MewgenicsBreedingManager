@@ -22,18 +22,16 @@ _NUM_STAT_COLS    = len(_STAT_COL_NAMES)
 _SCORE_COLS       = [h for h, _ in SCORE_COLUMNS]
 COL_SEP1          = _COL_STAT_START + _NUM_STAT_COLS
 _COL_SCORE_START  = COL_SEP1 + 1
-COL_SEP2          = _COL_SCORE_START + len(SCORE_COLUMNS)
-COL_SCORE         = COL_SEP2 + 1
+COL_SCORE         = _COL_SCORE_START + len(SCORE_COLUMNS)
 _ALL_HEADERS      = (
     ["Name", "Loc", "Inj"]
     + _STAT_COL_NAMES
     + [_SEP_HEADER]
     + _SCORE_COLS
-    + [_SEP_HEADER]
     + ["Score"]
 )
-_SEP_COLS         = frozenset({COL_SEP1, COL_SEP2})
-_SEP_WIDTH        = 2
+_SEP_COLS         = frozenset({COL_SEP1})
+_SEP_WIDTH        = 8
 
 
 def _score_col_idx(header: str) -> int:

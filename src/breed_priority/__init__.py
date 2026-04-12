@@ -1127,7 +1127,6 @@ class BreedPriorityView(QWidget):
         _sep_delegate = _SeparatorDelegate(self._score_table)
         for _sep_ci in _SEP_COLS:
             self._score_table.setColumnWidth(_sep_ci, _SEP_WIDTH)
-            shh.setSectionResizeMode(_sep_ci, QHeaderView.Fixed)
             self._score_table.setItemDelegateForColumn(_sep_ci, _sep_delegate)
         # Chip delegates
         _chip_delegate = _TraitChipDelegate(self._score_table)

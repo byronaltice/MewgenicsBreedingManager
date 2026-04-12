@@ -126,9 +126,7 @@ _CHIP_OVERFLOW_HATE = ("#3f2818", "#f2a45a")
 
 # ── Table separators / heatmap visuals ───────────────────────────────────────
 
-_SEP_COL_COLOR = QColor("#4a4a88")
-_SEP_BAND_BG = QColor("#111127")
-_SEP_LINE_COLOR = QColor("#31315a")
+_SEP_BAND_BG = QColor(CLR_SURFACE_HEADER)
 _HEAT_POS = QColor(*ColorUtils.parse_hex(CLR_DESIRABLE), 55)
 _HEAT_NEG = QColor(*ColorUtils.parse_hex(CLR_UNDESIRABLE), 55)
 
