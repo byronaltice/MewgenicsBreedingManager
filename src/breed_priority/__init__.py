@@ -79,7 +79,7 @@ from .scoring import (
 from .tooltips import build_cat_tooltip, build_child_tooltip
 from .column_values import raw_col_value
 from .weight_popup import show_weights_popup
-from .stats_overview import show_stats_overview
+from .stats_overview import show_stats_overview, get_cat_stats
 from .recompute_helpers import (
     build_relationship_maps, compute_seven_sets,
     compute_all_scores, compute_heatmap_norms,
@@ -156,6 +156,7 @@ class BreedPriorityView(QWidget):
         self._scope_pair_risks: dict[tuple[int, int], float] = {}
         self._hide_kittens = False
         self._hide_out_of_scope = False
+        self._use_current_stats = False
         self._filters_enabled = True
         self._display_mode = "score"   # "score" | "values" | "both"
         self._heatmap_on = False       # separate toggle for heatmap overlay
@@ -233,6 +234,7 @@ class BreedPriorityView(QWidget):
                 self._weights["trait_undesirable"] = -_old_trait_w
             self._hide_kittens = bool(data.get("hide_kittens", False))
             self._hide_out_of_scope = bool(data.get("hide_out_of_scope", False))
+            self._use_current_stats = bool(data.get("use_current_stats", False))
             _sv = data.get("display_mode", "values" if data.get("show_values", False) else "score")
             # Migrate old "heatmap" display mode → toggle
             if _sv == "heatmap":
@@ -324,6 +326,7 @@ class BreedPriorityView(QWidget):
             "weights": self._weights,
             "hide_kittens": self._hide_kittens,
             "hide_out_of_scope": self._hide_out_of_scope,
+            "use_current_stats": self._use_current_stats,
             "display_mode": self._display_mode,
             "heatmap_on": self._heatmap_on,
             "heat_algo": self._heat_algo,
@@ -362,6 +365,7 @@ class BreedPriorityView(QWidget):
             "weights": dict(self._weights),
             "hide_kittens": self._hide_kittens,
             "hide_out_of_scope": self._hide_out_of_scope,
+            "use_current_stats": self._use_current_stats,
             "display_mode": self._display_mode,
             "heatmap_on": self._heatmap_on,
             "heat_algo": self._heat_algo,
@@ -413,6 +417,7 @@ class BreedPriorityView(QWidget):
         # Options
         self._hide_kittens      = bool(data.get("hide_kittens", False))
         self._hide_out_of_scope = bool(data.get("hide_out_of_scope", False))
+        self._use_current_stats = bool(data.get("use_current_stats", False))
         _sv = data.get("display_mode", "values" if data.get("show_values", False) else "score")
         if _sv == "heatmap":
             self._display_mode = "score"
@@ -446,9 +451,10 @@ class BreedPriorityView(QWidget):
 
         # Option checkboxes
         for chk, val in [
-            (self._chk_hide_kittens,      self._hide_kittens),
-            (self._chk_hide_out_of_scope, self._hide_out_of_scope),
-            (self._chk_show_stats,        self._show_stats),
+            (self._chk_hide_kittens,        self._hide_kittens),
+            (self._chk_hide_out_of_scope,   self._hide_out_of_scope),
+            (self._chk_use_current_stats,   self._use_current_stats),
+            (self._chk_show_stats,          self._show_stats),
         ]:
             chk.blockSignals(True)
             chk.setChecked(val)
@@ -854,6 +860,16 @@ class BreedPriorityView(QWidget):
         self._chk_hide_out_of_scope.setChecked(self._hide_out_of_scope)
         self._chk_hide_out_of_scope.stateChanged.connect(self._on_hide_out_of_scope_changed)
         layout.addWidget(self._chk_hide_out_of_scope)
+
+        self._chk_use_current_stats = QCheckBox("Use Current Stats")
+        self._chk_use_current_stats.setStyleSheet(checkbox_style(font_size=11, emphasize_checked=True))
+        self._chk_use_current_stats.setToolTip(
+            "Score and display using current stats (base + modifiers/injuries)\n"
+            "instead of base genetic stats only."
+        )
+        self._chk_use_current_stats.setChecked(self._use_current_stats)
+        self._chk_use_current_stats.stateChanged.connect(self._on_use_current_stats_changed)
+        layout.addWidget(self._chk_use_current_stats)
 
         sep_f = QFrame()
         sep_f.setFrameShape(QFrame.HLine)
@@ -1528,6 +1544,11 @@ class BreedPriorityView(QWidget):
         self._save_ratings()
         self.recompute()
 
+    def _on_use_current_stats_changed(self, *_):
+        self._use_current_stats = self._chk_use_current_stats.isChecked()
+        self._save_ratings()
+        self.recompute()
+
     def _on_display_mode_changed(self, btn_id: int, checked: bool):
         if not checked:
             return
@@ -1992,7 +2013,8 @@ class BreedPriorityView(QWidget):
         scope_set = {id(c) for c in scope_cats}
 
         # Pre-compute relationship maps, 7-sets, and scores
-        _seven_sets, _scope_7_sets = compute_seven_sets(alive, scope_set)
+        _seven_sets, _scope_7_sets = compute_seven_sets(alive, scope_set,
+                                                         use_current_stats=self._use_current_stats)
 
         _hated_by_map, _loved_by_map = build_relationship_maps(self._cats)
         self._hated_by_map = _hated_by_map
@@ -2006,6 +2028,7 @@ class BreedPriorityView(QWidget):
             _seven_sets, _scope_7_sets, _hated_by_map,
             self._ma_ratings, self._stat_names, self._weights, self._display_name,
             gene_risk_lookup=lambda a, b, _m=_gene_risk_memo: risk_percent(a, b, _m),
+            use_current_stats=self._use_current_stats,
         )
         self._scope_pair_risks = _pair_risk_cache
         _max_scope_gene_risk = max(_all_scope_gene_risks, default=0.0)
@@ -2080,8 +2103,9 @@ class BreedPriorityView(QWidget):
             self._score_table.setItem(row, COL_INJ, inj_item)
 
             # ── Stat columns ──
+            _cat_stats = get_cat_stats(cat, self._use_current_stats)
             for si, stat in enumerate(_STAT_COL_NAMES):
-                val = cat.base_stats.get(stat, 0)
+                val = _cat_stats.get(stat, 0)
                 stat_item = _NumericSortItem(str(val))
                 stat_item.setData(Qt.UserRole, float(val))
                 stat_item.setTextAlignment(Qt.AlignCenter)
@@ -2209,7 +2233,7 @@ class BreedPriorityView(QWidget):
                 if self._display_mode in ("values", "both"):
                     # ── Value / Both display mode ──
                     if hdr == "Sum":
-                        s = sum(cat.base_stats.values())
+                        s = sum(_cat_stats.values())
                         score_val = float(s)   # sort by raw sum, not score
                         total = len(_scope_stat_sums)
                         if total > 0:
@@ -2238,15 +2262,15 @@ class BreedPriorityView(QWidget):
                         _cat_in_scope = id(cat) in scope_set
                         _thr = _cw.get("stat_7_threshold", 7.0)
                         for _sn in _STAT_COL_NAMES:
-                            if cat.base_stats.get(_sn) == 7:
-                                _n_sc = sum(1 for _sc in scope_cats if _sc.base_stats.get(_sn) == 7)
+                            if _cat_stats.get(_sn) == 7:
+                                _n_sc = sum(1 for _sc in scope_cats if get_cat_stats(_sc, self._use_current_stats).get(_sn) == 7)
                                 _n = _n_sc if _cat_in_scope else _n_sc + 1
                                 _bg, _fg = ChipColors.rarity(_n, _thr)
                                 _chips.append((_sn, _bg, _fg))
                         text = ""   # rendered by delegate
                         color = _score_color(score_val)
                     elif hdr == "7cnt":
-                        count_7 = sum(1 for v in cat.base_stats.values() if v == 7)
+                        count_7 = sum(1 for v in _cat_stats.values() if v == 7)
                         w_7 = _cw.get(keys[0], 0.0)
                         color = ChipColors.sevens(count_7, _max_7_count, w_7 >= 0)
                         text = f"{count_7}x7s"
@@ -2372,7 +2396,7 @@ class BreedPriorityView(QWidget):
                 else:
                     # ── Score display mode: always show numeric score ──
                     if hdr == "7cnt":
-                        count_7 = sum(1 for v in cat.base_stats.values() if v == 7)
+                        count_7 = sum(1 for v in _cat_stats.values() if v == 7)
                         w_7 = _cw.get(keys[0], 0.0)
                         color = ChipColors.sevens(count_7, _max_7_count, w_7 >= 0)
                     elif hdr == "Aggro":

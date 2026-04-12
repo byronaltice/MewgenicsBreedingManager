@@ -5,6 +5,8 @@ Standalone module — no imports from mewgenics_manager to avoid circular deps.
 
 from save_parser import risk_percent, can_breed
 
+from .stats_overview import get_cat_stats
+
 # ── Personality trait thresholds ─────────────────────────────────────────────
 
 TRAIT_LOW_THRESHOLD  = 0.3   # < this  → "low"
@@ -176,7 +178,8 @@ def compute_breed_priority_score(cat, scope_cats: list, ma_ratings: dict,
                          scope_stat_sums: list = None,
                          hated_by: list = None,
                          gene_risk_lookup=None,
-                         gene_risk_cache: dict | None = None) -> ScoreResult:
+                         gene_risk_cache: dict | None = None,
+                         use_current_stats: bool = False) -> ScoreResult:
     """Compute breed priority score for a cat.
 
     stat_names: ordered list of stat keys (e.g. ["STR","DEX",...]).
@@ -189,6 +192,8 @@ def compute_breed_priority_score(cat, scope_cats: list, ma_ratings: dict,
     """
     _w = weights if weights is not None else BREED_PRIORITY_WEIGHTS
     _display = mutation_display_name if mutation_display_name else (lambda n: n)
+    _cat_stats = get_cat_stats(cat, use_current_stats)
+    _scope_stats = {id(c): get_cat_stats(c, use_current_stats) for c in scope_cats}
     breakdown: list = []
     subtotals: dict = {
         "stat_7": 0.0, "stat_7_count": 0.0,
@@ -212,7 +217,7 @@ def compute_breed_priority_score(cat, scope_cats: list, ma_ratings: dict,
     # ── CHA penalty ───────────────────────────────────────────────────────────
     w_cha = _w.get("cha_low", 0.0)
     if w_cha != 0.0:
-        _cha = cat.base_stats.get("CHA")
+        _cha = _cat_stats.get("CHA")
         if _cha == 4:
             breakdown.append(("CHA = 4", round(w_cha, 3)))
             subtotals["cha_low"] = round(w_cha, 3)
@@ -240,8 +245,8 @@ def compute_breed_priority_score(cat, scope_cats: list, ma_ratings: dict,
     _TARGET_N = int(round(_w.get("stat_7_threshold", 7.0)))  # cats with a 7 before score scales down
     _STAT7_BASE = _w["stat_7"]
     for stat_name in stat_names:
-        if cat.base_stats.get(stat_name) == 7:
-            n_scope = sum(1 for c in scope_cats if c.base_stats.get(stat_name) == 7)
+        if _cat_stats.get(stat_name) == 7:
+            n_scope = sum(1 for c in scope_cats if _scope_stats[id(c)].get(stat_name) == 7)
             n = n_scope if _cat_in_scope else n_scope + 1
             # Sole owner of a 7 in this stat - extra bonus
             if n == 1:
@@ -261,7 +266,7 @@ def compute_breed_priority_score(cat, scope_cats: list, ma_ratings: dict,
     # ── 7-count bonus: scaled by how many 7's this cat personally owns ────────
     _w_7ct = _w.get("stat_7_count", 0.0)
     if _w_7ct != 0.0:
-        _n_sevens = sum(1 for sn in stat_names if cat.base_stats.get(sn) == 7)
+        _n_sevens = sum(1 for sn in stat_names if _cat_stats.get(sn) == 7)
         if _n_sevens > 0:
             _7ct_pts = round(_w_7ct * _n_sevens, 3)
             _s = "s" if _n_sevens != 1 else ""
@@ -392,7 +397,7 @@ def compute_breed_priority_score(cat, scope_cats: list, ma_ratings: dict,
     # ── Stat sum percentile scoring ───────────────────────────────────────────
     w_sum = _w.get("stat_sum", 0.0)
     if w_sum != 0 and scope_stat_sums:
-        cat_sum = sum(cat.base_stats.values())
+        cat_sum = sum(_cat_stats.values())
         n = len(scope_stat_sums)
         rank = sum(1 for v in scope_stat_sums if v <= cat_sum)
         pct = rank / n * 100

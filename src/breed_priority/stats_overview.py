@@ -33,6 +33,21 @@ _STAT_COLOR = {
     6: CLR_NEUTRAL,
 }
 
+
+def get_cat_stats(cat, use_current: bool) -> dict:
+    """Return the stat dict to use for scoring/display.
+
+    use_current=True  → total_stats (base + all modifiers/injuries)
+    use_current=False → base_stats (genetic base values only)
+
+    Falls back to base_stats if total_stats is unavailable.
+    """
+    if use_current:
+        total = getattr(cat, 'total_stats', None)
+        if total:
+            return total
+    return getattr(cat, 'base_stats', {}) or {}
+
 _COL_NAME = 0
 _COL_LOC  = 1
 # Stat columns: 2 .. 2+len(stat_names)-1
@@ -214,8 +229,7 @@ class StatsOverviewDialog(QDialog):
 
             for row, cat in enumerate(cats):
                 base  = getattr(cat, 'base_stats',  {}) or {}
-                total = getattr(cat, 'total_stats', {}) or {}
-                stats = total if self._include_injuries else base
+                stats = get_cat_stats(cat, self._include_injuries)
                 effects = _effects_for(cat, self._stat_names)
                 if effects:
                     fx_count += 1
