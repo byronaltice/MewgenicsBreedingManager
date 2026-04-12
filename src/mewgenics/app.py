@@ -8,7 +8,7 @@ from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
 from PySide6.QtGui import QColor, QPalette
 
 from mewgenics.utils.paths import APP_VERSION
-from mewgenics.utils.config import _saved_default_save, find_save_files
+from mewgenics.utils.config import _saved_default_save, _saved_last_save, find_save_files
 from mewgenics.utils.game_data import _GPAK_PATH
 from mewgenics.dialogs import SaveSelectorDialog
 from mewgenics.main_window import MainWindow, _ensure_gpak_path_interactive
@@ -55,9 +55,8 @@ def main():
         )
         _ensure_gpak_path_interactive()
 
-    # Open directly only when a valid default save exists; otherwise always show the save selector.
-    default_save = _saved_default_save()
-    initial_save: Optional[str] = default_save if default_save and os.path.isfile(default_save) else None
+    # Prefer explicit default save, then most recently loaded save, then show selector.
+    initial_save: Optional[str] = _saved_default_save() or _saved_last_save()
 
     if initial_save is None:
         saves = find_save_files()

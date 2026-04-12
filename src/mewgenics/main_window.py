@@ -46,6 +46,7 @@ from mewgenics.utils.config import (
     _save_splitter_state, _bind_splitter_persistence,
     _candidate_gpak_paths,
     _save_window_geometry, _load_window_geometry,
+    _set_last_save,
 )
 from mewgenics.utils.localization import (
     _SUPPORTED_LANGUAGES, ROOM_DISPLAY, COLUMNS,
@@ -2506,6 +2507,7 @@ class MainWindow(QMainWindow):
             self._breeding_cache = None
             self._prev_parent_keys = {}
         self._current_save = path
+        _set_last_save(path)
         if self._room_optimizer_view is not None:
             self._room_optimizer_view.set_save_path(path, refresh_existing=False)
         if self._perfect_planner_view is not None:

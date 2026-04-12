@@ -112,6 +112,24 @@ def _set_default_save(path: Optional[str]):
     _save_app_config(data)
 
 
+def _saved_last_save() -> Optional[str]:
+    """Return the most recently loaded save path, or None if unavailable."""
+    data = _load_app_config()
+    value = data.get("last_save", "")
+    if isinstance(value, str):
+        value = value.strip()
+        if value and os.path.isfile(value):
+            return value
+    return None
+
+
+def _set_last_save(path: str):
+    """Persist the most recently loaded save path."""
+    data = _load_app_config()
+    data["last_save"] = path
+    _save_app_config(data)
+
+
 def _set_save_dir(path: str):
     cleaned = path.strip()
     if not cleaned:
