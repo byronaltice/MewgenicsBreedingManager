@@ -167,6 +167,8 @@ class BreedPriorityView(QWidget):
         self._sort_order = Qt.DescendingOrder
         self._filters = FilterState()
         self._col_widths: dict[str, dict[int, int]] = {}  # {mode_name: {col_idx: width}}
+        self._bottom_pane_sizes: list[int] = []          # ABILITIES|MUTATIONS|CHILDREN|RISKS widths
+        self._trait_col_widths: dict[int, int] = {}      # {col_idx: width} shared by both trait tables
         self._active_profile: int = 1   # currently selected profile slot
         self._loaded_profile: int = 1   # which profile's data is in memory
         self._profiles: dict = {}       # {int: dict} explicitly saved profile blobs
@@ -291,6 +293,22 @@ class BreedPriorityView(QWidget):
         except Exception:
             pass
 
+        # ── Bottom pane sizes ──
+        try:
+            _bps = data.get("bottom_pane_sizes", [])
+            if isinstance(_bps, list) and len(_bps) == 4 and all(isinstance(x, int) for x in _bps):
+                self._bottom_pane_sizes = _bps
+        except Exception:
+            pass
+
+        # ── Trait table column widths ──
+        try:
+            _tcw = data.get("trait_col_widths", {})
+            if isinstance(_tcw, dict):
+                self._trait_col_widths = {int(k): int(v) for k, v in _tcw.items()}
+        except Exception:
+            pass
+
     def _profiles_safe(self) -> dict:
         """Return self._profiles, but if it's empty and the on-disk file already
         has profiles, return those instead.
@@ -343,6 +361,10 @@ class BreedPriorityView(QWidget):
                 for mode, widths in self._col_widths.items()
             },
             "col_count": len(_ALL_HEADERS),
+            "bottom_pane_sizes": (
+                list(self._bottom_hs.sizes()) if hasattr(self, "_bottom_hs") else []
+            ),
+            "trait_col_widths": {str(k): v for k, v in self._trait_col_widths.items()},
             # Profile slots (separate from working state)
             "active_profile": self._active_profile,
             "loaded_profile": self._loaded_profile,
@@ -1175,17 +1197,30 @@ class BreedPriorityView(QWidget):
         vb.addWidget(tbl, stretch=1)
         return w
 
+    def _on_trait_col_resized(self, logical_idx: int, _old: int, new_size: int):
+        if new_size > 0:
+            self._trait_col_widths[logical_idx] = new_size
+            self._col_save_timer.start()
+
     def _build_trait_section(self) -> QWidget:
         """Four equal panes: ABILITIES | MUTATIONS | CHILDREN | TOP BREEDING RISKS."""
-        hs = QSplitter(Qt.Horizontal)
-        hs.setHandleWidth(6)
-        hs.setStyleSheet(SPLITTER_H_STYLE)
-        hs.addWidget(self._make_trait_pane("_abilities_table", "ABILITIES"))
-        hs.addWidget(self._make_trait_pane("_mutations_table", "MUTATIONS"))
-        hs.addWidget(self._make_children_panel())
-        hs.addWidget(self._make_risk_panel())
-        hs.setSizes([210, 210, 220, 220])
-        return hs
+        self._bottom_hs = QSplitter(Qt.Horizontal)
+        self._bottom_hs.setHandleWidth(6)
+        self._bottom_hs.setStyleSheet(SPLITTER_H_STYLE)
+        self._bottom_hs.addWidget(self._make_trait_pane("_abilities_table", "ABILITIES"))
+        self._bottom_hs.addWidget(self._make_trait_pane("_mutations_table", "MUTATIONS"))
+        self._bottom_hs.addWidget(self._make_children_panel())
+        self._bottom_hs.addWidget(self._make_risk_panel())
+        self._bottom_hs.setSizes(self._bottom_pane_sizes or [210, 210, 220, 220])
+        self._bottom_hs.splitterMoved.connect(lambda *_: self._col_save_timer.start())
+
+        for tbl in (self._abilities_table, self._mutations_table):
+            if self._trait_col_widths:
+                for col_idx, width in self._trait_col_widths.items():
+                    tbl.setColumnWidth(col_idx, width)
+            tbl.horizontalHeader().sectionResized.connect(self._on_trait_col_resized)
+
+        return self._bottom_hs
 
     def _build_ui(self):
         vb = QVBoxLayout(self)
