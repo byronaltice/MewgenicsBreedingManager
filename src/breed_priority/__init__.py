@@ -68,7 +68,7 @@ from .styles import (
 from .columns import (
     COL_NAME, COL_LOC, COL_INJ, _STAT_COL_NAMES, _COL_STAT_START,
     _NUM_STAT_COLS, _SCORE_COLS, _COL_SCORE_START, COL_SCORE,
-    _ALL_HEADERS, _SEP_COLS, _SEP_WIDTH, _SEP_MIN_WIDTH,
+    _ALL_HEADERS, _SEP_COLS, _SEP_WIDTH, _COL_MIN_WIDTH, _SEP_MIN_WIDTH,
     _CHIP_ROLE, _SCORE_SECONDARY_ROLE, _HEATMAP_ROLE,
     _ROOM_STYLE, INJURY_STAT_NAMES, _COL_EMOJI,
     _SINGLE_VALUE_CENTER_SCORE_COLS, _MULTI_VALUE_LEFT_SCORE_COLS,
@@ -1100,7 +1100,7 @@ class BreedPriorityView(QWidget):
         self._score_table.setSortingEnabled(True)
         self._score_table.setStyleSheet(PRIORITY_TABLE_STYLE)
         shh.setSectionResizeMode(QHeaderView.Interactive)
-        shh.setMinimumSectionSize(_SEP_WIDTH)
+        shh.setMinimumSectionSize(_COL_MIN_WIDTH)
         self._score_table.setColumnWidth(COL_NAME, 120)
         self._score_table.setColumnWidth(COL_LOC, 112)
         self._score_table.setColumnWidth(COL_INJ, 100)

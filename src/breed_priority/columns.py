@@ -32,7 +32,8 @@ _ALL_HEADERS      = (
 )
 _SEP_COLS         = frozenset({COL_SEP1})
 _SEP_WIDTH        = 8
-_SEP_MIN_WIDTH    = 16
+_COL_MIN_WIDTH    = 20   # ~2 text chars or 1 emoji at table font size
+_SEP_MIN_WIDTH    = _COL_MIN_WIDTH
 
 
 def _score_col_idx(header: str) -> int:
