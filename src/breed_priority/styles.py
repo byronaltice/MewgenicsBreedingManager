@@ -168,7 +168,8 @@ PRIORITY_COMBO_STYLE = (
     " padding:1px 4px; font-size:11px; }"
     "QComboBox:hover { border-color:#3a3a7a; }"
     "QComboBox::drop-down { border:none; }"
-    f"QComboBox QAbstractItemView {{ background:{CLR_SURFACE_APP_ALT}; color:{CLR_TEXT_CONTENT_SECONDARY};"
+    # No `color` here — item colors come from setForeground() on each model item
+    f"QComboBox QAbstractItemView {{ background:{CLR_SURFACE_APP_ALT};"
     f" selection-background-color:#1e3060; border:1px solid {CLR_SURFACE_SEPARATOR}; }}"
 )
 

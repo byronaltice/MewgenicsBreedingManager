@@ -704,8 +704,16 @@ def _load_ability_descriptions(gpak_path: str | None) -> dict[str, str]:
             desc_re = re.compile(r'^\s*desc\s+"([^"]*)"', re.MULTILINE)
             tier2_block_re = re.compile(r'^\s*2\s*\{', re.MULTILINE)
 
+            _STAT_IMG_EMOJI = {
+                "str": "💪", "dex": "🏹", "con": "🧡",
+                "int": "💡", "spd": "👟", "cha": "👄", "lck": "☘️",
+            }
+
             def _clean(text: str) -> str:
-                text = re.sub(r'\[img:[^\]]+\]', '', text)
+                def _img_to_emoji(m: re.Match) -> str:
+                    key = m.group(1).lower()
+                    return _STAT_IMG_EMOJI.get(key, "")
+                text = re.sub(r'\[img:([^\]]+)\]', _img_to_emoji, text)
                 text = re.sub(r'\[s:[^\]]*\]|\[/s\]', '', text)
                 text = re.sub(r'\[c:[^\]]*\]|\[/c\]', '', text)
                 return re.sub(r'\s+', ' ', text).strip()

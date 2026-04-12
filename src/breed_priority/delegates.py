@@ -627,13 +627,66 @@ class _NumericSortItem(QTableWidgetItem):
             return super().__lt__(other)
 
 
+_RATING_DESC_COLOR = QColor("#666677")
+_RATING_ITEM_PADDING = 4
+
+
+class _RatingItemDelegate(QStyledItemDelegate):
+    """Renders each rating combo item with the label in its rating color and
+    the description suffix (' - ...') in a dim grey so the two parts are
+    visually distinct."""
+
+    def paint(self, painter, option, index):
+        self.initStyleOption(option, index)
+        style = option.widget.style() if option.widget else QApplication.style()
+        style.drawPrimitive(QStyle.PE_PanelItemViewItem, option, painter, option.widget)
+
+        text = index.data(Qt.DisplayRole) or ""
+        fg = index.data(Qt.ForegroundRole)
+        label_color = fg.color() if fg and hasattr(fg, "color") else QColor(CLR_TEXT_CONTENT_SECONDARY)
+
+        sep = " - "
+        sep_pos = text.find(sep)
+        has_desc = sep_pos != -1
+
+        painter.save()
+        fm = QFontMetrics(painter.font())
+        r = option.rect.adjusted(_RATING_ITEM_PADDING, 0, -_RATING_ITEM_PADDING, 0)
+
+        if has_desc:
+            label_text = text[:sep_pos]
+            desc_text = text[sep_pos:]           # includes " - "
+            label_w = fm.horizontalAdvance(label_text)
+            painter.setPen(label_color)
+            painter.drawText(r, Qt.AlignLeft | Qt.AlignVCenter, label_text)
+            desc_r = r.adjusted(label_w, 0, 0, 0)
+            painter.setPen(_RATING_DESC_COLOR)
+            elided = fm.elidedText(desc_text, Qt.ElideRight, desc_r.width())
+            painter.drawText(desc_r, Qt.AlignLeft | Qt.AlignVCenter, elided)
+        else:
+            painter.setPen(label_color)
+            painter.drawText(r, Qt.AlignLeft | Qt.AlignVCenter, text)
+
+        painter.restore()
+
+    def sizeHint(self, option, index):
+        sh = super().sizeHint(option, index)
+        return QSize(sh.width(), max(sh.height(), 20))
+
+
 class _RatingCombo(QComboBox):
-    """Rating combo that shows short labels collapsed, long labels in dropdown."""
+    """Rating combo that shows short labels collapsed, long labels in dropdown.
+
+    Each item is colored by its rating via setForeground(); the popup uses
+    _RatingItemDelegate to render the label in rating color and the description
+    suffix in dim grey.
+    """
 
     def __init__(self):
         super().__init__()
         self.wheelEvent = lambda e: e.ignore()
         self.addItems(RATING_SHORT_LABELS)
+        self.view().setItemDelegate(_RatingItemDelegate(self.view()))
 
     def showPopup(self):
         for i, long in enumerate(TRAIT_RATING_LABELS):

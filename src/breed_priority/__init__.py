@@ -5,6 +5,7 @@ Game-specific helpers (STAT_NAMES, ROOM_DISPLAY, mutation_display_name,
 ability_tip) are injected via BreedPriorityView.__init__() arguments.
 """
 
+import html as _html
 import os
 import json
 from typing import Optional, Callable
@@ -1925,7 +1926,10 @@ class BreedPriorityView(QWidget):
         _RATED_BG = QBrush()
 
         for row, trait in enumerate(visible):
-            display = self._display_name(trait)
+            raw_display = self._display_name(trait)
+            # Emojify stat abbreviations embedded in mutation display names
+            # (e.g. "Body Mutation +2 STR, -1 INT" → "Body Mutation +2💪, -1💡")
+            display = StatTextFormatter.emojify(raw_display)
             # Build inline summary from mutation tip or ability tip
             mut_tip = self._mutation_tips.get(trait, "")
             abl_tip = self._ability_tip(trait) if not mut_tip else ""
@@ -1935,10 +1939,11 @@ class BreedPriorityView(QWidget):
                 summary = StatTextFormatter.ability_summary(abl_tip)
             else:
                 summary = ""
-            display_text = f"{display}  {summary}" if summary else display
+            # Avoid duplicating stats already present in the display name
+            display_text = f"{display}  {summary}" if summary and summary not in display else display
             name_item = QTableWidgetItem(display_text)
             name_item.setData(Qt.UserRole, trait)
-            name_item.setData(Qt.UserRole + 10, display)    # trait name only
+            name_item.setData(Qt.UserRole + 10, display)    # trait name only (emojified)
             name_item.setData(Qt.UserRole + 11, summary)    # stat summary only
             name_item.setFlags(Qt.ItemIsEnabled)
             current = self._ma_ratings.get(trait)
@@ -1948,7 +1953,9 @@ class BreedPriorityView(QWidget):
                 name_item.setBackground(_UNSET_BG)
             tip = mut_tip or abl_tip
             if tip:
-                name_item.setToolTip(f"{display}\n\n{tip}")
+                esc_display = _html.escape(display)
+                esc_tip = _html.escape(tip).replace("\n", "<br>")
+                name_item.setToolTip(f"<b>{esc_display}</b><br><br>{esc_tip}")
             table.setItem(row, 0, name_item)
 
             combo = _RatingCombo()
