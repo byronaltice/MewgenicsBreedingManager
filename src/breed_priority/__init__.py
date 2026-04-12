@@ -1159,54 +1159,33 @@ class BreedPriorityView(QWidget):
         self._update_sort_label()
         return score_container
 
+    def _make_trait_pane(self, attr: str, title: str) -> QWidget:
+        """Build a titled pane containing a single trait table (abilities or mutations)."""
+        w = QWidget()
+        w.setStyleSheet(f"background:{CLR_BG_MAIN};")
+        vb = QVBoxLayout(w)
+        vb.setContentsMargins(8, 6, 8, 6)
+        vb.setSpacing(4)
+        lbl = QLabel(title)
+        lbl.setStyleSheet(GROUP_LABEL_TEXT_STYLE)
+        lbl.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        vb.addWidget(lbl)
+        tbl = self._make_trait_table()
+        setattr(self, attr, tbl)
+        vb.addWidget(tbl, stretch=1)
+        return w
+
     def _build_trait_section(self) -> QWidget:
-        """Build the trait desirability tables + children panel as a horizontal splitter."""
-        ma_widget = QWidget()
-        ma_widget.setStyleSheet(f"background:{CLR_BG_MAIN};")
-        ma_vb = QVBoxLayout(ma_widget)
-        ma_vb.setContentsMargins(8, 6, 8, 6)
-        ma_vb.setSpacing(4)
-        ma_lbl = QLabel("TRAIT DESIRABILITY")
-        ma_lbl.setStyleSheet(GROUP_LABEL_TEXT_STYLE)
-        ma_lbl.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
-        ma_vb.addWidget(ma_lbl)
-        ma_vb.setStretchFactor(ma_lbl, 0)
-        ma_hs = QSplitter(Qt.Horizontal)
-        ma_hs.setHandleWidth(6)
-        ma_hs.setStyleSheet(SPLITTER_H_STYLE)
-        for attr, label in (("_abilities_table", "Abilities"), ("_mutations_table", "Mutations")):
-            w = QWidget()
-            w.setStyleSheet(f"background:{CLR_BG_MAIN};")
-            wv = QVBoxLayout(w)
-            wv.setContentsMargins(0, 0, 0, 0)
-            wv.setSpacing(2)
-            lbl = QLabel(label)
-            lbl.setStyleSheet(f"color:{CLR_TEXT_GROUP}; font-size:10px; font-weight:bold;")
-            wv.addWidget(lbl)
-            tbl = self._make_trait_table()
-            setattr(self, attr, tbl)
-            wv.addWidget(tbl)
-            ma_hs.addWidget(w)
-        ma_vb.addWidget(ma_hs, stretch=1)
-
-        right_hs = QSplitter(Qt.Horizontal)
-        right_hs.setHandleWidth(6)
-        right_hs.setStyleSheet(SPLITTER_H_STYLE)
-        right_hs.addWidget(self._make_children_panel())
-        right_hs.addWidget(self._make_risk_panel())
-        right_hs.setSizes([220, 260])
-        right_hs.setStretchFactor(0, 1)
-        right_hs.setStretchFactor(1, 1)
-
-        bottom_hs = QSplitter(Qt.Horizontal)
-        bottom_hs.setHandleWidth(6)
-        bottom_hs.setStyleSheet(SPLITTER_H_STYLE)
-        bottom_hs.addWidget(ma_widget)
-        bottom_hs.addWidget(right_hs)
-        bottom_hs.setSizes([420, 300])
-        bottom_hs.setStretchFactor(0, 2)
-        bottom_hs.setStretchFactor(1, 1)
-        return bottom_hs
+        """Four equal panes: ABILITIES | MUTATIONS | CHILDREN | TOP BREEDING RISKS."""
+        hs = QSplitter(Qt.Horizontal)
+        hs.setHandleWidth(6)
+        hs.setStyleSheet(SPLITTER_H_STYLE)
+        hs.addWidget(self._make_trait_pane("_abilities_table", "ABILITIES"))
+        hs.addWidget(self._make_trait_pane("_mutations_table", "MUTATIONS"))
+        hs.addWidget(self._make_children_panel())
+        hs.addWidget(self._make_risk_panel())
+        hs.setSizes([210, 210, 220, 220])
+        return hs
 
     def _build_ui(self):
         vb = QVBoxLayout(self)
