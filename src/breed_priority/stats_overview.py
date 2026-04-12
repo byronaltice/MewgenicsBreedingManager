@@ -44,10 +44,18 @@ def get_mutation_stat_bonuses(cat) -> dict:
     """Return {stat_name: total_delta} summed across all visual mutation entries.
 
     Parses the 'detail' field on each entry (e.g. "+2 STR, -1 DEX").
+    Each unique mutation_id is counted only once — the game applies a mutation's
+    stat bonus once regardless of how many body-part slots share the same ID
+    (e.g. the same eyebrow mutation on left and right eyebrow counts once).
     Entries with no parseable stat effects contribute nothing.
     """
     bonuses: dict[str, int] = {}
+    seen_ids: set[int] = set()
     for entry in getattr(cat, 'visual_mutation_entries', []) or []:
+        mutation_id = entry.get('mutation_id')
+        if mutation_id in seen_ids:
+            continue
+        seen_ids.add(mutation_id)
         detail = entry.get('detail', '') or ''
         for match in _MUT_STAT_RE.finditer(detail):
             delta = int(match.group(1))
