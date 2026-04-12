@@ -64,29 +64,44 @@ def get_mutation_stat_bonuses(cat) -> dict:
     return bonuses
 
 
+def get_class_stat_bonuses(cat) -> dict[str, int]:
+    """Return {stat_name: delta} from the cat's class stat modifiers, or empty dict."""
+    return getattr(cat, 'class_stat_mods', None) or {}
+
+
 def get_cat_stats(cat, use_current: bool, add_mutation_stats: bool = False) -> dict:
     """Return the stat dict to use for scoring/display.
 
-    use_current=True  → total_stats (base + all modifiers/injuries)
+    use_current=True  → total_stats (base + all modifiers/injuries + class bonuses)
     use_current=False → base_stats (genetic base values only)
 
     add_mutation_stats=True adds parsed mutation stat bonuses on top of
     whichever source is selected.  Falls back to base_stats if total_stats
     is unavailable.
+
+    Class stat modifiers are always included when use_current=True, since the
+    game applies them to all stats displayed on the house management screen.
     """
     if use_current:
         source = getattr(cat, 'total_stats', None) or getattr(cat, 'base_stats', {}) or {}
     else:
         source = getattr(cat, 'base_stats', {}) or {}
 
-    if not add_mutation_stats:
-        return source
+    # Collect all bonus sources that apply
+    all_bonuses: dict[str, int] = {}
 
-    bonuses = get_mutation_stat_bonuses(cat)
-    if not bonuses:
+    if use_current:
+        for stat, delta in get_class_stat_bonuses(cat).items():
+            all_bonuses[stat] = all_bonuses.get(stat, 0) + delta
+
+    if add_mutation_stats:
+        for stat, delta in get_mutation_stat_bonuses(cat).items():
+            all_bonuses[stat] = all_bonuses.get(stat, 0) + delta
+
+    if not all_bonuses:
         return source
     result = dict(source)
-    for stat, delta in bonuses.items():
+    for stat, delta in all_bonuses.items():
         if stat in result:
             result[stat] = result[stat] + delta
     return result
@@ -107,10 +122,10 @@ def _stat_idx(sn: str) -> int:
 
 
 def _effects_for(cat, stat_names: list) -> list:
-    """Return [(stat_key, total_delta, mod_part, sec_part), ...] for all non-zero deltas.
+    """Return [(stat_key, total_delta, mod_part, sec_part, class_part), ...] for all non-zero deltas.
 
-    total_delta = total_stats - base_stats (positive = buff, negative = debuff/injury).
-    mod_part / sec_part are the two underlying components when available.
+    total_delta = total_stats + class_mods - base_stats (positive = buff, negative = debuff/injury).
+    mod_part / sec_part / class_part are the underlying components when available.
     """
     base  = getattr(cat, 'base_stats',  None)
     total = getattr(cat, 'total_stats', None)
@@ -119,30 +134,34 @@ def _effects_for(cat, stat_names: list) -> list:
 
     stat_mod = getattr(cat, 'stat_mod', None) or []
     stat_sec = getattr(cat, 'stat_sec', None) or []
+    class_mods = get_class_stat_bonuses(cat)
 
     result = []
     for sn in stat_names:
         b = base.get(sn, 0)
         t = total.get(sn, b)
-        delta = t - b
+        cls_mod = class_mods.get(sn, 0)
+        delta = (t - b) + cls_mod
         if delta == 0:
             continue
         idx = _stat_idx(sn)
         mod = stat_mod[idx] if (idx >= 0 and idx < len(stat_mod)) else 0
         sec = stat_sec[idx] if (idx >= 0 and idx < len(stat_sec)) else 0
-        result.append((sn, delta, mod, sec))
+        result.append((sn, delta, mod, sec, cls_mod))
     return result
 
 
 def _stat_cell_tooltip(sn: str, base_val: int, total_val: int, cat) -> str:
-    """Build a per-stat tooltip showing the base + mod + sec breakdown."""
+    """Build a per-stat tooltip showing the base + mod + sec + class breakdown."""
     stat_mod = getattr(cat, 'stat_mod', None) or []
     stat_sec = getattr(cat, 'stat_sec', None) or []
+    class_mods = get_class_stat_bonuses(cat)
     idx = _stat_idx(sn)
     mod = stat_mod[idx] if (idx >= 0 and idx < len(stat_mod)) else 0
     sec = stat_sec[idx] if (idx >= 0 and idx < len(stat_sec)) else 0
+    cls = class_mods.get(sn, 0)
 
-    if mod == 0 and sec == 0:
+    if mod == 0 and sec == 0 and cls == 0:
         return f"{sn}: {total_val} (base)"
 
     parts = [f"base {base_val}"]
@@ -150,7 +169,11 @@ def _stat_cell_tooltip(sn: str, base_val: int, total_val: int, cat) -> str:
         parts.append(f"mod {mod:+d}")
     if sec != 0:
         parts.append(f"sec {sec:+d}")
-    return f"{sn}: {total_val}  ({' + '.join(parts) if mod >= 0 and sec >= 0 else ', '.join(parts)})"
+    if cls != 0:
+        cat_class = getattr(cat, 'cat_class', '')
+        cls_label = f"{cat_class} class" if cat_class else "class"
+        parts.append(f"{cls_label} {cls:+d}")
+    return f"{sn}: {total_val}  ({', '.join(parts)})"
 
 
 class StatsOverviewDialog(QDialog):
@@ -337,21 +360,21 @@ class StatsOverviewDialog(QDialog):
                 # Always reflects reality regardless of the include/exclude toggle.
                 if effects:
                     parts = []
-                    for sn, delta, mod, sec in effects:
+                    for sn, delta, *_ in effects:
                         parts.append(f"{sn} {delta:+d}")
                     fx_text = ",  ".join(parts)
                     fx_item = QTableWidgetItem(fx_text)
                     # Color by majority direction
-                    has_neg = any(d < 0 for _, d, _, _ in effects)
-                    has_pos = any(d > 0 for _, d, _, _ in effects)
+                    has_neg = any(d < 0 for _, d, *_ in effects)
+                    has_pos = any(d > 0 for _, d, *_ in effects)
                     if has_neg and not has_pos:
                         fx_item.setForeground(QColor(CLR_VALUE_NEG))
                     elif has_pos and not has_neg:
                         fx_item.setForeground(QColor(CLR_VALUE_POS))
                     # Mixed: leave default color
-                    # Tooltip shows full mod/sec breakdown
+                    # Tooltip shows full mod/sec/class breakdown
                     tip_lines = []
-                    for sn, delta, mod, sec in effects:
+                    for sn, delta, *_ in effects:
                         b_val = base.get(sn, 0)
                         tip_lines.append(_stat_cell_tooltip(sn, b_val, b_val + delta, cat))
                     fx_item.setToolTip("\n".join(tip_lines))

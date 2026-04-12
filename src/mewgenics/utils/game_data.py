@@ -1,7 +1,7 @@
 """GPAK loading and game data reload."""
 import os
 
-from save_parser import GameData, FurnitureDefinition, set_visual_mut_data
+from save_parser import GameData, FurnitureDefinition, set_visual_mut_data, set_class_stat_mods
 
 from mewgenics.utils.config import _load_app_config, _save_app_config, _candidate_gpak_paths
 from mewgenics.utils.abilities import _load_ability_descriptions, _ABILITY_DESC
@@ -25,6 +25,7 @@ def _reload_game_data():
     _VISUAL_MUT_DATA = game_data.visual_mutation_data
     _FURNITURE_DATA = game_data.furniture_data
     set_visual_mut_data(_VISUAL_MUT_DATA)
+    set_class_stat_mods(game_data.class_stat_mods)
 
 
 def _set_gpak_path(path: str):

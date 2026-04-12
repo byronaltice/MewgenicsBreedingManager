@@ -64,6 +64,8 @@ DONATION_MAX_TOP_STAT = 6
 _SEXUALITY_BI_THRESHOLD  = 0.1   # raw value >= this → at least bi (below = straight)
 _SEXUALITY_GAY_THRESHOLD = 0.9   # raw value >= this → gay
 
+_CLASS_STRING_TAIL_OFFSET = 115  # class string ends this many bytes before blob end
+
 
 def _valid_str(s) -> bool:
     """Reject None, empty, and game filler strings like 'none' or 'defaultmove'."""
@@ -248,6 +250,7 @@ class GameData:
 
     visual_mutation_data: dict[str, dict[int, tuple[str, str]]] = field(default_factory=dict)
     furniture_data: dict[str, "FurnitureDefinition"] = field(default_factory=dict)
+    class_stat_mods: dict[str, dict[str, int]] = field(default_factory=dict)
 
     @classmethod
     def from_gpak(cls, gpak_path: str | None) -> "GameData":
@@ -293,7 +296,8 @@ class GameData:
                         f.seek(foff)
                         content = f.read(fsz).decode("utf-8", errors="replace")
                         furniture_data = _parse_furniture_gon(content, furniture_strings)
-                return cls(result, furniture_data)
+                class_stat_mods = _load_class_stat_mods(f, file_offsets)
+                return cls(result, furniture_data, class_stat_mods)
         except Exception:
             return cls()
 
@@ -306,6 +310,75 @@ def set_visual_mut_data(data: dict[str, dict[int, tuple[str, str]]]):
     """Update the visual mutation lookup data (called after gpak loading)."""
     global _VISUAL_MUT_DATA
     _VISUAL_MUT_DATA = data
+
+
+# Class stat modifiers: {class_name: {STAT_NAME: delta}}
+# Populated at runtime via set_class_stat_mods() from the main module.
+_CLASS_STAT_MODS: dict[str, dict[str, int]] = {}
+
+# Stat abbreviation mapping for class gon files (lowercase gon key → uppercase stat name)
+_GON_STAT_KEY_TO_NAME = {
+    "str": "STR", "con": "CON", "int": "INT",
+    "dex": "DEX", "spd": "SPD", "lck": "LCK", "cha": "CHA",
+}
+
+
+def set_class_stat_mods(data: dict[str, dict[str, int]]):
+    """Update the class stat modifier lookup data (called after gpak loading)."""
+    _CLASS_STAT_MODS.clear()
+    _CLASS_STAT_MODS.update(data)
+
+
+def get_class_stat_mods(class_name: str) -> dict[str, int]:
+    """Return {STAT_NAME: delta} for a class, or empty dict if unknown."""
+    return _CLASS_STAT_MODS.get(class_name, {})
+
+
+def _parse_class_stat_mods_gon(content: str) -> dict[str, dict[str, int]]:
+    """Parse a class GON file and extract stat_mods for each class."""
+    result: dict[str, dict[str, int]] = {}
+    for class_name, block in _iter_gon_blocks(content):
+        stat_mods_match = re.search(r"stat_mods\s*\{", block)
+        if not stat_mods_match:
+            continue
+        # Extract the stat_mods sub-block via brace depth
+        brace_start = stat_mods_match.end() - 1
+        depth = 0
+        pos = brace_start
+        while pos < len(block):
+            if block[pos] == "{":
+                depth += 1
+            elif block[pos] == "}":
+                depth -= 1
+                if depth == 0:
+                    break
+            pos += 1
+        sub_block = block[brace_start + 1:pos]
+        mods: dict[str, int] = {}
+        for line in sub_block.splitlines():
+            line = line.split("//")[0].strip()
+            parts = line.split()
+            if len(parts) >= 2 and parts[0] in _GON_STAT_KEY_TO_NAME:
+                try:
+                    mods[_GON_STAT_KEY_TO_NAME[parts[0]]] = int(parts[1])
+                except ValueError:
+                    continue
+        if mods:
+            result[class_name] = mods
+    return result
+
+
+def _load_class_stat_mods(file_obj, file_offsets: dict[str, tuple[int, int]]) -> dict[str, dict[str, int]]:
+    """Load class stat modifiers from class GON files in the gpak."""
+    merged: dict[str, dict[str, int]] = {}
+    for fname in ("data/classes/classes.gon", "data/classes/advanced_classes.gon"):
+        if fname not in file_offsets:
+            continue
+        foff, fsz = file_offsets[fname]
+        file_obj.seek(foff)
+        content = file_obj.read(fsz).decode("utf-8", errors="replace")
+        merged.update(_parse_class_stat_mods_gon(content))
+    return merged
 
 
 def _load_gpak_text_strings(file_obj, file_offsets: dict[str, tuple[int, int]]) -> dict[str, str]:
@@ -1313,6 +1386,28 @@ class Cat:
                 logger.debug("Cat %s: age extraction failed", cat_key, exc_info=True)
 
         self.parsed_age = self.age
+
+        # Extract class name from a fixed offset before blob end.
+        # The class string ends exactly 115 bytes before the blob end
+        # (stored as u32 length + u32 zero-pad + UTF-8 class name).
+        self.cat_class: str = ""
+        self.class_stat_mods: dict[str, int] = {}
+        try:
+            class_str_end = len(raw) - _CLASS_STRING_TAIL_OFFSET
+            for class_len in range(3, 30):
+                prefix_pos = class_str_end - class_len - 8
+                if prefix_pos < 0:
+                    break
+                length = struct.unpack_from('<I', raw, prefix_pos)[0]
+                zero = struct.unpack_from('<I', raw, prefix_pos + 4)[0]
+                if length == class_len and zero == 0:
+                    class_name = raw[prefix_pos + 8:prefix_pos + 8 + class_len].decode('utf-8', errors='replace')
+                    if class_name != "Colorless":
+                        self.cat_class = class_name
+                        self.class_stat_mods = _CLASS_STAT_MODS.get(class_name, {})
+                    break
+        except Exception:
+            logger.debug("Cat %s: class extraction failed", cat_key, exc_info=True)
 
         # Derive sexuality string from the raw float at personality_anchor+40.
         if _sexuality_raw is None or _sexuality_raw < _SEXUALITY_BI_THRESHOLD:
