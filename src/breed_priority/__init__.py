@@ -2111,17 +2111,19 @@ class BreedPriorityView(QWidget):
         self._score_table.setSortingEnabled(False)
         self._score_table.setRowCount(len(alive))
 
-        # Stat column coloring mode: dynamic (per-column range) when either
-        # stat modifier toggle is active; legacy fixed-value scheme otherwise.
+        # Stat column coloring mode: rank-based per column when either stat
+        # modifier toggle is active; legacy fixed-value scheme otherwise.
+        # Ranks are over unique values so outliers only anchor the bright end
+        # without compressing the colors of all other values.
         _stat_dynamic_mode = self._use_current_stats or self._add_mutation_stats
         if _stat_dynamic_mode:
-            _stat_col_ranges: dict[str, tuple[int, int]] = {}
+            _stat_col_ranks: dict[str, dict[int, float]] = {}
             for _sn in _STAT_COL_NAMES:
                 _col_vals = [
                     get_cat_stats(c, self._use_current_stats, self._add_mutation_stats).get(_sn, 0)
                     for c in alive
                 ]
-                _stat_col_ranges[_sn] = (min(_col_vals), max(_col_vals)) if _col_vals else (0, 0)
+                _stat_col_ranks[_sn] = ChipColors.stat_col_ranks(_col_vals) if _col_vals else {}
 
         for row, cat in enumerate(alive):
             result = results[id(cat)]
@@ -2176,9 +2178,11 @@ class BreedPriorityView(QWidget):
                 stat_item.setTextAlignment(Qt.AlignCenter)
                 stat_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
                 if _stat_dynamic_mode:
-                    # Per-column range coloring: min→dim, max→bright teal.
-                    _col_min, _col_max = _stat_col_ranges[stat]
-                    _sb, _val_fg = ChipColors.stat_dynamic(val, _col_min, _col_max)
+                    # Rank-based coloring: each value's color reflects its rank
+                    # among unique values in this column, not its absolute distance
+                    # from the column min/max.
+                    _t = _stat_col_ranks[stat].get(val, 0.0)
+                    _sb, _val_fg = ChipColors.stat_ranked(_t)
                 else:
                     # Legacy fixed-value scheme: 7=teal, 6=gold, 5=tan, rest=grey.
                     _STAT_FIXED_CLR = {7: "#44cc66", 6: "#bba844", 5: "#998855"}

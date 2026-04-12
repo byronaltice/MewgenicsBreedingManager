@@ -123,23 +123,39 @@ class ChipColors:
         return (CLR_TEXT_GRAYEDOUT, CLR_TEXT_SECONDARY)
 
     @staticmethod
-    def stat_dynamic(val: int, col_min: int, col_max: int) -> tuple:
-        """Return (bg, fg) chip pair for a stat value within its column's range.
+    def stat_ranked(t: float) -> tuple:
+        """Return (bg, fg) chip pair for a stat value given its percentile rank t ∈ [0, 1].
 
-        Interpolates fg linearly from dim (col_min) to bright teal (col_max).
-        bg is derived from fg to ensure readable contrast on the dark surface.
-        When col_min == col_max all values receive the neutral chip.
+        t=0 → dim purple-grey (column minimum rank)
+        t=1 → bright teal (column maximum rank)
+
+        Rank is computed over the column's unique values so outliers only set
+        the top anchor — they do not compress the colors of other values.
+        bg is derived from fg for readable contrast on the dark surface.
         """
         from .theme import (
             _CLR_STAT_DYNAMIC_LOW, _CLR_STAT_DYNAMIC_HIGH,
-            CLR_SURFACE_SCORE_AREA, _CHIP_NEUTRAL_STABLE,
+            CLR_SURFACE_SCORE_AREA,
         )
-        if col_min == col_max:
-            return _CHIP_NEUTRAL_STABLE
-        t = (val - col_min) / (col_max - col_min)
         fg = ColorUtils.lerp(_CLR_STAT_DYNAMIC_LOW, _CLR_STAT_DYNAMIC_HIGH, t)
         bg = ColorUtils.derive_chip_bg(fg, CLR_SURFACE_SCORE_AREA)
         return bg, fg
+
+    @staticmethod
+    def stat_col_ranks(values: list) -> dict:
+        """Build a value→percentile-rank mapping for a single stat column.
+
+        Ranks are assigned over unique values only, so repeated values share
+        a rank and outliers do not pull the gradient away from the bulk.
+
+        Returns {value: t} where t ∈ [0, 1] (0=lowest, 1=highest unique value).
+        When only one unique value exists every entry maps to 1.0.
+        """
+        unique = sorted(set(values))
+        n = len(unique)
+        if n <= 1:
+            return {v: 1.0 for v in unique}
+        return {v: i / (n - 1) for i, v in enumerate(unique)}
 
     @staticmethod
     def from_score(score_val: float) -> tuple:
