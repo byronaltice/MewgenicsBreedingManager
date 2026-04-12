@@ -15,14 +15,14 @@ class ChipColors:
         """Return (bg, fg) chip colors for a stat-at-7 chip.
 
         n <= threshold        → full green  (within scoring range, full points)
-        n >= threshold + 10   → full grey   (very common, no score contribution)
-        Values in between fade linearly from green to grey.
+        n >= threshold + 10   → full brown  (very common, no score contribution)
+        Values in between fade linearly from green to brown.
         """
-        from .theme import _CHIP_DESIRABLE, _CHIP_UNDECIDED
+        from .theme import _CHIP_DESIRABLE, _CHIP_RARITY_DIM
         t = min(1.0, max(0.0, (n - threshold) / 10.0))
         return (
-            ColorUtils.lerp(_CHIP_DESIRABLE[0], _CHIP_UNDECIDED[0], t),
-            ColorUtils.lerp(_CHIP_DESIRABLE[1], _CHIP_UNDECIDED[1], t),
+            ColorUtils.lerp(_CHIP_DESIRABLE[0], _CHIP_RARITY_DIM[0], t),
+            ColorUtils.lerp(_CHIP_DESIRABLE[1], _CHIP_RARITY_DIM[1], t),
         )
 
     @staticmethod

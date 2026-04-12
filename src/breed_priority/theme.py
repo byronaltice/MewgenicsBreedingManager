@@ -29,7 +29,7 @@ _CLR_YELLOW = "#b0a040"
 # Used when "Use Current Stats" or "Add Mutation Stats" is active.
 # Values are colored by their position in each column's min–max range.
 
-_CLR_STAT_DYNAMIC_LOW = "#444466"   # dim purple-grey — column minimum
+_CLR_STAT_DYNAMIC_LOW = "#7a5028"   # warm brown — column minimum
 _CLR_STAT_DYNAMIC_HIGH = "#44cc66"  # bright teal-green — column maximum
 
 # ── UI state colors ───────────────────────────────────────────────────────────
@@ -125,6 +125,8 @@ _CHIP_HATE_ROOM = ("#2e1e10", "#cc7733")
 _CHIP_AGGRO_HI = ("#3a1a1a", "#cc6666")
 _CHIP_AGGRO_LO = ("#1a2a3a", "#6699cc")
 _CHIP_AGE_WARN = ("#3a2010", "#cc8833")
+# Low-rarity dim: warm brown — visible against dark navy, distinct from green/red
+_CHIP_RARITY_DIM = ("#2e1a06", "#a07840")
 _CHIP_DIM = (CLR_SURFACE_NEUTRAL, CLR_TEXT_CONTENT_UNSCORED)
 _CHIP_NEUTRAL_STABLE = (CLR_SURFACE_NEUTRAL, CLR_CHIP_NEUTRAL_TEXT)
 _CHIP_NEUTRAL_FAINT = ("#13131a", "#7d7d96")
