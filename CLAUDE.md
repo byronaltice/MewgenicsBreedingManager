@@ -32,15 +32,31 @@ src/
   mewgenics_manager.py              # Backwards-compatible entry point (thin wrapper)
   save_parser.py                    # Binary parser, Cat model, genetics/kinship logic
   breeding.py                       # Breeding compatibility, scoring, offspring tracking
-  breed_priority.py                 # BreedPriorityView widget and orchestration
-  breed_priority_constants.py       # Shared constants, styles, and column indices
-  breed_priority_scoring.py         # Score computation helpers for breed priority
-  breed_priority_delegates.py       # Custom Qt delegates and controls for score table
-  breed_priority_filters.py         # Breed priority filter dialog and state
+  visual_mutation_catalog.py        # Lookup tables: (slot, mutation_id) -> display name
+  breed_priority/
+    __init__.py                     # BreedPriorityView widget and orchestration
+    chip_colors.py                  # Chip color mapping for score table cells
+    collapsible_splitter.py         # Click-only collapsible left panel splitter
+    color_utils.py                  # Pure hex color interpolation and blending utilities
+    column_values.py                # Column value computation for value/both display modes
+    columns.py                      # Column layout, data roles, and lookup tables
+    constants.py                    # Shared constants and column indices
+    deck_pull_button.py             # Temporary Steam Deck save pull button helper
+    delegates.py                    # Custom Qt delegates for score table rendering
+    filters.py                      # Filter dialog and filter state
+    profiles.py                     # Profile management UI and serialization
+    recompute_helpers.py            # Pure recompute helper functions (no Qt)
+    scoring.py                      # Score computation helpers
+    stat_text_formatter.py          # Stat text formatting and emoji substitution
+    stats_overview.py               # Current Stats Overview popup dialog
+    styles.py                       # Qt stylesheet strings
+    theme.py                        # Color theme and semantic chip color pairs
+    tooltips.py                     # HTML tooltip builder functions
+    weight_popup.py                 # Scoring weights popup dialog
   room_optimizer/
     types.py                        # Dataclasses: RoomConfig, OptimizationParams, ScoredPair, etc.
     optimizer.py                    # Room assignment algorithm
-  visual_mutation_catalog.py        # Lookup tables: (slot, mutation_id) -> display name
+    parallel.py                     # Parallel simulated annealing for room optimization
   mewgenics/
     __init__.py                     # Package init + module-level setup (locale, tags, thresholds)
     app.py                          # main() — QApplication, palette, save selector
@@ -48,44 +64,76 @@ src/
     constants.py                    # Colors, column indices, widths, stylesheets
     dialogs.py                      # TagManagerDialog, ThresholdPreferencesDialog,
                                     #   SharedOptimizerSearchSettingsDialog, SaveSelectorDialog
-    panels/
-      cat_detail.py                 # CatDetailPanel, LineageDialog, chip helpers
-      room_priority.py              # RoomPriorityPanel
-    models/
-      breeding_cache.py             # BreedingCache + BreedingCacheWorker
-      cat_table_model.py            # CatTableModel, NameTagDelegate, sort helpers
-      room_filter_model.py          # RoomFilterModel
-    workers/
-      save_loader.py                # SaveLoadWorker
-      room_refresh.py               # QuickRoomRefreshWorker
-      optimizer_worker.py           # RoomOptimizerWorker
-    views/
-      family_tree.py                # FamilyTreeBrowserView
-      safe_breeding.py              # SafeBreedingView
-      breeding_partners.py          # BreedingPartnersView
-      room_optimizer.py             # RoomOptimizerView, RoomOptimizerCatLocator, RoomOptimizerDetailPanel
-      perfect_planner.py            # PerfectCatPlannerView + 4 sub-panels
-      calibration.py                # CalibrationView
-      mutation_planner.py           # MutationDisorderPlannerView + planner trait helpers
-      furniture.py                  # FurnitureView
-    utils/
-      paths.py                      # Bundle dir, save dir, gpak paths, file finders
-      config.py                     # App config load/save, UI state, splitter persistence
-      localization.py               # _tr(), locale catalog, language management
-      styling.py                    # Font enforcement, widget styling, _chip(), _sec()
-      tags.py                       # Tag definitions, icons, pixmaps
-      thresholds.py                 # Breeding threshold preferences
-      optimizer_settings.py         # Optimizer flags, search settings, room priority config
-      planner_state.py              # Planner blob persistence, foundation pairs
-      game_data.py                  # GPAK loading, game data reload
-      calibration.py                # Calibration data load/save, trait overrides
-      cat_persistence.py            # Blacklist, must-breed, pinned, tags load/save
-      cat_analysis.py               # _cat_base_sum, exceptional/donation checks
-      abilities.py                  # Ability/mutation descriptions, tooltips, effect lines
-      table_state.py                # Table view header/sort state persistence
 ```
 
-### Breed Priority Column Layout
+---
+
+## Project Wide
+
+### Standing Development Rules
+
+- Prefer extending existing systems over introducing parallel implementations.
+- Use semantic, role-based naming for shared styles and constants.
+- Do not hard-code derived values or descriptions from parsed save data.
+- If parsed data exists but lookup text is missing, use a generic fallback text.
+- Keep completion reports focused on what changed, why, and notable risks.
+
+### Code Quality
+
+Apply these rules to all code you write or modify. When the explicit purpose of a session is refactoring, these rules are the goal — apply them fully.
+
+**Concrete rules:**
+- No magic numbers — every numeric literal except `0`, `1`, and trivially obvious arithmetic (e.g., `len(x) - 1`) must be a named constant
+- New UI values (colors, sizes, column indices, widths) belong in the module's `constants.py`; user-facing strings go through `_tr()`
+- Meaningful names — no `data`, `result`, `tmp`, `val`, or single-letter names outside of loop counters (`i`, `j`, `k`)
+- One responsibility per function — if describing it requires "and", split it
+- Repeated string literals used as keys, identifiers, or config values belong in constants
+
+**Structural judgment:**
+- Match abstraction level to complexity — don't wrap a 3-line utility in a class, but don't write 300-line procedural functions either
+- Low coupling — modules communicate through public APIs and Qt signals, not by reaching into each other's internals
+- Reuse before creating — before adding a new helper, class, or pattern, search for an existing one to reuse or extend
+- DRY — don't duplicate logic; extract shared behavior into a common location
+- Keep abstraction levels consistent within a function — don't mix high-level orchestration with low-level implementation details in the same function body
+- Before modifying a module, read it and match its style and patterns; extend existing patterns rather than inventing new ones
+- Fix the class of issues, not just the instance — when fixing one violation, search for similar ones nearby
+
+**Judgment over dogma:** If following a rule makes the code demonstrably worse in context, note the deviation in your next response as the last line(s) to make it visible, and draw attention to it.
+
+### Testing
+
+Tests live in `tests/` and run with `pytest` from the repo root.
+
+Coverage includes parser, donation logic, cat detail views, UI persistence, room optimizer, perfect planner, trait labels, and visual helpers.
+
+### Git
+
+- Do not add `Co-Authored-By` lines.
+- Only commit when asked; only push when asked.
+- When amending, use `--date=now`.
+- **Commit message style**: Describe what the program *does* differently — the behavior changed, feature added, or bug fixed. Omit low-level technical details that don't affect behavior. For purely technical changes (refactoring, style consolidation, test restructuring), use a high-level functional description: e.g. "Consolidated styles to increase modularity" rather than "Added _SOME_VAR to breed_priority.py, replacing _SOME_OTHER_VAR".
+
+### Conventions
+
+- Windows-targeted: save paths use `%LOCALAPPDATA%`, build produces `.exe`
+- Qt signals/slots for all UI reactivity; `blockSignals(True)` prevents cascading updates during programmatic changes
+- Styles are inline Qt stylesheet strings (dark theme, hex colors)
+- `.editorconfig`: UTF-8, 4-space indents, LF line endings
+- Views persist user choices to a JSON sidecar file alongside the save (load on `__init__`, save on every change)
+- Utility modules use `_` prefix convention — functions are module-private but importable across the package
+- Mutable module-level state (dicts, lists) must use in-place mutation (`.clear()` + `.update()`, slice assignment) when shared across modules, not rebinding
+- Internationalization via locale JSON files in `locales/` (en, ru, zh_CN, pl)
+- Version string is managed in `VERSION` at repo root
+
+**Autonomy scope:** Free to move, rename, delete, and restructure files within the repo. Cautious with irreversible actions outside the repo (destructive OS-level operations). Git operations are generally safe — committed code is recoverable from reflog.
+
+---
+
+## Breed Priority Module
+
+The Breed Priority module (`src/breed_priority/`) is a self-contained package. It is the primary development focus of this project. All breed priority logic, UI, and state live within this package.
+
+### Breed Priority Module: Column Layout
 
 The score table uses thin separator columns (`_SEP_HEADER = "│"`) as visual dividers:
 
@@ -100,12 +148,28 @@ Use constants and avoid hard-coded indices:
 
 When column count changes, invalidate saved width maps using a persisted `col_count` stamp in the sidecar state.
 
-### Breed Priority Display Mode and Heatmap
+### Breed Priority Module: Display Mode and Heatmap
 
 - `self._display_mode` supports `"score" | "values" | "both"` and controls text format in scored columns.
 - `self._heatmap_on` is independent and overlays bars on any display mode.
 - `_BothModeDelegate` handles plain text, both-mode subscript rendering, and heatmap bar overlay.
 - Column widths persist per display mode (`self._col_widths`), not per profile.
+
+### Breed Priority Module: Circular Import Prevention
+
+`breed_priority/` is intentionally standalone and must not import from `mewgenics_manager.py`. All modules within `breed_priority/` (`__init__`, `constants`, `scoring`, `delegates`, `filters`, etc.) should be free of circular dependencies. Inject game-specific data via parameters rather than importing from the main app package.
+
+---
+
+## Mewgenics Manager
+
+### Data Flow
+
+1. User selects a `.sav` file -> `SaveLoadWorker` calls `parse_save()` -> `Cat` objects created
+2. Parent/child links resolved by UID matching + blob scanning fallback
+3. Generation depth computed iteratively (gen 0 = no parents)
+4. `BreedingCache` pre-computes all pair outcomes in a background thread
+5. `QFileSystemWatcher` triggers auto-refresh when the save file changes on disk
 
 ### `save_parser.py` — Core Data Layer
 
@@ -143,6 +207,7 @@ Greedy optimizer that assigns cats to rooms to maximize breeding outcomes.
 - **`RoomConfig`**: Per-room settings (capacity, type, base stimulation).
 - **`OptimizationParams`**: Solver config (min_stats, max_risk, stimulation threshold).
 - **`optimize_room_distribution(cats, rooms, params) -> OptimizationResult`**: Main solver entry point.
+- `parallel.py`: Parallel simulated annealing variant — operates on serializable primitives only.
 
 ### `mewgenics/` — Qt UI Package
 
@@ -173,76 +238,7 @@ All PySide6 code lives here. `mewgenics/__init__.py` runs one-time initializatio
 - `workers/room_refresh.py` — `QuickRoomRefreshWorker`
 - `workers/optimizer_worker.py` — `RoomOptimizerWorker`
 
-### Circular Import Prevention
-
-`breeding.py`, `breed_priority.py`, `breed_priority_constants.py`, `breed_priority_scoring.py`, `breed_priority_delegates.py`, and `breed_priority_filters.py` are intentionally standalone and should not import from `mewgenics_manager.py`. Inject game-specific data via parameters.
-
-## Data Flow
-
-1. User selects a `.sav` file -> `SaveLoadWorker` calls `parse_save()` -> `Cat` objects created
-2. Parent/child links resolved by UID matching + blob scanning fallback
-3. Generation depth computed iteratively (gen 0 = no parents)
-4. `BreedingCache` pre-computes all pair outcomes in a background thread
-5. `QFileSystemWatcher` triggers auto-refresh when the save file changes on disk
-
-## Standing Development Rules
-
-- Prefer extending existing systems over introducing parallel implementations.
-- Use semantic, role-based naming for shared styles and constants.
-- Do not hard-code derived values or descriptions from parsed save data.
-- If parsed data exists but lookup text is missing, use a generic fallback text.
-- Keep completion reports focused on what changed, why, and notable risks.
-
-## Testing
-
-Tests live in `tests/` and run with `pytest` from the repo root.
-
-Coverage includes parser, donation logic, cat detail views, UI persistence, room optimizer, perfect planner, trait labels, and visual helpers.
-
-## Git
-
-- Do not add `Co-Authored-By` lines.
-- Only commit when asked; only push when asked.
-- When amending, use `--date=now`.
-- **Commit message style**: Describe what the program *does* differently — the behavior changed, feature added, or bug fixed. Omit low-level technical details that don't affect behavior. For purely technical changes (refactoring, style consolidation, test restructuring), use a high-level functional description: e.g. "Consolidated styles to increase modularity" rather than "Added _SOME_VAR to breed_priority.py, replacing _SOME_OTHER_VAR".
-
-## Conventions
-
-- Windows-targeted: save paths use `%LOCALAPPDATA%`, build produces `.exe`
-- Qt signals/slots for all UI reactivity; `blockSignals(True)` prevents cascading updates during programmatic changes
-- Styles are inline Qt stylesheet strings (dark theme, hex colors)
-- `.editorconfig`: UTF-8, 4-space indents, LF line endings
-- Views persist user choices to a JSON sidecar file alongside the save (load on `__init__`, save on every change)
-- Utility modules use `_` prefix convention — functions are module-private but importable across the package
-- Mutable module-level state (dicts, lists) must use in-place mutation (`.clear()` + `.update()`, slice assignment) when shared across modules, not rebinding
-- Internationalization via locale JSON files in `locales/` (en, ru, zh_CN, pl)
-- Version string is managed in `VERSION` at repo root
-
-**Autonomy scope:** Free to move, rename, delete, and restructure files within the repo. Cautious with irreversible actions outside the repo (destructive OS-level operations). Git operations are generally safe — committed code is recoverable from reflog.
-
-## Code Quality
-
-Apply these rules to all code you write or modify. When the explicit purpose of a session is refactoring, these rules are the goal — apply them fully.
-
-**Concrete rules:**
-- No magic numbers — every numeric literal except `0`, `1`, and trivially obvious arithmetic (e.g., `len(x) - 1`) must be a named constant
-- New UI values (colors, sizes, column indices, widths) belong in `constants.py`; user-facing strings go through `_tr()`
-- Meaningful names — no `data`, `result`, `tmp`, `val`, or single-letter names outside of loop counters (`i`, `j`, `k`)
-- One responsibility per function — if describing it requires "and", split it
-- Repeated string literals used as keys, identifiers, or config values belong in constants
-
-**Structural judgment:**
-- Match abstraction level to complexity — don't wrap a 3-line utility in a class, but don't write 300-line procedural functions either
-- Low coupling — modules communicate through public APIs and Qt signals, not by reaching into each other's internals
-- Reuse before creating — before adding a new helper, class, or pattern, search for an existing one to reuse or extend
-- DRY — don't duplicate logic; extract shared behavior into a common location
-- Keep abstraction levels consistent within a function — don't mix high-level orchestration with low-level implementation details in the same function body
-- Before modifying a module, read it and match its style and patterns; extend existing patterns rather than inventing new ones
-- Fix the class of issues, not just the instance — when fixing one violation, search for similar ones nearby
-
-**Judgment over dogma:** If following a rule makes the code demonstrably worse in context, note the deviation in your next response as the last line(s) to make it visible, and draw attention to it.
-
-## Known Design Decisions
+### Known Design Decisions
 
 - **Lover conflicts at room level, not pair level**: `breeding.py::is_lover_conflict()` intentionally returns `False`. Lover exclusivity is enforced at room assignment time by `room_optimizer/optimizer.py::_filter_lover_exclusivity()`.
 - **Generation depth fallback**: Cats with unresolvable ancestry default to generation 0 (stray). The iterative algorithm in `parse_save()` converges; the fallback is intentional.
@@ -250,6 +246,6 @@ Apply these rules to all code you write or modify. When the explicit purpose of 
 - **Cross-class access**: Views expose public properties/methods (`room_priority_panel`, `cat_locator`, `offspring_tracker`, `set_navigate_to_cat_callback()`, `save_session_state()`) for MainWindow to use. Avoid accessing `_private` attributes across class boundaries.
 - **Module-level initialization**: `mewgenics/__init__.py` runs setup (game data, locale, tags, thresholds) once when the package is first imported. Modules that need initialized state import it after this runs.
 
-## tools/field_mapper/
+### tools/field_mapper/
 
 Reverse-engineering pipeline for discovering binary field offsets. Dev-only — not part of the main app.
