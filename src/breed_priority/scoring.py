@@ -395,23 +395,23 @@ def compute_breed_priority_score(cat, scope_cats: list, ma_ratings: dict,
                 breakdown.append((f"Genetic safety (R{int(_gene_risk_display)} ≤ {_gene_threshold:.0f})", safe_pts))
                 subtotals["zero_risk_bonus"] = safe_pts
 
-    # ── Stat sum percentile scoring ───────────────────────────────────────────
+    # ── Stat sum rank-based scoring ───────────────────────────────────────────
+    # Ranks by unique values so all cats at the same sum share a rank and a
+    # single outlier above/below doesn't compress the rest of the gradient.
     w_sum = _w.get("stat_sum", 0.0)
     if w_sum != 0 and scope_stat_sums:
         cat_sum = sum(_cat_stats.values())
-        n = len(scope_stat_sums)
-        rank = sum(1 for v in scope_stat_sums if v <= cat_sum)
-        pct = rank / n * 100
-        if pct >= 90:
-            pts = w_sum
-        elif pct >= 75:
-            pts = max(0.0, w_sum - 1)
-        elif pct >= 50:
-            pts = max(0.0, w_sum - 2)
+        _unique_sums = sorted(set(scope_stat_sums) | {cat_sum})
+        _n_unique = len(_unique_sums)
+        if _n_unique <= 1:
+            _sum_t = 1.0
+            _sum_rank_idx = 0
         else:
-            pts = 0.0
+            _sum_rank_idx = _unique_sums.index(cat_sum)
+            _sum_t = _sum_rank_idx / (_n_unique - 1)
+        pts = round(w_sum * _sum_t, 3)
         if pts:
-            breakdown.append((f"Stat sum {cat_sum} ({pct:.0f}th percentile)", pts))
+            breakdown.append((f"Stat sum {cat_sum} (rank {_sum_rank_idx + 1}/{_n_unique})", pts))
             subtotals["stat_sum"] = pts
 
     # ── Age penalty ───────────────────────────────────────────────────────────

@@ -2309,22 +2309,15 @@ class BreedPriorityView(QWidget):
                     if hdr == "Sum":
                         s = sum(_cat_stats.values())
                         score_val = float(s)   # sort by raw sum, not score
-                        total = len(_scope_stat_sums)
-                        if total > 0:
-                            rank = sum(1 for v in _scope_stat_sums if v <= s)
-                            pct = rank / total * 100
-                            if pct >= 75:
-                                color = CLR_DESIRABLE
-                            elif pct >= 50:
-                                color = "#b0a040"
-                            elif pct >= 25:
-                                color = "#e08030"
-                            else:
-                                color = "#cc3333"
+                        _unique_scope_sums = sorted(set(_scope_stat_sums) | {s})
+                        _n_sum_unique = len(_unique_scope_sums)
+                        if _n_sum_unique <= 1:
+                            _sum_t = 1.0
                         else:
-                            color = CLR_VALUE_NEUTRAL
+                            _sum_t = _unique_scope_sums.index(s) / (_n_sum_unique - 1)
+                        color = ColorUtils.lerp("#cc3333", CLR_DESIRABLE, _sum_t)
                         text = str(s)
-                        # Keep percentile-driven text color; chip bg is score-aware.
+                        # Rank-driven text color; chip bg is score-aware.
                         _chip_bg = (
                             ColorUtils.derive_chip_bg(color, CLR_BG_SCORE_AREA)
                             if _score_for_sub != 0 else _CHIP_NEUTRAL_STABLE[0]
