@@ -2111,6 +2111,18 @@ class BreedPriorityView(QWidget):
         self._score_table.setSortingEnabled(False)
         self._score_table.setRowCount(len(alive))
 
+        # Stat column coloring mode: dynamic (per-column range) when either
+        # stat modifier toggle is active; legacy fixed-value scheme otherwise.
+        _stat_dynamic_mode = self._use_current_stats or self._add_mutation_stats
+        if _stat_dynamic_mode:
+            _stat_col_ranges: dict[str, tuple[int, int]] = {}
+            for _sn in _STAT_COL_NAMES:
+                _col_vals = [
+                    get_cat_stats(c, self._use_current_stats, self._add_mutation_stats).get(_sn, 0)
+                    for c in alive
+                ]
+                _stat_col_ranges[_sn] = (min(_col_vals), max(_col_vals)) if _col_vals else (0, 0)
+
         for row, cat in enumerate(alive):
             result = results[id(cat)]
             scope_gene_risk = result.scope_gene_risk
@@ -2163,10 +2175,15 @@ class BreedPriorityView(QWidget):
                 stat_item.setData(Qt.UserRole, float(val))
                 stat_item.setTextAlignment(Qt.AlignCenter)
                 stat_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
-                # Keep the legacy stat-value emphasis colors while rendering chips.
-                _STAT_CLR = {7: "#44cc66", 6: "#bba844", 5: "#998855"}
-                _val_fg = _STAT_CLR.get(val, CLR_VALUE_NEUTRAL)
-                _sb, _sf = _CHIP_NEUTRAL_STABLE if val == 7 else _CHIP_NEUTRAL_FAINT
+                if _stat_dynamic_mode:
+                    # Per-column range coloring: min→dim, max→bright teal.
+                    _col_min, _col_max = _stat_col_ranges[stat]
+                    _sb, _val_fg = ChipColors.stat_dynamic(val, _col_min, _col_max)
+                else:
+                    # Legacy fixed-value scheme: 7=teal, 6=gold, 5=tan, rest=grey.
+                    _STAT_FIXED_CLR = {7: "#44cc66", 6: "#bba844", 5: "#998855"}
+                    _val_fg = _STAT_FIXED_CLR.get(val, CLR_VALUE_NEUTRAL)
+                    _sb = _CHIP_NEUTRAL_STABLE[0] if val == 7 else _CHIP_NEUTRAL_FAINT[0]
                 stat_item.setForeground(QColor(_val_fg))
                 stat_item.setData(_CHIP_ROLE, [(str(val), _sb, _val_fg)])
                 stat_item.setText("")

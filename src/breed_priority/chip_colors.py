@@ -123,6 +123,25 @@ class ChipColors:
         return (CLR_TEXT_GRAYEDOUT, CLR_TEXT_SECONDARY)
 
     @staticmethod
+    def stat_dynamic(val: int, col_min: int, col_max: int) -> tuple:
+        """Return (bg, fg) chip pair for a stat value within its column's range.
+
+        Interpolates fg linearly from dim (col_min) to bright teal (col_max).
+        bg is derived from fg to ensure readable contrast on the dark surface.
+        When col_min == col_max all values receive the neutral chip.
+        """
+        from .theme import (
+            _CLR_STAT_DYNAMIC_LOW, _CLR_STAT_DYNAMIC_HIGH,
+            CLR_SURFACE_SCORE_AREA, _CHIP_NEUTRAL_STABLE,
+        )
+        if col_min == col_max:
+            return _CHIP_NEUTRAL_STABLE
+        t = (val - col_min) / (col_max - col_min)
+        fg = ColorUtils.lerp(_CLR_STAT_DYNAMIC_LOW, _CLR_STAT_DYNAMIC_HIGH, t)
+        bg = ColorUtils.derive_chip_bg(fg, CLR_SURFACE_SCORE_AREA)
+        return bg, fg
+
+    @staticmethod
     def from_score(score_val: float) -> tuple:
         """Map a score value to a (bg, fg) chip pair based on sign."""
         from .theme import _CHIP_DESIRABLE, _CHIP_UNDESIRABLE, _CHIP_DIM

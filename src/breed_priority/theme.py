@@ -25,6 +25,13 @@ _THEME_DARK = "#0c0c20"
 _CLR_RED = "#cc3333"
 _CLR_YELLOW = "#b0a040"
 
+# ── Dynamic stat column color anchors ─────────────────────────────────────────
+# Used when "Use Current Stats" or "Add Mutation Stats" is active.
+# Values are colored by their position in each column's min–max range.
+
+_CLR_STAT_DYNAMIC_LOW = "#444466"   # dim purple-grey — column minimum
+_CLR_STAT_DYNAMIC_HIGH = "#44cc66"  # bright teal-green — column maximum
+
 # ── UI state colors ───────────────────────────────────────────────────────────
 
 CLR_STATE_SELECTED_BG = "#0a1e18"
