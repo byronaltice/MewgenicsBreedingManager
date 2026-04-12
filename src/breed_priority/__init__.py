@@ -68,7 +68,7 @@ from .styles import (
 from .columns import (
     COL_NAME, COL_LOC, COL_INJ, _STAT_COL_NAMES, _COL_STAT_START,
     _NUM_STAT_COLS, _SCORE_COLS, _COL_SCORE_START, COL_SCORE,
-    _ALL_HEADERS, _SEP_COLS, _SEP_WIDTH,
+    _ALL_HEADERS, _SEP_COLS, _SEP_WIDTH, _SEP_MIN_WIDTH,
     _CHIP_ROLE, _SCORE_SECONDARY_ROLE, _HEATMAP_ROLE,
     _ROOM_STYLE, INJURY_STAT_NAMES, _COL_EMOJI,
     _SINGLE_VALUE_CENTER_SCORE_COLS, _MULTI_VALUE_LEFT_SCORE_COLS,
@@ -1694,7 +1694,9 @@ class BreedPriorityView(QWidget):
         if new_size == 0:
             return  # hideColumn() fires sectionResized(0) - don't save that
         if logical_idx in _SEP_COLS:
-            return  # separator columns have fixed width
+            if new_size < _SEP_MIN_WIDTH:
+                self._score_table.setColumnWidth(logical_idx, _SEP_MIN_WIDTH)
+            return
         mode = self._display_mode
         if mode not in self._col_widths:
             self._col_widths[mode] = {}

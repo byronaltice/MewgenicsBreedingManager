@@ -32,6 +32,7 @@ _ALL_HEADERS      = (
 )
 _SEP_COLS         = frozenset({COL_SEP1})
 _SEP_WIDTH        = 8
+_SEP_MIN_WIDTH    = 16
 
 
 def _score_col_idx(header: str) -> int:
