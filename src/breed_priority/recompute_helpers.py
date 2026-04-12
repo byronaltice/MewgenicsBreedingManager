@@ -114,8 +114,9 @@ def compute_all_scores(
         for c in scope_cats
     )
 
+    _stat_cnt_thr = int(round(weights.get("stat_count_threshold", 7.0)))
     max_7_count = max(
-        (sum(1 for v in get_cat_stats(c, use_current_stats, add_mutation_stats).values() if v == 7) for c in alive),
+        (sum(1 for v in get_cat_stats(c, use_current_stats, add_mutation_stats).values() if v >= _stat_cnt_thr) for c in alive),
         default=0,
     )
 

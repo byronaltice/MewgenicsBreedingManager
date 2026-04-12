@@ -36,6 +36,7 @@ from .scoring import compute_breed_priority_score         # noqa: F401
 from .collapsible_splitter import LEFT_PANEL_W, CollapseSplitter
 from .scoring import (
     BREED_PRIORITY_WEIGHTS, WEIGHT_UI_ROWS, SCORE_COLUMNS,
+    SCORE_HEADER_7_COUNT,
     TRAIT_LOW_THRESHOLD, TRAIT_HIGH_THRESHOLD, GENETIC_SAFE_RISK_FLOOR,
     TRAIT_RATING_VALUES,
 )
@@ -1074,7 +1075,7 @@ class BreedPriorityView(QWidget):
             "LCK":     "Luck",
             "Sum":     "Stat sum score. Percentile vs scope: full weight if top 10%, −1 per quartile drop, 0 below median.",
             "7rare":  "Rare 7s. Per stat at 7: full weight up to threshold owners; scaled down beyond; 2× if sole owner.",
-            "7cnt":   "7-Count — flat weight × number of stats at 7.",
+            SCORE_HEADER_7_COUNT: "Stat-Count — flat weight × number of stats at or above the configured threshold.",
             "Trait":   "Trait score. Top Priority and Desirable use separate weights; Undesirable uses its own penalty weight.",
             "Aggro":   "Aggression — flat weight if High or Low.",
             "Gender": "Gender — M/F shown; ? (unknown) gets a flat score weight.",
@@ -1138,7 +1139,7 @@ class BreedPriorityView(QWidget):
         self._score_table.setItemDelegateForColumn(_trait_col,    _chip_delegate)
         self._score_table.setItemDelegateForColumn(_rare7_col,    _chip_delegate)
         for _ehdr in ("Sex", "💗🔭", "💗🏠", "💥🔭", "💥🏠",
-                       "Lib", "Age", "Gene", "Gender", "Sum", "7cnt"):
+                       "Lib", "Age", "Gene", "Gender", "Sum", SCORE_HEADER_7_COUNT):
             _ecol = _COL_SCORE_START + _SCORE_COLS.index(_ehdr)
             self._score_table.setItemDelegateForColumn(_ecol, _chip_delegate)
         # Default delegate for "both" mode
@@ -2336,11 +2337,12 @@ class BreedPriorityView(QWidget):
                                 _chips.append((_sn, _bg, _fg))
                         text = ""   # rendered by delegate
                         color = _score_color(score_val)
-                    elif hdr == "7cnt":
-                        count_7 = sum(1 for v in _cat_stats.values() if v == 7)
+                    elif hdr == SCORE_HEADER_7_COUNT:
+                        _stat_cnt_thr = int(round(_cw.get("stat_count_threshold", 7.0)))
+                        count_7 = sum(1 for v in _cat_stats.values() if v >= _stat_cnt_thr)
                         w_7 = _cw.get(keys[0], 0.0)
                         color = ChipColors.sevens(count_7, _max_7_count, w_7 >= 0)
-                        text = f"{count_7}x7s"
+                        text = f"{count_7}x{_stat_cnt_thr}+"
                         _chip_bg = (
                             ColorUtils.derive_chip_bg(color, CLR_BG_SCORE_AREA)
                             if _score_for_sub != 0 else _CHIP_NEUTRAL_STABLE[0]
@@ -2462,8 +2464,9 @@ class BreedPriorityView(QWidget):
                         sub_item.setData(_HEATMAP_ROLE, _score_for_sub / _norm)
                 else:
                     # ── Score display mode: always show numeric score ──
-                    if hdr == "7cnt":
-                        count_7 = sum(1 for v in _cat_stats.values() if v == 7)
+                    if hdr == SCORE_HEADER_7_COUNT:
+                        _stat_cnt_thr = int(round(_cw.get("stat_count_threshold", 7.0)))
+                        count_7 = sum(1 for v in _cat_stats.values() if v >= _stat_cnt_thr)
                         w_7 = _cw.get(keys[0], 0.0)
                         color = ChipColors.sevens(count_7, _max_7_count, w_7 >= 0)
                     elif hdr == "Aggro":

@@ -52,6 +52,7 @@ def show_weights_popup(parent, weights: dict) -> None:
 
     w = weights
     _thr = int(round(w.get("stat_7_threshold", 7.0)))
+    _stat_cnt_thr = int(round(w.get("stat_count_threshold", 7.0)))
     rows_data = [
         ("── 7-rare: bonus per stat where few scope cats share that 7 ──", ""),
         (f"  7 in a stat (≤{_thr} cats in scope have it)",  f"+{w['stat_7']:.0f}"),
@@ -59,11 +60,12 @@ def show_weights_popup(parent, weights: dict) -> None:
         (f"  7 in a stat ({_thr+3} cats in scope)",         f"+{max(0.1, round(w['stat_7']*_thr/(_thr+3),1)):.1f}"),
         (f"  7 in a stat ({_thr+6} cats in scope)",         f"+{max(0.1, round(w['stat_7']*_thr/(_thr+6),1)):.1f}"),
         (f"  7 in a stat (sole owner, none in scope)",      f"+{w['stat_7']*2:.0f} (★★ bonus)"),
-        ("── 7-cnt: bonus for total 7's this cat personally owns ──", ""),
-        (f"  1 stat at 7",   f"+{w['stat_7_count']*1:.2f}"),
-        (f"  3 stats at 7",  f"+{w['stat_7_count']*3:.2f}"),
-        (f"  5 stats at 7",  f"+{w['stat_7_count']*5:.2f}"),
-        (f"  7 stats at 7",  f"+{w['stat_7_count']*7:.2f} (max)"),
+        (f"── Stat-cnt: bonus per stat at or above threshold (≥{_stat_cnt_thr}) ──", ""),
+        (f"  Threshold",             f"≥{_stat_cnt_thr}"),
+        (f"  1 stat ≥{_stat_cnt_thr}",  f"+{w['stat_7_count']*1:.2f}"),
+        (f"  3 stats ≥{_stat_cnt_thr}", f"+{w['stat_7_count']*3:.2f}"),
+        (f"  5 stats ≥{_stat_cnt_thr}", f"+{w['stat_7_count']*5:.2f}"),
+        (f"  7 stats ≥{_stat_cnt_thr}", f"+{w['stat_7_count']*7:.2f} (max)"),
         ("Trait - top priority sole owner",               f"{2*w['trait_top_priority']:+.1f}"),
         ("Trait - top priority, shared with N cats",      f"{w['trait_top_priority']:+.1f} ÷ N"),
         ("Trait - desirable sole owner",                  f"{2*w['trait_desirable']:+.1f}"),

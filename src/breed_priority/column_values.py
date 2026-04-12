@@ -67,14 +67,15 @@ def raw_col_value(
         return (str(s), float(s), "#aaaaaa")
 
     if hdr == SCORE_HEADER_7_COUNT:
-        count_7 = sum(1 for v in cat.base_stats.values() if v == 7)
-        if count_7 == 0:
+        _stat_cnt_thr = int(round(weights.get("stat_count_threshold", 7.0)))
+        count_above_thr = sum(1 for v in cat.base_stats.values() if v >= _stat_cnt_thr)
+        if count_above_thr == 0:
             color = CLR_TEXT_GRAYEDOUT
         else:
             # grey→gold
-            t = min(1.0, count_7 / 7.0)
+            t = min(1.0, count_above_thr / 7.0)
             color = ColorUtils.lerp(CLR_VALUE_NEUTRAL, "#ffcc00", t)
-        return (str(count_7) if count_7 else "", float(count_7), color)
+        return (str(count_above_thr) if count_above_thr else "", float(count_above_thr), color)
 
     if hdr == "Trait":
         return ("", 0.0, CLR_VALUE_NEUTRAL)

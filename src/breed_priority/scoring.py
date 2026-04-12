@@ -18,7 +18,8 @@ GENETIC_SAFE_RISK_FLOOR = 2.0  # baseline/non-blood-risk floor (%)
 BREED_PRIORITY_WEIGHTS = {
     "stat_7":           5.0,
     "stat_7_threshold": 7.0,   # cats with 7 in a stat before score scales down
-    "stat_7_count":     2.0,   # flat bonus per stat the cat personally has at 7 (additive)
+    "stat_7_count":          2.0,   # flat bonus per stat at or above stat_count_threshold (additive)
+    "stat_count_threshold":  7.0,   # minimum stat value counted by stat_7_count
     "trait_top_priority": 2.0,
     "trait_desirable":   2.0,
     "trait_undesirable": -2.0,
@@ -54,7 +55,8 @@ WEIGHT_UI_ROWS = [
     (None, None),
     ("stat_7",           "7rare"),
     ("stat_7_threshold", "  └ threshold"),
-    ("stat_7_count",     "7-count"),
+    ("stat_7_count",          "Stat-Count"),
+    ("stat_count_threshold",  "  └ threshold"),
     (None, None),
     ("seven_sub",          "7-Sub score"),
     ("seven_sub_threshold","  └ threshold"),
@@ -89,7 +91,7 @@ WEIGHT_UI_ROWS = [
 ]
 
 # Score table columns
-SCORE_HEADER_7_COUNT = "7cnt"
+SCORE_HEADER_7_COUNT = "St-Cnt"
 
 SCORE_COLUMNS = [
     ("Sum",   ["stat_sum"]),
@@ -264,15 +266,16 @@ def compute_breed_priority_score(cat, scope_cats: list, ma_ratings: dict,
             breakdown.append((label, float(w)))
             subtotals["stat_7"] += float(w)
 
-    # ── 7-count bonus: scaled by how many 7's this cat personally owns ────────
+    # ── Stat-count bonus: flat bonus per stat at or above the configured threshold ──
     _w_7ct = _w.get("stat_7_count", 0.0)
     if _w_7ct != 0.0:
-        _n_sevens = sum(1 for sn in stat_names if _cat_stats.get(sn) == 7)
-        if _n_sevens > 0:
-            _7ct_pts = round(_w_7ct * _n_sevens, 3)
-            _s = "s" if _n_sevens != 1 else ""
-            breakdown.append((f"{_n_sevens} stat{_s} at 7", _7ct_pts))
-            subtotals["stat_7_count"] = _7ct_pts
+        _stat_cnt_thr = int(round(_w.get("stat_count_threshold", 7.0)))
+        _n_above_thr = sum(1 for sn in stat_names if _cat_stats.get(sn, 0) >= _stat_cnt_thr)
+        if _n_above_thr > 0:
+            _stat_cnt_pts = round(_w_7ct * _n_above_thr, 3)
+            _s = "s" if _n_above_thr != 1 else ""
+            breakdown.append((f"{_n_above_thr} stat{_s} at ≥{_stat_cnt_thr}", _stat_cnt_pts))
+            subtotals["stat_7_count"] = _stat_cnt_pts
 
     # Combined trait set per scope cat (ability base names + mutation display strings)
     scope_base_traits = {
