@@ -8,6 +8,7 @@ ability_tip) are injected via BreedPriorityView.__init__() arguments.
 import html as _html
 import os
 import json
+import tempfile
 from typing import Optional, Callable
 
 from save_parser import risk_percent, can_breed
@@ -253,8 +254,11 @@ class BreedPriorityView(QWidget):
                 self._heat_algo = "column"
             self._show_stats = bool(data.get("show_stats", False))
             _saved_sort = int(data.get("sort_col", COL_SCORE))
-            # If sort_col points to a separator or is out of range, reset to Score
-            if _saved_sort in _SEP_COLS or _saved_sort >= len(_ALL_HEADERS):
+            # If sort_col points to a separator, is out of range, or the column
+            # layout changed (old index may now point to a completely different
+            # column), reset to Score.
+            _col_layout_changed = data.get("col_count", 0) != len(_ALL_HEADERS)
+            if _saved_sort in _SEP_COLS or _saved_sort >= len(_ALL_HEADERS) or _col_layout_changed:
                 _saved_sort = COL_SCORE
             self._sort_col = _saved_sort
             self._sort_order = (
@@ -373,12 +377,27 @@ class BreedPriorityView(QWidget):
             "profile_traits_only": self._profile_traits_only,
         }
         try:
-            os.makedirs(os.path.dirname(self._ratings_path), exist_ok=True)
-            with open(self._ratings_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2)
+            _dir = os.path.dirname(self._ratings_path) or "."
+            os.makedirs(_dir, exist_ok=True)
+            _fd, _tmp = tempfile.mkstemp(dir=_dir, suffix=".tmp")
+            try:
+                with os.fdopen(_fd, "w", encoding="utf-8") as _f:
+                    json.dump(data, _f, indent=2)
+                os.replace(_tmp, self._ratings_path)
+            except Exception:
+                try:
+                    os.unlink(_tmp)
+                except Exception:
+                    pass
         except Exception:
             pass
         self._update_profile_bar()
+
+    def save_session_state(self) -> None:
+        """Flush any pending state to disk immediately (called on app close)."""
+        if hasattr(self, "_col_save_timer"):
+            self._col_save_timer.stop()
+        self._save_ratings()
 
     # ── Profile management ─────────────────────────────────────────────────────
 

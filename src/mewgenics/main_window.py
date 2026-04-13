@@ -2696,6 +2696,8 @@ class MainWindow(QMainWindow):
             self._mutation_planner_view.save_session_state()
         if self._furniture_view is not None:
             self._furniture_view.save_session_state()
+        if self._breed_priority_view is not None:
+            self._breed_priority_view.save_session_state()
 
     def closeEvent(self, event):
         _save_window_geometry(self.saveGeometry().toBase64().data().decode("ascii"))
