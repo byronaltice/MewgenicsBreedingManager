@@ -2528,13 +2528,8 @@ class MainWindow(QMainWindow):
             self._watcher.removePaths(self._watcher.files())
         if self._watcher.directories():
             self._watcher.removePaths(self._watcher.directories())
-        _file_ok  = self._watcher.addPath(path)
-        _dir_path = os.path.dirname(os.path.abspath(path))
-        _dir_ok   = self._watcher.addPath(_dir_path)
-        print(f"[watcher] file={_file_ok} path={path!r}")
-        print(f"[watcher] dir={_dir_ok}  path={_dir_path!r}")
-        print(f"[watcher] watching files={self._watcher.files()}")
-        print(f"[watcher] watching dirs={self._watcher.directories()}")
+        self._watcher.addPath(path)
+        self._watcher.addPath(os.path.dirname(os.path.abspath(path)))
         try:
             self._watched_save_mtime = os.path.getmtime(path)
         except OSError:
@@ -2879,7 +2874,6 @@ class MainWindow(QMainWindow):
             self.load_save(self._current_save)
 
     def _on_file_changed(self, path: str):
-        print(f"[watcher] fileChanged: {path!r}  current={self._current_save!r}")
         if path != self._current_save:
             return
         self._handle_save_file_changed()
@@ -2898,7 +2892,6 @@ class MainWindow(QMainWindow):
             mtime = os.path.getmtime(self._current_save)
         except OSError:
             return
-        print(f"[watcher] dirChanged: mtime={mtime}  prev={self._watched_save_mtime}")
         if mtime == self._watched_save_mtime:
             return
         self._watched_save_mtime = mtime
@@ -2909,8 +2902,11 @@ class MainWindow(QMainWindow):
 
         Updates the tracked mtime so the directory-watch dedup gate stays in
         sync whether this was triggered by the file signal or the dir signal.
+
+        Always triggers a full reload: the game save contains the entire world
+        state (stats, abilities, rooms, relationships), so a partial room-only
+        patch would leave breed priority and other views stale.
         """
-        print(f"[watcher] _handle_save_file_changed cats={len(self._cats)} worker={self._save_load_worker}")
         try:
             self._watched_save_mtime = os.path.getmtime(self._current_save)
         except OSError:
@@ -2918,11 +2914,7 @@ class MainWindow(QMainWindow):
         # Re-add the file path if it was dropped after an atomic replacement.
         if self._current_save not in self._watcher.files():
             self._watcher.addPath(self._current_save)
-        # If cats are already loaded and no full reload is running, try the fast path.
-        if self._cats and self._save_load_worker is None:
-            self._start_quick_room_refresh()
-        else:
-            self._reload()
+        self._reload()
 
     def _start_quick_room_refresh(self):
         if self._quick_refresh_worker is not None:
