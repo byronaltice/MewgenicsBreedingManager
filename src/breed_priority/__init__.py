@@ -70,10 +70,14 @@ from .styles import (
 from .columns import (
     COL_NAME, COL_LOC, COL_INJ, _STAT_COL_NAMES, _COL_STAT_START,
     _NUM_STAT_COLS, _SCORE_COLS, _COL_SCORE_START, COL_SCORE,
+    COL_CW_SECTION_START,
     _ALL_HEADERS, _SEP_COLS, _SEP_WIDTH, _COL_MIN_WIDTH, _SEP_MIN_WIDTH,
     _CHIP_ROLE, _SCORE_SECONDARY_ROLE, _HEATMAP_ROLE,
     _ROOM_STYLE, INJURY_STAT_NAMES, _EMOJI_SCOPE, _EMOJI_ROOM,
     _SINGLE_VALUE_CENTER_SCORE_COLS, _MULTI_VALUE_LEFT_SCORE_COLS,
+)
+from .complex_weights import (
+    ComplexWeight, compute_cw_matches, build_cat_trait_set, ComplexWeightsDialog,
 )
 from .scoring import (
     ScoreResult, ability_base, is_basic_trait,
@@ -94,7 +98,7 @@ from .profiles import (
     handle_profile_delete as _handle_profile_delete_impl,
 )
 from .delegates import (
-    _BothModeDelegate,
+    _BothModeDelegate, _CWDelegate,
     _FastTooltipFilter, _HateRowOverlay, _HeaderTooltipFilter,
     _IntParamSpin, _ListTooltipFilter, _NumericSortItem,
     _RatingCombo, _SeparatorDelegate,
@@ -178,6 +182,8 @@ class BreedPriorityView(QWidget):
         self._profile_name_text: str = ""  # display name for the currently-loaded profile
         self._profile_traits_only: bool = False  # only save/load trait desirability ratings
         self._deck_save_puller = None
+        self._complex_weights: list = []   # List[ComplexWeight]
+        self._cw_dialog: ComplexWeightsDialog | None = None
         self._load_ratings()
         self._build_ui()
         self.setStyleSheet(
@@ -222,6 +228,14 @@ class BreedPriorityView(QWidget):
         except Exception:
             pass
 
+        # ── Complex Weights — load before sort-col validation ────────────────
+        try:
+            raw_cws = data.get("complex_weights", [])
+            if isinstance(raw_cws, list):
+                self._complex_weights = [ComplexWeight.from_dict(d) for d in raw_cws]
+        except Exception:
+            pass
+
         # ── Scope, weights, display settings ──
         try:
             self._saved_scope = data.get("scope", {})
@@ -254,11 +268,11 @@ class BreedPriorityView(QWidget):
                 self._heat_algo = "column"
             self._show_stats = bool(data.get("show_stats", False))
             _saved_sort = int(data.get("sort_col", COL_SCORE))
-            # If sort_col points to a separator, is out of range, or the column
-            # layout changed (old index may now point to a completely different
-            # column), reset to Score.
+            # Allow sort on CW columns; reset to Score if separator, layout changed, or out of range.
             _col_layout_changed = data.get("col_count", 0) != len(_ALL_HEADERS)
-            if _saved_sort in _SEP_COLS or _saved_sort >= len(_ALL_HEADERS) or _col_layout_changed:
+            _enabled_cw_count = sum(1 for cw in self._complex_weights if cw.enabled)
+            _max_valid_col = COL_CW_SECTION_START + _enabled_cw_count - 1
+            if _saved_sort in _SEP_COLS or _saved_sort > _max_valid_col or _col_layout_changed:
                 _saved_sort = COL_SCORE
             self._sort_col = _saved_sort
             self._sort_order = (
@@ -366,6 +380,7 @@ class BreedPriorityView(QWidget):
                 for mode, widths in self._col_widths.items()
             },
             "col_count": len(_ALL_HEADERS),
+            "complex_weights": [cw.to_dict() for cw in self._complex_weights],
             "bottom_pane_sizes": (
                 list(self._bottom_hs.sizes()) if hasattr(self, "_bottom_hs") else []
             ),
@@ -753,6 +768,17 @@ class BreedPriorityView(QWidget):
             parent=self,
         )
         hb.addWidget(self._btn_pull_deck_save)
+
+        self._btn_complex_weights = QPushButton("Complex Weights…")
+        self._btn_complex_weights.setStyleSheet(ACTION_BUTTON_SECONDARY_STYLE)
+        self._btn_complex_weights.setFixedHeight(22)
+        self._btn_complex_weights.setToolTip(
+            "Define custom scoring rules that add or subtract points\n"
+            "when a cat meets a set of conditions. Each enabled rule\n"
+            "creates its own column in the scoring table."
+        )
+        self._btn_complex_weights.clicked.connect(self._open_complex_weights)
+        hb.addWidget(self._btn_complex_weights)
         hb.addStretch()
 
         _chk_style = checkbox_style(
@@ -1192,6 +1218,7 @@ class BreedPriorityView(QWidget):
         _FastTooltipFilter(self._score_table)
         self._hate_overlay = _HateRowOverlay(self._score_table)
         self._update_sort_label()
+        self._rebuild_cw_columns()
         return score_container
 
     def _make_trait_pane(self, attr: str, title: str) -> QWidget:
@@ -1614,9 +1641,13 @@ class BreedPriorityView(QWidget):
         self.recompute()
 
     def _snapshot_col_widths(self, mode: str):
-        """Capture current table column widths into the per-mode dict."""
+        """Capture static column widths into the per-mode dict.
+
+        CW columns (>= COL_CW_SECTION_START) are excluded — they reset to
+        their default width each time _rebuild_cw_columns() runs.
+        """
         widths = {}
-        for ci in range(self._score_table.columnCount()):
+        for ci in range(COL_CW_SECTION_START):  # static columns only
             if ci in _SEP_COLS:
                 continue
             w = self._score_table.columnWidth(ci)
@@ -1926,6 +1957,8 @@ class BreedPriorityView(QWidget):
         self._selected_cat = None
         self._populate_trait_table(self._abilities_table, self._all_abilities)
         self._populate_trait_table(self._mutations_table, self._all_mutations)
+        if self._cw_dialog is not None and self._cw_dialog.isVisible():
+            self._cw_dialog.refresh_traits(self._all_abilities + self._all_mutations)
         self.recompute()
 
     def _populate_trait_table(self, table: QTableWidget, traits: list,
@@ -2533,6 +2566,38 @@ class BreedPriorityView(QWidget):
                 score_item.setData(_HEATMAP_ROLE, result.total / _score_max_abs)
             self._score_table.setItem(row, COL_SCORE, score_item)
 
+            # ── Complex Weight columns ────────────────────────────────────────
+            _enabled_cws = [cw for cw in self._complex_weights if cw.enabled]
+            if _enabled_cws:
+                _cat_traits = build_cat_trait_set(cat)
+                _cw_matches = compute_cw_matches(
+                    _enabled_cws, cat,
+                    cat_stats=_cat_stats,
+                    cat_traits=_cat_traits,
+                    scope_gene_risk=scope_gene_risk,
+                    total_score=result.total,
+                )
+                for _cwi, (matched, delta) in enumerate(_cw_matches):
+                    cw_col = COL_CW_SECTION_START + _cwi
+                    cw_item = _NumericSortItem("")
+                    cw_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+                    cw_item.setData(Qt.UserRole, delta if matched else 0.0)
+                    cw_item.setTextAlignment(Qt.AlignCenter)
+                    if matched:
+                        if self._display_mode == "score":
+                            _sign = "+" if delta >= 0 else ""
+                            cw_item.setText(f"{_sign}{delta:.1f}")
+                            _c = CLR_VALUE_POS if delta > 0 else CLR_VALUE_NEG if delta < 0 else CLR_VALUE_NEUTRAL
+                            cw_item.setForeground(QColor(_c))
+                        elif self._display_mode == "values":
+                            cw_item.setData(_CHIP_ROLE, [("⭐", "#163030", "#44ddcc")])
+                        else:  # "both"
+                            cw_item.setData(_CHIP_ROLE, [("⭐", "#163030", "#44ddcc")])
+                            if delta != 0:
+                                _sign = "+" if delta >= 0 else ""
+                                cw_item.setData(_SCORE_SECONDARY_ROLE, f"{_sign}{delta:.1f}")
+                    self._score_table.setItem(row, cw_col, cw_item)
+
             # ── No-scope override: replace all score columns with N/A ──
             if _no_scope:
                 for _ci in range(len(SCORE_COLUMNS)):
@@ -2551,7 +2616,7 @@ class BreedPriorityView(QWidget):
 
             # ── Tooltip ──
             tooltip = self._build_cat_tooltip(cat, result, scope_cats)
-            for col in range(len(_ALL_HEADERS)):
+            for col in range(self._score_table.columnCount()):
                 item = self._score_table.item(row, col)
                 if item:
                     item.setToolTip(tooltip)
@@ -2599,6 +2664,44 @@ class BreedPriorityView(QWidget):
         self._hate_overlay.update()
         self._refresh_children_panel()
         self._refresh_risk_panel()
+
+    # ── Complex Weights ───────────────────────────────────────────────────────
+
+    def _open_complex_weights(self):
+        if self._cw_dialog is None or not self._cw_dialog.isVisible():
+            self._cw_dialog = ComplexWeightsDialog(
+                self,
+                self._complex_weights,
+                all_traits=self._all_abilities + self._all_mutations,
+                stat_names=self._stat_names,
+            )
+            self._cw_dialog.cw_changed.connect(self._on_cw_changed)
+            self._cw_dialog.show()
+        else:
+            self._cw_dialog.raise_()
+            self._cw_dialog.activateWindow()
+
+    def _on_cw_changed(self):
+        self._save_ratings()
+        self._rebuild_cw_columns()
+        self.recompute()
+
+    def _rebuild_cw_columns(self):
+        """Sync table column count, headers, and delegates for enabled CWs."""
+        enabled_cws = [cw for cw in self._complex_weights if cw.enabled]
+        total_cols = COL_CW_SECTION_START + len(enabled_cws)
+
+        shh = self._score_table.horizontalHeader()
+        shh.blockSignals(True)
+        self._score_table.setColumnCount(total_cols)
+        _cw_delegate = _CWDelegate(self._score_table)
+        for i, cw in enumerate(enabled_cws):
+            cw_col = COL_CW_SECTION_START + i
+            item = QTableWidgetItem(cw.name[:10])
+            self._score_table.setHorizontalHeaderItem(cw_col, item)
+            self._score_table.setColumnWidth(cw_col, 58)
+            self._score_table.setItemDelegateForColumn(cw_col, _cw_delegate)
+        shh.blockSignals(False)
 
     # ── Weights popup ─────────────────────────────────────────────────────────
 

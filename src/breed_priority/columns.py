@@ -35,6 +35,11 @@ _SEP_WIDTH        = 8
 _COL_MIN_WIDTH    = 20   # ~2 text chars or 1 emoji at table font size
 _SEP_MIN_WIDTH    = _COL_MIN_WIDTH
 
+# ── Dynamic CW section (appended after static columns) ───────────────────────
+# Complex Weight columns start immediately after COL_SCORE.
+# This is a computed constant so it auto-updates if the static layout grows.
+COL_CW_SECTION_START = len(_ALL_HEADERS)   # = COL_SCORE + 1
+
 
 def _score_col_idx(header: str) -> int:
     """Return absolute score-table column index for a SCORE_COLUMNS header."""

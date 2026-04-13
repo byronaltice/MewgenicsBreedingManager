@@ -551,6 +551,81 @@ class _HeatmapDelegate(QStyledItemDelegate):
         painter.restore()
 
 
+# ── Complex Weight column delegate ───────────────────────────────────────────
+
+_CW_CHIP_BG = "#163030"
+_CW_CHIP_FG = "#44ddcc"
+_CW_CHIP_STAR = "⭐"
+
+
+class _CWDelegate(QStyledItemDelegate):
+    """Renders a Complex Weight column cell.
+
+    Score mode:  coloured score text (or blank if cat didn't match).
+    Values mode: star chip centred in cell when matched, blank when not.
+    Both mode:   star chip (top) + score subscript (bottom).
+
+    Data roles expected on the item:
+      Qt.DisplayRole          — score string for score mode (e.g. "+8.0")
+      Qt.ForegroundRole       — colour for score text
+      _CHIP_ROLE              — [(_CW_CHIP_STAR, bg, fg)] when matched in values/both
+      _SCORE_SECONDARY_ROLE   — subscript string in both mode (e.g. "+8.0")
+    """
+
+    def paint(self, painter, option, index):
+        chips = index.data(_CHIP_ROLE)
+        sub   = index.data(_SCORE_SECONDARY_ROLE)
+        text  = index.data(Qt.DisplayRole) or ""
+
+        self.initStyleOption(option, index)
+        style = option.widget.style() if option.widget else QApplication.style()
+        style.drawPrimitive(QStyle.PE_PanelItemViewItem, option, painter, option.widget)
+
+        painter.save()
+        painter.setRenderHint(QPainter.Antialiasing)
+        r = option.rect
+
+        if chips:
+            name, bg, fg = chips[0]
+            fm = QFontMetrics(painter.font())
+            chip_w = fm.horizontalAdvance(name) + 2 * _CHIP_PAD_X
+            chip_h = _CHIP_H
+            chip_x = r.x() + (r.width()  - chip_w) // 2
+            chip_y = r.y() + (r.height() - chip_h) // 2
+            chip_rect = QRect(chip_x, chip_y, chip_w, chip_h)
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QColor(bg))
+            painter.drawRoundedRect(chip_rect, _CHIP_RADIUS, _CHIP_RADIUS)
+            painter.setPen(QColor(fg))
+            painter.drawText(chip_rect, Qt.AlignCenter, name)
+
+        elif text:
+            fg = index.data(Qt.ForegroundRole)
+            if fg:
+                painter.setPen(fg.color() if hasattr(fg, "color") else QColor(str(fg)))
+            painter.drawText(r, Qt.AlignCenter, text)
+
+        if sub:
+            sf = QFont(painter.font())
+            sf.setPointSizeF(max(6.0, sf.pointSizeF() * 0.72))
+            painter.setFont(sf)
+            sfm = QFontMetrics(sf)
+            sub_h = sfm.height() + 2
+            sub_rect = QRect(r.x(), r.bottom() - sub_h, r.width(), sub_h)
+            pos = sub.startswith("+")
+            neg = sub.startswith("-")
+            painter.setPen(QColor(
+                CLR_VALUE_POS if pos else CLR_VALUE_NEG if neg else CLR_VALUE_NEUTRAL
+            ))
+            painter.drawText(sub_rect, Qt.AlignCenter, sub)
+
+        painter.restore()
+
+    def sizeHint(self, option, index):
+        sh = super().sizeHint(option, index)
+        return QSize(sh.width(), max(sh.height(), _CHIP_H + 8))
+
+
 # ── Hate-row overlay ──────────────────────────────────────────────────────────
 
 class _HateRowOverlay(QWidget):
