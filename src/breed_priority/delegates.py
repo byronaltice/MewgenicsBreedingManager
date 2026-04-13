@@ -33,6 +33,7 @@ from .theme import (
     CLR_SURFACE_SEPARATOR, CLR_SURFACE_NEUTRAL, CLR_SURFACE_NEUTRAL_OVERLAY,
     RATING_ITEM_COLORS,
     _CHIP_OVERFLOW_LOVE, _CHIP_OVERFLOW_HATE,
+    _CHIP_LOVE_OUTLINE, _CHIP_HATE_OUTLINE,
 )
 from .scoring import (
     TRAIT_RATING_LABELS, TRAIT_RATING_VALUES, RATING_SHORT_LABELS,
@@ -49,7 +50,8 @@ def _fit_chips(chips: list, available_width: int, fm: QFontMetrics) -> tuple:
     """
     IND_W = fm.horizontalAdvance("+99") + 2 * _CHIP_PAD_X
     x = 4
-    for i, (name, bg, fg) in enumerate(chips):
+    for i, chip in enumerate(chips):
+        name, bg, fg = chip[0], chip[1], chip[2]
         chip_w = fm.horizontalAdvance(name) + 2 * _CHIP_PAD_X
         hidden = len(chips) - i
         extra = (_CHIP_GAP + IND_W) if hidden > 1 else 0
@@ -95,8 +97,8 @@ def _overflow_chip_style(index, hidden_chips: list) -> tuple[QColor, QColor]:
     if index.column() in _HATE_SCORE_COLS:
         return QColor(_CHIP_OVERFLOW_HATE[0]), QColor(_CHIP_OVERFLOW_HATE[1])
 
-    bg_colors = [_to_qcolor(bg) for _, bg, _ in hidden_chips]
-    fg_colors = [_to_qcolor(fg) for _, _, fg in hidden_chips]
+    bg_colors = [_to_qcolor(chip[1]) for chip in hidden_chips]
+    fg_colors = [_to_qcolor(chip[2]) for chip in hidden_chips]
     avg_bg = _avg_qcolor(bg_colors, QColor(CLR_SURFACE_NEUTRAL))
     avg_fg = _avg_qcolor(fg_colors, QColor(CLR_TEXT_LABEL_UI))
     return avg_bg, _readable_text_for_bg(avg_bg, avg_fg)
@@ -294,13 +296,18 @@ class _TraitChipDelegate(QStyledItemDelegate):
             _big_font.setPixelSize(_big_font.pixelSize() + 3)
         _big_fm = QFontMetrics(_big_font)
 
-        for name, bg_color, text_color in visible:
+        for chip in visible:
+            name, bg_color, text_color = chip[0], chip[1], chip[2]
+            outline_color = chip[3] if len(chip) > 3 else None
             _is_emoji = name and ord(name[0]) > 0x2600
             _cfm = _big_fm if _is_emoji else fm
             chip_w  = _cfm.horizontalAdvance(name) + 2 * _CHIP_PAD_X
             chip_rect = QRect(x, chip_top, chip_w, _CHIP_H)
             painter.setBrush(QColor(bg_color))
-            painter.setPen(Qt.NoPen)
+            if outline_color:
+                painter.setPen(QPen(QColor(outline_color), 1))
+            else:
+                painter.setPen(Qt.NoPen)
             painter.drawRoundedRect(chip_rect, _CHIP_RADIUS, _CHIP_RADIUS)
             if _is_emoji:
                 painter.setFont(_big_font)
@@ -317,7 +324,12 @@ class _TraitChipDelegate(QStyledItemDelegate):
             _hidden_chips = chips[len(visible):]
             _ov_bg, _ov_fg = _overflow_chip_style(index, _hidden_chips)
             painter.setBrush(_ov_bg)
-            painter.setPen(Qt.NoPen)
+            if index.column() in _LOVE_SCORE_COLS:
+                painter.setPen(QPen(QColor(_CHIP_LOVE_OUTLINE), 1))
+            elif index.column() in _HATE_SCORE_COLS:
+                painter.setPen(QPen(QColor(_CHIP_HATE_OUTLINE), 1))
+            else:
+                painter.setPen(Qt.NoPen)
             painter.drawRoundedRect(ind_rect, _CHIP_RADIUS, _CHIP_RADIUS)
             painter.setPen(_ov_fg)
             painter.drawText(ind_rect, Qt.AlignCenter, ind_text)

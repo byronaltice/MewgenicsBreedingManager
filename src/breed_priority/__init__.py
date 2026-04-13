@@ -51,7 +51,7 @@ from .theme import (
     _CLR_AGE_OLD, _SEX_EMOJI_GAY, _SEX_EMOJI_BI,
     _CHIP_TOP_PRIORITY, _CHIP_DESIRABLE, _CHIP_UNDESIRABLE,
     _CHIP_DIM, _CHIP_NEUTRAL_STABLE, _CHIP_NEUTRAL_FAINT,
-    _CHIP_LOVE, _CHIP_HATE, _CHIP_AGE_WARN,
+    _CHIP_LOVE, _CHIP_HATE, _CHIP_LOVE_OUTLINE, _CHIP_HATE_OUTLINE, _CHIP_AGE_WARN,
     CLR_TEXT_PRIMARY, CLR_TEXT_SECONDARY, CLR_TEXT_UI_LABEL,
     CLR_TEXT_GROUP, CLR_TEXT_SUBLABEL, CLR_TEXT_COUNT, CLR_TEXT_GRAYEDOUT,
     CLR_TEXT_MUTED,
@@ -2238,9 +2238,10 @@ class BreedPriorityView(QWidget):
                     _rel_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
                     if _do_vals:
                         _cbg, _cfg = _CHIP_LOVE if _is_love else _CHIP_HATE
+                        _coutline = _CHIP_LOVE_OUTLINE if _is_love else _CHIP_HATE_OUTLINE
                         _rel_chips = (
-                            [(_EMOJI_SCOPE, _cbg, _cfg) for _ in _all_scope]
-                            + [(_EMOJI_ROOM,  _cbg, _cfg) for _ in _all_room]
+                            [(_EMOJI_SCOPE, _cbg, _cfg, _coutline) for _ in _all_scope]
+                            + [(_EMOJI_ROOM,  _cbg, _cfg, _coutline) for _ in _all_room]
                         )
                         if _rel_chips:
                             _rel_item.setData(_CHIP_ROLE, _rel_chips)
