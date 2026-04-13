@@ -2528,8 +2528,13 @@ class MainWindow(QMainWindow):
             self._watcher.removePaths(self._watcher.files())
         if self._watcher.directories():
             self._watcher.removePaths(self._watcher.directories())
-        self._watcher.addPath(path)
-        self._watcher.addPath(os.path.dirname(os.path.abspath(path)))
+        _file_ok  = self._watcher.addPath(path)
+        _dir_path = os.path.dirname(os.path.abspath(path))
+        _dir_ok   = self._watcher.addPath(_dir_path)
+        print(f"[watcher] file={_file_ok} path={path!r}")
+        print(f"[watcher] dir={_dir_ok}  path={_dir_path!r}")
+        print(f"[watcher] watching files={self._watcher.files()}")
+        print(f"[watcher] watching dirs={self._watcher.directories()}")
         try:
             self._watched_save_mtime = os.path.getmtime(path)
         except OSError:
@@ -2874,6 +2879,7 @@ class MainWindow(QMainWindow):
             self.load_save(self._current_save)
 
     def _on_file_changed(self, path: str):
+        print(f"[watcher] fileChanged: {path!r}  current={self._current_save!r}")
         if path != self._current_save:
             return
         self._handle_save_file_changed()
@@ -2892,6 +2898,7 @@ class MainWindow(QMainWindow):
             mtime = os.path.getmtime(self._current_save)
         except OSError:
             return
+        print(f"[watcher] dirChanged: mtime={mtime}  prev={self._watched_save_mtime}")
         if mtime == self._watched_save_mtime:
             return
         self._watched_save_mtime = mtime
@@ -2903,6 +2910,7 @@ class MainWindow(QMainWindow):
         Updates the tracked mtime so the directory-watch dedup gate stays in
         sync whether this was triggered by the file signal or the dir signal.
         """
+        print(f"[watcher] _handle_save_file_changed cats={len(self._cats)} worker={self._save_load_worker}")
         try:
             self._watched_save_mtime = os.path.getmtime(self._current_save)
         except OSError:
