@@ -289,6 +289,11 @@ class MainWindow(QMainWindow):
 
         self._watcher = QFileSystemWatcher(self)
         self._watcher.fileChanged.connect(self._on_file_changed)
+        # On Windows, atomic file replacement (rename-into-place) causes the
+        # file watcher to drop the path.  Directory watches survive replacements,
+        # so we also watch the parent directory and filter by filename there.
+        self._watcher.directoryChanged.connect(self._on_dir_changed)
+        self._watched_save_mtime: float = 0.0
 
         # Use initial_save if provided; otherwise only auto-load the saved default when allowed.
         save_to_load = initial_save if initial_save else (_saved_default_save() if use_saved_default else None)
@@ -2521,7 +2526,14 @@ class MainWindow(QMainWindow):
                 self._perfect_planner_view.sync_mutation_import_button_state()
         if self._watcher.files():
             self._watcher.removePaths(self._watcher.files())
+        if self._watcher.directories():
+            self._watcher.removePaths(self._watcher.directories())
         self._watcher.addPath(path)
+        self._watcher.addPath(os.path.dirname(os.path.abspath(path)))
+        try:
+            self._watched_save_mtime = os.path.getmtime(path)
+        except OSError:
+            self._watched_save_mtime = 0.0
 
         # Cancel any in-progress load
         if self._save_load_worker is not None:
@@ -2864,10 +2876,40 @@ class MainWindow(QMainWindow):
     def _on_file_changed(self, path: str):
         if path != self._current_save:
             return
-        # On Windows, atomic file replacement removes the path from the watcher.
-        # Re-add it so subsequent saves are still detected.
-        if path not in self._watcher.files():
-            self._watcher.addPath(path)
+        self._handle_save_file_changed()
+
+    def _on_dir_changed(self, _dir: str):
+        """Directory watch fallback: fires on any change in the save file's directory.
+
+        On Windows, atomic file replacement (rename-into-place) often causes
+        the per-file watcher to drop the path silently.  The directory watcher
+        survives replacements, so we use it as the primary trigger.  We gate
+        on mtime to avoid acting on unrelated files changing in the same dir.
+        """
+        if not self._current_save:
+            return
+        try:
+            mtime = os.path.getmtime(self._current_save)
+        except OSError:
+            return
+        if mtime == self._watched_save_mtime:
+            return
+        self._watched_save_mtime = mtime
+        self._handle_save_file_changed()
+
+    def _handle_save_file_changed(self):
+        """Common handler called by both file and directory change signals.
+
+        Updates the tracked mtime so the directory-watch dedup gate stays in
+        sync whether this was triggered by the file signal or the dir signal.
+        """
+        try:
+            self._watched_save_mtime = os.path.getmtime(self._current_save)
+        except OSError:
+            pass
+        # Re-add the file path if it was dropped after an atomic replacement.
+        if self._current_save not in self._watcher.files():
+            self._watcher.addPath(self._current_save)
         # If cats are already loaded and no full reload is running, try the fast path.
         if self._cats and self._save_load_worker is None:
             self._start_quick_room_refresh()
