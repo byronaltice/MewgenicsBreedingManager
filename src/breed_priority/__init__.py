@@ -51,8 +51,7 @@ from .theme import (
     _CLR_AGE_OLD, _SEX_EMOJI_GAY, _SEX_EMOJI_BI,
     _CHIP_TOP_PRIORITY, _CHIP_DESIRABLE, _CHIP_UNDESIRABLE,
     _CHIP_DIM, _CHIP_NEUTRAL_STABLE, _CHIP_NEUTRAL_FAINT,
-    _CHIP_LOVE_SCOPE, _CHIP_LOVE_ROOM,
-    _CHIP_HATE_SCOPE, _CHIP_HATE_ROOM, _CHIP_AGE_WARN,
+    _CHIP_LOVE, _CHIP_HATE, _CHIP_AGE_WARN,
     CLR_TEXT_PRIMARY, CLR_TEXT_SECONDARY, CLR_TEXT_UI_LABEL,
     CLR_TEXT_GROUP, CLR_TEXT_SUBLABEL, CLR_TEXT_COUNT, CLR_TEXT_GRAYEDOUT,
     CLR_TEXT_MUTED,
@@ -72,7 +71,7 @@ from .columns import (
     _NUM_STAT_COLS, _SCORE_COLS, _COL_SCORE_START, COL_SCORE,
     _ALL_HEADERS, _SEP_COLS, _SEP_WIDTH, _COL_MIN_WIDTH, _SEP_MIN_WIDTH,
     _CHIP_ROLE, _SCORE_SECONDARY_ROLE, _HEATMAP_ROLE,
-    _ROOM_STYLE, INJURY_STAT_NAMES, _COL_EMOJI,
+    _ROOM_STYLE, INJURY_STAT_NAMES, _EMOJI_SCOPE, _EMOJI_ROOM,
     _SINGLE_VALUE_CENTER_SCORE_COLS, _MULTI_VALUE_LEFT_SCORE_COLS,
 )
 from .scoring import (
@@ -1083,10 +1082,8 @@ class BreedPriorityView(QWidget):
             "Sex":  "Sexuality — flat Gay or Bi weight (straight = no score).",
             "Gene":    "Genetic Safety — average in-scope inbreeding risk; penalties start above 2% baseline.",
             "Age":     "Age penalty. No penalty at/below threshold. Each 3 years over = +1× multiplier (1 over=1×, 4 over=2×, 7 over=3×…).",
-            "💗🔭": "Love interest (scope) — flat weight if love interest is in scope. Pink = in scope, grey = out.",
-            "💥🔭": "Rivalry (scope) — weight per rival in scope (both directions: hates + hated by).",
-            "💗🏠":  "Love interest (room) — flat weight if love interest shares this cat's room.",
-            "💥🏠":  "Rivalry (room) — weight per rival in same room (both directions: hates + hated by).",
+            "💗": "Love — 🔭 chip = love interest in scope (flat weight); 🐱 chip = love interest in same room. Both directions.",
+            "💥": "Hate — 🔭 chip = rival in scope (per rival, both directions); 🐱 chip = rival in same room. Both directions.",
             "Score":   "Total weighted score — sum of all column scores.",
             "7sub":   "7-Subset: cats in scope whose stat-7 set strictly contains this cat's (▲N = dominated by N cats). Score = (count above threshold) × weight.",
         }
@@ -1114,14 +1111,10 @@ class BreedPriorityView(QWidget):
         self._score_table.setColumnWidth(_sex_col, 72)
         _age_col = _COL_SCORE_START + _SCORE_COLS.index("Age")
         self._score_table.setColumnWidth(_age_col, 46)
-        _loves_col = _COL_SCORE_START + _SCORE_COLS.index("💗🔭")
+        _loves_col = _COL_SCORE_START + _SCORE_COLS.index("💗")
         self._score_table.setColumnWidth(_loves_col, 52)
-        _hates_col = _COL_SCORE_START + _SCORE_COLS.index("💥🔭")
+        _hates_col = _COL_SCORE_START + _SCORE_COLS.index("💥")
         self._score_table.setColumnWidth(_hates_col, 52)
-        _lroom_col = _COL_SCORE_START + _SCORE_COLS.index("💗🏠")
-        self._score_table.setColumnWidth(_lroom_col, 52)
-        _hroom_col = _COL_SCORE_START + _SCORE_COLS.index("💥🏠")
-        self._score_table.setColumnWidth(_hroom_col, 52)
         _7sub_col = _COL_SCORE_START + _SCORE_COLS.index("7sub")
         self._score_table.setColumnWidth(_7sub_col, 52)
         self._score_table.setColumnWidth(COL_SCORE, 55)
@@ -1138,7 +1131,7 @@ class BreedPriorityView(QWidget):
         _rare7_col   = _COL_SCORE_START + _SCORE_COLS.index("7rare")
         self._score_table.setItemDelegateForColumn(_trait_col,    _chip_delegate)
         self._score_table.setItemDelegateForColumn(_rare7_col,    _chip_delegate)
-        for _ehdr in ("Sex", "💗🔭", "💗🏠", "💥🔭", "💥🏠",
+        for _ehdr in ("Sex", "💗", "💥",
                        "Lib", "Age", "Gene", "Gender", "Sum", SCORE_HEADER_7_COUNT):
             _ecol = _COL_SCORE_START + _SCORE_COLS.index(_ehdr)
             self._score_table.setItemDelegateForColumn(_ecol, _chip_delegate)
@@ -2214,51 +2207,42 @@ class BreedPriorityView(QWidget):
                 def _score_color(v, pos=CLR_VALUE_POS, neg=CLR_VALUE_NEG):
                     return pos if v > 0 else neg if v < 0 else CLR_TEXT_COUNT
 
-                # ── Love-Scope / Hate-Scope / Love-Room / Hate-Room: show cat name ──
-                if hdr in ("💗🔭", "💥🔭", "💗🏠", "💥🏠"):
-                    _is_love = hdr in ("💗🔭", "💗🏠")
-                    _is_hate = not _is_love
-                    _is_room = hdr in ("💗🏠", "💥🏠")
+                # ── Love / Hate: combined scope + room chips ──
+                if hdr in ("💗", "💥"):
+                    _is_love = hdr == "💗"
                     _rel_list = getattr(cat, 'lovers' if _is_love else 'haters', [])
-                    if _is_room:
-                        _cat_room = getattr(cat, 'room', None)
-                        _in_match = [c for c in _rel_list
-                                     if _cat_room and getattr(c, 'room', None) == _cat_room]
-                    else:
-                        _in_match = [c for c in _rel_list if id(c) in scope_set]
-
-                    # Also include reverse relationships (cats that hate/love
-                    # this cat) from ALL in-house cats, not just filtered alive.
-                    _reverse_match = []
-                    _reverse_map = _hated_by_map if _is_hate else _loved_by_map
+                    _reverse_map = _loved_by_map if _is_love else _hated_by_map
                     _rb = _reverse_map.get(id(cat), [])
-                    _own_set = set(id(h) for h in _rel_list)
-                    if _is_room:
-                        _cat_room_r = getattr(cat, 'room', None)
-                        _reverse_match = [c for c in _rb
-                                          if id(c) not in _own_set
-                                          and _cat_room_r and getattr(c, 'room', None) == _cat_room_r]
-                    else:
-                        _reverse_match = [c for c in _rb
-                                          if id(c) not in _own_set
-                                          and id(c) in scope_set]
+                    _own_set = {id(h) for h in _rel_list}
+                    _cat_room = getattr(cat, 'room', None)
 
-                    _all_rivals = _in_match + _reverse_match
-                    _any = _all_rivals or _rel_list
+                    # Scope: in-scope matches (forward + reverse)
+                    _scope_fwd = [c for c in _rel_list if id(c) in scope_set]
+                    _scope_rev = [c for c in _rb
+                                  if id(c) not in _own_set and id(c) in scope_set]
+                    _all_scope = _scope_fwd + _scope_rev
+
+                    # Room: same-room matches (forward + reverse)
+                    _room_fwd = [c for c in _rel_list
+                                 if _cat_room and getattr(c, 'room', None) == _cat_room]
+                    _room_rev = [c for c in _rb
+                                 if id(c) not in _own_set
+                                 and _cat_room and getattr(c, 'room', None) == _cat_room]
+                    _all_room = _room_fwd + _room_rev
+
+                    _all_rels = _all_scope + _all_room
                     _do_vals = self._display_mode in ("values", "both")
                     _rel_item = _NumericSortItem("")
                     _rel_item.setData(Qt.UserRole, score_val)
                     _rel_item.setTextAlignment(self._score_col_alignment(col_idx))
                     _rel_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
                     if _do_vals:
-                        _emoji = _COL_EMOJI.get(hdr, "?")
-                        _n_match = len(_all_rivals)
-                        if _n_match > 0:
-                            if _is_love:
-                                _cbg, _cfg = _CHIP_LOVE_ROOM if _is_room else _CHIP_LOVE_SCOPE
-                            else:
-                                _cbg, _cfg = _CHIP_HATE_ROOM if _is_room else _CHIP_HATE_SCOPE
-                            _rel_chips = [(_emoji, _cbg, _cfg) for _ in range(_n_match)]
+                        _cbg, _cfg = _CHIP_LOVE if _is_love else _CHIP_HATE
+                        _rel_chips = (
+                            [(_EMOJI_SCOPE, _cbg, _cfg) for _ in _all_scope]
+                            + [(_EMOJI_ROOM,  _cbg, _cfg) for _ in _all_room]
+                        )
+                        if _rel_chips:
                             _rel_item.setData(_CHIP_ROLE, _rel_chips)
                         else:
                             _rel_item.setForeground(QColor(CLR_TEXT_COUNT))
@@ -2266,7 +2250,7 @@ class BreedPriorityView(QWidget):
                         _color = _score_color(score_val)
                         _rel_item.setText(f"{score_val:+.1f}" if score_val != 0 else "")
                         _rel_item.setForeground(QColor(_color))
-                    if self._display_mode == "both" and _any and score_val != 0:
+                    if self._display_mode == "both" and _all_rels and score_val != 0:
                         _rel_item.setData(_SCORE_SECONDARY_ROLE, f"{score_val:+.1f}")
                     # (hate/love details are shown in the main cat tooltip)
                     if _is_heat and score_val != 0:

@@ -48,8 +48,8 @@ _NEUTRAL_VALUE_CHIP_SCORE_HEADERS = frozenset({"Sum", "Age", SCORE_HEADER_7_COUN
 _NEUTRAL_VALUE_CHIP_COLS = frozenset(_score_col_idx(h) for h in _NEUTRAL_VALUE_CHIP_SCORE_HEADERS)
 
 # Score-table relationship columns with semantic overflow colors.
-_LOVE_SCORE_HEADERS = frozenset({"💗🔭", "💗🏠"})
-_HATE_SCORE_HEADERS = frozenset({"💥🔭", "💥🏠"})
+_LOVE_SCORE_HEADERS = frozenset({"💗"})
+_HATE_SCORE_HEADERS = frozenset({"💥"})
 _LOVE_SCORE_COLS = frozenset(_score_col_idx(h) for h in _LOVE_SCORE_HEADERS)
 _HATE_SCORE_COLS = frozenset(_score_col_idx(h) for h in _HATE_SCORE_HEADERS)
 _RELATIONSHIP_SCORE_COLS = frozenset(_LOVE_SCORE_COLS | _HATE_SCORE_COLS)
@@ -61,7 +61,7 @@ _SINGLE_VALUE_CENTER_SCORE_HEADERS = frozenset({
 _SINGLE_VALUE_CENTER_SCORE_COLS = frozenset(_score_col_idx(h) for h in _SINGLE_VALUE_CENTER_SCORE_HEADERS)
 
 _MULTI_VALUE_LEFT_SCORE_HEADERS = frozenset({
-    "7rare", "Trait", "💗🔭", "💗🏠", "💥🔭", "💥🏠",
+    "7rare", "Trait", "💗", "💥",
 })
 _MULTI_VALUE_LEFT_SCORE_COLS = frozenset(_score_col_idx(h) for h in _MULTI_VALUE_LEFT_SCORE_HEADERS)
 
@@ -100,11 +100,8 @@ _INJ_SHORT = {
 }
 
 
-# ── Emoji mapping for score columns ──────────────────────────────────────────
+# ── Relationship chip emoji constants ────────────────────────────────────────
 
-_COL_EMOJI = {
-    "💗🔭": "💌",
-    "💗🏠": "💕",
-    "💥🔭": "😠",
-    "💥🏠": "👿",
-}
+# Chips in combined love/hate columns distinguish scope vs room by emoji.
+_EMOJI_SCOPE = "🔭"
+_EMOJI_ROOM  = "🐱"

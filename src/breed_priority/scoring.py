@@ -105,10 +105,8 @@ SCORE_COLUMNS = [
     ("Gender", ["unknown_gender"]),
     ("Gene",  ["no_children", "zero_risk_bonus"]),
     ("Aggro", ["low_aggression", "high_aggression"]),
-    ("💥🔭",    ["rivalry"]),
-    ("💥🏠",    ["rivalry_room"]),
-    ("💗🔭",    ["love_interest"]),
-    ("💗🏠",    ["love_interest_room"]),
+    ("💥",     ["rivalry", "rivalry_room"]),
+    ("💗",     ["love_interest", "love_interest_room"]),
     ("Trait", ["trait_top_priority", "trait_desirable", "trait_undesirable"]),
 ]
 
