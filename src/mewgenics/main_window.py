@@ -2864,6 +2864,10 @@ class MainWindow(QMainWindow):
     def _on_file_changed(self, path: str):
         if path != self._current_save:
             return
+        # On Windows, atomic file replacement removes the path from the watcher.
+        # Re-add it so subsequent saves are still detected.
+        if path not in self._watcher.files():
+            self._watcher.addPath(path)
         # If cats are already loaded and no full reload is running, try the fast path.
         if self._cats and self._save_load_worker is None:
             self._start_quick_room_refresh()
