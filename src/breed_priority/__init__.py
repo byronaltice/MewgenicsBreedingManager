@@ -228,11 +228,17 @@ class BreedPriorityView(QWidget):
         except Exception:
             pass
 
-        # ── Complex Weights — load before sort-col validation ────────────────
+        # ── Complex Weights — migrate global → per-profile, then load from profile ──
         try:
-            raw_cws = data.get("complex_weights", [])
-            if isinstance(raw_cws, list):
-                self._complex_weights = [ComplexWeight.from_dict(d) for d in raw_cws]
+            _global_cws = data.get("complex_weights", [])
+            if _global_cws and isinstance(_global_cws, list):
+                # One-time migration: seed any profile slot that has no CW key yet.
+                for _slot_data in self._profiles.values():
+                    if "complex_weights" not in _slot_data:
+                        _slot_data["complex_weights"] = list(_global_cws)
+            _profile_cws = self._profile_snapshot.get("complex_weights", [])
+            if isinstance(_profile_cws, list):
+                self._complex_weights = [ComplexWeight.from_dict(d) for d in _profile_cws]
         except Exception:
             pass
 
@@ -380,7 +386,6 @@ class BreedPriorityView(QWidget):
                 for mode, widths in self._col_widths.items()
             },
             "col_count": len(_ALL_HEADERS),
-            "complex_weights": [cw.to_dict() for cw in self._complex_weights],
             "bottom_pane_sizes": (
                 list(self._bottom_hs.sizes()) if hasattr(self, "_bottom_hs") else []
             ),
@@ -435,6 +440,7 @@ class BreedPriorityView(QWidget):
             "sort_desc": self._sort_order == Qt.DescendingOrder,
             "filters": self._filters.to_dict(),
             "filters_enabled": self._filters_enabled,
+            "complex_weights": [cw.to_dict() for cw in self._complex_weights],
         }
 
     def _is_dirty(self) -> bool:
@@ -490,8 +496,24 @@ class BreedPriorityView(QWidget):
         _ha = data.get("heat_algo", "column")
         self._heat_algo         = _ha if _ha in ("column", "row") else "column"
         self._show_stats        = bool(data.get("show_stats", False))
+        # Complex Weights
+        _raw_cws = data.get("complex_weights", [])
+        self._complex_weights = []
+        if isinstance(_raw_cws, list):
+            for _cw_d in _raw_cws:
+                try:
+                    self._complex_weights.append(ComplexWeight.from_dict(_cw_d))
+                except Exception:
+                    pass
+        if self._cw_dialog is not None:
+            self._cw_dialog._cws = self._complex_weights
+            self._cw_dialog._rebuild()
+
         _saved_sort = int(data.get("sort_col", COL_SCORE))
-        if _saved_sort in _SEP_COLS or _saved_sort >= len(_ALL_HEADERS):
+        _cw_enabled_count = sum(1 for cw in self._complex_weights if cw.enabled)
+        _max_valid_cw_col = (COL_CW_SECTION_START + _cw_enabled_count - 1
+                             if _cw_enabled_count else COL_SCORE)
+        if _saved_sort in _SEP_COLS or _saved_sort > _max_valid_cw_col:
             _saved_sort = COL_SCORE
         self._sort_col          = _saved_sort
         self._sort_order        = (Qt.DescendingOrder if data.get("sort_desc", True)
