@@ -84,6 +84,8 @@ def build_cat_tooltip(
     loved_by_map: dict,
     cat_injuries_fn,
     top_gene_risks: list | None = None,
+    cw_items: list | None = None,
+    cw_delta_total: float = 0.0,
 ) -> str:
     """Build a rich HTML tooltip showing traits, relationships and score breakdown.
 
@@ -302,8 +304,18 @@ def build_cat_tooltip(
         html_parts.append(f'{_TT_SECTION}TOP RISKY PARTNERS (SCOPE)</span>')
         html_parts.append('<table cellspacing="0" cellpadding="1">' + "".join(_risk_rows) + '</table>')
 
+    if cw_items:
+        _cw_rows = []
+        for cw_name, cw_delta in cw_items:
+            _cw_clr = CLR_VALUE_POS if cw_delta > 0 else CLR_VALUE_NEG if cw_delta < 0 else CLR_VALUE_NEUTRAL
+            _cw_rows.append(row(_cw_clr, f"⭐ {cw_name}", f"{cw_delta:+.2f}"))
+        html_parts.append(f'{_TT_SECTION}COMPLEX WEIGHTS</span>')
+        html_parts.append('<table cellspacing="0" cellpadding="1">' + "".join(_cw_rows) + '</table>')
+
+    _adjusted_total = result.total + cw_delta_total
+    _adjusted_color = CLR_VALUE_POS if _adjusted_total > 0 else CLR_VALUE_NEG if _adjusted_total < 0 else CLR_VALUE_NEUTRAL
     html_parts.append(
-        f'<br><b style="color:{total_color}">Total: {result.total:+.2f}</b>'
+        f'<br><b style="color:{_adjusted_color}">Total: {_adjusted_total:+.2f}</b>'
     )
     html_parts.append('</body></html>')
     return "".join(html_parts)

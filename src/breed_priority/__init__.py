@@ -2056,7 +2056,9 @@ class BreedPriorityView(QWidget):
             return float(_cached)
         return float(risk_percent(a, b))
 
-    def _build_cat_tooltip(self, cat, result: ScoreResult, scope_cats: list) -> str:
+    def _build_cat_tooltip(self, cat, result: ScoreResult, scope_cats: list,
+                           *, cw_items: list | None = None,
+                           cw_delta_total: float = 0.0) -> str:
         _top_gene_risks = []
         _risk_floor = 2.0
         for _other in scope_cats:
@@ -2079,6 +2081,8 @@ class BreedPriorityView(QWidget):
             loved_by_map=self._loved_by_map,
             cat_injuries_fn=lambda c: _cat_injuries(c, self._stat_names),
             top_gene_risks=_top_gene_risks[:3],
+            cw_items=cw_items or [],
+            cw_delta_total=cw_delta_total,
         )
 
     def _raw_col_value(self, cat, col_idx: int,
@@ -2542,13 +2546,29 @@ class BreedPriorityView(QWidget):
                 sub_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
                 self._score_table.setItem(row, col_idx, sub_item)
 
+            # ── Complex Weight evaluation (must precede total score) ──────────
+            _enabled_cws = [cw for cw in self._complex_weights if cw.enabled]
+            _cw_matches: list = []
+            _cw_delta_total = 0.0
+            if _enabled_cws:
+                _cat_traits = build_cat_trait_set(cat)
+                _cw_matches = compute_cw_matches(
+                    _enabled_cws, cat,
+                    cat_stats=_cat_stats,
+                    cat_traits=_cat_traits,
+                    scope_gene_risk=scope_gene_risk,
+                    total_score=result.total,  # pre-CW score avoids circularity
+                )
+                _cw_delta_total = sum(d for matched, d in _cw_matches if matched)
+            _adjusted_total = result.total + _cw_delta_total
+
             # ── Total score ──
-            score_item = _NumericSortItem(f"{result.total:+.1f}")
-            score_item.setData(Qt.UserRole, result.total)
+            score_item = _NumericSortItem(f"{_adjusted_total:+.1f}")
+            score_item.setData(Qt.UserRole, _adjusted_total)
             score_item.setTextAlignment(Qt.AlignCenter)
             _sc_total = len(_all_scores_sorted)
             if _sc_total > 0:
-                _sc_rank = sum(1 for v in _all_scores_sorted if v <= result.total)
+                _sc_rank = sum(1 for v in _all_scores_sorted if v <= _adjusted_total)
                 _sc_pct = _sc_rank / _sc_total * 100
                 if _sc_pct >= 75:
                     _sc_color = CLR_DESIRABLE
@@ -2562,41 +2582,31 @@ class BreedPriorityView(QWidget):
                 _sc_color = CLR_VALUE_NEUTRAL
             score_item.setForeground(QColor(_sc_color))
             score_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
-            if self._heatmap_on and result.total != 0:
-                score_item.setData(_HEATMAP_ROLE, result.total / _score_max_abs)
+            if self._heatmap_on and _adjusted_total != 0:
+                score_item.setData(_HEATMAP_ROLE, _adjusted_total / _score_max_abs)
             self._score_table.setItem(row, COL_SCORE, score_item)
 
             # ── Complex Weight columns ────────────────────────────────────────
-            _enabled_cws = [cw for cw in self._complex_weights if cw.enabled]
-            if _enabled_cws:
-                _cat_traits = build_cat_trait_set(cat)
-                _cw_matches = compute_cw_matches(
-                    _enabled_cws, cat,
-                    cat_stats=_cat_stats,
-                    cat_traits=_cat_traits,
-                    scope_gene_risk=scope_gene_risk,
-                    total_score=result.total,
-                )
-                for _cwi, (matched, delta) in enumerate(_cw_matches):
-                    cw_col = COL_CW_SECTION_START + _cwi
-                    cw_item = _NumericSortItem("")
-                    cw_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
-                    cw_item.setData(Qt.UserRole, delta if matched else 0.0)
-                    cw_item.setTextAlignment(Qt.AlignCenter)
-                    if matched:
-                        if self._display_mode == "score":
+            for _cwi, (matched, delta) in enumerate(_cw_matches):
+                cw_col = COL_CW_SECTION_START + _cwi
+                cw_item = _NumericSortItem("")
+                cw_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+                cw_item.setData(Qt.UserRole, delta if matched else 0.0)
+                cw_item.setTextAlignment(Qt.AlignCenter)
+                if matched:
+                    if self._display_mode == "score":
+                        _sign = "+" if delta >= 0 else ""
+                        cw_item.setText(f"{_sign}{delta:.1f}")
+                        _c = CLR_VALUE_POS if delta > 0 else CLR_VALUE_NEG if delta < 0 else CLR_VALUE_NEUTRAL
+                        cw_item.setForeground(QColor(_c))
+                    elif self._display_mode == "values":
+                        cw_item.setData(_CHIP_ROLE, [("⭐", "#163030", "#44ddcc")])
+                    else:  # "both"
+                        cw_item.setData(_CHIP_ROLE, [("⭐", "#163030", "#44ddcc")])
+                        if delta != 0:
                             _sign = "+" if delta >= 0 else ""
-                            cw_item.setText(f"{_sign}{delta:.1f}")
-                            _c = CLR_VALUE_POS if delta > 0 else CLR_VALUE_NEG if delta < 0 else CLR_VALUE_NEUTRAL
-                            cw_item.setForeground(QColor(_c))
-                        elif self._display_mode == "values":
-                            cw_item.setData(_CHIP_ROLE, [("⭐", "#163030", "#44ddcc")])
-                        else:  # "both"
-                            cw_item.setData(_CHIP_ROLE, [("⭐", "#163030", "#44ddcc")])
-                            if delta != 0:
-                                _sign = "+" if delta >= 0 else ""
-                                cw_item.setData(_SCORE_SECONDARY_ROLE, f"{_sign}{delta:.1f}")
-                    self._score_table.setItem(row, cw_col, cw_item)
+                            cw_item.setData(_SCORE_SECONDARY_ROLE, f"{_sign}{delta:.1f}")
+                self._score_table.setItem(row, cw_col, cw_item)
 
             # ── No-scope override: replace all score columns with N/A ──
             if _no_scope:
@@ -2615,7 +2625,14 @@ class BreedPriorityView(QWidget):
                 self._score_table.setItem(row, COL_SCORE, _sc_it)
 
             # ── Tooltip ──
-            tooltip = self._build_cat_tooltip(cat, result, scope_cats)
+            _cw_tooltip_items = [
+                (_enabled_cws[i].name, delta)
+                for i, (matched, delta) in enumerate(_cw_matches)
+                if matched
+            ]
+            tooltip = self._build_cat_tooltip(cat, result, scope_cats,
+                                              cw_items=_cw_tooltip_items,
+                                              cw_delta_total=_cw_delta_total)
             for col in range(self._score_table.columnCount()):
                 item = self._score_table.item(row, col)
                 if item:
