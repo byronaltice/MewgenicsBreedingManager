@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
     QSizePolicy, QFrame, QScrollArea,
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
     QListWidget, QListWidgetItem, QButtonGroup,
-    QCheckBox, QComboBox, QLineEdit, QPushButton, QGridLayout,
+    QCheckBox, QComboBox, QLineEdit, QPushButton, QGridLayout, QTabWidget,
 )
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QColor, QBrush
@@ -65,6 +65,7 @@ from .styles import (
     ACTION_BUTTON_PRIMARY_EMPHASIS_STYLE, ACTION_BUTTON_PRIMARY_STYLE,
     ACTION_BUTTON_SECONDARY_STYLE, ACTION_BUTTON_SECONDARY_LARGE_STYLE, TOGGLE_BUTTON_INACTIVE_STYLE,
     PRIORITY_TABLE_STYLE, PRIORITY_COMBO_STYLE,
+    TRAIT_TAB_ABILITIES_STYLE, TRAIT_TAB_MUTATIONS_STYLE,
     checkbox_style,
 )
 from .columns import (
@@ -155,7 +156,12 @@ class BreedPriorityView(QWidget):
         self._weight_spins: dict = {}
         self._populating = False
         self._all_abilities: list = []
+        self._all_active_abilities: list = []
+        self._all_passive_abilities: list = []
+        self._all_disorders: list = []
         self._all_mutations: list = []
+        self._all_good_mutations: list = []
+        self._all_defects: list = []
         self._selected_cat = None
         self._hated_by_map: dict[int, list] = {}
         self._loved_by_map: dict[int, list] = {}
@@ -594,8 +600,11 @@ class BreedPriorityView(QWidget):
                 if defect not in self._ma_ratings:
                     self._ma_ratings[defect] = -1
             self._selected_cat = None
-            self._populate_trait_table(self._abilities_table, self._all_abilities)
-            self._populate_trait_table(self._mutations_table, self._all_mutations)
+            self._populate_trait_table(self._active_abilities_table, self._all_active_abilities)
+            self._populate_trait_table(self._passive_abilities_table, self._all_passive_abilities)
+            self._populate_trait_table(self._disorders_table, self._all_disorders)
+            self._populate_trait_table(self._good_mutations_table, self._all_good_mutations)
+            self._populate_trait_table(self._defects_table, self._all_defects)
         self.recompute()
         self._update_filter_btn()
 
@@ -672,8 +681,11 @@ class BreedPriorityView(QWidget):
                     if defect not in self._ma_ratings:
                         self._ma_ratings[defect] = -1
                 self._selected_cat = None
-                self._populate_trait_table(self._abilities_table, self._all_abilities)
-                self._populate_trait_table(self._mutations_table, self._all_mutations)
+                self._populate_trait_table(self._active_abilities_table, self._all_active_abilities)
+                self._populate_trait_table(self._passive_abilities_table, self._all_passive_abilities)
+                self._populate_trait_table(self._disorders_table, self._all_disorders)
+                self._populate_trait_table(self._good_mutations_table, self._all_good_mutations)
+                self._populate_trait_table(self._defects_table, self._all_defects)
             self.recompute()
         else:
             self._apply_profile_data(profile_data)
@@ -1243,21 +1255,27 @@ class BreedPriorityView(QWidget):
         self._rebuild_cw_columns()
         return score_container
 
-    def _make_trait_pane(self, attr: str, title: str) -> QWidget:
-        """Build a titled pane containing a single trait table (abilities or mutations)."""
-        w = QWidget()
-        w.setStyleSheet(f"background:{CLR_BG_MAIN};")
-        vb = QVBoxLayout(w)
-        vb.setContentsMargins(8, 6, 8, 6)
-        vb.setSpacing(4)
-        lbl = QLabel(title)
-        lbl.setStyleSheet(GROUP_LABEL_TEXT_STYLE)
-        lbl.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
-        vb.addWidget(lbl)
-        tbl = self._make_trait_table()
-        setattr(self, attr, tbl)
-        vb.addWidget(tbl, stretch=1)
-        return w
+    def _make_abilities_tab_widget(self) -> QTabWidget:
+        """Three-tab widget: Active | Passive | Disorder, each backed by a trait table."""
+        tw = QTabWidget()
+        tw.setStyleSheet(TRAIT_TAB_ABILITIES_STYLE)
+        self._active_abilities_table = self._make_trait_table()
+        self._passive_abilities_table = self._make_trait_table()
+        self._disorders_table = self._make_trait_table()
+        tw.addTab(self._active_abilities_table, "Active")
+        tw.addTab(self._passive_abilities_table, "Passive")
+        tw.addTab(self._disorders_table, "Disorder")
+        return tw
+
+    def _make_mutations_tab_widget(self) -> QTabWidget:
+        """Two-tab widget: Mutations (green) | Defects (red), each backed by a trait table."""
+        tw = QTabWidget()
+        tw.setStyleSheet(TRAIT_TAB_MUTATIONS_STYLE)
+        self._good_mutations_table = self._make_trait_table()
+        self._defects_table = self._make_trait_table()
+        tw.addTab(self._good_mutations_table, "Mutations")
+        tw.addTab(self._defects_table, "Defects")
+        return tw
 
     def _on_trait_col_resized(self, logical_idx: int, _old: int, new_size: int):
         if new_size > 0:
@@ -1269,14 +1287,18 @@ class BreedPriorityView(QWidget):
         self._bottom_hs = QSplitter(Qt.Horizontal)
         self._bottom_hs.setHandleWidth(6)
         self._bottom_hs.setStyleSheet(SPLITTER_H_STYLE)
-        self._bottom_hs.addWidget(self._make_trait_pane("_abilities_table", "ABILITIES"))
-        self._bottom_hs.addWidget(self._make_trait_pane("_mutations_table", "MUTATIONS"))
+        self._bottom_hs.addWidget(self._make_abilities_tab_widget())
+        self._bottom_hs.addWidget(self._make_mutations_tab_widget())
         self._bottom_hs.addWidget(self._make_children_panel())
         self._bottom_hs.addWidget(self._make_risk_panel())
         self._bottom_hs.setSizes(self._bottom_pane_sizes or [210, 210, 220, 220])
         self._bottom_hs.splitterMoved.connect(lambda *_: self._col_save_timer.start())
 
-        for tbl in (self._abilities_table, self._mutations_table):
+        _all_trait_tables = (
+            self._active_abilities_table, self._passive_abilities_table, self._disorders_table,
+            self._good_mutations_table, self._defects_table,
+        )
+        for tbl in _all_trait_tables:
             if self._trait_col_widths:
                 for col_idx, width in self._trait_col_widths.items():
                     tbl.setColumnWidth(col_idx, width)
@@ -1365,27 +1387,42 @@ class BreedPriorityView(QWidget):
     def _refresh_trait_table_order(self):
         cat = self._selected_cat
         if cat is None:
-            self._populate_trait_table(self._abilities_table, self._all_abilities)
-            self._populate_trait_table(self._mutations_table, self._all_mutations)
+            self._populate_trait_table(self._active_abilities_table, self._all_active_abilities)
+            self._populate_trait_table(self._passive_abilities_table, self._all_passive_abilities)
+            self._populate_trait_table(self._disorders_table, self._all_disorders)
+            self._populate_trait_table(self._good_mutations_table, self._all_good_mutations)
+            self._populate_trait_table(self._defects_table, self._all_defects)
             return
 
-        cat_ab = {
-            ability_base(a)
-            for a in list(cat.abilities) + list(cat.passive_abilities) + list(getattr(cat, 'disorders', []))
-            if not is_basic_trait(a)
-        }
-        cat_mut = set(cat.mutations) | set(getattr(cat, 'defects', []))
+        cat_active = {ability_base(a) for a in cat.abilities if not is_basic_trait(a)}
+        cat_passive = {ability_base(a) for a in cat.passive_abilities if not is_basic_trait(a)}
+        cat_disorders = {ability_base(a) for a in getattr(cat, 'disorders', []) if not is_basic_trait(a)}
+        cat_good_mut = set(cat.mutations)
+        cat_defects = set(getattr(cat, 'defects', []))
 
-        ab_ordered = (
-            [t for t in self._all_abilities if t in cat_ab]
-            + [t for t in self._all_abilities if t not in cat_ab]
+        def _ordered(full_list: list, cat_set: set) -> list:
+            return [t for t in full_list if t in cat_set] + [t for t in full_list if t not in cat_set]
+
+        self._populate_trait_table(
+            self._active_abilities_table, _ordered(self._all_active_abilities, cat_active),
+            highlight=cat_active,
         )
-        mut_ordered = (
-            [t for t in self._all_mutations if t in cat_mut]
-            + [t for t in self._all_mutations if t not in cat_mut]
+        self._populate_trait_table(
+            self._passive_abilities_table, _ordered(self._all_passive_abilities, cat_passive),
+            highlight=cat_passive,
         )
-        self._populate_trait_table(self._abilities_table, ab_ordered, highlight=cat_ab)
-        self._populate_trait_table(self._mutations_table, mut_ordered, highlight=cat_mut)
+        self._populate_trait_table(
+            self._disorders_table, _ordered(self._all_disorders, cat_disorders),
+            highlight=cat_disorders,
+        )
+        self._populate_trait_table(
+            self._good_mutations_table, _ordered(self._all_good_mutations, cat_good_mut),
+            highlight=cat_good_mut,
+        )
+        self._populate_trait_table(
+            self._defects_table, _ordered(self._all_defects, cat_defects),
+            highlight=cat_defects,
+        )
 
     # ── Children panel ────────────────────────────────────────────────────────
 
@@ -1949,17 +1986,35 @@ class BreedPriorityView(QWidget):
             self._room_checks_vb.addWidget(row_w)
             self._room_checks[room] = chk
 
-        self._all_abilities = sorted({
+        self._all_active_abilities = sorted({
             ability_base(a)
-            for c in alive
-            for a in list(c.abilities) + list(c.passive_abilities) + list(getattr(c, 'disorders', []))
+            for c in alive for a in c.abilities
             if not is_basic_trait(a)
         })
-        self._all_mutations = sorted({
-            m for c in alive
-            for m in list(c.mutations) + list(getattr(c, 'defects', []))
+        self._all_passive_abilities = sorted({
+            ability_base(a)
+            for c in alive for a in c.passive_abilities
+            if not is_basic_trait(a)
+        })
+        self._all_disorders = sorted({
+            ability_base(a)
+            for c in alive for a in getattr(c, 'disorders', [])
+            if not is_basic_trait(a)
+        })
+        # Full union kept for scoring and Complex Weights
+        self._all_abilities = sorted(
+            set(self._all_active_abilities) | set(self._all_passive_abilities) | set(self._all_disorders)
+        )
+        self._all_good_mutations = sorted({
+            m for c in alive for m in c.mutations
             if not is_basic_trait(m)
         })
+        self._all_defects = sorted({
+            m for c in alive for m in getattr(c, 'defects', [])
+            if not is_basic_trait(m)
+        })
+        # Full union kept for scoring and Complex Weights
+        self._all_mutations = sorted(set(self._all_good_mutations) | set(self._all_defects))
         # Track which mutation names are birth defects (for auto-defaulting to undesirable)
         self._defect_names: set[str] = {
             d for c in alive for d in getattr(c, 'defects', [])
@@ -1977,8 +2032,11 @@ class BreedPriorityView(QWidget):
             if defect not in self._ma_ratings:
                 self._ma_ratings[defect] = -1
         self._selected_cat = None
-        self._populate_trait_table(self._abilities_table, self._all_abilities)
-        self._populate_trait_table(self._mutations_table, self._all_mutations)
+        self._populate_trait_table(self._active_abilities_table, self._all_active_abilities)
+        self._populate_trait_table(self._passive_abilities_table, self._all_passive_abilities)
+        self._populate_trait_table(self._disorders_table, self._all_disorders)
+        self._populate_trait_table(self._good_mutations_table, self._all_good_mutations)
+        self._populate_trait_table(self._defects_table, self._all_defects)
         if self._cw_dialog is not None and self._cw_dialog.isVisible():
             self._cw_dialog.refresh_traits(self._all_abilities + self._all_mutations)
         self.recompute()

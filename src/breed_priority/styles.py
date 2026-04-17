@@ -11,6 +11,7 @@ from .theme import (
     CLR_INTERACTIVE, CLR_INTERACTIVE_BG, CLR_INTERACTIVE_BDR, CLR_INTERACTIVE_HOV,
     CLR_STATE_SELECTED_FG, CLR_STATE_SELECTED_BG, CLR_STATE_SELECTED_BORDER,
     CLR_STATE_SUBDUED_FG, CLR_STATE_SUBDUED_BG, CLR_STATE_SUBDUED_HOVER_FG, CLR_STATE_SUBDUED_HOVER_BG,
+    CLR_DESIRABLE, CLR_UNDESIRABLE,
     ColorUtils,
 )
 
@@ -171,6 +172,32 @@ PRIORITY_COMBO_STYLE = (
     # No `color` here — item colors come from setForeground() on each model item
     f"QComboBox QAbstractItemView {{ background:{CLR_SURFACE_APP_ALT};"
     f" selection-background-color:#1e3060; border:1px solid {CLR_SURFACE_SEPARATOR}; }}"
+)
+
+# ── Trait tab widget styles ───────────────────────────────────────────────────
+
+_TRAIT_TAB_BASE = (
+    f"QTabWidget::pane {{ border: none; background: {CLR_SURFACE_APP_MAIN}; }}"
+    f"QTabBar::tab {{"
+    f" background: {CLR_SURFACE_APP_ALT}; color: #888;"
+    f" padding: 3px 10px; font-size: 10px; font-weight: bold; letter-spacing: 0.5px;"
+    f" border: 1px solid {CLR_SURFACE_SEPARATOR}; border-bottom: none; margin-right: 2px;"
+    f"}}"
+    f"QTabBar::tab:selected {{ background: {CLR_SURFACE_APP_MAIN}; color: #ccc; }}"
+    f"QTabBar::tab:hover:!selected {{ background: {CLR_SURFACE_NEUTRAL}; }}"
+)
+
+TRAIT_TAB_ABILITIES_STYLE = _TRAIT_TAB_BASE
+
+_CLR_MUTATIONS_TAB_SEL = ColorUtils.blend(CLR_DESIRABLE, "#ffffff", 0.35)
+_CLR_DEFECTS_TAB_SEL = ColorUtils.blend(CLR_UNDESIRABLE, "#ffffff", 0.35)
+
+TRAIT_TAB_MUTATIONS_STYLE = (
+    _TRAIT_TAB_BASE
+    + f"QTabBar::tab:first {{ color: {CLR_DESIRABLE}; }}"
+    + f"QTabBar::tab:selected:first {{ color: {_CLR_MUTATIONS_TAB_SEL}; }}"
+    + f"QTabBar::tab:last {{ color: {CLR_UNDESIRABLE}; }}"
+    + f"QTabBar::tab:selected:last {{ color: {_CLR_DEFECTS_TAB_SEL}; }}"
 )
 
 # ── Backward-compatible aliases ───────────────────────────────────────────────
