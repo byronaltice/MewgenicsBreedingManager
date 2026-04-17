@@ -2058,6 +2058,15 @@ class BreedPriorityView(QWidget):
             display = StatTextFormatter.emojify(raw_display)
             # Build inline summary from mutation tip or ability tip
             mut_tip = self._mutation_tips.get(trait, "")
+            # Birth defects share a display name (e.g. "Ear Birth Defect") but different
+            # mutation IDs have different gameplay effects.  The cached tip may come from
+            # a different cat's defect variant, so when a cat is selected prefer that
+            # cat's own defect_chip_items tip for the matching defect name.
+            if mut_tip and trait in self._defect_names and self._selected_cat is not None:
+                for _defect_text, _defect_tip in getattr(self._selected_cat, 'defect_chip_items', []):
+                    if _defect_text == trait and _defect_tip:
+                        mut_tip = _defect_tip
+                        break
             abl_tip = self._ability_tip(trait) if not mut_tip else ""
             if mut_tip:
                 summary = StatTextFormatter.mutation_summary(mut_tip)
