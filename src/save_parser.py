@@ -237,6 +237,7 @@ _STAT_LABELS = {
     "int": "INT",
     "dex": "DEX",
     "spd": "SPD",
+    "speed": "SPD",  # GON alias used by some mutations (e.g. Club Foot 2)
     "lck": "LCK",
     "cha": "CHA",
     "shield": "Shield",
@@ -248,7 +249,7 @@ _STAT_LABELS = {
 class GameData:
     """Resource-backed lookup tables used by parser helpers."""
 
-    visual_mutation_data: dict[str, dict[int, tuple[str, str]]] = field(default_factory=dict)
+    visual_mutation_data: dict[str, dict[int, tuple[str, str, bool]]] = field(default_factory=dict)
     furniture_data: dict[str, "FurnitureDefinition"] = field(default_factory=dict)
     class_stat_mods: dict[str, dict[str, int]] = field(default_factory=dict)
 
@@ -303,10 +304,10 @@ class GameData:
 
 
 # Populated at runtime via set_visual_mut_data() from the main module.
-_VISUAL_MUT_DATA: dict[str, dict[int, tuple[str, str]]] = {}
+_VISUAL_MUT_DATA: dict[str, dict[int, tuple[str, str, bool]]] = {}
 
 
-def set_visual_mut_data(data: dict[str, dict[int, tuple[str, str]]]):
+def set_visual_mut_data(data: dict[str, dict[int, tuple[str, str, bool]]]):
     """Update the visual mutation lookup data (called after gpak loading)."""
     global _VISUAL_MUT_DATA
     _VISUAL_MUT_DATA = data
@@ -515,9 +516,14 @@ def _resolve_game_string(value: str, game_strings: dict[str, str]) -> str:
     return _extract_primary_language_text(current)
 
 
-def _parse_mutation_gon(content: str, game_strings: dict[str, str], category: str) -> dict[int, tuple[str, str]]:
-    """Parse a mutation GON file into {slot_id: (display_name, stat_desc)}."""
-    result: dict[int, tuple[str, str]] = {}
+def _parse_mutation_gon(content: str, game_strings: dict[str, str], category: str) -> dict[int, tuple[str, str, bool]]:
+    """Parse a mutation GON file into {slot_id: (display_name, stat_desc, is_birth_defect)}.
+
+    is_birth_defect is True when the GON block contains ``tag birth_defect``.
+    stat_desc always combines GON header stat modifiers with any CSV description string,
+    so both the numeric penalty and the text effect are included.
+    """
+    result: dict[int, tuple[str, str, bool]] = {}
     csv_prefix = f"MUTATION_{category.upper()}_"
 
     def _extract_block(start_pos: int) -> tuple[str, int]:
@@ -530,32 +536,45 @@ def _parse_mutation_gon(content: str, game_strings: dict[str, str], category: st
             end += 1
         return content[start_pos:end - 1], end
 
+    def _extract_header_stats(block: str) -> str:
+        """Return comma-joined stat modifiers parsed from a GON block header."""
+        header = block.split("{")[0]
+        seen_labels: set[str] = set()
+        stats: list[str] = []
+        for key, label in _STAT_LABELS.items():
+            if label in seen_labels:
+                continue  # skip aliases already handled (e.g. spd/speed both → SPD)
+            stat_match = re.search(rf"(?<!\w){re.escape(key)}\s+(-?\d+)", header)
+            if stat_match:
+                value = int(stat_match.group(1))
+                stats.append(f"{'+' if value > 0 else ''}{value} {label}")
+                seen_labels.add(label)
+        return ", ".join(stats)
+
     def _block_to_entry(slot_id: int, block: str):
         name_match = re.search(r"//\s*(.+)", block)
         raw_name = name_match.group(1).strip().title() if name_match else f"Mutation {slot_id}"
         raw_name = re.sub(r"\s*\(.*", "", raw_name).strip() or raw_name
+        is_birth_defect = bool(re.search(r"\btag\s+birth_defect\b", block))
+        stat_prefix = _extract_header_stats(block)
         csv_key = f"{csv_prefix}{slot_id}_DESC"
         if csv_key in game_strings:
-            stat_desc = _resolve_game_string(game_strings[csv_key], game_strings).strip().rstrip(".")
+            csv_desc = _resolve_game_string(game_strings[csv_key], game_strings).strip().rstrip(".")
+            stat_desc = f"{stat_prefix}, {csv_desc}" if stat_prefix else csv_desc
         else:
-            header = block.split("{")[0]
-            stats: list[str] = []
-            for key, label in _STAT_LABELS.items():
-                stat_match = re.search(rf"(?<!\w){re.escape(key)}\s+(-?\d+)", header)
-                if stat_match:
-                    value = int(stat_match.group(1))
-                    stats.append(f"{'+' if value > 0 else ''}{value} {label}")
-            stat_desc = ", ".join(stats)
-        result[slot_id] = (raw_name, stat_desc)
+            stat_desc = stat_prefix
+        result[slot_id] = (raw_name, stat_desc, is_birth_defect)
 
     idx = 0
     while idx < len(content):
-        match = re.search(r"(?<!\w)(\d{3,})\s*\{", content[idx:])
+        # Match any numeric ID (including low IDs like 2 for "no ears")
+        match = re.search(r"(?<!\w)(\d+)\s*\{", content[idx:])
         if not match:
             break
         slot_id = int(match.group(1))
         block, idx = _extract_block(idx + match.end())
-        if slot_id < 300:
+        # Skip non-defect low IDs (base shapes) unless they have tag birth_defect
+        if slot_id < 300 and not re.search(r"\btag\s+birth_defect\b", block):
             continue
         _block_to_entry(slot_id, block)
 
@@ -563,12 +582,14 @@ def _parse_mutation_gon(content: str, game_strings: dict[str, str], category: st
     if m2_match:
         block, _ = _extract_block(m2_match.end())
         csv_key_m2 = f"{csv_prefix}M2_DESC"
+        stat_prefix = _extract_header_stats(block)
         if csv_key_m2 in game_strings:
             name_match = re.search(r"//\s*(.+)", block)
             raw_name = name_match.group(1).strip().title() if name_match else "Missing Part"
             raw_name = re.sub(r"\s*\(.*", "", raw_name).strip() or raw_name
-            stat_desc = _resolve_game_string(game_strings[csv_key_m2], game_strings).strip().rstrip(".")
-            result[0xFFFFFFFE] = (raw_name, stat_desc)
+            csv_desc = _resolve_game_string(game_strings[csv_key_m2], game_strings).strip().rstrip(".")
+            stat_desc = f"{stat_prefix}, {csv_desc}" if stat_prefix else csv_desc
+            result[0xFFFFFFFE] = (raw_name, stat_desc, True)
         else:
             _block_to_entry(0xFFFFFFFE, block)
 
@@ -760,12 +781,14 @@ def _read_visual_mutation_entries(table: list[int]) -> list[dict[str, object]]:
             continue
 
         part_label = _VISUAL_MUTATION_PART_LABELS.get(group_key, slot_label)
+        # Base defect detection from ID range; supplemented by GPAK tag below.
         is_defect = (700 <= mutation_id <= 706) or mutation_id == 0xFFFF_FFFE
         display_name = ""
         detail = ""
         gpak_info = _VISUAL_MUT_DATA.get(gpak_category, {}).get(mutation_id)
         if gpak_info:
-            raw_name, stat_desc = gpak_info
+            raw_name, stat_desc, gpak_is_defect = gpak_info
+            is_defect = is_defect or gpak_is_defect
             if re.match(r'^Mutation \d+$', raw_name):
                 base = f"{part_label} Mutation"
                 display_name = f"{base} {stat_desc}" if stat_desc else base
