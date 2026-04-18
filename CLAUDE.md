@@ -323,6 +323,13 @@ The fur slot at index 0 has only 3 fields (`T[0]`, `T[1]`, `T[2]`); `T[1]` and `
 
 **Known base-shape T values** — Most ear_L / ear_R slot values for cats without ear mutations are < 300 (e.g. 30, 56, 132) and represent cosmetic base ear shapes, not mutations. These are correctly skipped by the parser. Do not confuse them with defect IDs.
 
+**Unresolved defects (investigation ongoing)** — Three defects visible in-game are not detected by the current parser:
+- Whommie: Eye Birth Defect (Blind)
+- Whommie: Eyebrow Birth Defect (-2 CHA)
+- Bud: Ear Birth Defect (-2 DEX)
+
+For these cats, the affected slots contain base-shape IDs (eye=139, eyebrow=23, ear=132) that are identical to cats with no defects (confirmed: Kami and Romanoba share eye=139, eyebrow=23 with no defects). The defect flag is therefore NOT encoded in `T[index+0]` for these cases. The data must be persisted somewhere — candidates not yet fully explored: `T[index+3]` (role still unknown — "small non-zero for some slots"), additional SQLite tables not yet enumerated, or sections of the cat blob after the abilities block. Do not assume this is RNG or runtime-only; the save file should contain the answer.
+
 ### tools/field_mapper/
 
 Reverse-engineering pipeline for discovering binary field offsets. Dev-only — not part of the main app.
