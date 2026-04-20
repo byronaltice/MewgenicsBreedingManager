@@ -36,6 +36,16 @@ def build_cat_trait_set(cat) -> frozenset:
     )
 
 
+def _normalize_gender_value(gender_value: object) -> str:
+    """Return compact gender token used by complex-weight conditions."""
+    normalized_gender = str(gender_value or "?").strip().lower()
+    if normalized_gender in {"m", "male"}:
+        return "m"
+    if normalized_gender in {"f", "female"}:
+        return "f"
+    return "?"
+
+
 def _eval_condition(
     cond: Condition,
     cat,
@@ -50,7 +60,9 @@ def _eval_condition(
 
     # ── Categorical ───────────────────────────────────────────────────────────
     if f == FIELD_GENDER:
-        return (cat.gender == val) if op == OP_EQ else (cat.gender != val)
+        actual_gender = _normalize_gender_value(getattr(cat, "gender", "?"))
+        expected_gender = _normalize_gender_value(val)
+        return (actual_gender == expected_gender) if op == OP_EQ else (actual_gender != expected_gender)
 
     if f == FIELD_LIBIDO:
         lb = cat.libido
