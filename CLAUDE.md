@@ -328,7 +328,26 @@ The fur slot at index 0 has only 3 fields (`T[0]`, `T[1]`, `T[2]`); `T[1]` and `
 - Whommie: Eyebrow Birth Defect (-2 CHA)
 - Bud: Ear Birth Defect (-2 DEX)
 
-For these cats, the affected slots contain base-shape IDs (eye=139, eyebrow=23, ear=132) that are identical to cats with no defects (confirmed: Kami and Romanoba share eye=139, eyebrow=23 with no defects). The defect flag is therefore NOT encoded in `T[index+0]` for these cases. The data must be persisted somewhere — candidates not yet fully explored: `T[index+3]` (role still unknown — "small non-zero for some slots"), additional SQLite tables not yet enumerated, or sections of the cat blob after the abilities block. Do not assume this is RNG or runtime-only; the save file should contain the answer.
+For these cats, the affected slots contain base-shape IDs (eye=139, eyebrow=23, ear=132) that are identical to cats with no defects (confirmed: Kami and Romanoba share eye=139, eyebrow=23 with no defects). The defect flag is therefore NOT encoded in `T[index+0]` for these cases. The data must be persisted somewhere — do not assume this is RNG or runtime-only; the save file should contain the answer.
+
+**BREAKTHROUGH — GON block `-2` / `0xFFFFFFFE`**: The three missing defects correspond exactly to the special "completely missing part" GON block numbered `-2` (stored as `0xFFFFFFFE` as u32) in each body-part file:
+- `data/mutations/eyes.gon` block `-2`: `//no eyes`, `tag birth_defect`, `blind -1`, `desc "MUTATION_EYES_M2_DESC"` → "Blind."
+- `data/mutations/eyebrows.gon` block `-2`: `//no eyebrows (completely missing part)`, `tag birth_defect`, `cha -2`
+- `data/mutations/ears.gon` block `-2`: `//no ears (completely missing part)`, `tag birth_defect`, `dex -2`
+
+The parser already detects `mutation_id == 0xFFFFFFFE` as a defect generically. The problem: for Whommie and Bud, `T[index+0]` contains the cosmetic base-shape ID (139 / 23 / 132), not `0xFFFFFFFE`. The game preserves the visual appearance separately from the "part is missing" flag.
+
+**Ruled out:**
+- `T[index+3]` — confirmed NOT a defect flag. Whommie and Kami both have `T[+3]=0` for their eye/eyebrow/ear slots.
+- `T[index+1]`, `T[index+2]`, `T[index+4]` — constant/echo values with no per-slot defect variation.
+
+**Open investigation directions:**
+
+*Direction 1 — Slot-aware 0xFFFFFFFE in a parallel structure:* The parser finds `0xFFFFFFFE` generically in `T[index+0]`, but these cats store the cosmetic shape there instead. Check whether a second parallel structure — either in the 64-byte pre-T skip block or as an additional field per slot not yet mapped — contains `0xFFFFFFFE` per-slot. A 15-slot bitmap of "completely missing part" flags would be only 15 bits. **Answer:** _TBD_
+
+*Direction 2 — Missing-parts bitmap in blob pre-T block or tail:* The 64-byte block immediately before the T array (skipped by the parser) is the top candidate for a per-slot defect bitmap. The 115-byte blob tail (after the class string) has a varying f64 at +4, `creation_day` u32 at +12, and constant `ff ff ff ff ff ff ff ff` padding at +20. T[+3] is now ruled out. **Answer:** _TBD_
+
+*Direction 3 — Parent blob comparison for inheritance patterns:* Petronij and Kami are Whommie's parents; both share tail f64 value `0.12331899`. Comparing parent vs. offspring raw blobs byte-by-byte may reveal which bytes flip when the defect flag is inherited, narrowing the bitmap candidate to a specific offset. **Answer:** _TBD_
 
 ### tools/field_mapper/
 
