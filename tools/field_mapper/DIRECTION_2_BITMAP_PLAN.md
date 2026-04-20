@@ -83,190 +83,150 @@ Slot bit positions assuming a 15-slot bitmap indexed by
 If the game encodes each defect on one side (L) or both (L+R), Whommie's
 bitmap would show bits 8/9 and 10/11, Bud's bitmap would show bits 12/13.
 
-## Phase 1 — Extract and dump the 115-byte blob tail
+---
 
-**Goal**: Get the full raw tail bytes for all 5 test cats.
+## Execution Log
 
-**Method**:
+### Phase 1 — 115-byte blob tail dump
+**Status: COMPLETE. No defect signal.**
 
-1. Locate the end of the class string in each blob (class string ends
-   at `len(blob) - 115` per `_CLASS_STRING_TAIL_OFFSET`).
-2. Extract bytes `[end_of_class_string : len(blob)]` — should be exactly
-   115 bytes.
-3. Dump each as hex (16 bytes per row with offsets).
-4. Also interpret as:
-   - u32 array (28 full u32s + 3 trailing bytes)
-   - u64 array (14 u64s + 3 trailing bytes)
-   - u16 array (57 u16s + 1 trailing byte)
-   - 115 individual u8s
+Extracted and hex-dumped the full 115-byte tail for all 5 test cats. Tail
+as u32 array: positions +4 (f64, varies per cat), +12 (creation_day u32),
++20 to +27 (`ff ff ff ff ff ff ff ff` constant). Tail u32[5..27] = all
+zeros for all cats. No defect-correlated variation found.
 
-**Deliverable**: Hex + multi-format dumps side-by-side for all 5 cats.
+### Phase 2 — Byte-level diff and invariant map
+**Status: COMPLETE. No defect signal.**
 
-## Phase 2 — Byte-level diff and invariant map
+Built a 115-element diff table across all 5 cats. Varying bytes:
+- Bytes 4–11: f64 (cat-specific weight/probability)
+- Bytes 12–15: creation_day u32
+- All other bytes: constant across all cats (mostly zero with constant
+  padding at +20..+27)
 
-**Goal**: Identify which byte positions vary vs. which are constant.
+No byte position correlated with defect presence.
 
-**Method**:
+### Phase 3 — Bitmap interpretation test
+**Status: COMPLETE. No match.**
 
-1. Build a 115-element table showing each cat's byte value at each
-   offset.
-2. Classify each offset:
-   - **Constant** across all 5 cats → format padding, not interesting
-   - **Varies only with creation_day / f64** → already known fields
-   - **Varies in a way correlated with defect presence** → prime suspect
+Scanned every u16-aligned position in the tail for a bitmap matching
+Whommie's eye+eyebrow bits and Bud's ear bits (both normal and inverted
+polarity). No matches found at any position.
 
-3. Focus attention on offsets where Whommie and Bud differ from Kami /
-   Petronij / Romanoba, but Whommie and Bud don't necessarily match
-   each other (since they have different defects).
+### Phase 4 — Per-slot byte-array test
+**Status: COMPLETE. No match.**
 
-**Deliverable**: A varying-bytes table, with likely known-field ranges
-annotated and defect-correlated ranges flagged.
+Tested every 15-byte, 30-byte (u16 stride), and 60-byte (u32 stride)
+window in the tail. No window matched the expected per-slot defect pattern
+for both Whommie and Bud simultaneously.
 
-## Phase 3 — Bitmap interpretation test
+### Phase 5 — Expanded scan beyond the tail (middle region)
+**Status: COMPLETE. No match.**
 
-**Goal**: Test the "2 byte bitmap of missing parts" hypothesis directly.
+Scanned the unmapped middle region between t_end and the DefaultMove
+marker (~144–400 bytes depending on cat). This region was found to contain
+duplicate gender/stat data that the parser does not read. The 3 u32 values
+at +4/+8/+12 in this gap vary between cats but do not correlate with defect
+presence. Bitmap scan and per-slot window scan over the full middle region:
+no hits.
 
-**Method**:
+**Side finding — pre-T f64[2] NaN**: `f64[2]` in the 64-byte pre-T block
+is `NaN (0xFFFFFFFFFFFFFFFF)` for both Whommie and Bud. However, the same
+NaN value also appears for 510/888 cats total (57% of the roster, including
+many cats with no defects). Ruled out as a defect-exclusive signal.
 
-1. For each u16 position in the blob tail, for each cat, extract the 16
-   bits.
-2. Define the expected bitmap per cat:
-   - Whommie: bits covering eye + eyebrow slots
-   - Bud: bits covering ear slots
-   - Kami, Petronij, Romanoba: all zero
-3. Scan every u16-aligned position for a match where:
-   - Whommie has bits set in the eye/eyebrow range
-   - Bud has bits set in the ear range only
-   - Kami / Petronij / Romanoba have 0
-4. Also try the reverse: "0 means defect, 1 means present" (in case the
-   flag polarity is inverted).
+**T array definitive check**: For eye_L/R (T[38]/T[43]),
+eyebrow_L/R (T[48]/T[53]), ear_L/R (T[58]/T[63]):
+- `T[+0]` (mutation_id) is identical between defective and clean cats for
+  the affected slots (eye=139, eyebrow=23, ear=132 for Whommie; ear=132
+  for Bud vs Kami ear=30 — cosmetic shape variation, not a defect flag).
+- `T[+1]` differs only by fur echo (texture ID repeated across all slots).
+- `T[+2..+4]` = 0 for all cats in all affected slots.
+- Raw byte diff confirmed: ONLY fur echo (T[+1]) and cosmetic base shape
+  differ between defective and clean cats in the T eye/eyebrow/ear range.
+  No defect-specific data exists in the T array for these three defects.
 
-**Deliverable**: A list of candidate u16 offsets (if any) whose values
-match the defect pattern.
+### Phase 6 — Cross-table SQLite check
+**Status: COMPLETE (extended). No confirmed defect signal found.**
 
-## Phase 4 — Per-slot byte-array test
+Tables checked:
+- `properties`: global game state only (no per-cat rows)
+- `winning_teams`: empty
+- `furniture`: furniture items only
+- `files` table (11 rows): enumerated all keys
 
-**Goal**: If no bitmap match, test the "15 bytes per cat" layout.
+The `files` table contains a `pedigree` blob (121,168 bytes raw,
+NOT LZ4-compressed). This was investigated as a new sub-lead.
 
-**Method**:
+**Pedigree blob investigation findings:**
 
-1. For each 15-byte window in the tail (positions 0..100), treat it as
-   a per-slot array indexed by slot number.
-2. Check whether:
-   - Whommie's window has non-zero bytes at slots 8, 9, 10, 11 (eye +
-     eyebrow) and zero elsewhere.
-   - Bud's window has non-zero bytes at slots 12, 13 only.
-   - Kami's, Petronij's, Romanoba's windows are all zero.
-3. Also try u16 stride (30-byte window = 15 u16s) and u32 stride.
+The pedigree blob is indexed by **db_key** (small integer, not cat UID).
+Target cat db_keys: Whommie=853, Bud=887, Kami=840, Petronij=841,
+Romanoba=826.
 
-**Deliverable**: Candidate window offset if a match is found.
+Record structure is variable-length. Two observed variants:
+- Short: `[cat_id u64, parent_a u64, parent_b u64, f64, slot_data×16 u32]`
+  (32-byte prefix, 64-byte slot data = 96 bytes total — seen in Bud,
+  Kami, clean cats)
+- Long: `[cat_id u64, parent_a u64, parent_b u64, f64, u64(162), NaN f64,
+  NaN f64, u64(0), slot_data×16 u32]` (64-byte prefix, 64-byte slot data
+  = 128 bytes total — seen in Whommie's primary record at offset 6376)
 
-## Phase 5 — Expand search beyond the tail
+**NaN hypothesis (Whommie's long record)**: Whommie's primary record at
+offset 6376 has NaN f64 values at +40 and +48. Bud's primary record at
+offset 3240 has NO NaN values and uses the short variant. The NaN-at-+40/+48
+pattern does not appear in any Bud record. **Ruled out** as a universal
+defect signal across both cats.
 
-**Goal**: If neither bitmap nor per-slot array lives in the tail, scan
-the full blob.
+**Slot data comparison** (16 u32s per cat, interpreted as per-slot mutation
+values):
+- Whommie (slot data at +64): eye_L=538, eye_R=537, eyebrow_L=535,
+  eyebrow_R=537, ear_L=538, ear_R=531
+- Kami (slot data at +32): eye_L=149, eye_R=0, eyebrow_L=116, eyebrow_R=0,
+  ear_L=119, ear_R=0
+- Bud (slot data at +32): eye_L=196, eye_R=0, eyebrow_L=168, eyebrow_R=0,
+  ear_L=182, ear_R=0
 
-**Method**:
+**Bilateral presence observation**: For clean cats (Kami, Petronij, Romanoba),
+only the L-side slots have non-zero values; R-side slots = 0. For Whommie
+(defective eyes + eyebrows), both L and R eye/eyebrow slots are non-zero.
+However, Bud's ear_R slot = 0 despite the ear defect — this pattern does
+NOT hold for Bud. **Bilateral presence hypothesis not validated** — it
+cannot be a universal defect signal if Bud's ear_R is 0.
 
-1. For each byte offset in the blob (excluding regions the parser
-   already consumed — T array, stats, abilities, etc.), test the same
-   bitmap/per-slot hypotheses.
-2. The parser's `r.pos` trail identifies consumed regions; anything
-   untouched is fair game.
-3. Particular attention to gaps between parsed sections (e.g. any
-   trailing bytes after the disorders list before the gender block).
+**Pedigree investigation verdict**: Extended well beyond Phase 6 scope.
+No confirmed defect signal found. The pedigree blob encodes mutation history
+data, but does not provide a clean, consistent defect flag distinguishable
+from non-defective cat data for all three target defects.
 
-**Deliverable**: Full blob-offset coverage report with any candidate
-offsets highlighted.
+**`npc_progress` file** (22KB in `files` table): Not yet investigated.
+Possible remaining sub-lead within Phase 6.
 
-## Phase 6 — Cross-table check (SQLite)
+### Stop Condition Assessment
 
-**Goal**: Rule out (or confirm) that the flag lives in another SQLite
-table entirely, not the cat blob.
+Phase 6 is effectively exhausted (primary leads checked, no candidate found).
+The plan's dead-end stop condition applies:
 
-**Method**:
+> **Dead end**: Phases 3-6 all come back empty. Pivot to **Direction #3**
+> (parent-blob diff — compare Whommie's blob byte-by-byte against Petronij
+> and Kami to find which bytes flip when a defect is inherited).
 
-1. Enumerate all tables in `steamcampaign01.sav`. From earlier work we
-   know: `cats`, `furniture`, `files`, `properties`, `winning_teams`.
-2. For each non-`cats` table, check for rows keyed by cat UID with
-   fields that could encode defects.
-3. Also check whether the `cats` table has any column beyond
-   `(key, data)` we've overlooked.
+**Current status: Pivoting to Direction #3 pending operator confirmation.**
 
-**Deliverable**: A short verdict on whether any other table contains
-per-cat defect data. Expected result: no — but worth confirming now to
-close the door.
+---
 
-## Phase 7 — Slot→offset mapping verification
+## Remaining Phases (pending)
 
-**Goal**: If a candidate structure is found in Phases 3-5, verify the
-mapping against ground truth.
+### Phase 7 — Full-roster validation
+Blocked on finding a candidate. No candidate exists yet to validate.
 
-**Method**:
+### Phase 8 — Parser integration
+Blocked on Phase 7.
 
-1. For each candidate offset and encoding, enumerate all cats in the
-   save (not just the 5 test cats).
-2. For every cat flagged by the candidate, check whether the game
-   actually shows that defect. Use any additional known defect cats as
-   positive controls, and a large sample of clean cats as negative
-   controls.
-3. Reject candidates with false positives (flags set on cats with no
-   visible defect) or false negatives (no flag on a cat with a visible
-   defect).
+### Phase 9 — CLAUDE.md update
+Blocked on Phase 8.
 
-**Deliverable**: A validated `{slot_index: offset, encoding}` spec
-ready to be consumed by the parser.
-
-## Phase 8 — Parser integration
-
-**Goal**: Wire the finding into `src/save_parser.py`.
-
-**Method**:
-
-1. In `Cat.__init__`, after reading the class string, decode the
-   missing-part flags from the tail.
-2. In `_read_visual_mutation_entries`, add a second pass: if the
-   missing-part flag is set for a slot, treat that slot as having a
-   `-2` missing-part defect (override the primary `T[index+0]`).
-3. Reuse the existing GPAK `-2` block lookup path for the display name
-   and stat description.
-4. Regression test: Kami, Petronij, Romanoba, and the rest of the
-   non-defective roster must continue to show no defects.
-
-**Deliverable**: Parser change that correctly detects Whommie's Blind
-and -2 CHA defects and Bud's -2 DEX defect, with no regressions on the
-rest of the roster.
-
-## Phase 9 — CLAUDE.md update
-
-Replace Direction #2's `**Answer:** _TBD_` with:
-
-- The structure's blob-relative offset and length.
-- The encoding (bitmap / byte array / other).
-- The slot-to-offset (or bit) mapping.
-- A link back to the parser code that consumes it.
-
-Keep Direction #3 in place — the parent-blob comparison remains a
-useful cross-check (and a backup if Direction #2 also dead-ends).
-
-## Stop conditions
-
-- **Success**: Phase 7 validates a candidate across the full roster
-  with zero false positives and zero false negatives, and Phase 8
-  wires it into the parser cleanly.
-- **Dead end**: Phases 3-6 all come back empty. At that point, pivot
-  to **Direction #3** (parent-blob diff — compare Whommie's blob
-  byte-by-byte against Petronij and Kami to find which bytes flip
-  when a defect is inherited).
-
-## Out of scope
-
-- Fixing mutation detection for IDs other than the three target
-  defects.
-- Any change to the rendering pipeline — sprites already render
-  correctly; only defect detection is broken.
-- Pulling upstream `main-original` parser changes (tracked separately;
-  the investigation stays on current `main`).
+---
 
 ## Key reference
 
@@ -274,7 +234,8 @@ Direction #1 investigation script and results:
 - `tools/field_mapper/investigate_pre_t_block.py`
 - `tools/field_mapper/pre_t_block_results.txt`
 
-The Direction #2 script should be named
-`tools/field_mapper/investigate_blob_tail.py` and follow the same
-pattern (load the 5 test cats, dump structures, run hypothesis checks,
-emit a results file).
+Direction #2 scripts and results:
+- `tools/field_mapper/investigate_blob_tail.py` — Phases 1–6 scan
+- `tools/field_mapper/blob_tail_results.txt` — full output (large)
+- `tools/field_mapper/investigate_pedigree.py` — pedigree blob search
+- `tools/field_mapper/pedigree_results.txt` — pedigree search output
