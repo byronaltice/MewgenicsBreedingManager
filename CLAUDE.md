@@ -340,14 +340,16 @@ The parser already detects `mutation_id == 0xFFFFFFFE` as a defect generically. 
 **Ruled out:**
 - `T[index+3]` — confirmed NOT a defect flag. Whommie and Kami both have `T[+3]=0` for their eye/eyebrow/ear slots.
 - `T[index+1]`, `T[index+2]`, `T[index+4]` — constant/echo values with no per-slot defect variation.
+- `T[index+1]` as variant/defect carrier (upstream `_VISUAL_MUTATION_VARIANT_FIELDS`) — confirmed to be the fur/texture ID echoed across every slot (Whommie=706, Bud=161, Kami=174). Not a defect carrier.
+- `0xFFFFFFFE` sentinel anywhere in the blob — a full scan of all five test cats (Whommie, Bud, Kami, Petronij, Romanoba) found **zero occurrences** of `0xFFFFFFFE` outside the T array. The sentinel is simply not stored in the save for these three defects.
 
 **Open investigation directions:**
 
-*Direction 1 — Slot-aware 0xFFFFFFFE in a parallel structure:* The parser finds `0xFFFFFFFE` generically in `T[index+0]`, but these cats store the cosmetic shape there instead. Check whether a second parallel structure — either in the 64-byte pre-T skip block or as an additional field per slot not yet mapped — contains `0xFFFFFFFE` per-slot. A 15-slot bitmap of "completely missing part" flags would be only 15 bits. **Answer:** _TBD_
+*Direction 1 — Slot-aware 0xFFFFFFFE in a parallel structure:* **Answer: RULED OUT.** `0xFFFFFFFE` does not appear anywhere in the cat blobs for these defects (whole-blob scan confirmed, see `tools/field_mapper/pre_t_block_results.txt`). The 64-byte pre-T block is 8 f64 values (seeds/probabilities), not a per-slot array. Side finding: f64[2] is NaN (`0xFFFFFFFFFFFFFFFF`) for Whommie and Bud but holds small integer day-numbers (840, 841, 677) for Kami/Petronij/Romanoba — however f64[5] is also NaN for the clean cat Kami, so this is not a reliable defect signal. The game encodes these defects without the `0xFFFFFFFE` sentinel; the flag must be a different value or structure.
 
-*Direction 2 — Missing-parts bitmap in blob pre-T block or tail:* The 64-byte block immediately before the T array (skipped by the parser) is the top candidate for a per-slot defect bitmap. The 115-byte blob tail (after the class string) has a varying f64 at +4, `creation_day` u32 at +12, and constant `ff ff ff ff ff ff ff ff` padding at +20. T[+3] is now ruled out. **Answer:** _TBD_
+*Direction 2 — Missing-parts bitmap in blob pre-T block or tail:* The 64-byte block immediately before the T array is confirmed to be 8 f64 values (not a slot bitmap). The remaining candidate is the **115-byte blob tail** (after the class string). That tail has a varying f64 at +4, `creation_day` u32 at +12, and `ff ff ff ff ff ff ff ff` constant padding at +20. A compact per-slot bitfield somewhere in that tail (or another unread blob section) is still the top candidate. **Answer:** _TBD_
 
-*Direction 3 — Parent blob comparison for inheritance patterns:* Petronij and Kami are Whommie's parents; both share tail f64 value `0.12331899`. Comparing parent vs. offspring raw blobs byte-by-byte may reveal which bytes flip when the defect flag is inherited, narrowing the bitmap candidate to a specific offset. **Answer:** _TBD_
+*Direction 3 — Parent blob comparison for inheritance patterns:* Petronij and Kami are Whommie's parents; both share tail f64 value `0.12331899`. Comparing parent vs. offspring raw blobs byte-by-byte may reveal which bytes flip when the defect flag is inherited, narrowing the candidate to a specific offset. **Answer:** _TBD_
 
 ### tools/field_mapper/
 
