@@ -19,10 +19,16 @@ section is **"Visual Mutation / Birth Defect Parsing"** — read it entirely.
 | `tools/field_mapper/DIRECTION_2_BITMAP_PLAN.md` | **Your primary reference.** Full plan + execution log of everything tried so far. Read this first. |
 | `tools/field_mapper/investigate_blob_tail.py` | Phases 1–6 scan script |
 | `tools/field_mapper/blob_tail_results.txt` | Full output of Phases 1–6 (large) |
-| `tools/field_mapper/investigate_pedigree.py` | Pedigree blob search script |
-| `tools/field_mapper/pedigree_results.txt` | Pedigree search output |
+| `tools/field_mapper/investigate_pedigree.py` | Pedigree blob search script (**worktree-only**, not in main — see note below) |
+| `tools/field_mapper/pedigree_results.txt` | Pedigree search output (**worktree-only**, not in main — see note below) |
 | `src/save_parser.py` | The parser you will eventually modify |
 | `test-saves/steamcampaign01.sav` | The save file to work with |
+
+> **Note — worktree-only files**: `investigate_pedigree.py` and
+> `pedigree_results.txt` were never committed to main. They exist only in
+> worktree `gifted-colden-22a33e` at:
+> `C:\Users\Byron\gitprojects\MewgenicsBreedingManager\.claude\worktrees\gifted-colden-22a33e\tools\field_mapper\`
+> They are useful for reference but not required to proceed with Direction #3.
 
 ## Current status
 
