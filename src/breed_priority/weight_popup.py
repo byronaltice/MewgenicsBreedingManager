@@ -85,6 +85,8 @@ def show_weights_popup(parent, weights: dict) -> None:
         (f"  Penalty (avg risk > threshold)", f"{w['no_children']:.1f} × (risk%−thr) × scale÷100"),
         (f"  Threshold",  f"{int(round(w.get('gene_risk_threshold', GENETIC_SAFE_RISK_FLOOR)))}%"),
         (f"  Penalty scale (higher = faster)", f"{int(round(w.get('gene_risk_penalty_scale', 10.0)))}"),
+        ("Mate coverage",                               f"{w['partner_coverage']:+.1f} × utility delta"),
+        ("Mate balance",                                f"{w['partner_balance']:+.2f} × gap² delta"),
         ("Love interest in scope",                         f"+{w['love_interest']:.1f}"),
         ("Rival in scope",                                 f"{w['rivalry']:.1f}"),
         ("── age penalty: multiplies per 3 years above threshold ──", ""),

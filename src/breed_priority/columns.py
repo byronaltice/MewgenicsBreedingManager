@@ -61,7 +61,7 @@ _RELATIONSHIP_SCORE_COLS = frozenset(_LOVE_SCORE_COLS | _HATE_SCORE_COLS)
 
 # Alignment roles by content behavior.
 _SINGLE_VALUE_CENTER_SCORE_HEADERS = frozenset({
-    "Sum", "Age", SCORE_HEADER_7_COUNT, "7sub", "Sex", "Lib", "Gene", "Aggro", "Gender",
+    "Sum", "Age", SCORE_HEADER_7_COUNT, "7sub", "Sex", "Lib", "Gene", "Mate", "Aggro", "Gender",
 })
 _SINGLE_VALUE_CENTER_SCORE_COLS = frozenset(_score_col_idx(h) for h in _SINGLE_VALUE_CENTER_SCORE_HEADERS)
 

@@ -66,7 +66,8 @@ def compute_all_scores(
 
     Returns:
         (results, cat_sub_counts, all_scores_sorted,
-         all_scope_gene_risks, all_scope_children, max_7_count,
+         all_scope_gene_risks, all_scope_mate_scores,
+         all_scope_children, max_7_count,
          scope_stat_sums, pair_risk_cache)
     """
     scope_stat_sums = sorted(sum(get_cat_stats(c, use_current_stats, add_mutation_stats).values()) for c in scope_cats)
@@ -109,6 +110,13 @@ def compute_all_scores(
         if id(c) in results and results[id(c)].scope_gene_risk is not None
     )
 
+    all_scope_mate_scores = sorted(
+        results[id(c)].subtotals.get("partner_coverage", 0.0)
+        + results[id(c)].subtotals.get("partner_balance", 0.0)
+        for c in scope_cats
+        if id(c) in results
+    )
+
     all_scope_children = sorted(
         sum(1 for ch in c.children if id(ch) in scope_set)
         for c in scope_cats
@@ -121,7 +129,8 @@ def compute_all_scores(
     )
 
     return (results, cat_sub_counts, all_scores_sorted,
-            all_scope_rel_counts, all_scope_children, max_7_count,
+            all_scope_rel_counts, all_scope_mate_scores,
+            all_scope_children, max_7_count,
             scope_stat_sums, pair_risk_cache)
 
 

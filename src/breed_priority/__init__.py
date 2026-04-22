@@ -1160,6 +1160,7 @@ class BreedPriorityView(QWidget):
             "Lib":  "Libido — flat weight if High or Low.",
             "Sex":  "Sexuality — flat Gay or Bi weight (straight = no score).",
             "Gene":    "Genetic Safety — average in-scope inbreeding risk; penalties start above 2% baseline.",
+            "Mate":    "Mate coverage + balance — how much this cat improves breedable-partner coverage and moves the room toward a 1:1 male/female mix.",
             "Age":     "Age penalty. No penalty at/below threshold. Each 3 years over = +1× multiplier (1 over=1×, 4 over=2×, 7 over=3×…).",
             "💗": "Love — 🔭 chip = love interest in scope (flat weight); 🐱 chip = love interest in same room. Both directions.",
             "💥": "Hate — 🔭 chip = rival in scope (per rival, both directions); 🐱 chip = rival in same room. Both directions.",
@@ -1190,6 +1191,8 @@ class BreedPriorityView(QWidget):
         self._score_table.setColumnWidth(_sex_col, 72)
         _age_col = _COL_SCORE_START + _SCORE_COLS.index("Age")
         self._score_table.setColumnWidth(_age_col, 46)
+        _mate_col = _COL_SCORE_START + _SCORE_COLS.index("Mate")
+        self._score_table.setColumnWidth(_mate_col, 58)
         _loves_col = _COL_SCORE_START + _SCORE_COLS.index("💗")
         self._score_table.setColumnWidth(_loves_col, 52)
         _hates_col = _COL_SCORE_START + _SCORE_COLS.index("💥")
@@ -1211,7 +1214,7 @@ class BreedPriorityView(QWidget):
         self._score_table.setItemDelegateForColumn(_trait_col,    _chip_delegate)
         self._score_table.setItemDelegateForColumn(_rare7_col,    _chip_delegate)
         for _ehdr in ("Sex", "💗", "💥",
-                       "Lib", "Age", "Gene", "Gender", "Sum", SCORE_HEADER_7_COUNT):
+                       "Lib", "Age", "Gene", "Mate", "Gender", "Sum", SCORE_HEADER_7_COUNT):
             _ecol = _COL_SCORE_START + _SCORE_COLS.index(_ehdr)
             self._score_table.setItemDelegateForColumn(_ecol, _chip_delegate)
         # Default delegate for "both" mode
@@ -2176,10 +2179,13 @@ class BreedPriorityView(QWidget):
 
     def _raw_col_value(self, cat, col_idx: int,
                        scope_gene_risk: float,
-                       all_scope_gene_risks: list) -> tuple:
+                       all_scope_gene_risks: list,
+                       mate_score: float,
+                       all_scope_mate_scores: list) -> tuple:
         """Return (text, sort_val, color) for a column in value mode."""
         return raw_col_value(
             cat, col_idx, scope_gene_risk, all_scope_gene_risks,
+            mate_score, all_scope_mate_scores,
             weights=self._weights,
             room_display=self._room_display,
         )
@@ -2213,7 +2219,8 @@ class BreedPriorityView(QWidget):
 
         _gene_risk_memo: dict = {}
         (results, _cat_sub_counts, _all_scores_sorted,
-         _all_scope_gene_risks, _all_scope_children, _max_7_count,
+         _all_scope_gene_risks, _all_scope_mate_scores,
+         _all_scope_children, _max_7_count,
          _scope_stat_sums, _pair_risk_cache) = compute_all_scores(
             alive, scope_cats, scope_set,
             _seven_sets, _scope_7_sets, _hated_by_map,
@@ -2267,6 +2274,10 @@ class BreedPriorityView(QWidget):
         for row, cat in enumerate(alive):
             result = results[id(cat)]
             scope_gene_risk = result.scope_gene_risk
+            mate_score = float(
+                result.subtotals.get("partner_coverage", 0.0)
+                + result.subtotals.get("partner_balance", 0.0)
+            )
             ch_in_scope = _children_in_scope(cat)
             _sub_count = _cat_sub_counts.get(id(cat), 0)
             _has_sevens = bool(_seven_sets.get(id(cat), frozenset()))
@@ -2530,6 +2541,23 @@ class BreedPriorityView(QWidget):
                             _cbg = ColorUtils.derive_chip_bg(_gene_clr, CLR_BG_SCORE_AREA)
                             _cfg = _gene_clr
                             _chips = [(_risk_txt, _cbg, _cfg)]
+                            text, color = "", _cfg
+                    elif hdr == "Mate":
+                        _mate_score = float(
+                            result.subtotals.get("partner_coverage", 0.0)
+                            + result.subtotals.get("partner_balance", 0.0)
+                        )
+                        score_val = _mate_score
+                        if _mate_score == 0.0:
+                            _chips = [("—", CLR_BG_SCORE_AREA, CLR_TEXT_GRAYEDOUT)]
+                            text, color = "—", CLR_TEXT_GRAYEDOUT
+                            _score_for_sub = 0.0
+                        else:
+                            _max_mate_score = max((abs(v) for v in _all_scope_mate_scores), default=0.0)
+                            _mate_clr = ChipColors.sevens(abs(_mate_score), _max_mate_score, _mate_score > 0)
+                            _cbg = ColorUtils.derive_chip_bg(_mate_clr, CLR_BG_SCORE_AREA)
+                            _cfg = _mate_clr
+                            _chips = [(f"{_mate_score:+.1f}", _cbg, _cfg)]
                             text, color = "", _cfg
                     elif hdr == "Gender":
                         gd = getattr(cat, 'gender_display', '?')

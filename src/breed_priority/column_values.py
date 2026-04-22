@@ -22,6 +22,8 @@ def raw_col_value(
     col_idx: int,
     scope_gene_risk: float | None,
     all_scope_gene_risks: list,
+    mate_score: float,
+    all_scope_mate_scores: list,
     *,
     weights: dict,
     room_display: dict,
@@ -34,6 +36,9 @@ def raw_col_value(
         scope_gene_risk: Average in-scope pair risk (%) for this cat.
         all_scope_gene_risks: List of scope risk values for all cats
             (used for percentile ranking in the Gene column).
+        mate_score: Weighted mate score contribution for this cat.
+        all_scope_mate_scores: List of mate scores for all scope cats
+            (used for percentile ranking in the Mate column).
         weights: Current scoring weight dict.
         room_display: Dict mapping room id -> display label.
     """
@@ -150,5 +155,24 @@ def raw_col_value(
         _gene_thr = float(weights.get("gene_risk_threshold", GENETIC_SAFE_RISK_FLOOR))
         text = "🛡" if n <= _gene_thr else f"R{int(round(n))}"
         return (text, float(n), color)
+
+    if hdr == "Mate":
+        weighted_delta = float(mate_score)
+        total = len(all_scope_mate_scores)
+        if total > 0:
+            rank = sum(1 for value in all_scope_mate_scores if value <= weighted_delta)
+            pct = rank / total * 100
+            if weighted_delta <= 0:
+                color = CLR_TEXT_GRAYEDOUT
+            elif pct >= 75:
+                color = CLR_DESIRABLE
+            elif pct >= 50:
+                color = "#b0a040"
+            else:
+                color = "#e08030"
+        else:
+            color = CLR_VALUE_NEUTRAL
+        text = "" if weighted_delta == 0 else f"{weighted_delta:+.1f}"
+        return (text, weighted_delta, color)
 
     return ("", 0.0, CLR_VALUE_NEUTRAL)
