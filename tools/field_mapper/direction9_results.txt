@@ -1,0 +1,103 @@
+======================================================================
+Direction #9 -- Roster-wide pre-T f64 scan
+======================================================================
+Scanned 923 cats
+
+======================================================================
+STEP 1 -- Distribution of each f64 slot
+======================================================================
+  f64[0]: {'normal': 923}
+  f64[1]: {'normal': 923}
+  f64[2]: {'subnormal': 386, 'NaN_allF': 537}
+  f64[3]: {'normal': 386, 'zero': 537}
+  f64[4]: {'normal': 923}
+  f64[5]: {'NaN_allF': 456, 'subnormal': 467}
+  f64[6]: {'zero': 456, 'normal': 467}
+  f64[7]: {'normal': 923}
+
+======================================================================
+STEP 2 -- Cats with f64[3]==0.0 (Whommie-pattern)
+======================================================================
+  Count: 537
+  Names: ['Tamara', 'Micia', 'Melanka', 'Kilya', 'Escobar', 'Estrella', 'Clementina', 'Pixey', 'Bacon Pancake', 'Moisey', 'Kiba', 'Hannibal', 'Waxen', 'Korek', 'Mewgenia', 'Tesley', 'Demoni', 'Zate', 'Loptica', 'Trompita', 'Chirpikh', 'Incir', 'Kotomis', 'John Cat', 'Milly', 'Gatis', 'Tigra', 'Zain', 'Minos', 'Mrs. Tomato']
+
+======================================================================
+STEP 3 -- Cats with f64[6]==0.0 (Whommie-pattern)
+======================================================================
+  Count: 456
+  Names: ['Edwin', 'Tamara', 'Moomoo', 'Micia', 'Melanka', 'Tyrion', 'Rami', 'Escobar', 'Anfisa', 'Clementina', 'Schweebo', 'Bacon Pancake', 'Moisey', 'Kiba', 'Hannibal', 'Waxen', 'Korek', 'Beau', 'Marie', 'Tesley', 'Zate', 'Loptica', 'Trompita', 'Bungus', 'Incir', 'Kratos', 'Parker', 'John Cat', 'Milly', 'Gatis']
+
+======================================================================
+STEP 4 -- Cats with both f64[3]==0.0 AND f64[6]==0.0
+======================================================================
+  Count: 358
+  Names: ['Tamara', 'Micia', 'Melanka', 'Escobar', 'Clementina', 'Bacon Pancake', 'Moisey', 'Kiba', 'Hannibal', 'Waxen', 'Korek', 'Tesley', 'Zate', 'Loptica', 'Trompita', 'Incir', 'John Cat', 'Milly', 'Gatis', 'Zain', 'Minos', 'Mrs. Tomato', 'Mouse', 'Sissy', 'Claire', 'Dills', 'Emrys', 'Bee', 'Frazzle', 'Flekpus']
+
+======================================================================
+STEP 5 -- Cats whose f64[6] != 0.5 (the 'standard' value)
+======================================================================
+  Count: 789
+    Edwin (db_key=1): f64[6]=0.0
+    Tamara (db_key=2): f64[6]=0.0
+    Moomoo (db_key=3): f64[6]=0.0
+    Micia (db_key=4): f64[6]=0.0
+    Melanka (db_key=5): f64[6]=0.0
+    Marcelo (db_key=6): f64[6]=0.32499999999999996
+    Yuffie (db_key=7): f64[6]=0.225
+    Tyrion (db_key=8): f64[6]=0.0
+    Rami (db_key=9): f64[6]=0.0
+    Kilya (db_key=10): f64[6]=0.25
+    Escobar (db_key=11): f64[6]=0.0
+    Estrella (db_key=12): f64[6]=0.32499999999999996
+    Anfisa (db_key=15): f64[6]=0.0
+    Clementina (db_key=16): f64[6]=0.0
+    Schweebo (db_key=17): f64[6]=0.0
+    Pixey (db_key=18): f64[6]=0.25
+    Bacon Pancake (db_key=19): f64[6]=0.0
+    Moisey (db_key=20): f64[6]=0.0
+    Kiba (db_key=21): f64[6]=0.0
+    Raff (db_key=22): f64[6]=0.25
+    Hannibal (db_key=23): f64[6]=0.0
+    Waxen (db_key=24): f64[6]=0.0
+    Korek (db_key=25): f64[6]=0.0
+    Beau (db_key=26): f64[6]=0.0
+    Marie (db_key=27): f64[6]=0.0
+    Mewgenia (db_key=28): f64[6]=0.32499999999999996
+    Tesley (db_key=29): f64[6]=0.0
+    Demoni (db_key=30): f64[6]=0.32499999999999996
+    Zate (db_key=31): f64[6]=0.0
+    Loptica (db_key=32): f64[6]=0.0
+
+======================================================================
+STEP 6 -- Dump pre-T hex for Whommie and neighbors (first 30 cats with f64[6]!=0.5)
+======================================================================
+  Edwin: 000000000000e03f 9a9999999999a93f 0300000000000000 345eba490c02dd3f cc77b78bfacec73f ffffffffffffffff 0000000000000000 6aa533a51827f03f
+  Tamara: 626bc06905d5dd3f 9fed6b62a09ee93f ffffffffffffffff 0000000000000000 2857ded57959d13f ffffffffffffffff 0000000000000000 20ddbaede01cf03f
+  Moomoo: 000000000000e03f 9a9999999999a93f 0100000000000000 345eba490c02dd3f 5fa0f8c514c4e93f ffffffffffffffff 0000000000000000 c8b8197368d7f03f
+  Micia: 03d04676734edf3f db960d3c892eee3f ffffffffffffffff 0000000000000000 00cb09b9ae2e7c3f ffffffffffffffff 0000000000000000 f1f853bc5101f13f
+  Melanka: 18d64f0ca22ddb3f a57912c6d1caaf3f ffffffffffffffff 0000000000000000 59517905b816e83f ffffffffffffffff 0000000000000000 66df0e405288f13f
+  Marcelo: 09d947ed8eb9d43f 582d3821723cef3f 0900000000000000 000000000000d03f 2b094f3b3b47e23f 0c00000000000000 ccccccccccccd43f a0b0f3c63e8cf13f
+  Yuffie: 0c9eecb35daee03f b6fb20ee80e3b83f 0800000000000000 ccccccccccccd43f 2d32e172f55aef3f 0a00000000000000 cdcccccccccccc3f 35ec51f8dddbf13f
+  Tyrion: b0ece6ef5044e33f c4c5d299f84ea73f 0700000000000000 ccccccccccccd43f 00bf93d599f6a43f ffffffffffffffff 0000000000000000 ff41209f259ff03f
+  Rami: 8a63378a57ace43f 8786c4d9a365ed3f 0600000000000000 000000000000d03f 6c924708b4abea3f ffffffffffffffff 0000000000000000 ca13ea65d10ff13f
+  Kilya: d34902bd8688e23f 48c61241410dda3f ffffffffffffffff 0000000000000000 066ddf275783e03f 0700000000000000 000000000000d03f 29a0dfe26d36f03f
+  Escobar: 9dce5dbaa362da3f cf0e34b01992b03f ffffffffffffffff 0000000000000000 152acc5d3c7ced3f ffffffffffffffff 0000000000000000 6384a93b4208f13f
+  Estrella: 24e3c53481dce53f 870ee8767480b13f ffffffffffffffff 0000000000000000 705a5ab6e993c43f 0600000000000000 ccccccccccccd43f a7a9ded79c77f13f
+  Anfisa: 48234549a3b7e13f d7e1106a5041953f 0e00000000000000 8816d9cef753c73f 40812d3a99eebd3f ffffffffffffffff 0000000000000000 9001436fffeaf23f
+  Clementina: ed68f574082dda3f 46700ccc8cbbee3f ffffffffffffffff 0000000000000000 08a3bf6d9017dc3f ffffffffffffffff 0000000000000000 a520f1d64073f03f
+  Schweebo: 521097bf1b37e33f dacc09f9457da73f 0f00000000000000 ccccccccccccd43f 907f8b33e370c73f ffffffffffffffff 0000000000000000 65676d0995dff13f
+  Pixey: eab37d7b835eda3f 9a31c0bece67373f ffffffffffffffff 0000000000000000 bc769ae915cdcb3f 0700000000000000 000000000000d03f 1028ffbad64df23f
+  Bacon Pancake: 6f01fda8b69ddd3f a7fbbe241fed8e3f ffffffffffffffff 0000000000000000 914caa84922aeb3f ffffffffffffffff 0000000000000000 44d968bf025bf03f
+  Moisey: f4ef3f18c1c7da3f 63339e10c2feb73f ffffffffffffffff 0000000000000000 00273ae612c5b83f ffffffffffffffff 0000000000000000 6888a7ade730f23f
+  Kiba: b244634a760ddf3f 3e5056bccd7bed3f ffffffffffffffff 0000000000000000 f845034b880fe03f ffffffffffffffff 0000000000000000 cb7d3b7edb63f23f
+  Raff: 1c6d21747d97e03f 2748d4d24347af3f 1b00000000000000 ccccccccccccd43f bc85405ac883dd3f 2c00000000000000 000000000000d03f 31e361061977f03f
+  Hannibal: d1b27b7b6091db3f dccdb991d159c93f ffffffffffffffff 0000000000000000 a31bbede1859e83f ffffffffffffffff 0000000000000000 e313d1ea59cdf03f
+  Waxen: 866779550330de3f 301908b54b4fed3f ffffffffffffffff 0000000000000000 fcb6f40a14dac13f ffffffffffffffff 0000000000000000 ffe0dd7c583bf23f
+  Korek: c4064412c333e13f cfa98ec1c207a03f ffffffffffffffff 0000000000000000 a026442b54fe943f ffffffffffffffff 0000000000000000 e6ebfd394fb0f03f
+  Beau: a5359518197ad43f 1d08abf28a0c9a3f 0f00000000000000 000000000000d03f af8baf3ae51ee83f ffffffffffffffff 0000000000000000 2dafbcd30e9cf13f
+  Marie: 14a87beebb60d93f 1f7aed5e4e7daa3f 1600000000000000 ccccccccccccd43f d2f438afdd6ed33f ffffffffffffffff 0000000000000000 4555cff9e054f23f
+  Mewgenia: 471e71050c06de3f 188de665821aa53f ffffffffffffffff 0000000000000000 62870d3e4477d03f 1e00000000000000 ccccccccccccd43f b4cdc11c7855f03f
+  Tesley: a6dfd2750078d33f 447cd45945d4ad3f ffffffffffffffff 0000000000000000 dc0bcb34e258ec3f ffffffffffffffff 0000000000000000 1389d208559bf03f
+  Demoni: c6e91a36a2dce33f cc35ee46953cb43f ffffffffffffffff 0000000000000000 9b6bfa5becd3e23f 1c00000000000000 ccccccccccccd43f 713cc4507addf03f
+  Zate: 6dbab9b017dfd13f 1c53f52b2552b93f ffffffffffffffff 0000000000000000 ef65411911fae83f ffffffffffffffff 0000000000000000 2b4736910f11f03f
+  Loptica: 892dad2428e4da3f c703a8022821e43f ffffffffffffffff 0000000000000000 9ed85144aaffd43f ffffffffffffffff 0000000000000000 8232ffea3db9f13f

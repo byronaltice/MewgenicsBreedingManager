@@ -1,0 +1,114 @@
+======================================================================
+Direction #7 -- Structured field comparison
+======================================================================
+Save: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\steamcampaign01.sav
+
+Found 2 defective cats and 4 controls
+
+======================================================================
+STEP 1 -- Per-cat dump
+======================================================================
+-- DEFECT: Whommie (db_key=853, breed=19) --
+  blob_len=938
+  abilities (2): ['BasicShortRanged', 'Stasis']
+  passives (0): []
+  passive_tiers: {}
+  disorders (0): []
+  stat_base: [7, 7, 7, 7, 6, 7, 7]
+  stat_mod:  [0, 0, 0, 0, 0, 0, 0]
+  stat_sec:  [0, 0, 0, 0, 0, 0, 0]
+  mutations: ['Sludge head', 'Beaver Tail*']
+  defects:   ['Fur Birth Defect']
+  visual_mutation_slots: {'fur': 706, 'body': 95, 'head': 304, 'tail': 751, 'leg_L': 53, 'leg_R': 53, 'arm_L': 203, 'arm_R': 203, 'eye_L': 139, 'eye_R': 139, 'eyebrow_L': 23, 'eyebrow_R': 23, 'ear_L': 30, 'ear_R': 30, 'mouth': 215}
+
+-- DEFECT: Bud (db_key=887, breed=19) --
+  blob_len=926
+  abilities (2): ['BasicMelee', 'Stasis']
+  passives (0): []
+  passive_tiers: {}
+  disorders (0): []
+  stat_base: [7, 7, 7, 7, 7, 7, 7]
+  stat_mod:  [0, 0, 0, 0, 0, 0, 0]
+  stat_sec:  [0, 0, 0, 0, 0, 0, 0]
+  mutations: ['Body 401', 'Exposed Brain', 'Beaver Tail*', 'blob legs', 'Mouth 410']
+  defects:   []
+  visual_mutation_slots: {'fur': 161, 'body': 401, 'head': 319, 'tail': 751, 'leg_L': 707, 'leg_R': 707, 'arm_L': 203, 'arm_R': 203, 'eye_L': 139, 'eye_R': 139, 'eyebrow_L': 23, 'eyebrow_R': 23, 'ear_L': 132, 'ear_R': 132, 'mouth': 410}
+
+-- CLEAN : Kami (db_key=840, breed=19) --
+  blob_len=957
+  abilities (5): ['BasicDruidAbility', 'Stasis2', 'RhinoForm', 'PlantMushroom', 'Cheerlead']
+  passives (2): ['Bouquet', 'BarkSkin']
+  passive_tiers: {'Bouquet': 1, 'BarkSkin': 1}
+  disorders (0): []
+  stat_base: [7, 7, 7, 7, 6, 7, 7]
+  stat_mod:  [1, 0, 0, 2, 2, 2, 0]
+  stat_sec:  [0, 0, 0, 0, 0, 0, 0]
+  mutations: ['Rock Bod', 'Beaver Tail*']
+  defects:   []
+  visual_mutation_slots: {'fur': 174, 'body': 300, 'head': 99, 'tail': 751, 'leg_L': 53, 'leg_R': 53, 'arm_L': 203, 'arm_R': 203, 'eye_L': 139, 'eye_R': 139, 'eyebrow_L': 23, 'eyebrow_R': 23, 'ear_L': 30, 'ear_R': 30, 'mouth': 215}
+
+-- CLEAN : Romanoba (db_key=826, breed=19) --
+  blob_len=962
+  abilities (3): ['BasicMelee', 'DivineProtection', 'Stasis']
+  passives (1): ['Omniscience']
+  passive_tiers: {'Omniscience': 1}
+  disorders (0): []
+  stat_base: [7, 7, 7, 7, 6, 7, 7]
+  stat_mod:  [0, 0, 0, 0, 0, 0, 0]
+  stat_sec:  [0, 0, 0, 0, 0, 0, 0]
+  mutations: ['Beaver Tail*', 'Mouth 415']
+  defects:   []
+  visual_mutation_slots: {'fur': 161, 'body': 95, 'head': 65, 'tail': 751, 'leg_L': 203, 'leg_R': 203, 'arm_L': 203, 'arm_R': 203, 'eye_L': 139, 'eye_R': 139, 'eyebrow_L': 23, 'eyebrow_R': 23, 'ear_L': 30, 'ear_R': 30, 'mouth': 415}
+
+-- CLEAN : Petronij (db_key=841, breed=19) --
+  blob_len=943
+  abilities (2): ['BasicMelee', 'BodyGuard']
+  passives (1): ['Omniscience']
+  passive_tiers: {'Omniscience': 1}
+  disorders (0): []
+  stat_base: [7, 7, 7, 7, 6, 7, 7]
+  stat_mod:  [0, 0, 0, 0, 0, 0, 0]
+  stat_sec:  [0, 0, 0, 0, 0, 0, 0]
+  mutations: ['Beaver Tail*']
+  defects:   []
+  visual_mutation_slots: {'fur': 174, 'body': 95, 'head': 99, 'tail': 751, 'leg_L': 53, 'leg_R': 53, 'arm_L': 203, 'arm_R': 203, 'eye_L': 139, 'eye_R': 139, 'eyebrow_L': 23, 'eyebrow_R': 23, 'ear_L': 101, 'ear_R': 101, 'mouth': 215}
+
+-- CLEAN : Murisha (db_key=852, breed=19) --
+  blob_len=960
+  abilities (2): ['BasicShortLobbed', 'PathOfTheFighter']
+  passives (0): []
+  passive_tiers: {}
+  disorders (0): []
+  stat_base: [7, 7, 7, 7, 7, 7, 7]
+  stat_mod:  [0, 0, 0, 0, 0, 0, 0]
+  stat_sec:  [0, 0, 0, 0, 0, 0, 0]
+  mutations: ['Fur 413', 'Body 401', 'Exposed Brain', 'Beaver Tail*', 'Human Legs', 'Legs 441', 'Demon Eyes', 'Eyebrows 428', 'Mouth 410']
+  defects:   []
+  visual_mutation_slots: {'fur': 413, 'body': 401, 'head': 319, 'tail': 751, 'leg_L': 308, 'leg_R': 308, 'arm_L': 441, 'arm_R': 441, 'eye_L': 301, 'eye_R': 301, 'eyebrow_L': 428, 'eyebrow_R': 428, 'ear_L': 132, 'ear_R': 132, 'mouth': 410}
+
+======================================================================
+STEP 2 -- Passive/disorder/ability strings unique to defective cats
+======================================================================
+Strings unique to defective cats: ['BasicShortRanged']
+Strings unique to clean controls: ['BarkSkin', 'BasicDruidAbility', 'BasicShortLobbed', 'BodyGuard', 'Bouquet', 'Cheerlead', 'DivineProtection', 'Omniscience', 'PathOfTheFighter', 'PlantMushroom', 'RhinoForm', 'Stasis2']
+
+======================================================================
+STEP 3 -- ALL plausible strings inside raw blobs
+======================================================================
+Strings shared by ALL defective cats but NOT found in ANY control: []
+
+  Strings unique to Whommie's blob (vs all controls): ['BasicShortRanged']
+  Strings unique to Bud's blob (vs all controls): []
+
+======================================================================
+STEP 4 -- stat_mod / stat_sec patterns
+======================================================================
+  Whommie should have -2 CHA from eyebrow defect
+  Bud should have -2 DEX from ear defect
+
+  Whommie      stat_mod={'STR': 0, 'DEX': 0, 'CON': 0, 'INT': 0, 'SPD': 0, 'CHA': 0, 'LCK': 0}
+  Bud          stat_mod={'STR': 0, 'DEX': 0, 'CON': 0, 'INT': 0, 'SPD': 0, 'CHA': 0, 'LCK': 0}
+  Kami         stat_mod={'STR': 1, 'DEX': 0, 'CON': 0, 'INT': 2, 'SPD': 2, 'CHA': 2, 'LCK': 0}
+  Romanoba     stat_mod={'STR': 0, 'DEX': 0, 'CON': 0, 'INT': 0, 'SPD': 0, 'CHA': 0, 'LCK': 0}
+  Petronij     stat_mod={'STR': 0, 'DEX': 0, 'CON': 0, 'INT': 0, 'SPD': 0, 'CHA': 0, 'LCK': 0}
+  Murisha      stat_mod={'STR': 0, 'DEX': 0, 'CON': 0, 'INT': 0, 'SPD': 0, 'CHA': 0, 'LCK': 0}

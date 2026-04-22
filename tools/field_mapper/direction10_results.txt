@@ -1,0 +1,522 @@
+======================================================================
+Direction #10 -- GPAK mutation data for eyes / eyebrows / ears
+======================================================================
+GPAK: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\resources.gpak
+
+======================================================================
+GON FILE: data/mutations/eyes.gon (13663 bytes)
+======================================================================
+Parsed 108 entries
+  id=          2 'No Eyes'                           stat_desc='' [BIRTH_DEFECT]
+  id=        300 'Button Eyes'                       stat_desc='Your basic attack has a 10% chance to inflict Fear'
+  id=        301 'Demon Eyes'                        stat_desc='+1 DEX'
+  id=        302 'Pop Eyes'                          stat_desc='+1 Thorns'
+  id=        303 'Gem Eyes'                          stat_desc='+1 INT, +1 CHA'
+  id=        304 'Holes'                             stat_desc='Take your turn later'
+  id=        305 'Zen Eyes'                          stat_desc='-1 STR, +3 INT, -1 DEX'
+  id=        306 'Confusing Eyes'                    stat_desc='Your basic attack has a 10% chance to inflict Confusion 3'
+  id=        307 'Half Moon Eyes'                    stat_desc='Gain 1 mana when anything dies'
+  id=        308 'Spider Eyes'                       stat_desc='+5% dodge chance'
+  id=        309 'Doll Eyes'                         stat_desc='+2 corpse health'
+  id=        310 'Octo Eyes'                         stat_desc='+1 Health Regeneration'
+  id=        311 'Gecko Eye'                         stat_desc='You do not take extra damage from backstabs'
+  id=        312 'Metal Eyes'                        stat_desc='+1 Shield, +1 Brace'
+  id=        313 "Issac'S Eyes"                      stat_desc='+1 Holy Shield, Your basic attack creates water tiles'
+  id=        314 'Dead Eyes'                         stat_desc='When you are downed, spawn 3 Flies. +2 corpse health'
+  id=        315 'Kinetic Eyes'                      stat_desc='+1 Kinetic Spikes'
+  id=        316 'Lightning Eyes'                    stat_desc='15% chance to counter attack with Chain Lightning when you get hit'
+  id=        317 'Dice Eyes'                         stat_desc='Gain a random stat up at the end of each turn'
+  id=        318 'Goat Eyes'                         stat_desc='You can see hidden things. +1 Knockback damage'
+  id=        319 'Horn Eyes'                         stat_desc='Blind. +1 Damage. +1 Thorns'
+  id=        320 'Odd Eyes'                          stat_desc=''
+  id=        321 'Robo Eyes'                         stat_desc=''
+  id=        323 'Alien Eyes'                        stat_desc=''
+  id=        324 'Treasure Eyes'                     stat_desc='Spawn 2 extra coins each battle'
+  id=        325 'Nail Eyes'                         stat_desc='Thorns 1'
+  id=        326 '4 Eyes'                            stat_desc='Gain 2 Charge each time you cast 4 spells'
+  id=        327 'Baby Blue Eyes'                    stat_desc='+2 CHA'
+  id=        328 "Bull'S Eye'"                       stat_desc='+10% crit chance'
+  id=        329 'Spinning Eyes'                     stat_desc='Your basic attack has a 15% chance to inflict Confusion'
+  id=        330 'Crow Eyes'                         stat_desc=''
+  id=        331 'Glassy Eyes'                       stat_desc='At the start of each battle, gain a random temporary pill if your trinket slot is empty'
+  id=        332 'Bleeding Eyes'                     stat_desc='Start each battle Bleeding. Gain 1 Charge each time you take damage'
+  id=        333 'Huge Eyes'                         stat_desc="Your basic attack can't miss"
+  id=        334 'Infested Eyes'                     stat_desc='Blind. Spawn a Flea when you take damage'
+  id=        335 'Fake Eyelashes'                    stat_desc='Your basic attack has a 10% chance to Charm'
+  id=        336 'Bolt Eyes'                         stat_desc='Your basic attack is electric element and has a 5% chance to stun'
+  id=        337 'Ice Eyes'                          stat_desc='Your basic attack is ice element and inflicts Slow'
+  id=        338 'Fire Eyes'                         stat_desc='Your basic attack inflicts Burn'
+  id=        339 'Water Eyes'                        stat_desc='+1 Health Regeneration while wet. Your basic attack is water element'
+  id=        340 'Leech Eyes'                        stat_desc='Your basic attack inflicts Leech'
+  id=        341 'Flower Eyes'                       stat_desc='Gain Charge 1 the first time you move each turn'
+  id=        342 'Poison Eyes'                       stat_desc='Your basic attack inflicts Poison 1. Start each battle Poisoned'
+  id=        343 'Clown Eyes'                        stat_desc='You have a 5% chance to inflict Fear on units who contact or attack you'
+  id=        344 'Sun Eyes'                          stat_desc='You have a 10% chance to Blind units who contact or attack you'
+  id=        345 'Evil Eyes'                         stat_desc='Inflict a random debuff on units who contact you'
+  id=        346 'Rock Eyes'                         stat_desc='+1 Shield, Spawn a rock when damaged'
+  id=        347 'Hypno Eyes'                        stat_desc='Your basic attack has a 15% chance to inflict Confusion 2'
+  id=        348 'Pop Eyes'                          stat_desc='+1 range, +1 reach'
+  id=        349 '8 Eyes'                            stat_desc='Emit 4 Sparkles each time you cast 8 spells'
+  id=        351 'Chaos Eyes'                        stat_desc='Your bonus ability is a different random spell each battle'
+  id=        352 'Runny Mascara'                     stat_desc='You have All Stats Up while Bleeding'
+  id=        353 'Chameleon Eyes'                    stat_desc='You take no extra damage from backstabs'
+  id=        400 'Mutation 400'                      stat_desc='+2 STR, -1 CON'
+  id=        401 'Mutation 401'                      stat_desc='+2 STR, -1 DEX'
+  id=        402 'Mutation 402'                      stat_desc='+2 STR, -1 CHA'
+  id=        403 'Mutation 403'                      stat_desc='+2 STR, -1 INT'
+  id=        404 'Mutation 404'                      stat_desc='+2 STR, -1 SPD'
+  id=        405 'Mutation 405'                      stat_desc='+2 STR, -1 LCK'
+  id=        406 'Mutation 406'                      stat_desc='-1 STR, +2 CON'
+  id=        407 'Mutation 407'                      stat_desc='+2 CON, -1 DEX'
+  id=        408 'Mutation 408'                      stat_desc='+2 CON, -1 CHA'
+  id=        409 'Mutation 409'                      stat_desc='+2 CON, -1 INT'
+  id=        410 'Mutation 410'                      stat_desc='+2 CON, -1 SPD'
+  id=        411 'Mutation 411'                      stat_desc='+2 CON, -1 LCK'
+  id=        412 'Mutation 412'                      stat_desc='-1 CON, +2 DEX'
+  id=        413 'Mutation 413'                      stat_desc='-1 STR, +2 DEX'
+  id=        414 'Mutation 414'                      stat_desc='+2 DEX, -1 CHA'
+  id=        415 'Mutation 415'                      stat_desc='-1 INT, +2 DEX'
+  id=        416 'Mutation 416'                      stat_desc='+2 DEX, -1 SPD'
+  id=        417 'Mutation 417'                      stat_desc='+2 DEX, -1 LCK'
+  id=        418 'Mutation 418'                      stat_desc='-1 CON, +2 INT'
+  id=        419 'Mutation 419'                      stat_desc='+2 INT, -1 DEX'
+  id=        420 'Mutation 420'                      stat_desc='+2 INT, -1 CHA'
+  id=        421 'Mutation 421'                      stat_desc='-1 STR, +2 INT'
+  id=        422 'Mutation 422'                      stat_desc='+2 INT, -1 SPD'
+  id=        423 'Mutation 423'                      stat_desc='+2 INT, -1 LCK'
+  id=        424 'Mutation 424'                      stat_desc='-1 CON, +2 CHA'
+  id=        425 'Mutation 425'                      stat_desc='-1 DEX, +2 CHA'
+  id=        426 'Mutation 426'                      stat_desc='-1 STR, +2 CHA'
+  id=        427 'Mutation 427'                      stat_desc='-1 INT, +2 CHA'
+  id=        428 'Mutation 428'                      stat_desc='-1 SPD, +2 CHA'
+  id=        429 'Mutation 429'                      stat_desc='-1 LCK, +2 CHA'
+  id=        430 'Mutation 430'                      stat_desc='-1 CON, +2 LCK'
+  id=        431 'Mutation 431'                      stat_desc='-1 DEX, +2 LCK'
+  id=        432 'Mutation 432'                      stat_desc='+2 LCK, -1 CHA'
+  id=        433 'Mutation 433'                      stat_desc='-1 INT, +2 LCK'
+  id=        434 'Mutation 434'                      stat_desc='-1 SPD, +2 LCK'
+  id=        435 'Mutation 435'                      stat_desc='-1 STR, +2 LCK'
+  id=        436 'Mutation 436'                      stat_desc='-1 CON, +2 SPD'
+  id=        437 'Mutation 437'                      stat_desc='-1 STR, +2 SPD'
+  id=        438 'Mutation 438'                      stat_desc='+2 SPD, -1 CHA'
+  id=        439 'Mutation 439'                      stat_desc='-1 INT, +2 SPD'
+  id=        440 'Mutation 440'                      stat_desc='-1 DEX, +2 SPD'
+  id=        441 'Mutation 441'                      stat_desc='+2 SPD, -1 LCK'
+  id=        442 'Mutation 442'                      stat_desc='10% chance to reflect projectiles'
+  id=        700 'Graves Disease'                    stat_desc='-2 CHA' [BIRTH_DEFECT]
+  id=        701 'Anophthalmia'                      stat_desc='-2 LCK' [BIRTH_DEFECT]
+  id=        702 'Mutation 702'                      stat_desc='-2 CON, +1 INT, +1 CHA'
+  id=        704 'Lazy Eye'                          stat_desc='10% miss chance' [BIRTH_DEFECT]
+  id=        705 'Cataracts'                         stat_desc='Gain 5% miss chance every turn' [BIRTH_DEFECT]
+  id=        706 'Crossed Eyes'                      stat_desc='Start each battle with Confusion 2' [BIRTH_DEFECT]
+  id=        750 'Glasses'                           stat_desc='+1 INT'
+  id=        754 'Alien Eyes'                        stat_desc='+1 range. Your basic attack is gravity element'
+  id=        755 'Mothman Eyes'                      stat_desc='Your basic attack has a 15% chance to inflict Fear'
+  id=        900 'Slender'                           stat_desc='Your basic attack has a 10% chance to inflict Slow'
+  id=       1029 'Spider Eye'                        stat_desc='+5% crit chance'
+  id= 4294967294 'No Eyes'                           stat_desc='Blind' [BIRTH_DEFECT]
+
+-- Raw GON blocks for target IDs in eyes: --
+  id=139: (not found)
+  id=23: (not found)
+  id=132: (not found)
+  id=301:
+    | eyes {
+    |     300 { //Button Eyes
+    |         desc "MUTATION_EYES_300_DESC"
+    | 
+    |         passives {
+    |             AddStatusToBasicAttack {
+    |                 Fear [1 .1]
+    |             }
+    |         }
+    |     }
+    |     301 { //Demon Eyes  
+    |         dex 1
+    |     }
+
+  id=2: (not found)
+  id=-2: (not found)
+======================================================================
+GON FILE: data/mutations/eyebrows.gon (4845 bytes)
+======================================================================
+Parsed 64 entries
+  id=          2 'No Eyebrows'                       stat_desc='-2 CHA' [BIRTH_DEFECT]
+  id=        300 'Bolt Brows'                        stat_desc='+1 SPD'
+  id=        301 'Confusing Brows'                   stat_desc='You have a 10% chance to inflict Confusion on units who contact or attack you'
+  id=        302 'Metal Brows'                       stat_desc='+2 Shield'
+  id=        303 'Fancy Makeup'                      stat_desc='+1 CHA'
+  id=        304 'Wolfy Brows'                       stat_desc='+1 DEX'
+  id=        305 'Dotty Brows'                       stat_desc='+1 LCK'
+  id=        306 'Clown Makeup'                      stat_desc='You have a 5% chance to inflict Fear on units who contact or attack you'
+  id=        307 'Antennae'                          stat_desc='+1 Mana Regeneration. +1 Health Regeneration'
+  id=        308 'Long Lashes'                       stat_desc='+1 CHA'
+  id=        309 'Spiny Brows'                       stat_desc='+1 Thorns'
+  id=        310 'Extra Eye'                         stat_desc='+1 Range'
+  id=        311 'Stacked Brows'                     stat_desc='When you cast your third spell each turn, heal 2'
+  id=        312 '//'                                stat_desc=''
+  id=        313 'Square Glasses'                    stat_desc='Spawn 1-2 extra pickups in each battle'
+  id=        314 'Holy Brows'                        stat_desc='When an allied cat dies, gain +2 Damage'
+  id=        315 'Triangle Eyes'                     stat_desc='You can reroll your options when you level up'
+  id=        400 'Mutation 400'                      stat_desc='+2 STR, -1 CON'
+  id=        401 'Mutation 401'                      stat_desc='+2 STR, -1 DEX'
+  id=        402 'Mutation 402'                      stat_desc='+2 STR, -1 CHA'
+  id=        403 'Mutation 403'                      stat_desc='+2 STR, -1 INT'
+  id=        404 'Mutation 404'                      stat_desc='+2 STR, -1 SPD'
+  id=        405 'Mutation 405'                      stat_desc='+2 STR, -1 LCK'
+  id=        406 'Mutation 406'                      stat_desc='-1 STR, +2 CON'
+  id=        407 'Mutation 407'                      stat_desc='+2 CON, -1 DEX'
+  id=        408 'Mutation 408'                      stat_desc='+2 CON, -1 CHA'
+  id=        409 'Mutation 409'                      stat_desc='+2 CON, -1 INT'
+  id=        410 'Mutation 410'                      stat_desc='+2 CON, -1 SPD'
+  id=        411 'Mutation 411'                      stat_desc='+2 CON, -1 LCK'
+  id=        412 'Mutation 412'                      stat_desc='-1 CON, +2 DEX'
+  id=        413 'Mutation 413'                      stat_desc='-1 STR, +2 DEX'
+  id=        414 'Mutation 414'                      stat_desc='+2 DEX, -1 CHA'
+  id=        415 'Mutation 415'                      stat_desc='-1 INT, +2 DEX'
+  id=        416 'Mutation 416'                      stat_desc='+2 DEX, -1 SPD'
+  id=        417 'Mutation 417'                      stat_desc='+2 DEX, -1 LCK'
+  id=        418 'Mutation 418'                      stat_desc='-1 CON, +2 INT'
+  id=        419 'Mutation 419'                      stat_desc='+2 INT, -1 DEX'
+  id=        420 'Mutation 420'                      stat_desc='+2 INT, -1 CHA'
+  id=        421 'Mutation 421'                      stat_desc='-1 STR, +2 INT'
+  id=        422 'Mutation 422'                      stat_desc='+2 INT, -1 SPD'
+  id=        423 'Mutation 423'                      stat_desc='+2 INT, -1 LCK'
+  id=        424 'Mutation 424'                      stat_desc='-1 CON, +2 CHA'
+  id=        425 'Mutation 425'                      stat_desc='-1 DEX, +2 CHA'
+  id=        426 'Mutation 426'                      stat_desc='-1 STR, +2 CHA'
+  id=        427 'Mutation 427'                      stat_desc='-1 INT, +2 CHA'
+  id=        428 'Mutation 428'                      stat_desc='-1 SPD, +2 CHA'
+  id=        429 'Mutation 429'                      stat_desc='-1 LCK, +2 CHA'
+  id=        430 'Mutation 430'                      stat_desc='-1 CON, +2 LCK'
+  id=        431 'Mutation 431'                      stat_desc='-1 DEX, +2 LCK'
+  id=        432 'Mutation 432'                      stat_desc='+2 LCK, -1 CHA'
+  id=        433 'Mutation 433'                      stat_desc='-1 INT, +2 LCK'
+  id=        434 'Mutation 434'                      stat_desc='-1 SPD, +2 LCK'
+  id=        435 'Mutation 435'                      stat_desc='-1 STR, +2 LCK'
+  id=        436 'Mutation 436'                      stat_desc='-1 CON, +2 SPD'
+  id=        437 'Mutation 437'                      stat_desc='-1 STR, +2 SPD'
+  id=        438 'Mutation 438'                      stat_desc='+2 SPD, -1 CHA'
+  id=        439 'Mutation 439'                      stat_desc='-1 INT, +2 SPD'
+  id=        440 'Mutation 440'                      stat_desc='-1 DEX, +2 SPD'
+  id=        441 'Mutation 441'                      stat_desc='+2 SPD, -1 LCK'
+  id=        700 'Bushy'                             stat_desc='-1 LCK' [BIRTH_DEFECT]
+  id=        701 'No Eyebrows'                       stat_desc='-1 CHA' [BIRTH_DEFECT]
+  id=        702 'Unibrow'                           stat_desc='-1 INT' [BIRTH_DEFECT]
+  id=        900 'Slender'                           stat_desc='+5% dodge chance. Your basic attack has a 1% chance to inflict Freeze'
+  id= 4294967294 'No Eyebrows'                       stat_desc='-2 CHA' [BIRTH_DEFECT]
+
+-- Raw GON blocks for target IDs in eyebrows: --
+  id=139: (not found)
+  id=23: (not found)
+  id=428:
+    |     424 {
+    |         cha 2
+    |         con -1
+    |     }
+    |     425 {
+    |         cha 2
+    |         dex -1
+    |     }
+    |     426 {
+    |         cha 2
+    |         str -1
+    |     }
+    |     427 {
+    |         cha 2
+    |         int -1
+    |     }
+    |     428 {
+    |         cha 2
+    |         spd -1
+    |     }
+
+  id=2: (not found)
+  id=-2: (not found)
+======================================================================
+GON FILE: data/mutations/ears.gon (12665 bytes)
+======================================================================
+Parsed 102 entries
+  id=          2 'No Ears'                           stat_desc='-2 DEX' [BIRTH_DEFECT]
+  id=        300 'Horn'                              stat_desc='+1 STR'
+  id=        301 'Antenna'                           stat_desc='+1 INT'
+  id=        302 'Fishy'                             stat_desc='+1 Health and Mana Regeneration while wet'
+  id=        303 'Bullhorn'                          stat_desc="+1 STR, Adds +1 Knockback to your basic attack if it's melee"
+  id=        304 'Pigtails'                          stat_desc='+1 CHA'
+  id=        305 'Boil'                              stat_desc='+1 Shield'
+  id=        306 'Bunny Ear'                         stat_desc='+1 SPD'
+  id=        307 'Brains'                            stat_desc='+1 INT'
+  id=        308 'Shrek'                             stat_desc='+1 STR, -1 CHA'
+  id=        309 'Antlers'                           stat_desc='Adds +1 Bleed to your basic attack'
+  id=        310 'Human'                             stat_desc='+1 INT'
+  id=        311 'Todo'                              stat_desc=''
+  id=        313 'Ram Horns'                         stat_desc="+1 Shield, Adds +1 Knockback to your basic attack if it's melee"
+  id=        314 'Deer Horns'                        stat_desc="Thorns 1. Your basic attack inflicts Bleed if it's melee"
+  id=        315 'Fly Ears'                          stat_desc='50% chance to spawn a Charmed Fly each turn. Start with Poison 1'
+  id=        316 'Bat Ears'                          stat_desc='You can see hidden things. 5% dodge chance'
+  id=        317 'Bone Ears'                         stat_desc='Whenever you down a unit, you have a 10% chance to reanimate that unit with 50% HP'
+  id=        318 'Frog Eyes'                         stat_desc='You have Brace 1 while wet'
+  id=        319 'Pierced Ears'                      stat_desc='Gain +1 Charge when you take damage'
+  id=        320 'Alien Ears'                        stat_desc='+1 Kinetic Spikes'
+  id=        321 'Spring Ears'                       stat_desc='Units that contact you get knocked back 1 tile'
+  id=        322 'Lamb Ears'                         stat_desc='+1 CHA'
+  id=        323 'Vamp Ears'                         stat_desc='Gain 1 HP when your basic attack deals damage'
+  id=        324 'Extra Paw'                         stat_desc=''
+  id=        325 'Tree Branch'                       stat_desc="If you're wet, gain +1 Charge and +1 [img:shield] at the end of your turn"
+  id=        326 'Worm Ear'                          stat_desc='5% chance to spawn a Maggot familiar each turn'
+  id=        327 'Ant Antenna'                       stat_desc='An extra food pickup will spawn in each battle'
+  id=        328 'Snake Ears'                        stat_desc='5% chance to Petrify on damage and when hit'
+  id=        329 'External Gills'                    stat_desc='Your basic attack leaves water tiles'
+  id=        330 'Hook Ears'                         stat_desc='Thorns 1. 10% chance to inflict Immobile on units that contact you'
+  id=        331 'Mace Ears'                         stat_desc='Your basic attack has +1 Knockback'
+  id=        332 'Blubber Lobes'                     stat_desc='Brace 1'
+  id=        333 'Metal Plate'                       stat_desc='+3 Shield'
+  id=        334 'Metal Detector'                    stat_desc='Spawn 1-3 more coins/scrap around the map on random tiles at the start of each battle'
+  id=        335 'Docked Ears'                       stat_desc='Start with Bleed 1 and a bonus attack'
+  id=        336 'Large Leaves'                      stat_desc="You gain 3 mana at the end of your turn if you didn't use your movement action"
+  id=        337 'Burning Ears'                      stat_desc='Your basic attack inflicts Burn 1'
+  id=        338 'Frozen Ears'                       stat_desc='Your basic attack has a 15% chance to inflict Freeze'
+  id=        339 'Lightning Rods'                    stat_desc='You have electric immunity'
+  id=        340 'Aura Ears'                         stat_desc='+1 Holy Shield'
+  id=        341 'Large Ears'                        stat_desc='10% chance to backflip when targeted'
+  id=        342 'Infested Ears'                     stat_desc='-1 CON, 20% chance to spawn a Charmed Flea when damaged'
+  id=        343 'Long Antlers'                      stat_desc='Thorns 1'
+  id=        344 'Kitten'                            stat_desc='Spawn a Charmed Kitten familiar when you get downed'
+  id=        345 'Mouse Ears'                        stat_desc='Units that contact or attack you have a 15% chance to get Charmed'
+  id=        400 'Mutation 400'                      stat_desc='+2 STR, -1 CON'
+  id=        401 'Mutation 401'                      stat_desc='+2 STR, -1 DEX'
+  id=        402 'Mutation 402'                      stat_desc='+2 STR, -1 CHA'
+  id=        403 'Mutation 403'                      stat_desc='+2 STR, -1 INT'
+  id=        404 'Mutation 404'                      stat_desc='+2 STR, -1 SPD'
+  id=        405 'Mutation 405'                      stat_desc='+2 STR, -1 LCK'
+  id=        406 'Mutation 406'                      stat_desc='-1 STR, +2 CON'
+  id=        407 'Mutation 407'                      stat_desc='+2 CON, -1 DEX'
+  id=        408 'Mutation 408'                      stat_desc='+2 CON, -1 CHA'
+  id=        409 'Mutation 409'                      stat_desc='+2 CON, -1 INT'
+  id=        410 'Mutation 410'                      stat_desc='+2 CON, -1 SPD'
+  id=        411 'Mutation 411'                      stat_desc='+2 CON, -1 LCK'
+  id=        412 'Mutation 412'                      stat_desc='-1 CON, +2 DEX'
+  id=        413 'Mutation 413'                      stat_desc='-1 STR, +2 DEX'
+  id=        414 'Mutation 414'                      stat_desc='+2 DEX, -1 CHA'
+  id=        415 'Mutation 415'                      stat_desc='-1 INT, +2 DEX'
+  id=        416 'Mutation 416'                      stat_desc='+2 DEX, -1 SPD'
+  id=        417 'Mutation 417'                      stat_desc='+2 DEX, -1 LCK'
+  id=        418 'Mutation 418'                      stat_desc='-1 CON, +2 INT'
+  id=        419 'Mutation 419'                      stat_desc='+2 INT, -1 DEX'
+  id=        420 'Mutation 420'                      stat_desc='+2 INT, -1 CHA'
+  id=        421 'Mutation 421'                      stat_desc='-1 STR, +2 INT'
+  id=        422 'Mutation 422'                      stat_desc='+2 INT, -1 SPD'
+  id=        423 'Mutation 423'                      stat_desc='+2 INT, -1 LCK'
+  id=        424 'Mutation 424'                      stat_desc='-1 CON, +2 CHA'
+  id=        425 'Mutation 425'                      stat_desc='-1 DEX, +2 CHA'
+  id=        426 'Mutation 426'                      stat_desc='-1 STR, +2 CHA'
+  id=        427 'Mutation 427'                      stat_desc='-1 INT, +2 CHA'
+  id=        428 'Mutation 428'                      stat_desc='-1 SPD, +2 CHA'
+  id=        429 'Mutation 429'                      stat_desc='-1 LCK, +2 CHA'
+  id=        430 'Mutation 430'                      stat_desc='-1 CON, +2 LCK'
+  id=        431 'Mutation 431'                      stat_desc='-1 DEX, +2 LCK'
+  id=        432 'Mutation 432'                      stat_desc='+2 LCK, -1 CHA'
+  id=        433 'Mutation 433'                      stat_desc='-1 INT, +2 LCK'
+  id=        434 'Mutation 434'                      stat_desc='-1 SPD, +2 LCK'
+  id=        435 'Mutation 435'                      stat_desc='-1 STR, +2 LCK'
+  id=        436 'Mutation 436'                      stat_desc='-1 CON, +2 SPD'
+  id=        437 'Mutation 437'                      stat_desc='-1 STR, +2 SPD'
+  id=        438 'Mutation 438'                      stat_desc='+2 SPD, -1 CHA'
+  id=        439 'Mutation 439'                      stat_desc='-1 INT, +2 SPD'
+  id=        440 'Mutation 440'                      stat_desc='-1 DEX, +2 SPD'
+  id=        441 'Mutation 441'                      stat_desc='+2 SPD, -1 LCK'
+  id=        700 'Anotia'                            stat_desc='-2 LCK' [BIRTH_DEFECT]
+  id=        701 'Turner Syndrome'                   stat_desc='-2 INT' [BIRTH_DEFECT]
+  id=        702 'Underdeveloped Ears'               stat_desc='-1 CHA' [BIRTH_DEFECT]
+  id=        703 'Low Ears'                          stat_desc='Start each battle with Confusion 2' [BIRTH_DEFECT]
+  id=        704 'Wilted Ears'                       stat_desc='Start each battle with Immobile 1' [BIRTH_DEFECT]
+  id=        750 'Jackrabbit Ears'                   stat_desc='Your movement action is a jump'
+  id=        751 'Folded Ears'                       stat_desc='+10% dodge chance'
+  id=        752 'Fin Ears'                          stat_desc='You have +2 Damage while wet'
+  id=        753 'Goat Horns'                        stat_desc='+1 Knockback damage. Your basic attack has +1 Knockback'
+  id=        754 'Electric Ears'                     stat_desc='+1 SPD, Electric damage you deal is increased by 1'
+  id=        755 'Head Ferns'                        stat_desc='Gain +1 Charge every time you cast a spell'
+  id=        900 'Slender'                           stat_desc='+10% dodge chance'
+  id=       1500 'Rat Ears'                          stat_desc='+2% dodge chance'
+  id= 4294967294 'No Ears'                           stat_desc='-2 DEX' [BIRTH_DEFECT]
+
+-- Raw GON blocks for target IDs in ears: --
+  id=132: (not found)
+  id=30: (not found)
+  id=101: (not found)
+  id=413:
+    |     409 {
+    |         con 2
+    |         int -1
+    |     }
+    |     410 {
+    |         con 2
+    |         spd -1
+    |     }
+    |     411 {
+    |         con 2
+    |         lck -1
+    |     }
+    |     412 {
+    |         dex 2
+    |         con -1
+    |     }
+    |     413 {
+    |         dex 2
+    |         str -1
+    |     }
+
+  id=2: (not found)
+  id=-2: (not found)
+======================================================================
+GON FILE: data/mutations/legs.gon (11571 bytes)
+======================================================================
+Parsed 101 entries
+  id=        300 'Frog Legs'                         stat_desc='+1 movement range while wet. Water does not slow movement'
+  id=        301 'Hooves'                            stat_desc='+1 SPD, Your basic attack has a 5% chance to Stun'
+  id=        302 'Tentacles'                         stat_desc='Knockback immunity'
+  id=        303 'Lobster Claws'                     stat_desc='Your basic attack has a 5% chance to Immobilize'
+  id=        304 'Muscular Legs'                     stat_desc='+1 STR'
+  id=        305 'Tar Legs'                          stat_desc='+5% dodge chance'
+  id=        306 'Bug Legs'                          stat_desc='+1 DEX'
+  id=        307 'Tires'                             stat_desc='+1 SPD'
+  id=        308 'Human Legs'                        stat_desc='+1 LCK'
+  id=        309 'Knife Legs'                        stat_desc='Your basic attack has a 10% chance to inflict Bleed 3'
+  id=        310 'Spring Legs'                       stat_desc='Your movement action is a jump'
+  id=        311 'Square Legs'                       stat_desc='+1 CON'
+  id=        312 'Balloon Legs'                      stat_desc='Your basic attack has +1 Knockback'
+  id=        313 'Snake Legs'                        stat_desc='+1 reach'
+  id=        314 'Weapon Legs'                       stat_desc='Your weapons have +1 Damage'
+  id=        315 'Socks'                             stat_desc='Ice immunity'
+  id=        316 'Hook Legs'                         stat_desc=''
+  id=        317 'Raptor Claws'                      stat_desc="Your basic attack inflicts Bleed 1 if it's melee"
+  id=        318 'Stigmata'                          stat_desc='+1 Holy Shield'
+  id=        319 'High Tops'                         stat_desc='10% chance to gain a bonus move each turn'
+  id=        320 'Talons'                            stat_desc='10% chance to gain a bonus attack each turn'
+  id=        321 'Flippers'                          stat_desc='Moving through water tiles costs 0 movement'
+  id=        322 'Bear Claws'                        stat_desc='+1 STR, +1 CON'
+  id=        323 'Beetle Feet'                       stat_desc='+2 SPD'
+  id=        324 'Branches'                          stat_desc='+1 CON'
+  id=        325 'Extra Head'                        stat_desc='-2 SPD, Collarless spells cost -1 mana'
+  id=        326 'Needle Feet'                       stat_desc='Your basic attack inflicts a random debuff'
+  id=        327 'Mushroom Legs'                     stat_desc='Gain 2 random stat ups and 1 random stat down at the end of each turn'
+  id=        328 'Glass Bottle'                      stat_desc='Equip a temporary Bottles weapon at the start of the battle'
+  id=        329 'Water Bottle'                      stat_desc='Equip a temporary Water Bottle trinket at the start of the battle'
+  id=        330 'Sausage Legs'                      stat_desc='+1 Health Regeneration'
+  id=        331 'Jet Legs'                          stat_desc='+1 movement range. Your movement action is a jump'
+  id=        332 'Peg Legs'                          stat_desc='-1 SPD, 50% chance to spawn a pickup on an adjacent tile when you end your turn'
+  id=        333 'Wing Legs'                         stat_desc='Your basic attack has wind element and +1 Knockback'
+  id=        334 'Ape Legs'                          stat_desc="+1 STR, Your basic attack tosses units into the air if it's melee"
+  id=        335 'Glass Legs'                        stat_desc='+1 Bleed Thorns. Spawn glass when you take damage'
+  id=        336 'Crow Legs'                         stat_desc='Your basic attack inflicts Soul Link'
+  id=        337 'Floating Legs'                     stat_desc='You are immune to tile effects'
+  id=        339 'Wing Legs 2'                       stat_desc='+2 SPD, Fly away when hit'
+  id=        340 'Lucky Toe'                         stat_desc='When you take damage, gain +1 [img:lck]'
+  id=        341 'Whip Legs'                         stat_desc='Your basic attack makes units face away from you'
+  id=        343 'Kitten Legs'                       stat_desc='Spawn a Charmed Kitten familiar when you get downed'
+  id=        400 'Mutation 400'                      stat_desc='+2 STR, -1 CON'
+  id=        401 'Mutation 401'                      stat_desc='+2 STR, -1 DEX'
+  id=        402 'Mutation 402'                      stat_desc='+2 STR, -1 CHA'
+  id=        403 'Mutation 403'                      stat_desc='+2 STR, -1 INT'
+  id=        404 'Mutation 404'                      stat_desc='+2 STR, -1 SPD'
+  id=        405 'Mutation 405'                      stat_desc='+2 STR, -1 LCK'
+  id=        406 'Mutation 406'                      stat_desc='-1 STR, +2 CON'
+  id=        407 'Mutation 407'                      stat_desc='+2 CON, -1 DEX'
+  id=        408 'Mutation 408'                      stat_desc='+2 CON, -1 CHA'
+  id=        409 'Mutation 409'                      stat_desc='+2 CON, -1 INT'
+  id=        410 'Mutation 410'                      stat_desc='+2 CON, -1 SPD'
+  id=        411 'Mutation 411'                      stat_desc='+2 CON, -1 LCK'
+  id=        412 'Mutation 412'                      stat_desc='-1 CON, +2 DEX'
+  id=        413 'Mutation 413'                      stat_desc='-1 STR, +2 DEX'
+  id=        414 'Mutation 414'                      stat_desc='+2 DEX, -1 CHA'
+  id=        415 'Mutation 415'                      stat_desc='-1 INT, +2 DEX'
+  id=        416 'Mutation 416'                      stat_desc='+2 DEX, -1 SPD'
+  id=        417 'Mutation 417'                      stat_desc='+2 DEX, -1 LCK'
+  id=        418 'Mutation 418'                      stat_desc='-1 CON, +2 INT'
+  id=        419 'Mutation 419'                      stat_desc='+2 INT, -1 DEX'
+  id=        420 'Mutation 420'                      stat_desc='+2 INT, -1 CHA'
+  id=        421 'Mutation 421'                      stat_desc='-1 STR, +2 INT'
+  id=        422 'Mutation 422'                      stat_desc='+2 INT, -1 SPD'
+  id=        423 'Mutation 423'                      stat_desc='+2 INT, -1 LCK'
+  id=        424 'Mutation 424'                      stat_desc='-1 CON, +2 CHA'
+  id=        425 'Mutation 425'                      stat_desc='-1 DEX, +2 CHA'
+  id=        426 'Mutation 426'                      stat_desc='-1 STR, +2 CHA'
+  id=        427 'Mutation 427'                      stat_desc='-1 INT, +2 CHA'
+  id=        428 'Mutation 428'                      stat_desc='-1 SPD, +2 CHA'
+  id=        429 'Mutation 429'                      stat_desc='-1 LCK, +2 CHA'
+  id=        430 'Mutation 430'                      stat_desc='-1 CON, +2 LCK'
+  id=        431 'Mutation 431'                      stat_desc='-1 DEX, +2 LCK'
+  id=        432 'Mutation 432'                      stat_desc='+2 LCK, -1 CHA'
+  id=        433 'Mutation 433'                      stat_desc='-1 INT, +2 LCK'
+  id=        434 'Mutation 434'                      stat_desc='-1 SPD, +2 LCK'
+  id=        435 'Mutation 435'                      stat_desc='-1 STR, +2 LCK'
+  id=        436 'Mutation 436'                      stat_desc='-1 CON, +2 SPD'
+  id=        437 'Mutation 437'                      stat_desc='-1 STR, +2 SPD'
+  id=        438 'Mutation 438'                      stat_desc='+2 SPD, -1 CHA'
+  id=        439 'Mutation 439'                      stat_desc='-1 INT, +2 SPD'
+  id=        440 'Mutation 440'                      stat_desc='-1 DEX, +2 SPD'
+  id=        441 'Mutation 441'                      stat_desc='+2 SPD, -1 LCK'
+  id=        700 'Lobster Claw'                      stat_desc='-2 STR' [BIRTH_DEFECT]
+  id=        701 'Extra Finger'                      stat_desc='-2 DEX' [BIRTH_DEFECT]
+  id=        702 'Club Foot'                         stat_desc='-2 SPD' [BIRTH_DEFECT]
+  id=        703 'Syndactyly'                        stat_desc='-2 SPD, Water does not slow movement' [BIRTH_DEFECT]
+  id=        704 'Curled Paw'                        stat_desc='-1 STR' [BIRTH_DEFECT]
+  id=        705 'Club Foot2'                        stat_desc='-4 SPD, Trample' [BIRTH_DEFECT]
+  id=        706 'Backwards Knees'                   stat_desc='-1 SPD' [BIRTH_DEFECT]
+  id=        707 'Blob Legs'                         stat_desc='+1 STR, Permanently Slow' [BIRTH_DEFECT]
+  id=        754 'Wing Hoof Legs'                    stat_desc='Your movement action is a jump. Your basic attack inflicts Bruise'
+  id=        756 'Sonichu Legs'                      stat_desc='+2 SPD'
+  id=        757 'Bigfoot Legs'                      stat_desc='Trample'
+  id=        758 'Nessie Legs'                       stat_desc='You have All Stats Up while wet'
+  id=        759 'Nessie Legs'                       stat_desc='You have All Stats Up while wet'
+  id=        761 'Mothman Legs'                      stat_desc='Your movement action is a jump. Your basic attack inflicts Bleed'
+  id=        762 'Slender'                           stat_desc='Ignore the effects of tiles and traps'
+  id=        763 'Slender'                           stat_desc='Ignore the effects of tiles and traps'
+  id=        900 'Slender'                           stat_desc='Ignore the effects of tiles and traps'
+
+-- Raw GON blocks for target IDs in legs: --
+  id=53: (not found)
+  id=707:
+    | ON_LEGS_705_DESC"
+    |         tag birth_defect
+    |         speed -4 
+    |         passives {
+    |             Trample 3
+    |         }
+    |     }
+    | 	706 { //backwards knees
+    |         tag birth_defect
+    |         spd -1
+    |     }
+    | 	707 { //blob legs
+    |         desc "MUTATION_LEGS_707_DESC"
+    |         tag birth_defect
+    |         str 1
+    | 
+    |         passives {
+    |             Slow -1
+    |         }
+    |     }
+
+  id=308:
+    | TATION_LEGS_305_DESC"
+    | 
+    |         passives {
+    |             DodgeChance 5%
+    |         }
+    |     }
+    | 
+    |     306 { //Bug Legs
+    |         tag animal
+    |         dex 1
+    |     }
+    | 
+    |     307 { //Tires
+    |         spd 1
+    |     }
+    | 
+    |     308 { //Human Legs
+    |         lck 1
+    |     }
+
+  MISSING: data/mutations/arms.gon

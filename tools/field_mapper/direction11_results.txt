@@ -1,0 +1,100 @@
+======================================================================
+Direction #11 -- Parser with GPAK loaded
+======================================================================
+Loaded 776 GPAK mutation entries
+
+-- Whommie (db_key=853) --
+  visual_mutation_slots: {'fur': 706, 'body': 95, 'head': 304, 'tail': 751, 'leg_L': 53, 'leg_R': 53, 'arm_L': 203, 'arm_R': 203, 'eye_L': 139, 'eye_R': 139, 'eyebrow_L': 23, 'eyebrow_R': 23, 'ear_L': 30, 'ear_R': 30, 'mouth': 215}
+  mutations: ['Sludge Head', 'Beaver Tail*']
+  defects:   ['Fur Birth Defect']
+
+-- Bud (db_key=887) --
+  visual_mutation_slots: {'fur': 161, 'body': 401, 'head': 319, 'tail': 751, 'leg_L': 707, 'leg_R': 707, 'arm_L': 203, 'arm_R': 203, 'eye_L': 139, 'eye_R': 139, 'eyebrow_L': 23, 'eyebrow_R': 23, 'ear_L': 132, 'ear_R': 132, 'mouth': 410}
+  mutations: ['Body Mutation +2 STR, -1 DEX', 'Exposed Brain', 'Beaver Tail*', 'Mouth Mutation +2 CON, -1 SPD']
+  defects:   ['Leg Birth Defect']
+
+-- Kami (db_key=840) --
+  visual_mutation_slots: {'fur': 174, 'body': 300, 'head': 99, 'tail': 751, 'leg_L': 53, 'leg_R': 53, 'arm_L': 203, 'arm_R': 203, 'eye_L': 139, 'eye_R': 139, 'eyebrow_L': 23, 'eyebrow_R': 23, 'ear_L': 30, 'ear_R': 30, 'mouth': 215}
+  mutations: ['Rock Bod', 'Beaver Tail*']
+  defects:   []
+
+-- Romanoba (db_key=826) --
+  visual_mutation_slots: {'fur': 161, 'body': 95, 'head': 65, 'tail': 751, 'leg_L': 203, 'leg_R': 203, 'arm_L': 203, 'arm_R': 203, 'eye_L': 139, 'eye_R': 139, 'eyebrow_L': 23, 'eyebrow_R': 23, 'ear_L': 30, 'ear_R': 30, 'mouth': 415}
+  mutations: ['Beaver Tail*', 'Mouth Mutation -1 INT, +2 DEX']
+  defects:   []
+
+-- Petronij (db_key=841) --
+  visual_mutation_slots: {'fur': 174, 'body': 95, 'head': 99, 'tail': 751, 'leg_L': 53, 'leg_R': 53, 'arm_L': 203, 'arm_R': 203, 'eye_L': 139, 'eye_R': 139, 'eyebrow_L': 23, 'eyebrow_R': 23, 'ear_L': 101, 'ear_R': 101, 'mouth': 215}
+  mutations: ['Beaver Tail*']
+  defects:   []
+
+-- Murisha (db_key=852) --
+  visual_mutation_slots: {'fur': 413, 'body': 401, 'head': 319, 'tail': 751, 'leg_L': 308, 'leg_R': 308, 'arm_L': 441, 'arm_R': 441, 'eye_L': 301, 'eye_R': 301, 'eyebrow_L': 428, 'eyebrow_R': 428, 'ear_L': 132, 'ear_R': 132, 'mouth': 410}
+  mutations: ['Fur Mutation -1 STR, +2 DEX', 'Body Mutation +2 STR, -1 DEX', 'Exposed Brain', 'Beaver Tail*', 'Human Legs', 'Arm Mutation +2 SPD, -1 LCK', 'Demon Eyes', 'Eyebrow Mutation -1 SPD, +2 CHA', 'Mouth Mutation +2 CON, -1 SPD']
+  defects:   []
+
+======================================================================
+STEP 2 -- All cats with 'Eye' or 'Eyebrow' or 'Ear' Birth Defect
+======================================================================
+  Flekpus              db_key=68  defects=['Eyebrow Birth Defect']  slots=eye:401 brow:4294967294 ear:84
+  Cat                  db_key=87  defects=['Ear Birth Defect']  slots=eye:185 brow:151 ear:700
+  Joe Cucumber         db_key=93  defects=['Ear Birth Defect']  slots=eye:185 brow:151 ear:703
+  Trudy                db_key=106  defects=['Eyebrow Birth Defect']  slots=eye:185 brow:700 ear:187
+  Berlioz              db_key=115  defects=['Eye Birth Defect']  slots=eye:704 brow:40 ear:410
+  Ichabod              db_key=116  defects=['Eyebrow Birth Defect']  slots=eye:185 brow:700 ear:164
+  Will                 db_key=122  defects=['Eye Birth Defect']  slots=eye:704 brow:40 ear:235
+  Nestor               db_key=125  defects=['Eyebrow Birth Defect']  slots=eye:228 brow:700 ear:164
+  Yertle               db_key=129  defects=['Body Birth Defect', 'Eyebrow Birth Defect']  slots=eye:185 brow:700 ear:187
+  Ernest               db_key=130  defects=['Eyebrow Birth Defect']  slots=eye:185 brow:700 ear:187
+  Charlotte            db_key=134  defects=['Eyebrow Birth Defect']  slots=eye:228 brow:700 ear:164
+  Kiscica              db_key=135  defects=['Eyebrow Birth Defect']  slots=eye:85 brow:700 ear:198
+  Lucina               db_key=149  defects=['Eyebrow Birth Defect']  slots=eye:69 brow:700 ear:164
+  Mausi                db_key=222  defects=['Eye Birth Defect']  slots=eye:700 brow:202 ear:340
+  Tinka                db_key=240  defects=['Ear Birth Defect']  slots=eye:181 brow:110 ear:704
+  Cabot                db_key=252  defects=['Ear Birth Defect']  slots=eye:181 brow:40 ear:703
+  Lauralee             db_key=315  defects=['Eye Birth Defect']  slots=eye:706 brow:40 ear:30
+  Nari                 db_key=345  defects=['Eyebrow Birth Defect']  slots=eye:38 brow:4294967294 ear:30
+  Stojan               db_key=484  defects=['Eyebrow Birth Defect']  slots=eye:181 brow:700 ear:201
+  Galipette            db_key=549  defects=['Eye Birth Defect']  slots=eye:705 brow:428 ear:30
+  Megantron            db_key=558  defects=['Eyebrow Birth Defect']  slots=eye:181 brow:700 ear:248
+  Beza                 db_key=583  defects=['Eyebrow Birth Defect']  slots=eye:181 brow:700 ear:248
+  Marusya              db_key=586  defects=['Eye Birth Defect']  slots=eye:706 brow:428 ear:159
+  Norburt              db_key=598  defects=['Ear Birth Defect']  slots=eye:169 brow:428 ear:703
+  Scronc               db_key=617  defects=['Eye Birth Defect']  slots=eye:4294967294 brow:428 ear:30
+  Birba                db_key=627  defects=['Eye Birth Defect', 'Mouth Birth Defect']  slots=eye:704 brow:40 ear:248
+  Salchicha            db_key=649  defects=['Eyebrow Birth Defect']  slots=eye:169 brow:700 ear:30
+  Katy Kat             db_key=693  defects=['Ear Birth Defect']  slots=eye:181 brow:428 ear:4294967294
+  Graycee              db_key=698  defects=['Eyebrow Birth Defect']  slots=eye:181 brow:702 ear:30
+  Plurb                db_key=701  defects=['Eyebrow Birth Defect']  slots=eye:169 brow:701 ear:20
+  Mr. Amazing          db_key=717  defects=['Eyebrow Birth Defect']  slots=eye:6 brow:702 ear:132
+  Mochi                db_key=752  defects=['Eye Birth Defect']  slots=eye:700 brow:23 ear:30
+  Zoro                 db_key=761  defects=['Eyebrow Birth Defect']  slots=eye:169 brow:701 ear:20
+  Maze                 db_key=765  defects=['Eye Birth Defect']  slots=eye:701 brow:428 ear:159
+  Korven               db_key=777  defects=['Eye Birth Defect']  slots=eye:704 brow:310 ear:30
+  Mr. Nibbles          db_key=781  defects=['Eyebrow Birth Defect']  slots=eye:169 brow:701 ear:340
+  Tiddles              db_key=789  defects=['Eyebrow Birth Defect']  slots=eye:169 brow:4294967294 ear:335
+  Large Tonius         db_key=790  defects=['Eyebrow Birth Defect']  slots=eye:169 brow:700 ear:106
+  Normita              db_key=812  defects=['Eyebrow Birth Defect']  slots=eye:21 brow:701 ear:319
+  Dian Nao Chong       db_key=850  defects=['Eyebrow Birth Defect']  slots=eye:6 brow:701 ear:20
+  Zosia                db_key=851  defects=['Eyebrow Birth Defect', 'Ear Birth Defect']  slots=eye:169 brow:701 ear:702
+  Melaan               db_key=858  defects=['Tail Birth Defect', 'Eye Birth Defect']  slots=eye:706 brow:23 ear:340
+  Alaya                db_key=861  defects=['Ear Birth Defect']  slots=eye:21 brow:310 ear:4294967294
+  Kipling              db_key=878  defects=['Tail Birth Defect', 'Eyebrow Birth Defect']  slots=eye:301 brow:702 ear:340
+  Pattison             db_key=884  defects=['Ear Birth Defect']  slots=eye:6 brow:40 ear:704
+  Cannelle             db_key=895  defects=['Body Birth Defect', 'Ear Birth Defect']  slots=eye:21 brow:310 ear:4294967294
+  Wiskoso              db_key=896  defects=['Eyebrow Birth Defect']  slots=eye:6 brow:701 ear:20
+  Arnold               db_key=929  defects=['Body Birth Defect', 'Eyebrow Birth Defect']  slots=eye:169 brow:701 ear:20
+
+======================================================================
+STEP 3 -- Summary of defects across 888+ cats
+======================================================================
+     45  Mouth Birth Defect
+     27  Eyebrow Birth Defect
+     16  Leg Birth Defect
+     16  Arm Birth Defect
+     14  Tail Birth Defect
+     13  Fur Birth Defect
+     12  Eye Birth Defect
+     12  Body Birth Defect
+     10  Head Birth Defect
+     10  Ear Birth Defect
