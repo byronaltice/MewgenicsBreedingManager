@@ -1,0 +1,78 @@
+======================================================================
+Direction 7f -- T[2] and T[index+2..4] defect correlation
+======================================================================
+
+STEP 1 -- T[2] value roster-wide vs defect presence
+----------------------------------------------------------------------
+  Processed 923 cats
+  Defective cats: 164  Clean cats: 759
+  T[2] distribution for DEFECTIVE cats (top 10): [(4294967295, 142), (54, 3), (52, 3), (64, 3), (55, 2), (51, 2), (68, 2), (66, 2), (53, 1), (63, 1)]
+  T[2] distribution for CLEAN cats (top 10): [(4294967295, 494), (52, 50), (51, 31), (50, 27), (64, 25), (68, 21), (55, 18), (54, 18), (53, 17), (65, 17)]
+  Defective cats with T[2]=0xFFFFFFFF: 142
+  Defective cats with T[2]!=0xFFFFFFFF (counter-examples): 22
+    Flekpus: T[2]=0x00000036  defects=['Eyebrow Birth Defect']
+    Roberto: T[2]=0x00000035  defects=['Leg Birth Defect']
+    Bubbers: T[2]=0x00000037  defects=['Fur Birth Defect']
+    Lorde: T[2]=0x00000033  defects=['Fur Birth Defect']
+    Trudy: T[2]=0x00000034  defects=['Eyebrow Birth Defect']
+    Berlioz: T[2]=0x00000034  defects=['Eye Birth Defect']
+    Ichabod: T[2]=0x00000044  defects=['Eyebrow Birth Defect']
+    Nestor: T[2]=0x00000036  defects=['Eyebrow Birth Defect']
+    Yoriczek: T[2]=0x00000044  defects=['Mouth Birth Defect']
+    Lucyfer: T[2]=0x00000034  defects=['Mouth Birth Defect']
+  Clean cats with T[2]=0xFFFFFFFF (false positives): 494
+    Edwin
+    Tamara
+    Moomoo
+    Escobar
+    Raff
+    Marie
+    Mewgenia
+    Demoni
+    Loptica
+    Trompita
+
+STEP 2 -- For each slot, T[index+2] values by defect-on-that-slot
+----------------------------------------------------------------------
+  body: defect_n=12  clean_n=911
+    T[+2] defect: [(0, 12)]  clean: [(0, 858), (6, 9), (2, 8)]
+    T[+3] defect: [(0, 12)]  clean: [(0, 911)]
+  head: defect_n=10  clean_n=913
+    T[+2] defect: [(0, 8), (26, 1), (15, 1)]  clean: [(0, 795), (30, 13), (25, 10)]
+    T[+3] defect: [(0, 10)]  clean: [(0, 913)]
+  tail: defect_n=14  clean_n=909
+    T[+2] defect: [(0, 14)]  clean: [(0, 909)]
+    T[+3] defect: [(0, 14)]  clean: [(0, 909)]
+  leg_L: defect_n=16  clean_n=907
+    T[+2] defect: [(0, 15), (5, 1)]  clean: [(0, 858), (5, 6), (4, 6)]
+    T[+3] defect: [(3, 4), (4, 2), (6, 2)]  clean: [(6, 102), (4, 101), (7, 100)]
+  leg_R: defect_n=16  clean_n=907
+    T[+2] defect: [(0, 15), (24, 1)]  clean: [(0, 868), (3, 5), (5, 5)]
+    T[+3] defect: [(3, 4), (4, 2), (6, 2)]  clean: [(6, 102), (4, 101), (7, 100)]
+  arm_L: defect_n=16  clean_n=907
+    T[+2] defect: [(0, 16)]  clean: [(0, 871), (24, 3), (10, 3)]
+    T[+3] defect: [(9, 5), (6, 2), (4, 2)]  clean: [(6, 102), (4, 101), (7, 99)]
+  arm_R: defect_n=16  clean_n=907
+    T[+2] defect: [(0, 16)]  clean: [(0, 865), (11, 5), (18, 5)]
+    T[+3] defect: [(9, 5), (6, 2), (4, 2)]  clean: [(6, 102), (4, 101), (7, 99)]
+  eye_L: defect_n=39  clean_n=884
+    T[+2] defect: [(0, 39)]  clean: [(0, 884)]
+    T[+3] defect: [(0, 39)]  clean: [(0, 884)]
+  eye_R: defect_n=39  clean_n=884
+    T[+2] defect: [(0, 39)]  clean: [(0, 884)]
+    T[+3] defect: [(0, 39)]  clean: [(0, 884)]
+  eyebrow_L: defect_n=27  clean_n=896
+    T[+2] defect: [(0, 27)]  clean: [(0, 896)]
+    T[+3] defect: [(0, 27)]  clean: [(0, 896)]
+  eyebrow_R: defect_n=27  clean_n=896
+    T[+2] defect: [(0, 27)]  clean: [(0, 896)]
+    T[+3] defect: [(0, 27)]  clean: [(0, 896)]
+  ear_L: defect_n=10  clean_n=913
+    T[+2] defect: [(0, 10)]  clean: [(0, 913)]
+    T[+3] defect: [(0, 10)]  clean: [(0, 913)]
+  ear_R: defect_n=10  clean_n=913
+    T[+2] defect: [(0, 10)]  clean: [(0, 913)]
+    T[+3] defect: [(0, 10)]  clean: [(0, 913)]
+  mouth: defect_n=45  clean_n=878
+    T[+2] defect: [(0, 45)]  clean: [(0, 878)]
+    T[+3] defect: [(0, 45)]  clean: [(0, 878)]

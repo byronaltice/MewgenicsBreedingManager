@@ -1,0 +1,53 @@
+======================================================================
+Direction 7b -- Parallel variant array search
+======================================================================
+  Whommie: blob_len=938  t_start=0x8e  defects=['Fur Birth Defect']
+  Kami: blob_len=957  t_start=0x89  defects=[]
+  Bud: blob_len=926  t_start=0x86  defects=['Leg Birth Defect']
+  Petronij: blob_len=943  t_start=0x8c  defects=[]
+  Romanoba: blob_len=962  t_start=0x8c  defects=[]
+  Murisha: blob_len=960  t_start=0x8e  defects=[]
+
+  Whommie: 0 total hits, 0 outside T array
+  Kami: 1 total hits, 1 outside T array
+  Bud: 0 total hits, 0 outside T array
+  Petronij: 0 total hits, 0 outside T array
+  Romanoba: 4 total hits, 0 outside T array
+  Murisha: 0 total hits, 0 outside T array
+
+======================================================================
+STEP 1: Whommie hits MINUS Kami hits (same rel-offset AND value)
+======================================================================
+  Whommie has 0 unique sentinel hits after T-end:
+
+======================================================================
+STEP 2: Bud hits MINUS Kami hits (for ear defect)
+======================================================================
+  Bud has 0 unique sentinel hits after T-end:
+
+======================================================================
+STEP 3: Candidate offsets = Whommie-unique AND Bud-unique
+        (a true variant array would be at a consistent rel-offset
+         across all cats; defect cats have sentinels, clean ones 0)
+======================================================================
+  Shared offsets (Whommie+Bud, not in Kami): 0
+
+======================================================================
+STEP 4: Also anchor from BLOB END (defect array may be near tail)
+======================================================================
+  Shared end-anchored offsets (Whommie+Bud, not Kami): 0
+
+======================================================================
+STEP 5: Look for a 15-u32 block where slot pattern matches defects
+        Whommie: slots eye_L(8), eye_R(9), eyebrow_L(10), eyebrow_R(11)
+                 should be non-zero; fur(0) might also be non-zero.
+        Bud: slots ear_L(12), ear_R(13) should be non-zero;
+             legs(4,5) non-zero (Blob Legs is detected already).
+======================================================================
+  Whommie 15-u32 windows with non-zero EXACTLY at {0, 8, 9, 10, 11}: 0 candidates
+  Bud 15-u32 windows with non-zero EXACTLY at {12, 13, 4, 5}: 0 candidates
+
+  Looser: windows where defect_slots are all non-zero AND all defect
+  slot values are in {2, 0xFFFFFFFE, or small integers <= 10}:
+  Whommie looser candidates: 0
+  Bud looser candidates: 0

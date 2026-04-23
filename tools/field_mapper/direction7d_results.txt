@@ -1,0 +1,48 @@
+======================================================================
+Direction 7d -- save_file_cat + unaligned 0x0002 diff + reorder bitmask
+======================================================================
+
+STEP 1 -- save_file_cat blob
+----------------------------------------------------------------------
+  decompressed size: 936
+  First 256 bytes:
+    0000: 13 00 00 00 4e da 47 7c e7 1e 35 97 06 00 00 00   ....N.G|..5.....
+    0010: 00 00 00 00 43 00 6c 00 61 00 75 00 64 00 65 00   ....C.l.a.u.d.e.
+    0020: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00   ................
+    0030: 00 00 00 00 00 00 00 00 04 00 00 00 00 00 00 00   ................
+    0040: 4e 6f 6e 65 01 00 00 00 fd c1 8a 5e 17 08 d5 3f   None.......^...?
+    0050: c3 ae 79 25 89 0b b1 3f ff ff ff ff ff ff ff ff   ..y%...?........
+    0060: 00 00 00 00 00 00 00 00 f4 f4 e8 79 b8 17 cf 3f   ...........y...?
+    0070: ff ff ff ff ff ff ff ff 00 00 00 00 00 00 00 00   ................
+    0080: ba ed 60 f8 28 63 f0 3f 43 00 00 00 05 00 00 00   ..`.(c.?C.......
+    0090: ff ff ff ff af 01 00 00 43 00 00 00 00 00 00 00   ........C.......
+    00a0: 00 00 00 00 00 00 00 00 b3 01 00 00 43 00 00 00   ............C...
+    00b0: 00 00 00 00 00 00 00 00 00 00 00 00 ad 01 00 00   ................
+    00c0: 43 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00   C...............
+    00d0: fa 02 00 00 43 00 00 00 00 00 00 00 02 00 00 00   ....C...........
+    00e0: 00 00 00 00 fa 02 00 00 43 00 00 00 00 00 00 00   ........C.......
+    00f0: 02 00 00 00 00 00 00 00 a9 01 00 00 43 00 00 00   ............C...
+
+STEP 2 -- Unaligned 0x0002 offsets (T-anchored), Whommie vs Kami
+----------------------------------------------------------------------
+  Whommie: 18 unaligned 0x0002 hits  (defects=['Fur Birth Defect'])
+  Kami: 8 unaligned 0x0002 hits  (defects=[])
+  Bud: 4 unaligned 0x0002 hits  (defects=['Leg Birth Defect'])
+  Petronij: 1 unaligned 0x0002 hits  (defects=[])
+  Romanoba: 6 unaligned 0x0002 hits  (defects=[])
+  Murisha: 5 unaligned 0x0002 hits  (defects=[])
+
+  Whommie-only (not at same T-rel offset in Kami): 15
+    rel offsets: ['0x1', '0x11', '0x25', '0x39', '0x4d', '0x61', '0x75', '0x89', '0x9d', '0xb1', '0xc5', '0xd9', '0xed', '0x101', '0x115']
+  Whommie-only offsets that are also in Bud: []
+  Offsets in BOTH defective cats but in NONE of 4 clean cats: []
+
+STEP 3 -- Bitmask with alternate slot orderings
+----------------------------------------------------------------------
+  part10 W fur+eyes+ebrows=0xc1: Wh(u32=0,u16=0) Ka(u32=0,u16=0) Bu(u32=0,u16=0)
+  part10 B legs+ears=0x110: Wh(u32=0,u16=0) Ka(u32=0,u16=0) Bu(u32=0,u16=0)
+
+STEP 4 -- U32 values present in Whommie but NOT in Kami at all
+----------------------------------------------------------------------
+  Values in BOTH Whommie and Bud (not Kami): 6
+  First 40: [115, 1637, 2304, 29555, 419182, 589824]

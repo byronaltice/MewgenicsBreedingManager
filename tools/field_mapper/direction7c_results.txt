@@ -1,0 +1,130 @@
+======================================================================
+Direction 7c -- Bitmask / byte-diff / unaligned search
+======================================================================
+
+STEP 1 -- Bitmask candidates
+----------------------------------------------------------------------
+  Slot order: ['fur', 'body', 'head', 'tail', 'leg_L', 'leg_R', 'arm_L', 'arm_R', 'eye_L', 'eye_R', 'eyebrow_L', 'eyebrow_R', 'ear_L', 'ear_R', 'mouth']
+  Whommie mask fur+eyeL+eyeR+ebL+ebR=0xf01: Whommie_hits=0 Kami_hits=0
+  Whommie mask eyeL+eyeR+ebL+ebR=0xf00: Whommie_hits=0 Kami_hits=0
+  Whommie mask fur+eyeL+ebL=0x501: Whommie_hits=0 Kami_hits=0
+  Whommie mask eyeL+ebL=0x500: Whommie_hits=5 Kami_hits=7
+  Whommie mask fur+eyes_bit+ebrows_bit=0x501: Whommie_hits=0 Kami_hits=0
+  Bud mask legL+legR+earL+earR=0x3030: Bud_hits=0 Kami_hits=0
+  Bud mask earL+earR=0x3000: Bud_hits=0 Kami_hits=0
+  Bud mask leg+ear_single=0x1010: Bud_hits=0 Kami_hits=0
+
+  u16 variants:
+
+STEP 2 -- Unaligned scans for value 2 and 0xFFFE
+----------------------------------------------------------------------
+  u16=0x2: Whommie=18 Kami=8 Bud=4
+  u16=0xfffe: Whommie=0 Kami=0 Bud=0
+
+STEP 3 -- Byte diff: Whommie vs Kami, anchored at T_start
+----------------------------------------------------------------------
+  Bytes differing at T+>=400: 197
+  13 diff clusters:
+    T+0x1c3..+0x1c3 (1 bytes)
+      Whommie: 10 00 00 00 00 00 00 00 42
+      Kami:    11 00 00 00 00 00 00 00 42
+    T+0x1d0..+0x1dc (13 bytes)
+      Whommie: 53 68 6f 72 74 52 61 6e 67 65 64 06 00 00 00 00
+      Kami:    44 72 75 69 64 41 62 69 6c 69 74 79 07 00 00 00
+    T+0x1e3..+0x1eb (9 bytes)
+      Whommie: 53 74 61 73 69 73 04 00 00 00 00 00 00 00 4e 6f
+      Kami:    00 53 74 61 73 69 73 32 09 00 00 00 00 00 00 00
+    T+0x1f1..+0x233 (60 bytes)
+      Whommie: 4e 6f 6e 65 04 00 00 00 00 00 00 00 4e 6f 6e 65
+      Kami:    00 00 52 68 69 6e 6f 46 6f 72 6d 0d 00 00 00 00
+    T+0x238..+0x23f (8 bytes)
+      Whommie: 00 00 00 4e 6f 6e 65 04 00 00 00 00 00 00 00 4e
+      Kami:    4e 6f 6e 65 04 00 00 00 00 00 00 00 4e 6f 6e 65
+    T+0x244..+0x28e (54 bytes)
+      Whommie: 00 00 00 4e 6f 6e 65 01 00 00 00 04 00 00 00 00
+      Kami:    4e 6f 6e 65 04 00 00 00 00 00 00 00 4e 6f 6e 65
+    T+0x293..+0x29b (7 bytes)
+      Whommie: 05 00 00 00 00 09 00 00 00 00 00 00 00 43 6f
+      Kami:    4e 6f 6e 65 01 00 00 00 05 00 00 00 00 05 00
+    T+0x2a0..+0x2aa (10 bytes)
+      Whommie: 43 6f 6c 6f 72 6c 65 73 73 00 00 00 00 00 00 a8
+      Kami:    05 00 00 00 00 05 00 00 00 00 05 00 00 00 00 05
+    T+0x2af..+0x2b5 (7 bytes)
+      Whommie: a8 31 3f 23 d5 3f 92 00 00 00 00 00 00 00 ff
+      Kami:    05 00 00 00 00 05 00 00 00 00 00 00 00 44 72
+    T+0x2bc..+0x2cd (16 bytes)
+      Whommie: 00 ff ff ff ff ff ff ff ff 00 00 00 00 00 00 00
+      Kami:    44 72 75 69 64 06 00 00 00 00 00 80 60 d5 91 bf
+    T+0x2d5..+0x2dc (8 bytes)
+      Whommie: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+      Kami:    ff ff ff ff ff ff ff ff 00 00 00 00 00 00 00 00
+    T+0x2ea..+0x2eb (2 bytes)
+      Whommie: 00 00 00 00 00 00 00 00 00 00
+      Kami:    c0 02 00 00 00 00 00 03 03 00
+    T+0x2f1..+0x2f2 (2 bytes)
+      Whommie: 00 00 00 00 00 00 00 00 00 00
+      Kami:    03 03 00 00 00 00 00 00 00 00
+
+STEP 4 -- Byte diff: Whommie vs Kami, anchored from BLOB END
+----------------------------------------------------------------------
+  Bytes differing in last 400 bytes: 199
+  15 diff clusters (end-anchored):
+    end-400..-399
+      Whommie: 00 00 00 00 00 00 00 00 00 00 04 00 00 00 00 00
+      Kami:    ff 3f 00 00 00 00 00 00 00 00 00 00 0b 00 00 00
+    end-390..-388
+      Whommie: 04 00 00 00 00 00 00 00 6e 6f 6e 65 ff ff ff 3f
+      Kami:    00 00 0b 00 00 00 00 00 00 00 44 65 66 61 75 6c
+    end-382..-369
+      Whommie: 6e 6f 6e 65 ff ff ff 3f 00 00 00 00 00 00 00 00
+      Kami:    00 00 44 65 66 61 75 6c 74 4d 6f 76 65 11 00 00
+    end-364..-344
+      Whommie: 0b 00 00 00 00 00 00 00 44 65 66 61 75 6c 74 4d
+      Kami:    00 00 00 42 61 73 69 63 44 72 75 69 64 41 62 69
+    end-337..-271
+      Whommie: 42 61 73 69 63 53 68 6f 72 74 52 61 6e 67 65 64
+      Kami:    00 53 74 61 73 69 73 32 09 00 00 00 00 00 00 00
+    end-266..-257
+      Whommie: 00 00 00 53 74 61 73 69 73 04 00 00 00 00 00 00
+      Kami:    53 74 61 73 69 73 04 00 00 00 00 00 00 00 4e 6f
+    end-252..-245
+      Whommie: 00 00 00 4e 6f 6e 65 04 00 00 00 00 00 00 00 4e
+      Kami:    4e 6f 6e 65 04 00 00 00 00 00 00 00 4e 6f 6e 65
+    end-240..-233
+      Whommie: 00 00 00 4e 6f 6e 65 04 00 00 00 00 00 00 00 4e
+      Kami:    4e 6f 6e 65 04 00 00 00 00 00 00 00 4e 6f 6e 65
+    end-228..-221
+      Whommie: 00 00 00 4e 6f 6e 65 04 00 00 00 00 00 00 00 4e
+      Kami:    4e 6f 6e 65 07 00 00 00 00 00 00 00 42 6f 75 71
+    end-216..-210
+      Whommie: 00 00 00 4e 6f 6e 65 01 00 00 00 04 00 00 00 00
+      Kami:    42 6f 75 71 75 65 74 01 00 00 00 08 00 00 00 00
+    end-205..-205
+      Whommie: 04 00 00 00 00 00 00 00 4e 6f 6e 65 01 00 00 00
+      Kami:    08 00 00 00 00 00 00 00 42 61 72 6b 53 6b 69 6e
+    end-197..-115
+      Whommie: 4e 6f 6e 65 01 00 00 00 04 00 00 00 00 00 00 00
+      Kami:    42 61 72 6b 53 6b 69 6e 01 00 00 00 04 00 00 00
+    end-109..-103
+      Whommie: a8 31 3f 23 d5 3f 92 00 00 00 00 00 00 00 ff ff
+      Kami:    80 60 d5 91 bf 3f 90 00 00 00 00 00 00 00 ff ff
+    end-74..-73
+      Whommie: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+      Kami:    c0 02 00 00 00 00 00 03 03 00 00 00 00 00 00 00
+    end-67..-66
+      Whommie: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+      Kami:    03 03 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+
+STEP 5 -- Full files table enumeration
+----------------------------------------------------------------------
+  key='save_file_cat'  size=936
+  key='unlocks'  size=2368
+  key='house_unlocks'  size=169
+  key='name_gen_history_w'  size=10512
+  key='pedigree'  size=172368
+  key='inventory_backpack'  size=4
+  key='inventory_storage'  size=1722
+  key='inventory_trash'  size=4
+  key='npc_progress'  size=22825
+  key='tutorial_tokens'  size=1478
+  key='house_state'  size=3421

@@ -1,0 +1,27 @@
+======================================================================
+Direction 7e -- Pedigree targeted + string search
+======================================================================
+  Whommie uid=0xf583b3e1520c04fd  Kami uid=0x28d818f66b0ef2e7  Bud uid=0x4d693a3c3fbaa53f
+  Petronij uid=0x43067744b4e01472
+
+STEP 1 -- Pedigree: locate each cat's UID bytes
+----------------------------------------------------------------------
+  Pedigree decompressed: 172368 bytes
+  Whommie: 0 pedigree offsets: []
+  Kami: 0 pedigree offsets: []
+  Bud: 0 pedigree offsets: []
+  Petronij: 0 pedigree offsets: []
+
+STEP 2 -- Bytes around each cat's FIRST pedigree entry
+----------------------------------------------------------------------
+  Whommie: UID not found
+  Kami: UID not found
+  Bud: UID not found
+
+STEP 3 -- Structured per-cat record diff
+----------------------------------------------------------------------
+  Cats with UID in pedigree: 0
+
+STEP 4 -- Search all files-table blobs for defect-related strings
+----------------------------------------------------------------------
+  cats-table hits by needle: {b'birth_defect': 0, b'BIRTH_DEFECT': 0, b'BirthDefect': 0, b'defect': 0, b'Defect': 0, b'variant': 0, b'no_part': 0, b'MUTATION_EYES_M2': 0, b'NoPart': 0}
