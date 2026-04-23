@@ -1,65 +1,194 @@
 ======================================================================
-Direction #13 -- Remaining pedigree and post-run blob leads
+Direction #13 -- Full run_items dump + post-disorders blob analysis
 ======================================================================
-======================================================================
-STEP 1 -- Verify pedigree blob boundaries
-======================================================================
-Pedigree blob size: 172368 bytes
-Table 1 child->parents rows: 934  next_offset=67600
-Table 2 COI memo rows:       2484  next_offset=170024
-Table 3 accessible rows:     69  next_offset=172368
-Leftover bytes after table 3: 0
-Result: pedigree is fully consumed by the 3 known hash tables; there is no hidden tail section.
+Save: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\steamcampaign01.sav
 
 ======================================================================
-STEP 2 -- Dump unread bytes between ability parse and class prefix
+STEP 1 -- Full run_items dump for each target cat
 ======================================================================
-Whommie: len(raw)=938 curr=0x224 run_start=0x23e after_run=0x30d
-  class_prefix=0x326 class='Colorless' gap_len=25
-  gap_hex=05000000000500000000050000000005000000000500000000
-Bud: len(raw)=926 curr=0x21e run_start=0x238 after_run=0x301
-  class_prefix=0x31a class='Colorless' gap_len=25
-  gap_hex=05000000000500000000050000000005000000000500000000
-Kami: len(raw)=957 curr=0x21f run_start=0x239 after_run=0x324
-  class_prefix=0x33d class='Druid' gap_len=25
-  gap_hex=05000000000500000000050000000005000000000500000000
-Petronij: len(raw)=943 curr=0x222 run_start=0x23c after_run=0x312
-  class_prefix=0x32b class='Colorless' gap_len=25
-  gap_hex=05000000000500000000050000000005000000000500000000
-Romanoba: len(raw)=962 curr=0x223 run_start=0x23d after_run=0x325
-  class_prefix=0x33e class='Colorless' gap_len=25
-  gap_hex=05000000000500000000050000000005000000000500000000
-Murisha: len(raw)=960 curr=0x226 run_start=0x240 after_run=0x323
-  class_prefix=0x33c class='Colorless' gap_len=25
-  gap_hex=05000000000500000000050000000005000000000500000000
+-- Whommie (db_key=853): MISSING Eye+Eyebrow defects --
+   detected defects: ['Fur Birth Defect']
+  Whommie: 11 run_items
+    [ 0] @0x23e 'DefaultMove'                  [DefaultMove]
+    [ 1] @0x251 'BasicShortRanged'             [ability1]
+    [ 2] @0x269 'Stasis'                       [ability2]
+    [ 3] @0x277 'None'                         [ability3]
+    [ 4] @0x283 'None'                         [ability4]
+    [ 5] @0x28f 'None'                         [ability5]
+    [ 6] @0x29b 'Stasis'                       [SLOT6-UNKNOWN]
+    [ 7] @0x2a9 'None'                         [SLOT7-UNKNOWN]
+    [ 8] @0x2b5 'None'                         [SLOT8-UNKNOWN]
+    [ 9] @0x2c1 'None'                         [SLOT9-UNKNOWN]
+    [10] @0x2cd 'None'                         [passive/slot10]
+  passive1_tier: 1 (at 0x2d9)
+  tail[0]: 'None'               tier=1  @0x2dd
+  tail[1]: 'None'               tier=1  @0x2ed
+  tail[2]: 'None'               tier=1  @0x2fd
+  post-disorders pos: 0x30d  blob_len: 0x3aa  remaining: 157
+  remaining bytes (first 80): 050000000005000000000500000000050000000005000000000900000000000000436f6c6f726c657373000000000000a8313f23d53f9200000000000000ffffffffffffffff00000000000000000000
 
-Top roster-wide post-run gap patterns:
-  count=793 gap_len= 25 example=Edwin hex=05000000000500000000050000000005000000000500000000
-  count= 19 gap_len= 70 example=Erin hex=05000000000500000000050000000005000000010b0000000000000042757463686572486f6f6b0000000000000000ffffffff000000000800000000000000ff010500000000
-  count=  5 gap_len=117 example=Frenz hex=050000000005000000000500000000050000000108000000000000004d6f6e6b466973740000000000000000ffffffff000000000800000000000000ff01050000000110000000000000004d6f6e6b5374796c654368616e6765720000000000000000ffffffff000000000800000000000000ff01
-  count=  3 gap_len=117 example=Maggie May hex=050000000005000000000500000000050000000108000000000000004d6f6e6b466973740000000000000000ffffffff00000000080000007f969800ff01050000000110000000000000004d6f6e6b5374796c654368616e6765720000000000000000ffffffff00000000080000007f969800ff01
-  count=  2 gap_len= 71 example=Roxwinne hex=0500000000050000000005000000010c0000000000000042616453706c696e746572730000000000000000ffffffff000000000000000000000000ff0005000000000500000000
-  count=  1 gap_len= 69 example=Melanka hex=050000000005000000000500000000050000000005000000010a0000000000000050757472696450696c650000000000000000ffffffff00000000000000007f969800ff00
-  count=  1 gap_len= 65 example=Estrella hex=05000000000500000001060000000000000043616c6c75730000000000000000ffffffff0600000000000000ef030000ff01050000000005000000000500000000
-  count=  1 gap_len= 70 example=Pixey hex=050000000005000000000500000000050000000005000000010b00000000000000426f74666c794c617276610000000000000000ffffffff00000000000000007f969800ff00
+-- Bud (db_key=887): MISSING Ear defect --
+   detected defects: ['Leg Birth Defect']
+  Bud: 11 run_items
+    [ 0] @0x238 'DefaultMove'                  [DefaultMove]
+    [ 1] @0x24b 'BasicMelee'                   [ability1]
+    [ 2] @0x25d 'Stasis'                       [ability2]
+    [ 3] @0x26b 'None'                         [ability3]
+    [ 4] @0x277 'None'                         [ability4]
+    [ 5] @0x283 'None'                         [ability5]
+    [ 6] @0x28f 'Stasis'                       [SLOT6-UNKNOWN]
+    [ 7] @0x29d 'None'                         [SLOT7-UNKNOWN]
+    [ 8] @0x2a9 'None'                         [SLOT8-UNKNOWN]
+    [ 9] @0x2b5 'None'                         [SLOT9-UNKNOWN]
+    [10] @0x2c1 'None'                         [passive/slot10]
+  passive1_tier: 1 (at 0x2cd)
+  tail[0]: 'None'               tier=1  @0x2d1
+  tail[1]: 'None'               tier=1  @0x2e1
+  tail[2]: 'None'               tier=1  @0x2f1
+  post-disorders pos: 0x301  blob_len: 0x39e  remaining: 157
+  remaining bytes (first 80): 050000000005000000000500000000050000000005000000000900000000000000436f6c6f726c65737300000000000050174fd7b33f9600000000000000ffffffffffffffff00000000000000000000
+
+-- Kami (db_key=840): CLEAN control (eye=139, brow=23, same as Whommie) --
+   detected defects: []
+  Kami: 11 run_items
+    [ 0] @0x239 'DefaultMove'                  [DefaultMove]
+    [ 1] @0x24c 'BasicDruidAbility'            [ability1]
+    [ 2] @0x265 'Stasis2'                      [ability2]
+    [ 3] @0x274 'RhinoForm'                    [ability3]
+    [ 4] @0x285 'PlantMushroom'                [ability4]
+    [ 5] @0x29a 'Cheerlead'                    [ability5]
+    [ 6] @0x2ab 'Stasis'                       [SLOT6-UNKNOWN]
+    [ 7] @0x2b9 'None'                         [SLOT7-UNKNOWN]
+    [ 8] @0x2c5 'None'                         [SLOT8-UNKNOWN]
+    [ 9] @0x2d1 'None'                         [SLOT9-UNKNOWN]
+    [10] @0x2dd 'Bouquet'                      [passive/slot10]
+  passive1_tier: 1 (at 0x2ec)
+  tail[0]: 'BarkSkin'           tier=1  @0x2f0
+  tail[1]: 'None'               tier=1  @0x304
+  tail[2]: 'None'               tier=1  @0x314
+  post-disorders pos: 0x324  blob_len: 0x3bd  remaining: 153
+  remaining bytes (first 80): 05000000000500000000050000000005000000000500000000050000000000000044727569640600000000008060d591bf3f9000000000000000ffffffffffffffff00000000000000000000000000c0
+
+-- Flekpus (db_key=68): DETECTED Eyebrow defect (brow=0xFFFFFFFE) --
+   detected defects: ['Eyebrow Birth Defect']
+  Flekpus: 11 run_items
+    [ 0] @0x23a 'DefaultMove'                  [DefaultMove]
+    [ 1] @0x24d 'BasicMelee_Fighter'           [ability1]
+    [ 2] @0x267 'LickHeal'                     [ability2]
+    [ 3] @0x277 'Confront'                     [ability3]
+    [ 4] @0x287 'TeamSpin'                     [ability4]
+    [ 5] @0x297 'Counter2'                     [ability5]
+    [ 6] @0x2a7 'LickHeal'                     [SLOT6-UNKNOWN]
+    [ 7] @0x2b7 'None'                         [SLOT7-UNKNOWN]
+    [ 8] @0x2c3 'None'                         [SLOT8-UNKNOWN]
+    [ 9] @0x2cf 'None'                         [SLOT9-UNKNOWN]
+    [10] @0x2db 'Dealer'                       [passive/slot10]
+  passive1_tier: 1 (at 0x2e9)
+  tail[0]: 'DualWield'          tier=2  @0x2ed
+  tail[1]: 'Scatological'       tier=1  @0x302
+  tail[2]: 'None'               tier=1  @0x31a
+  post-disorders pos: 0x32a  blob_len: 0x3c5  remaining: 155
+  remaining bytes (first 80): 0500000000050000000005000000000500000000050000000007000000000000004669676874657208000000000000000000d03f2200000000000000ffffffffffffffff000000000000000000000000
+
+-- Petronij (db_key=841): CLEAN control --
+   detected defects: []
+  Petronij: 11 run_items
+    [ 0] @0x23c 'DefaultMove'                  [DefaultMove]
+    [ 1] @0x24f 'BasicMelee'                   [ability1]
+    [ 2] @0x261 'BodyGuard'                    [ability2]
+    [ 3] @0x272 'None'                         [ability3]
+    [ 4] @0x27e 'None'                         [ability4]
+    [ 5] @0x28a 'None'                         [ability5]
+    [ 6] @0x296 'BodyGuard'                    [SLOT6-UNKNOWN]
+    [ 7] @0x2a7 'None'                         [SLOT7-UNKNOWN]
+    [ 8] @0x2b3 'None'                         [SLOT8-UNKNOWN]
+    [ 9] @0x2bf 'None'                         [SLOT9-UNKNOWN]
+    [10] @0x2cb 'Omniscience'                  [passive/slot10]
+  passive1_tier: 1 (at 0x2de)
+  tail[0]: 'None'               tier=1  @0x2e2
+  tail[1]: 'None'               tier=1  @0x2f2
+  tail[2]: 'None'               tier=1  @0x302
+  post-disorders pos: 0x312  blob_len: 0x3af  remaining: 157
+  remaining bytes (first 80): 050000000005000000000500000000050000000005000000000900000000000000436f6c6f726c6573730000000000008060d591bf3f9000000000000000ffffffffffffffff00000000000000000000
 
 ======================================================================
-STEP 3 -- Same-type control check for pre-T patterns
+STEP 2 -- Byte-level diff of post-disorders region: Whommie vs controls
 ======================================================================
-Eye Birth Defect: target=Whommie slot=eye_L value=139
-  matched clean controls: 23
-  target pre-T pattern: ('other', 'other', 'NaN', 'zero', 'other', 'NaN', 'zero', 'other')
-  clean controls with same pattern: 12
-  top clean patterns: [(('other', 'other', 'NaN', 'zero', 'other', 'NaN', 'zero', 'other'), 12), (('other', 'other', 'subnormal', 'other', 'other', 'subnormal', '0.5', 'other'), 5), (('other', 'other', 'NaN', 'zero', 'other', 'subnormal', '0.25', 'other'), 4), (('other', 'other', 'subnormal', 'other', 'other', 'subnormal', 'other', 'other'), 1), (('other', 'other', 'subnormal', 'other', 'other', 'NaN', 'zero', 'other'), 1)]
+  Whommie vs Kami: 33 diffs in first 200 bytes
+    + 25: Whommie=0x09 (9)  Kami=0x05 (5)
+    + 33: Whommie=0x43 (67)  Kami=0x44 (68)
+    + 34: Whommie=0x6f (111)  Kami=0x72 (114)
+    + 35: Whommie=0x6c (108)  Kami=0x75 (117)
+    + 36: Whommie=0x6f (111)  Kami=0x69 (105)
+    + 37: Whommie=0x72 (114)  Kami=0x64 (100)
+    + 38: Whommie=0x6c (108)  Kami=0x06 (6)
+    + 39: Whommie=0x65 (101)  Kami=0x00 (0)
+    + 40: Whommie=0x73 (115)  Kami=0x00 (0)
+    + 41: Whommie=0x73 (115)  Kami=0x00 (0)
+    + 44: Whommie=0x00 (0)  Kami=0x80 (128)
+    + 45: Whommie=0x00 (0)  Kami=0x60 (96)
+    + 46: Whommie=0x00 (0)  Kami=0xd5 (213)
+    + 47: Whommie=0x00 (0)  Kami=0x91 (145)
+    + 48: Whommie=0xa8 (168)  Kami=0xbf (191)
+    + 49: Whommie=0x31 (49)  Kami=0x3f (63)
+    + 50: Whommie=0x3f (63)  Kami=0x90 (144)
+    + 51: Whommie=0x23 (35)  Kami=0x00 (0)
+    + 52: Whommie=0xd5 (213)  Kami=0x00 (0)
+    + 53: Whommie=0x3f (63)  Kami=0x00 (0)
+  Whommie vs Petronij: 6 diffs in first 200 bytes
+    + 48: Whommie=0xa8 (168)  Petronij=0x80 (128)
+    + 49: Whommie=0x31 (49)  Petronij=0x60 (96)
+    + 50: Whommie=0x3f (63)  Petronij=0xd5 (213)
+    + 51: Whommie=0x23 (35)  Petronij=0x91 (145)
+    + 52: Whommie=0xd5 (213)  Petronij=0xbf (191)
+    + 54: Whommie=0x92 (146)  Petronij=0x90 (144)
 
-Eyebrow Birth Defect: target=Whommie slot=eyebrow_L value=23
-  matched clean controls: 96
-  target pre-T pattern: ('other', 'other', 'NaN', 'zero', 'other', 'NaN', 'zero', 'other')
-  clean controls with same pattern: 35
-  top clean patterns: [(('other', 'other', 'NaN', 'zero', 'other', 'NaN', 'zero', 'other'), 35), (('other', 'other', 'subnormal', 'other', 'other', 'subnormal', '0.5', 'other'), 19), (('other', 'other', 'subnormal', 'other', 'other', 'subnormal', 'other', 'other'), 10), (('other', 'other', 'NaN', 'zero', 'other', 'subnormal', '0.25', 'other'), 9), (('other', 'other', 'subnormal', 'other', 'other', 'NaN', 'zero', 'other'), 6)]
+======================================================================
+STEP 3 -- Roster-wide: scan post-disorders region for defect signal
+======================================================================
+For each cat: find post-disorders pos, extract next 40 bytes.
+Look for any byte position where defective cats consistently differ.
+  Scanned: 164 defective + 759 clean cats  (0 errors)
+  Byte positions with differing mode values (defective vs clean):
 
-Ear Birth Defect: target=Bud slot=ear_L value=132
-  matched clean controls: 90
-  target pre-T pattern: ('other', 'other', 'subnormal', 'other', 'other', 'subnormal', '0.5', 'other')
-  clean controls with same pattern: 12
-  top clean patterns: [(('other', 'other', 'NaN', 'zero', 'other', 'NaN', 'zero', 'other'), 41), (('other', 'other', 'subnormal', 'other', 'other', 'subnormal', '0.5', 'other'), 12), (('other', 'other', 'subnormal', 'other', 'other', 'subnormal', 'other', 'other'), 9), (('other', 'other', 'NaN', 'zero', 'other', 'subnormal', '0.25', 'other'), 9), (('other', 'other', 'subnormal', 'other', 'other', 'NaN', 'zero', 'other'), 5)]
+======================================================================
+STEP 4 -- Dump full post-disorders hex for Whommie and Flekpus (detected)
+  Flekpus has DETECTED Eyebrow defect, Whommie has UNDETECTED.
+  Compare their post-disorders structure directly.
+======================================================================
+  Whommie post-disorders (157 remaining bytes):
+    0x030d: 05 00 00 00 00 05 00 00 00 00 05 00 00 00 00 05
+    0x031d: 00 00 00 00 05 00 00 00 00 09 00 00 00 00 00 00
+    0x032d: 00 43 6f 6c 6f 72 6c 65 73 73 00 00 00 00 00 00
+    0x033d: a8 31 3f 23 d5 3f 92 00 00 00 00 00 00 00 ff ff
+    0x034d: ff ff ff ff ff ff 00 00 00 00 00 00 00 00 00 00
+    0x035d: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+    0x036d: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+    0x037d: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  Flekpus post-disorders (155 remaining bytes):
+    0x032a: 05 00 00 00 00 05 00 00 00 00 05 00 00 00 00 05
+    0x033a: 00 00 00 00 05 00 00 00 00 07 00 00 00 00 00 00
+    0x034a: 00 46 69 67 68 74 65 72 08 00 00 00 00 00 00 00
+    0x035a: 00 00 d0 3f 22 00 00 00 00 00 00 00 ff ff ff ff
+    0x036a: ff ff ff ff 00 00 00 00 00 00 00 00 00 00 00 00
+    0x037a: 2c 00 00 00 00 00 00 00 01 03 00 01 00 00 00 00
+    0x038a: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+    0x039a: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  Bud post-disorders (157 remaining bytes):
+    0x0301: 05 00 00 00 00 05 00 00 00 00 05 00 00 00 00 05
+    0x0311: 00 00 00 00 05 00 00 00 00 09 00 00 00 00 00 00
+    0x0321: 00 43 6f 6c 6f 72 6c 65 73 73 00 00 00 00 00 00
+    0x0331: 50 17 4f d7 b3 3f 96 00 00 00 00 00 00 00 ff ff
+    0x0341: ff ff ff ff ff ff 00 00 00 00 00 00 00 00 00 00
+    0x0351: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+    0x0361: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+    0x0371: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  Kami post-disorders (153 remaining bytes):
+    0x0324: 05 00 00 00 00 05 00 00 00 00 05 00 00 00 00 05
+    0x0334: 00 00 00 00 05 00 00 00 00 05 00 00 00 00 00 00
+    0x0344: 00 44 72 75 69 64 06 00 00 00 00 00 80 60 d5 91
+    0x0354: bf 3f 90 00 00 00 00 00 00 00 ff ff ff ff ff ff
+    0x0364: ff ff 00 00 00 00 00 00 00 00 00 00 00 00 00 c0
+    0x0374: 02 00 00 00 00 00 03 03 00 00 00 00 00 00 00 00
+    0x0384: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+    0x0394: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
