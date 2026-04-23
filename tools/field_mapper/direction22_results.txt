@@ -1,0 +1,113 @@
+======================================================================
+Direction #22 -- Current-COI threshold audit
+======================================================================
+Save: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\steamcampaign01.sav
+External rules under test:
+  wiki.gg breeding page: https://mewgenics.wiki.gg/wiki/Breeding
+    Birth defects check documented as: coi > 0.05 and random < coi * 1.5
+    Defect generation documented as: 1 pass when coi <= 0.9, 2 passes when coi > 0.9
+  Reddit symmetry discussion: https://www.reddit.com/r/mewgenics/comments/1ruenqd/has_something_changed_about_breeding_birth_defect/
+    Community explanation for asymmetric high-inbreeding defects points to the > 0.9 two-pass case.
+
+======================================================================
+Roster-wide counts
+======================================================================
+Total cats parsed: 923
+Cats with parsed birth defects: 120
+Parsed defect cats at coi <= 0.05: 53
+  Of those, non-strays (generation > 0): 52
+Parsed defect cats at coi > 0.9: 14
+All parsed defect counts by name:
+  Eyebrow Birth Defect: 27
+  Leg Birth Defect: 14
+  Tail Birth Defect: 14
+  Fur Birth Defect: 13
+  Eye Birth Defect: 12
+  Body Birth Defect: 12
+  Head Birth Defect: 10
+  Ear Birth Defect: 10
+  Arm Birth Defect: 9
+  Mouth Birth Defect: 7
+Low-COI parsed defect counts by name:
+  Eyebrow Birth Defect: 15
+  Leg Birth Defect: 7
+  Ear Birth Defect: 7
+  Body Birth Defect: 7
+  Fur Birth Defect: 6
+  Eye Birth Defect: 4
+  Arm Birth Defect: 4
+  Head Birth Defect: 3
+  Tail Birth Defect: 3
+  Mouth Birth Defect: 1
+
+======================================================================
+Low-COI defect examples
+======================================================================
+Velly            db_key=288 gen= 6 coi=0.000713420913 defects=['Fur Birth Defect']
+Mochi            db_key=752 gen=21 coi=0.00318593928 defects=['Eye Birth Defect']
+Papriko          db_key=510 gen=10 coi=0.00587458133 defects=['Arm Birth Defect']
+Ernest           db_key=130 gen= 7 coi=0.00802371422 defects=['Eyebrow Birth Defect']
+Brimsley         db_key=543 gen=14 coi=0.010718206 defects=['Arm Birth Defect']
+Large Tonius     db_key=790 gen=21 coi=0.0117800149 defects=['Eyebrow Birth Defect']
+Nestor           db_key=125 gen= 6 coi=0.0119129711 defects=['Eyebrow Birth Defect']
+Willa            db_key=601 gen=18 coi=0.0122092121 defects=['Leg Birth Defect']
+Mr. Amazing      db_key=717 gen=20 coi=0.0139752079 defects=['Eyebrow Birth Defect']
+Thorgeir         db_key=324 gen=10 coi=0.0139892879 defects=['Mouth Birth Defect']
+Seamus           db_key=591 gen=17 coi=0.0145320772 defects=['Leg Birth Defect']
+Sabra            db_key=832 gen=23 coi=0.0177734985 defects=['Tail Birth Defect']
+Yertle           db_key=129 gen= 7 coi=0.0187531068 defects=['Body Birth Defect', 'Eyebrow Birth Defect']
+Katy Kat         db_key=693 gen=17 coi=0.0187898082 defects=['Ear Birth Defect']
+Joe Cucumber     db_key= 93 gen= 4 coi=0.0192987837 defects=['Ear Birth Defect']
+Trudy            db_key=106 gen= 5 coi=0.0196847108 defects=['Eyebrow Birth Defect']
+Felix            db_key=920 gen=22 coi=0.0198018532 defects=['Body Birth Defect']
+Roberto          db_key= 83 gen= 4 coi=0.0198140038 defects=['Leg Birth Defect']
+Korven           db_key=777 gen=21 coi=0.0209764686 defects=['Eye Birth Defect']
+Kaisa            db_key=432 gen=12 coi=0.0212161888 defects=['Arm Birth Defect']
+
+======================================================================
+Low-COI cats with at least one parsed defect not present on either parent
+======================================================================
+Count: 47 of 53 low-COI defect cats have at least one parsed defect absent from both parents.
+Flekpus          db_key= 68 gen= 3 coi=0.0410294675 novel_defects=['Eyebrow Birth Defect'] parent_defects=[]
+Roberto          db_key= 83 gen= 4 coi=0.0198140038 novel_defects=['Leg Birth Defect'] parent_defects=[]
+Bubbers          db_key= 92 gen= 0 coi=0.0342350344 novel_defects=['Fur Birth Defect'] parent_defects=[]
+Joe Cucumber     db_key= 93 gen= 4 coi=0.0192987837 novel_defects=['Ear Birth Defect'] parent_defects=[]
+Trudy            db_key=106 gen= 5 coi=0.0196847108 novel_defects=['Eyebrow Birth Defect'] parent_defects=[]
+Yertle           db_key=129 gen= 7 coi=0.0187531068 novel_defects=['Body Birth Defect'] parent_defects=['Eyebrow Birth Defect']
+Mausi            db_key=222 gen= 3 coi=0.0245144131 novel_defects=['Eye Birth Defect'] parent_defects=[]
+Tinka            db_key=240 gen= 5 coi=0.0317534997 novel_defects=['Ear Birth Defect'] parent_defects=[]
+Nimue            db_key=241 gen= 4 coi=0.0484022474 novel_defects=['Body Birth Defect'] parent_defects=[]
+Gacek            db_key=248 gen= 5 coi=0.0390858125 novel_defects=['Body Birth Defect'] parent_defects=[]
+Velly            db_key=288 gen= 6 coi=0.000713420913 novel_defects=['Fur Birth Defect'] parent_defects=[]
+Thorgeir         db_key=324 gen=10 coi=0.0139892879 novel_defects=['Mouth Birth Defect'] parent_defects=[]
+Kaisa            db_key=432 gen=12 coi=0.0212161888 novel_defects=['Arm Birth Defect'] parent_defects=[]
+Stojan           db_key=484 gen=13 coi=0.0370971504 novel_defects=['Eyebrow Birth Defect'] parent_defects=[]
+Sunshine         db_key=503 gen=16 coi=0.0402668606 novel_defects=['Head Birth Defect'] parent_defects=[]
+Papriko          db_key=510 gen=10 coi=0.00587458133 novel_defects=['Arm Birth Defect'] parent_defects=[]
+Brimsley         db_key=543 gen=14 coi=0.010718206 novel_defects=['Arm Birth Defect'] parent_defects=[]
+Galipette        db_key=549 gen=17 coi=0.0269407025 novel_defects=['Eye Birth Defect'] parent_defects=[]
+Megantron        db_key=558 gen=17 coi=0.0334811602 novel_defects=['Eyebrow Birth Defect'] parent_defects=[]
+Lil' Bro         db_key=562 gen=17 coi=0.0459798137 novel_defects=['Leg Birth Defect'] parent_defects=[]
+
+======================================================================
+Key cats
+======================================================================
+Flekpus (db_key=68) generation=3 coi=0.0410294675 current_rule=below-threshold documented_passes=1 parsed_defects=['Eyebrow Birth Defect']
+  parent Baltimore (db_key=44) gen=0 coi=0.0035525294 defects=[]
+  parent Marcy (db_key=50) gen=2 coi=0.0216743438 defects=[]
+Whommie (db_key=853) generation=25 coi=0.0221298643 current_rule=below-threshold documented_passes=1 parsed_defects=['Fur Birth Defect']
+  parent Petronij (db_key=841) gen=24 coi=0.0825341272 defects=[]
+  parent Kami (db_key=840) gen=24 coi=0.0758890238 defects=[]
+Bud (db_key=887) generation=25 coi=0.0986339069 current_rule=eligible documented_passes=1 parsed_defects=[]
+  parent Kami (db_key=840) gen=24 coi=0.0758890238 defects=[]
+  parent Murisha (db_key=852) gen=22 coi=0.0358908201 defects=[]
+
+======================================================================
+Verdict
+======================================================================
+The current stored inbreeding coefficient alone does not cleanly explain the save's observed birth defects under the documented wiki.gg gate of coi > 0.05.
+There are 53 cats with parsed birth defects at or below that threshold, and 52 of them are bred cats rather than stray generation-0 cats.
+More importantly, 47 low-COI defect cats have at least one parsed defect absent from both parents, so these cases are not explained by simply inheriting an already-expressed defect part from mother or father.
+Flekpus is the clearest contradiction in this save: generation 3, coi=0.0410294675, parsed `Eyebrow Birth Defect`, and neither parent has any parsed defect.
+Bud also narrows the symmetry theory: current coi=0.0986339069 is above 0.05 but far below 0.9, so the community's >0.9 two-pass explanation for asymmetric part replacement cannot explain Bud's unresolved one-sided ear defect.
+This does not prove the external formulas are wrong in every context. The remaining possibilities include: an incomplete public formula, a different internal coefficient than the parser's current `inbredness`, or a separate defect-generation path for these part removals.

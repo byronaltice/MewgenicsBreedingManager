@@ -1,0 +1,132 @@
+======================================================================
+Direction #21 -- accessiblefish editor audit
+======================================================================
+Sources fetched:
+  tool: https://raw.githubusercontent.com/accessiblefish/mewgenics-save-editor/refs/heads/main/mewgenics_save_tool.py
+  readme: https://raw.githubusercontent.com/accessiblefish/mewgenics-save-editor/refs/heads/main/README.md
+
+======================================================================
+Relevant code excerpts
+======================================================================
+MUTATION_SLOT_MAP = {
+    0: ("Body", "body"),
+    5: ("Head", "head"),
+    10: ("Tail", "tail"),
+    15: ("Leg-L", "leg"),
+    20: ("Leg-R", "leg"),
+    25: ("Arm-L", "arm"),
+    30: ("Arm-R", "arm"),
+    35: ("Eye-L", "eye"),
+    40: ("Eye-R", "eye"),
+    45: ("Eyebrow-L", "eyebrow"),
+    50: ("Eyebrow-R", "eyebrow"),
+    55: ("Ear-L", "ear"),
+    60: ("Ear-R", "ear"),
+    65: ("Mouth", "mouth"),
+}
+
+def parse_abilities_and_mutations(dec: bytes, name_end: int) -> Tuple[List[AbilityInfo], List[MutationInfo]]:
+    """
+    Parse abilities and mutations from cat data.
+    
+    Abilities are stored as u64-run format:
+    [u64 length][ASCII string]...
+    
+    Mutations are stored in T-array at specific offsets.
+    
+    Returns:
+        Tuple of (abilities_list, mutations_list)
+    """
+    abilities = []
+    mutations = []
+    n = len(dec)
+
+    # Parse abilities from u64-run
+    for start in range(name_end, min(n - 16, name_end + 512)):
+        if dec[start:start + 12] == b'DefaultMove':
+            break
+    else:
+        start = name_end
+
+    if start < n - 8:
+        items = []
+        i = start
+        while i + 8 <= n:
+            ln = u64_le(dec, i)
+            if ln < 0 or ln > 96 or i + 8 + ln > n:
+                break
+            if ln == 0:
+                i += 8
+                continue
+            val = dec[i + 8:i + 8 + ln].decode("ascii", errors="replace")
+            items.append((i, ln, val))
+            i += 8 + ln
+            if len(items) >= 14:
+                break
+
+        # Map items to ability slots
+        ability_slots = [
+            "Move", "Basic", "Active2", "Active3", "Active4", "Active5",
+            "Passive1", "Passive2", "Disorder1", "Disorder2"
+        ]
+        for idx, (pos, ln, val) in enumerate(items[:10]):
+            if idx < len(ability_slots):
+                abilities.append(AbilityInfo(
+                    slot=ability_slots[idx],
+                    name=val,
+                    offset=pos,
+                    byte_len=ln
+                ))
+
+    # Parse mutations from T-array
+    for idx, (slot_name, part_key) in MUTATION_SLOT_MAP.items():
+        off = 0x44 + idx * 4
+        if off + 4 <= len(dec):
+            val = u32_le(dec, off)
+            if val != 0:
+                mutations.append(MutationInfo(
+                    mutation_id=val,
+                    body_part=idx,
+                    offset=off
+                ))
+
+    return abilities, mutations
+
+### Mutations Storage
+
+Mutations are stored in a **T-array** at fixed offsets from base 0x44:
+
+| T-Index | Body Part |
+|---------|-----------|
+| T[0] | Body |
+| T[5] | Head |
+| T[10] | Tail |
+| T[15] | Left Leg |
+| T[20] | Right Leg |
+| T[25] | Left Arm |
+| T[30] | Right Arm |
+| T[35] | Left Eye |
+| T[40] | Right Eye |
+| T[45] | Left Eyebrow |
+| T[50] | Right Eyebrow |
+| T[55] | Left Ear |
+| T[60] | Right Ear |
+| T[65] | Mouth |
+
+## Save File Locations
+
+###
+
+======================================================================
+Findings
+======================================================================
+1. This editor models mutations as a single T-array with coarse slot offsets only: T[0], T[5], T[10], ..., T[65].
+   It does not model the 5-u32-per-slot structure we already mapped, and it does not mention any secondary variant or defect array.
+2. `parse_abilities_and_mutations()` reads one `u32` mutation ID per slot from fixed offsets `0x44 + idx * 4`.
+   There is no second read for a missing-part flag, no special handling for low-ID defects, and no scan for `0xFFFFFFFE`.
+3. The README documents the same simplified T-array layout and contains no hidden-field note for defects.
+4. The mutation name tables in this tool are sparse and mostly cover ordinary visible mutations; they are not evidence of deeper defect serialization knowledge.
+
+Verdict:
+  The accessiblefish Python editor does not reveal any new persisted field for "No Part" birth defects.
+  It is a simpler parser than ours, based on direct slot IDs from the same T-array family, so it narrows the remaining external lead further: other public editors are not where the missing save-layout knowledge lives.
