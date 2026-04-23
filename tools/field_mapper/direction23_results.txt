@@ -1,0 +1,86 @@
+======================================================================
+Direction #23 -- Ancestor check for low-COI birth defects
+======================================================================
+Save: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\steamcampaign01.sav
+Scope: cats with parsed birth defects and current coi <= 0.05, testing whether a matching parsed defect exists anywhere in recorded ancestry.
+
+======================================================================
+Roster-wide counts
+======================================================================
+Low-COI parsed defect cats: 53
+No matching parsed defect anywhere in ancestry: 40
+Defect-name counts among the no-matching-ancestor cases:
+  Eyebrow Birth Defect: 8
+  Fur Birth Defect: 6
+  Leg Birth Defect: 5
+  Ear Birth Defect: 5
+  Body Birth Defect: 5
+  Arm Birth Defect: 4
+  Eye Birth Defect: 3
+  Head Birth Defect: 2
+  Mouth Birth Defect: 1
+  Tail Birth Defect: 1
+
+======================================================================
+Examples with no matching ancestor defect
+======================================================================
+Flekpus          db_key= 68 gen= 3 coi=0.0410294675 defects=['Eyebrow Birth Defect'] ancestor_count=5
+  other ancestor defects=[]
+Roberto          db_key= 83 gen= 4 coi=0.0198140038 defects=['Leg Birth Defect'] ancestor_count=6
+  other ancestor defects=[]
+Bubbers          db_key= 92 gen= 0 coi=0.0342350344 defects=['Fur Birth Defect'] ancestor_count=0
+  other ancestor defects=[]
+Joe Cucumber     db_key= 93 gen= 4 coi=0.0192987837 defects=['Ear Birth Defect'] ancestor_count=8
+  other ancestor defects=[]
+Trudy            db_key=106 gen= 5 coi=0.0196847108 defects=['Eyebrow Birth Defect'] ancestor_count=9
+  other ancestor defects=[]
+Mausi            db_key=222 gen= 3 coi=0.0245144131 defects=['Eye Birth Defect'] ancestor_count=8
+  other ancestor defects=[]
+Tinka            db_key=240 gen= 5 coi=0.0317534997 defects=['Ear Birth Defect'] ancestor_count=20
+  other ancestor defects=[]
+Nimue            db_key=241 gen= 4 coi=0.0484022474 defects=['Body Birth Defect'] ancestor_count=11
+  other ancestor defects=[]
+Gacek            db_key=248 gen= 5 coi=0.0390858125 defects=['Body Birth Defect'] ancestor_count=16
+  other ancestor defects=[]
+Velly            db_key=288 gen= 6 coi=0.000713420913 defects=['Fur Birth Defect'] ancestor_count=17
+  other ancestor defects=[]
+Thorgeir         db_key=324 gen=10 coi=0.0139892879 defects=['Mouth Birth Defect'] ancestor_count=34
+  other ancestor defects=[]
+Kaisa            db_key=432 gen=12 coi=0.0212161888 defects=['Arm Birth Defect'] ancestor_count=39
+  other ancestor defects=[]
+Stojan           db_key=484 gen=13 coi=0.0370971504 defects=['Eyebrow Birth Defect'] ancestor_count=47
+  other ancestor defects=[]
+Sunshine         db_key=503 gen=16 coi=0.0402668606 defects=['Head Birth Defect'] ancestor_count=60
+  other ancestor defects=[]
+Papriko          db_key=510 gen=10 coi=0.00587458133 defects=['Arm Birth Defect'] ancestor_count=21
+  other ancestor defects=[]
+Brimsley         db_key=543 gen=14 coi=0.010718206 defects=['Arm Birth Defect'] ancestor_count=49
+  other ancestor defects=[]
+Galipette        db_key=549 gen=17 coi=0.0269407025 defects=['Eye Birth Defect'] ancestor_count=70
+  other ancestor defects=[]
+Megantron        db_key=558 gen=17 coi=0.0334811602 defects=['Eyebrow Birth Defect'] ancestor_count=71
+  other ancestor defects=[]
+Lil' Bro         db_key=562 gen=17 coi=0.0459798137 defects=['Leg Birth Defect'] ancestor_count=73
+  other ancestor defects=[]
+Isaac            db_key=578 gen=18 coi=0.0400087262 defects=['Body Birth Defect'] ancestor_count=72
+  other ancestor defects=[]
+
+======================================================================
+Key cats
+======================================================================
+Flekpus (db_key=68) gen=3 coi=0.0410294675 parsed_defects=['Eyebrow Birth Defect']
+  total_ancestors=5 matching_defect_ancestors=0
+Whommie (db_key=853) gen=25 coi=0.0221298643 parsed_defects=['Fur Birth Defect']
+  total_ancestors=102 matching_defect_ancestors=0
+Bud (db_key=887) gen=25 coi=0.0986339069 parsed_defects=[]
+  total_ancestors=124 matching_defect_ancestors=0
+
+======================================================================
+Verdict
+======================================================================
+The simple inherited-defect fallback is also too weak to explain the low-COI cases by itself.
+Among the 53 cats with parsed birth defects at coi <= 0.05, 40 have no matching parsed defect anywhere in recorded ancestry.
+That means these cases are not explained by a plainly visible ancestral line of the same expressed defect part being passed down through the family tree.
+Flekpus remains the clearest example: generation 3, coi=0.0410294675, parsed `Eyebrow Birth Defect`, and zero matching parsed defects anywhere in recorded ancestry.
+Whommie's recorded fur defect likewise has no matching parsed defect anywhere in recorded ancestry. Bud still has no parsed defect at all, and no ancestor with a matching ear defect.
+This does not rule out hidden carrier state or a more complex genotype-level inheritance model, but it rules out the simplest phenotype-only ancestry explanation.
