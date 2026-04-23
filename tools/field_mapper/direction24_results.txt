@@ -1,0 +1,80 @@
+======================================================================
+Direction #24 -- Pedigree cached COI versus derived kinship COI
+======================================================================
+Save: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\steamcampaign01.sav
+Goal: verify whether our local COI math matches the save's cached pedigree COI.
+
+======================================================================
+Roster-wide counts
+======================================================================
+Total cats parsed: 923
+Cats with cached per-child pedigree COI: 934
+Cats compared against derived kinship_coi(parent_a, parent_b): 763
+No cached COI row: 0
+Cached COI row but unresolved parent keys: 160
+Cached COI row but parent objects missing from roster: 0
+Exact matches (|diff| <= 1e-12): 763
+Loose matches (|diff| <= 1e-09): 763
+Maximum absolute difference: 0
+
+======================================================================
+Key cats
+======================================================================
+Flekpus (db_key=68) raw_cat_inbredness=0.04102946753085053 cached_pedigree_coi=0.25 derived_kinship_coi=0.25
+Whommie (db_key=853) raw_cat_inbredness=0.022129864288530532 cached_pedigree_coi=0.33027629708522 derived_kinship_coi=0.33027629708522
+Bud (db_key=887) raw_cat_inbredness=0.098633906870327567 cached_pedigree_coi=0.07750410384323914 derived_kinship_coi=0.07750410384323914
+
+======================================================================
+Largest cached-versus-derived differences
+======================================================================
+Tyrion           db_key=933 diff=0 cached=0.14469340790128626 derived=0.14469340790128626 raw_field=0.94714688144788894 parents=(887, 770)
+Ludlow           db_key=932 diff=0 cached=0.053057040910061914 derived=0.053057040910061914 raw_field=0.023844842165362215 parents=(841, 816)
+Luffy            db_key=931 diff=0 cached=0.053057040910061914 derived=0.053057040910061914 raw_field=0.094429897852966391 parents=(841, 816)
+Ana              db_key=930 diff=0 cached=0.036719470961543266 derived=0.036719470961543266 raw_field=0.078676767681362031 parents=(847, 829)
+Arnold           db_key=929 diff=0 cached=0.1307460346724838 derived=0.1307460346724838 raw_field=0.051221713038247935 parents=(701, 898)
+Kanji            db_key=928 diff=0 cached=0.10516883148738998 derived=0.10516883148738998 raw_field=0.060982666370740457 parents=(906, 894)
+Fleur            db_key=927 diff=0 cached=0.21420401773139019 derived=0.21420401773139019 raw_field=0.56803304244297437 parents=(870, 844)
+Ms. Fit          db_key=926 diff=0 cached=0.081223903223872185 derived=0.081223903223872185 raw_field=0.020649813782259954 parents=(809, 677)
+Jacques          db_key=925 diff=0 cached=0.10736031469423324 derived=0.10736031469423324 raw_field=0.00015495373573528595 parents=(845, 840)
+Bubatze          db_key=924 diff=0 cached=0.094449127747793682 derived=0.094449127747793682 raw_field=0.064844365503752874 parents=(818, 846)
+Average Ed       db_key=921 diff=0 cached=0.057691066383995349 derived=0.057691066383995349 raw_field=0.047962658557867202 parents=(801, 873)
+Felix            db_key=920 diff=0 cached=0.33688951510703191 derived=0.33688951510703191 raw_field=0.019801853248526138 parents=(701, 891)
+Roser            db_key=919 diff=0 cached=0.11203446784611515 derived=0.11203446784611515 raw_field=0.022018665978548513 parents=(887, 898)
+Crumpet          db_key=918 diff=0 cached=0.039393351267790422 derived=0.039393351267790422 raw_field=0.93145510343961757 parents=(831, 821)
+Crumb            db_key=917 diff=0 cached=0.039393351267790422 derived=0.039393351267790422 raw_field=0.0089833153048727524 parents=(831, 821)
+Auden            db_key=916 diff=0 cached=0.065046176649047993 derived=0.065046176649047993 raw_field=0.016035489486551258 parents=(806, 770)
+Chucky           db_key=915 diff=0 cached=0.16861442873778287 derived=0.16861442873778287 raw_field=0.0096356911913922719 parents=(809, 844)
+Panini           db_key=914 diff=0 cached=0.060402044851798564 derived=0.060402044851798564 raw_field=0.05721163551422892 parents=(870, 677)
+Sosig            db_key=913 diff=0 cached=0.065524234734766651 derived=0.065524234734766651 raw_field=0.0084945239540417435 parents=(758, 840)
+Priya            db_key=910 diff=0 cached=0.21009997007786296 derived=0.21009997007786296 raw_field=0.041337103036368041 parents=(801, 891)
+
+======================================================================
+Examples showing raw cat.inbredness differs from cached pedigree COI
+======================================================================
+Micia            db_key=  4 raw_cat_inbredness=0.9431806729232578 cached_pedigree_coi=0
+Marcelo          db_key=  6 raw_cat_inbredness=0.97612864006206745 cached_pedigree_coi=0
+Rami             db_key=  9 raw_cat_inbredness=0.91865723164319568 cached_pedigree_coi=0
+Escobar          db_key= 11 raw_cat_inbredness=0.064729314344784003 cached_pedigree_coi=0
+Simoon           db_key= 14 raw_cat_inbredness=0.0161066870103048 cached_pedigree_coi=0
+Schweebo         db_key= 17 raw_cat_inbredness=0.045877634668522752 cached_pedigree_coi=0
+Bacon Pancake    db_key= 19 raw_cat_inbredness=0.015100711163425219 cached_pedigree_coi=0
+Kiba             db_key= 21 raw_cat_inbredness=0.92136275086023267 cached_pedigree_coi=0
+Raff             db_key= 22 raw_cat_inbredness=0.061090583311070916 cached_pedigree_coi=0
+Waxen            db_key= 24 raw_cat_inbredness=0.91592965467206078 cached_pedigree_coi=0
+Tesley           db_key= 29 raw_cat_inbredness=0.058260123458460572 cached_pedigree_coi=0
+Demoni           db_key= 30 raw_cat_inbredness=0.079049424950617453 cached_pedigree_coi=0
+Loptica          db_key= 32 raw_cat_inbredness=0.62904739874658666 cached_pedigree_coi=0
+Mitaine          db_key= 40 raw_cat_inbredness=0.044463331587853532 cached_pedigree_coi=0
+Kotomis          db_key= 43 raw_cat_inbredness=0.086165775450591398 cached_pedigree_coi=0
+John Cat         db_key= 45 raw_cat_inbredness=0.94540334181619923 cached_pedigree_coi=0
+Gatis            db_key= 47 raw_cat_inbredness=0.038641926883433077 cached_pedigree_coi=0
+Marcy            db_key= 50 raw_cat_inbredness=0.021674343840539113 cached_pedigree_coi=0
+Bag Lady         db_key= 52 raw_cat_inbredness=0.099964060146471634 cached_pedigree_coi=0
+Kurotabi         db_key= 54 raw_cat_inbredness=0.038537944469140044 cached_pedigree_coi=0
+
+======================================================================
+Verdict
+======================================================================
+Our derived `kinship_coi(parent_a, parent_b)` matches the save's cached per-child pedigree COI roster-wide to floating-point tolerance.
+The raw `cat.inbredness` value coming straight from `parse_save()` is not the same source of truth; it differs from cached pedigree COI for many cats and should not be used as the game's breeding coefficient.
+For testing online COI thresholds locally, the correct comparison target is the pedigree blob's cached per-child COI (or a derived formula validated against it), not the raw personality-block field.

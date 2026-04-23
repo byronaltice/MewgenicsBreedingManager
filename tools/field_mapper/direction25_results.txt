@@ -1,0 +1,54 @@
+======================================================================
+Direction #25 -- Corrected low-COI defect audit using pedigree COI
+======================================================================
+Save: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\steamcampaign01.sav
+This re-runs Directions 22 and 23 against the save's cached pedigree COI, not the raw `cat.inbredness` field from the personality block.
+
+======================================================================
+Roster-wide counts
+======================================================================
+Total cats parsed: 923
+Cats with parsed birth defects: 120
+Parsed defect cats at cached pedigree coi <= 0.05: 9
+Parsed defect cats at cached pedigree coi > 0.9: 0
+Low-COI parsed defect counts by name:
+  Eyebrow Birth Defect: 6
+  Fur Birth Defect: 1
+  Eye Birth Defect: 1
+  Mouth Birth Defect: 1
+
+======================================================================
+Low-COI defect cases
+======================================================================
+Bubbers          db_key= 92 gen= 0 cached_coi=0 defects=['Fur Birth Defect']
+Ichabod          db_key=116 gen= 6 cached_coi=0 defects=['Eyebrow Birth Defect']
+Will             db_key=122 gen= 6 cached_coi=0 defects=['Eye Birth Defect']
+Nestor           db_key=125 gen= 6 cached_coi=0 defects=['Eyebrow Birth Defect']
+Charlotte        db_key=134 gen= 7 cached_coi=0 defects=['Eyebrow Birth Defect']
+Kiscica          db_key=135 gen= 7 cached_coi=0 defects=['Eyebrow Birth Defect']
+Lucina           db_key=149 gen= 7 cached_coi=0 defects=['Eyebrow Birth Defect']
+Beza             db_key=583 gen=18 cached_coi=0 defects=['Eyebrow Birth Defect']
+Lucyfer          db_key=255 gen= 6 cached_coi=0.013671875 defects=['Mouth Birth Defect']
+
+======================================================================
+Low-COI cases with no matching parsed defect anywhere in ancestry
+======================================================================
+Count: 2 of 9 low-COI defect cats
+Bubbers          db_key= 92 gen= 0 cached_coi=0 defects=['Fur Birth Defect'] ancestor_count=0
+Lucyfer          db_key=255 gen= 6 cached_coi=0.013671875 defects=['Mouth Birth Defect'] ancestor_count=20
+
+======================================================================
+Key cats
+======================================================================
+Flekpus (db_key=68) cached_pedigree_coi=0.25 documented_passes=1 parsed_defects=['Eyebrow Birth Defect']
+Whommie (db_key=853) cached_pedigree_coi=0.33027629708521999 documented_passes=1 parsed_defects=['Fur Birth Defect']
+Bud (db_key=887) cached_pedigree_coi=0.077504103843239136 documented_passes=1 parsed_defects=[]
+
+======================================================================
+Verdict
+======================================================================
+Using the correct pedigree-backed COI changes the result substantially.
+Only 9 parsed defect cats fall at cached pedigree coi <= 0.05, not 53.
+Of those, 2 have no matching parsed defect anywhere in ancestry. The cleanest non-stray contradiction remaining is Lucyfer: generation 6, cached pedigree coi 0.013671875, parsed `Mouth Birth Defect`, and no matching parsed defect in recorded ancestry.
+Flekpus and Whommie are no longer contradictions under the corrected metric: their cached pedigree COI values are 0.25 and 0.3302762971 respectively.
+Bud also changes less dramatically but still matters: cached pedigree COI is 0.0775041038, which is above 0.05 but still far below the >0.9 two-pass threshold, so the high-inbreeding symmetry explanation still cannot explain Bud's unresolved one-sided ear defect.
