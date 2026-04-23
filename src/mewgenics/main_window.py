@@ -113,7 +113,7 @@ from mewgenics.views.calibration import CalibrationView
 from mewgenics.views.mutation_planner import MutationDisorderPlannerView
 from mewgenics.views.furniture import FurnitureView
 
-from breed_priority import BreedPriorityView
+from breed_priority import BreedPriorityView, PartyBuilderWidget
 
 
 class MainWindow(QMainWindow):
@@ -239,6 +239,7 @@ class MainWindow(QMainWindow):
         self._calibration_view: Optional[CalibrationView] = None
         self._furniture_view: Optional[FurnitureView] = None
         self._breed_priority_view: Optional[BreedPriorityView] = None
+        self._party_builder_view: Optional[PartyBuilderWidget] = None
         self._breeding_cache: Optional[BreedingCache] = None
         self._cache_worker: Optional[BreedingCacheWorker] = None
         self._save_load_worker: Optional[SaveLoadWorker] = None
@@ -713,6 +714,9 @@ class MainWindow(QMainWindow):
         self._btn_breed_priority = _sidebar_btn("Breed Priority")
         self._btn_breed_priority.clicked.connect(self._open_breed_priority_view)
         vb.addWidget(self._btn_breed_priority)
+        self._btn_party_builder = _sidebar_btn("Party Builder")
+        self._btn_party_builder.clicked.connect(self._open_party_builder_view)
+        vb.addWidget(self._btn_party_builder)
 
         vb.addWidget(_hsep())
         self._rooms_section_label = sl(_tr("sidebar.section.rooms"))
@@ -1199,6 +1203,9 @@ class MainWindow(QMainWindow):
         )
         self._breed_priority_view.hide()
         vb.addWidget(self._breed_priority_view, 1)
+        self._party_builder_view = PartyBuilderWidget(self)
+        self._party_builder_view.hide()
+        vb.addWidget(self._party_builder_view, 1)
         self._furniture_view = FurnitureView(self)
         self._furniture_view.hide()
         vb.addWidget(self._furniture_view, 1)
@@ -3026,6 +3033,8 @@ class MainWindow(QMainWindow):
             self._mutation_planner_view.hide()
         if hasattr(self, "_furniture_view") and self._furniture_view is not None:
             self._furniture_view.hide()
+        if hasattr(self, "_party_builder_view") and self._party_builder_view is not None:
+            self._party_builder_view.hide()
         if self._breed_priority_view is not None:
             self._breed_priority_view.set_cats(self._cats)
             self._breed_priority_view.show()
@@ -3047,10 +3056,65 @@ class MainWindow(QMainWindow):
             self._btn_furniture_view.setChecked(False)
         if hasattr(self, "_btn_breed_priority"):
             self._btn_breed_priority.setChecked(True)
+        if hasattr(self, "_btn_party_builder"):
+            self._btn_party_builder.setChecked(False)
 
     def _open_breed_priority_view(self):
         _save_current_view("breed_priority")
         self._show_breed_priority_view()
+
+    def _show_party_builder_view(self):
+        if self._active_btn is not None:
+            self._active_btn.setChecked(False)
+        self._active_btn = None
+        if hasattr(self, "_header"):
+            self._header.hide()
+        if hasattr(self, "_table_view_container"):
+            self._table_view_container.hide()
+        if hasattr(self, "_tree_view") and self._tree_view is not None:
+            self._tree_view.hide()
+        if hasattr(self, "_safe_breeding_view") and self._safe_breeding_view is not None:
+            self._safe_breeding_view.hide()
+        if hasattr(self, "_breeding_partners_view") and self._breeding_partners_view is not None:
+            self._breeding_partners_view.hide()
+        if hasattr(self, "_room_optimizer_view") and self._room_optimizer_view is not None:
+            self._room_optimizer_view.hide()
+        if hasattr(self, "_perfect_planner_view") and self._perfect_planner_view is not None:
+            self._perfect_planner_view.hide()
+        if hasattr(self, "_calibration_view") and self._calibration_view is not None:
+            self._calibration_view.hide()
+        if hasattr(self, "_mutation_planner_view") and self._mutation_planner_view is not None:
+            self._mutation_planner_view.hide()
+        if hasattr(self, "_furniture_view") and self._furniture_view is not None:
+            self._furniture_view.hide()
+        if self._breed_priority_view is not None:
+            self._breed_priority_view.hide()
+        if self._party_builder_view is not None:
+            self._party_builder_view.show()
+        if hasattr(self, "_btn_tree_view"):
+            self._btn_tree_view.setChecked(False)
+        if hasattr(self, "_btn_safe_breeding_view"):
+            self._btn_safe_breeding_view.setChecked(False)
+        if hasattr(self, "_btn_breeding_partners_view"):
+            self._btn_breeding_partners_view.setChecked(False)
+        if hasattr(self, "_btn_room_optimizer"):
+            self._btn_room_optimizer.setChecked(False)
+        if hasattr(self, "_btn_perfect_planner"):
+            self._btn_perfect_planner.setChecked(False)
+        if hasattr(self, "_btn_calibration"):
+            self._btn_calibration.setChecked(False)
+        if hasattr(self, "_btn_mutation_planner"):
+            self._btn_mutation_planner.setChecked(False)
+        if hasattr(self, "_btn_furniture_view"):
+            self._btn_furniture_view.setChecked(False)
+        if hasattr(self, "_btn_breed_priority"):
+            self._btn_breed_priority.setChecked(False)
+        if hasattr(self, "_btn_party_builder"):
+            self._btn_party_builder.setChecked(True)
+
+    def _open_party_builder_view(self):
+        _save_current_view("party_builder")
+        self._show_party_builder_view()
 
     def _restore_current_view(self):
         """Restore the last-used view after a save is loaded."""
@@ -3065,6 +3129,7 @@ class MainWindow(QMainWindow):
             "mutation_planner":   self._show_mutation_planner_view,
             "furniture":          self._show_furniture_view,
             "breed_priority":     self._show_breed_priority_view,
+            "party_builder":      self._show_party_builder_view,
         }
         fn = _restore_map.get(view)
         if fn:
@@ -3173,4 +3238,3 @@ def _ensure_gpak_path_interactive(parent: Optional[QWidget] = None):
         "The selected folder does not contain resources.gpak. "
         "Choose the Mewgenics install directory that contains that file.",
     )
-

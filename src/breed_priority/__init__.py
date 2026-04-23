@@ -86,6 +86,7 @@ from .scoring import (
 from .tooltips import build_cat_tooltip, build_child_tooltip
 from .column_values import raw_col_value
 from .weight_popup import show_weights_popup
+from .party_builder import PartyBuilderWidget  # noqa: F401
 from .stats_overview import show_stats_overview, get_cat_stats
 from .recompute_helpers import (
     build_relationship_maps, compute_seven_sets,
