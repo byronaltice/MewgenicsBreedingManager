@@ -1,0 +1,84 @@
+======================================================================
+Direction #12 -- Gap between stat_sec-end and DefaultMove
+======================================================================
+======================================================================
+STEP 1 -- Gap dump for each target cat
+======================================================================
+  defects=['Fur Birth Defect']
+  Whommie: curr=0x224  DefaultMove=0x246  gap=26 bytes
+     224: 04 00 00 00 00 00 00 00 6e 6f 6e 65 ff ff ff 3f
+     234: 00 00 00 00 00 00 00 00 00 00
+  As u32[]: [4, 0, 1701736302, 1073741823, 0, 0]
+  As str[]: ['none']
+
+  defects=[]
+  Kami: curr=0x21f  DefaultMove=0x241  gap=26 bytes
+     21f: 04 00 00 00 00 00 00 00 6e 6f 6e 65 ff ff ff 3f
+     22f: 00 00 00 00 00 00 00 00 00 00
+  As u32[]: [4, 0, 1701736302, 1073741823, 0, 0]
+  As str[]: ['none']
+
+  defects=['Leg Birth Defect']
+  Bud: curr=0x21e  DefaultMove=0x240  gap=26 bytes
+     21e: 04 00 00 00 00 00 00 00 6e 6f 6e 65 ff ff ff 3f
+     22e: 00 00 00 00 00 00 00 00 00 00
+  As u32[]: [4, 0, 1701736302, 1073741823, 0, 0]
+  As str[]: ['none']
+
+  defects=[]
+  Romanoba: curr=0x223  DefaultMove=0x245  gap=26 bytes
+     223: 04 00 00 00 00 00 00 00 6e 6f 6e 65 ff ff ff 3f
+     233: 00 00 00 00 00 00 00 00 00 00
+  As u32[]: [4, 0, 1701736302, 1073741823, 0, 0]
+  As str[]: ['none']
+
+  defects=[]
+  Petronij: curr=0x222  DefaultMove=0x244  gap=26 bytes
+     222: 04 00 00 00 00 00 00 00 6e 6f 6e 65 ff ff ff 3f
+     232: 00 00 00 00 00 00 00 00 00 00
+  As u32[]: [4, 0, 1701736302, 1073741823, 0, 0]
+  As str[]: ['none']
+
+  defects=[]
+  Murisha: curr=0x226  DefaultMove=0x248  gap=26 bytes
+     226: 04 00 00 00 00 00 00 00 6e 6f 6e 65 ff ff ff 3f
+     236: 00 00 00 00 00 00 00 00 00 00
+  As u32[]: [4, 0, 1701736302, 1073741823, 0, 0]
+  As str[]: ['none']
+
+======================================================================
+STEP 2 -- Byte-level diff: Whommie vs controls at gap offsets
+======================================================================
+  Whommie vs Kami u32 diffs: []
+  Whommie vs Romanoba u32 diffs: []
+  Whommie vs Petronij u32 diffs: []
+======================================================================
+STEP 3 -- Try interpreting gap as: u64-count + array of u64-strings
+======================================================================
+  Whommie: first u64=4
+    -> parse failed after partial: []
+  Kami: first u64=4
+    -> parse failed after partial: []
+  Bud: first u64=4
+    -> parse failed after partial: []
+  Romanoba: first u64=4
+    -> parse failed after partial: []
+  Petronij: first u64=4
+    -> parse failed after partial: []
+  Murisha: first u64=4
+    -> parse failed after partial: []
+======================================================================
+STEP 4 -- Roster-wide: collect gap u32 arrays and look for correlated values
+======================================================================
+  Processed 923 cats
+  Gap u32 count distribution: {6: 915, 7: 8}
+  Sample defective cats gap u32s:
+  Non-zero values at each u32 position across defective cats:
+    u32[0] defective non-zero: {4: 132, 3: 32}
+    u32[0] clean     non-zero: {4: 545, 3: 206, 6: 4, 8: 4}
+    u32[2] defective non-zero: {1701736302: 132, 4285690995: 5, 4285820521: 4, 4284772467: 4, 4284573795: 3}
+    u32[2] clean     non-zero: {1701736302: 545, 4284772467: 28, 4284573795: 28, 4286080356: 26, 4285690995: 24}
+    u32[3] defective non-zero: {1073741823: 126, 4194303: 14, 20971519: 7, 16777216: 4, 28: 3}
+    u32[3] clean     non-zero: {1073741823: 483, 4194303: 101, 20971519: 63, 28: 23, 24: 20}
+    u32[4] defective non-zero: {1: 10}
+    u32[4] clean     non-zero: {1: 62, 1073741823: 4, 81919: 3, 16383: 1}
