@@ -1,0 +1,41 @@
+======================================================================
+Direction #15a -- Family-line check for runtime/genetics hypothesis
+======================================================================
+Save: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\steamcampaign01.sav
+
+======================================================================
+Whommie line: Kami + Petronij
+======================================================================
+Parent Kami: eye=139 brow=23 ear=30 defects=[]
+Parent Petronij: eye=139 brow=23 ear=101 defects=[]
+Offspring count: 1
+
+  Whommie          gen=25 eye_L=139 eyebrow_L=23 ear_L=30 defects=['Fur Birth Defect']
+
+eye_L distribution: {139: 1}
+Eye Birth Defect offspring: (none)
+eyebrow_L distribution: {23: 1}
+Eyebrow Birth Defect offspring: (none)
+ear_L distribution: {30: 1}
+Ear Birth Defect offspring: (none)
+
+======================================================================
+Bud line: Kami + Murisha
+======================================================================
+Parent Kami: eye=139 brow=23 ear=30 defects=[]
+Parent Murisha: eye=301 brow=428 ear=132 defects=[]
+Offspring count: 1
+
+  Bud              gen=25 eye_L=139 eyebrow_L=23 ear_L=132 defects=[]
+
+eye_L distribution: {139: 1}
+Eye Birth Defect offspring: (none)
+eyebrow_L distribution: {23: 1}
+Eyebrow Birth Defect offspring: (none)
+ear_L distribution: {132: 1}
+Ear Birth Defect offspring: (none)
+
+======================================================================
+Verdict
+======================================================================
+These family-line summaries do not prove runtime reconstruction by themselves, but they tell us whether the missing defects sit inside a repeatable parental pattern or are isolated anomalies in the current save.
