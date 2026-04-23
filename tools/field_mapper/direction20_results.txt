@@ -1,0 +1,141 @@
+======================================================================
+Direction #20 -- TypeScript editor write-path audit
+======================================================================
+Sources fetched:
+  patch_mutations: https://raw.githubusercontent.com/michael-trinity/mewgenics-savegame-editor/refs/heads/main/app/utils/patch/mutations.ts
+  mutation_editor: https://raw.githubusercontent.com/michael-trinity/mewgenics-savegame-editor/refs/heads/main/app/components/editor/MutationEditor.vue
+  parse_mutations: https://raw.githubusercontent.com/michael-trinity/mewgenics-savegame-editor/refs/heads/main/app/utils/parse/mutations.ts
+
+======================================================================
+patch/mutations.ts
+======================================================================
+export function patchMutCoat(dec: Uint8Array, baseOff: number, oldCoat: number, newCoat: number): Uint8Array {
+  const out = new Uint8Array(dec)
+  writeU32LE(out, baseOff + 4, newCoat)
+
+  // Propagate coat field in entries 1-14 where it matches old coat
+  for (let i = 0; i < 14; i++) {
+    const off = baseOff + 16 + i * 20 + 4
+    const cur = u32LE(out, off)
+    if (cur === oldCoat) {
+      writeU32LE(out, off, newCoat)
+    }
+  }
+
+  return out
+}
+
+export function patchMutSlot(dec: Uint8Array, baseOff: number, slotIdx: number, newId: number): Uint8Array {
+  if (slotIdx < 1 || slotIdx > 14) {
+    throw new Error('Slot index must be 1..14')
+  }
+
+  const off = baseOff + 16 + (slotIdx - 1) * 20
+  const out = new Uint8Array(dec)
+  writeU32LE(out, off, newId)
+  return out
+}
+
+======================================================================
+MutationEditor.vue write calls
+======================================================================
+function applyMutation(newId: number) {
+  if (editingIsCoat.value) {
+    if (props.cat.mutations.baseOffset === null || props.cat.mutations.coatId === null) return
+    const newBlob = patchMutCoat(props.cat.decompressedBlob, props.cat.mutations.baseOffset, props.cat.mutations.coatId, newId)
+    updateCat(props.cat.key, { decompressedBlob: newBlob, mutations: parseMutationTable(newBlob) })
+  } else if (editingSlotIdx.value !== null) {
+    if (props.cat.mutations.baseOffset === null) return
+    const newBlob = patchMutSlot(props.cat.decompressedBlob, props.cat.mutations.baseOffset, editingSlotIdx.value, newId)
+    updateCat(props.cat.key, { decompressedBlob: newBlob, mutations: parseMutationTable(newBlob) })
+  }
+  cancelEdit()
+}
+
+function clearSlot(slotIdx: number) {
+  if (props.cat.mutations.baseOffset === null) return
+  const newBlob = patchMutSlot(props.cat.decompressedBlob, props.cat.mutations.baseOffset, slotIdx, 0)
+  updateCat(props.cat.key, { decompressedBlob: newBlob, mutations: parseMutationTable(newBlob) })
+  if (editingSlotIdx.value === slotIdx) cancelEdit()
+}
+
+function mirrorSlot(slotIdx: number) {
+  const pair = MUT_PAIRS[slotIdx]
+  if (!pair || props.cat.mutations.baseOffset === null) return
+  const sourceSlot = props.cat.mutations.slots.find(s => s.slotIndex === slotIdx)
+  if (!sourceSlot) return
+  const newBlob = patchMutSlot(props.cat.decompressedBlob, props.cat.mutations.baseOffset, pair, sourceSlot.slotId)
+  updateCat(props.cat.key, { decompressedBlob: newBlob, mutations: parseMutationTable(newBlob) })
+}
+
+let entries = [...catMap.entries()].filter(([id]) => Number(id) >= 300)
+
+function getEntry(category: string, id: number): MutationEntry | null {
+  if (!mutationsDB.value || id < 300) return null
+
+======================================================================
+parse/mutations.ts table framing
+======================================================================
+const MUT_TABLE_SIZE = 16 + 14 * 20
+
+/**
+ * Locate the fixed-size mutations/appearance table in the decompressed blob.
+ * Port of Python's _find_mutation_table.
+ *
+ * Entry0: 16 bytes (f32 scale, u32 coat_id, u32 small, u32 sentinel)
+ * Entries 1-14: 20 bytes each (u32 slot_id, u32 coat_id_or_0, ...)
+ */
+function findMutationTable(dec: Uint8Array): number | null {
+  const n = dec.length
+  if (n < MUT_TABLE_SIZE) return null
+
+  let bestScore = -1
+  let bestOff: number | null = null
+
+  for (let base = 0; base <= n - MUT_TABLE_SIZE; base++) {
+    const s = f32LE(dec, base)
+    const coat = u32LE(dec, base + 4)
+    const t1 = u32LE(dec, base + 8)
+    const t2 = u32LE(dec, base + 12)
+
+    // Loose plausibility checks
+    if (s < 0.05 || s > 20.0) continue
+    if (coat === 0 || coat > 20000) continue
+    if (t1 > 500) continue
+    if (t2 !== 0xFFFFFFFF && t2 > 5000) continue
+
+    let ok = 0
+    for (let i = 0; i < 14; i++) {
+      const off = base + 16 + i * 20
+      const c = u32LE(dec, off + 4)
+      if (c === coat || c === 0) ok++
+    }
+
+    if (ok < 10) continue
+
+    const score = ok * 1000 + base
+    if (score > bestScore) {
+      bestScore = score
+      bestOff = base
+    }
+  }
+
+  return bestOff
+}
+
+======================================================================
+Findings
+======================================================================
+1. `patchMutSlot()` writes exactly one `u32` at `baseOff + 16 + (slotIdx - 1) * 20`.
+   It does not write any companion flag, variant bit, or second structure.
+2. `patchMutCoat()` only writes the coat `u32` at `baseOff + 4` and propagates the coat echo to slot entries at `+4` within each 20-byte record.
+3. `MutationEditor.vue` passes a single `newId` into `patchMutSlot()` for apply/mirror/clear operations.
+   `clearSlot()` writes `0`; `mirrorSlot()` copies the other slot's current `slotId`; no extra write happens.
+4. The browser only exposes mutation IDs `>= 300` (`Number(id) >= 300`), and `getEntry()` returns null for IDs `< 300`.
+   That means the editor UI does not even browse explicit low-ID birth defects such as `2`, nor any special `0xFFFFFFFE` sentinel.
+5. The parser side in this editor still frames the same `16 + 14 * 20` byte mutation table we already mapped to the T-array body.
+
+Verdict:
+  The TypeScript community editor does NOT reveal a hidden write path for "No Part" birth defects.
+  Its mutation write path only edits the same structured mutation table (our T array), and its UI is limited to IDs >= 300.
+  So this tool is not evidence of any second persisted defect field, and Direction 4a is effectively ruled out as a save-layout lead.
