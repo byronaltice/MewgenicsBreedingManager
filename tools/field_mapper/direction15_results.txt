@@ -1,0 +1,298 @@
+======================================================================
+Direction #15 -- Pre-T seed comparison for defect-bearing slots
+======================================================================
+Save: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\steamcampaign01.sav
+GPAK: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\resources.gpak
+
+======================================================================
+Key cats
+======================================================================
+Whommie (db_key=853) eye_L=139 eyebrow_L=23 ear_L=30 defects=['Fur Birth Defect']
+  seeds: f64[3]=0, f64[6]=0, f64[7]=1.01432498
+Bud (db_key=887) eye_L=139 eyebrow_L=23 ear_L=132 defects=['Leg Birth Defect']
+  seeds: f64[3]=0.225, f64[6]=0.5, f64[7]=1.02771385
+Flekpus (db_key=68) eye_L=401 eyebrow_L=4294967294 ear_L=84 defects=['Eyebrow Birth Defect']
+  seeds: f64[3]=0, f64[6]=0, f64[7]=1.09298212
+
+======================================================================
+Defect-bearing slots found in roster
+======================================================================
+arm_L        part_label='Arm' positives=16 examples=['Misifu', 'Kaisa', 'Papriko', 'Nyapoleon', 'Brimsley', 'Koopa', 'Filbo', 'Meowsaac']
+arm_R        part_label='Arm' positives=16 examples=['Misifu', 'Kaisa', 'Papriko', 'Nyapoleon', 'Brimsley', 'Koopa', 'Filbo', 'Meowsaac']
+body         part_label='Body' positives=12 examples=['Yertle', 'Krki', 'Nimue', 'Gacek', 'Isaac', 'Missi', 'Tooter', 'Lluna']
+ear_L        part_label='Ear' positives=10 examples=['Cat', 'Joe Cucumber', 'Tinka', 'Cabot', 'Norburt', 'Katy Kat', 'Zosia', 'Alaya']
+ear_R        part_label='Ear' positives=10 examples=['Cat', 'Joe Cucumber', 'Tinka', 'Cabot', 'Norburt', 'Katy Kat', 'Zosia', 'Alaya']
+eye_L        part_label='Eye' positives=12 examples=['Berlioz', 'Will', 'Mausi', 'Lauralee', 'Galipette', 'Marusya', 'Scronc', 'Birba']
+eye_R        part_label='Eye' positives=12 examples=['Berlioz', 'Will', 'Mausi', 'Lauralee', 'Galipette', 'Marusya', 'Scronc', 'Birba']
+eyebrow_L    part_label='Eyebrow' positives=27 examples=['Flekpus', 'Trudy', 'Ichabod', 'Nestor', 'Yertle', 'Ernest', 'Charlotte', 'Kiscica']
+eyebrow_R    part_label='Eyebrow' positives=27 examples=['Flekpus', 'Trudy', 'Ichabod', 'Nestor', 'Yertle', 'Ernest', 'Charlotte', 'Kiscica']
+fur          part_label='Fur' positives=13 examples=['Bubbers', 'Lorde', 'Zoro', 'Cherry', 'Velly', 'Shiro', 'Joey', 'Luneta']
+head         part_label='Head' positives=10 examples=['Claire', 'Zaros', 'Escaminha', 'Fabrice', 'Sunshine', 'Papi', 'Chair Slayer', 'Yertle']
+leg_L        part_label='Leg' positives=16 examples=['Roberto', 'Auntie', "Lil' Bro", 'Seamus', 'Toby Lee', 'Willa', 'Jasper', 'Adolin']
+leg_R        part_label='Leg' positives=15 examples=['Roberto', "Lil' Bro", 'Seamus', 'Toby Lee', 'Willa', 'Jasper', 'Adolin', 'Eggboy']
+mouth        part_label='Mouth' positives=45 examples=['Yoriczek', 'Aboltus', 'Lucyfer', 'Lucky Stitches', 'Esmond', 'Bartholomeow', 'Peppa', 'Thorgeir']
+tail         part_label='Tail' positives=14 examples=['Pato', 'Hany', 'Pastrami', 'Beebmama', 'Papi', 'Flac', 'Dilliard', 'Beowulf']
+
+======================================================================
+Seed comparisons by slot
+======================================================================
+arm_L (Arm)
+  f64[3] positives=16 negatives=907 pos_nan=0 neg_nan=0
+    pos_range=[0, 0.225] neg_range=[0, 0.45325]
+    threshold_test=NO: overlapping ranges
+    top_pos_values=[(0.0, 14), (0.225, 1), (0.2025, 1)]
+    top_neg_values=[(0.0, 523), (0.25, 106), (0.225, 55), (0.2025, 43), (0.18225, 34)]
+  f64[6] positives=16 negatives=907 pos_nan=0 neg_nan=0
+    pos_range=[0, 0.5] neg_range=[0, 0.625]
+    threshold_test=NO: overlapping ranges
+    top_pos_values=[(0.0, 11), (0.25, 1), (0.3645, 1), (0.225, 1), (0.3925, 1)]
+    top_neg_values=[(0.0, 445), (0.5, 133), (0.25, 123), (0.45, 40), (0.225, 38)]
+  f64[7] positives=16 negatives=907 pos_nan=0 neg_nan=0
+    pos_range=[1.01111435, 1.22027878] neg_range=[1.0002792, 1.24369939]
+    threshold_test=NO: overlapping ranges
+    top_pos_values=[(1.189721121, 1), (1.220278779, 1), (1.033074219, 1), (1.019843559, 1), (1.164914755, 1)]
+    top_neg_values=[(1.104646334, 2), (1.02153233, 2), (1.009544988, 1), (1.007050446, 1), (1.052589845, 1)]
+
+arm_R (Arm)
+  f64[3] positives=16 negatives=907 pos_nan=0 neg_nan=0
+    pos_range=[0, 0.225] neg_range=[0, 0.45325]
+    threshold_test=NO: overlapping ranges
+    top_pos_values=[(0.0, 14), (0.225, 1), (0.2025, 1)]
+    top_neg_values=[(0.0, 523), (0.25, 106), (0.225, 55), (0.2025, 43), (0.18225, 34)]
+  f64[6] positives=16 negatives=907 pos_nan=0 neg_nan=0
+    pos_range=[0, 0.5] neg_range=[0, 0.625]
+    threshold_test=NO: overlapping ranges
+    top_pos_values=[(0.0, 11), (0.25, 1), (0.3645, 1), (0.225, 1), (0.3925, 1)]
+    top_neg_values=[(0.0, 445), (0.5, 133), (0.25, 123), (0.45, 40), (0.225, 38)]
+  f64[7] positives=16 negatives=907 pos_nan=0 neg_nan=0
+    pos_range=[1.01111435, 1.22027878] neg_range=[1.0002792, 1.24369939]
+    threshold_test=NO: overlapping ranges
+    top_pos_values=[(1.189721121, 1), (1.220278779, 1), (1.033074219, 1), (1.019843559, 1), (1.164914755, 1)]
+    top_neg_values=[(1.104646334, 2), (1.02153233, 2), (1.009544988, 1), (1.007050446, 1), (1.052589845, 1)]
+
+body (Body)
+  f64[3] positives=12 negatives=911 pos_nan=0 neg_nan=0
+    pos_range=[0, 0.25] neg_range=[0, 0.45325]
+    threshold_test=NO: overlapping ranges
+    top_pos_values=[(0.0, 11), (0.25, 1)]
+    top_neg_values=[(0.0, 526), (0.25, 105), (0.225, 56), (0.2025, 44), (0.18225, 34)]
+  f64[6] positives=12 negatives=911 pos_nan=0 neg_nan=0
+    pos_range=[0, 0.5] neg_range=[0, 0.625]
+    threshold_test=NO: overlapping ranges
+    top_pos_values=[(0.0, 7), (0.25, 2), (0.225, 2), (0.5, 1)]
+    top_neg_values=[(0.0, 449), (0.5, 133), (0.25, 122), (0.45, 40), (0.225, 37)]
+  f64[7] positives=12 negatives=911 pos_nan=0 neg_nan=0
+    pos_range=[1.01141674, 1.18008353] neg_range=[1.0002792, 1.24369939]
+    threshold_test=NO: overlapping ranges
+    top_pos_values=[(1.02749983, 1), (1.180083529, 1), (1.071522417, 1), (1.080420831, 1), (1.138222622, 1)]
+    top_neg_values=[(1.104646334, 2), (1.02153233, 2), (1.009544988, 1), (1.007050446, 1), (1.052589845, 1)]
+
+ear_L (Ear)
+  f64[3] positives=10 negatives=913 pos_nan=0 neg_nan=0
+    pos_range=[0, 0.25] neg_range=[0, 0.45325]
+    threshold_test=NO: overlapping ranges
+    top_pos_values=[(0.0, 9), (0.25, 1)]
+    top_neg_values=[(0.0, 528), (0.25, 105), (0.225, 56), (0.2025, 44), (0.18225, 34)]
+  f64[6] positives=10 negatives=913 pos_nan=0 neg_nan=0
+    pos_range=[0, 0.5] neg_range=[0, 0.625]
+    threshold_test=NO: overlapping ranges
+    top_pos_values=[(0.0, 8), (0.5, 1), (0.25, 1)]
+    top_neg_values=[(0.0, 448), (0.5, 133), (0.25, 123), (0.45, 40), (0.225, 39)]
+  f64[7] positives=10 negatives=913 pos_nan=0 neg_nan=0
+    pos_range=[1.02330856, 1.2284043] neg_range=[1.0002792, 1.24369939]
+    threshold_test=NO: overlapping ranges
+    top_pos_values=[(1.032534479, 1), (1.030753163, 1), (1.041353274, 1), (1.025491787, 1), (1.09024194, 1)]
+    top_neg_values=[(1.104646334, 2), (1.02153233, 2), (1.009544988, 1), (1.007050446, 1), (1.052589845, 1)]
+
+ear_R (Ear)
+  f64[3] positives=10 negatives=913 pos_nan=0 neg_nan=0
+    pos_range=[0, 0.25] neg_range=[0, 0.45325]
+    threshold_test=NO: overlapping ranges
+    top_pos_values=[(0.0, 9), (0.25, 1)]
+    top_neg_values=[(0.0, 528), (0.25, 105), (0.225, 56), (0.2025, 44), (0.18225, 34)]
+  f64[6] positives=10 negatives=913 pos_nan=0 neg_nan=0
+    pos_range=[0, 0.5] neg_range=[0, 0.625]
+    threshold_test=NO: overlapping ranges
+    top_pos_values=[(0.0, 8), (0.5, 1), (0.25, 1)]
+    top_neg_values=[(0.0, 448), (0.5, 133), (0.25, 123), (0.45, 40), (0.225, 39)]
+  f64[7] positives=10 negatives=913 pos_nan=0 neg_nan=0
+    pos_range=[1.02330856, 1.2284043] neg_range=[1.0002792, 1.24369939]
+    threshold_test=NO: overlapping ranges
+    top_pos_values=[(1.032534479, 1), (1.030753163, 1), (1.041353274, 1), (1.025491787, 1), (1.09024194, 1)]
+    top_neg_values=[(1.104646334, 2), (1.02153233, 2), (1.009544988, 1), (1.007050446, 1), (1.052589845, 1)]
+
+eye_L (Eye)
+  f64[3] positives=12 negatives=911 pos_nan=0 neg_nan=0
+    pos_range=[0, 0.25] neg_range=[0, 0.45325]
+    threshold_test=NO: overlapping ranges
+    top_pos_values=[(0.0, 10), (0.25, 1), (0.164025, 1)]
+    top_neg_values=[(0.0, 527), (0.25, 105), (0.225, 56), (0.2025, 44), (0.18225, 34)]
+  f64[6] positives=12 negatives=911 pos_nan=0 neg_nan=0
+    pos_range=[0, 0.5] neg_range=[0, 0.625]
+    threshold_test=NO: overlapping ranges
+    top_pos_values=[(0.0, 10), (0.5, 1), (0.18225, 1)]
+    top_neg_values=[(0.0, 446), (0.5, 133), (0.25, 124), (0.45, 40), (0.225, 39)]
+  f64[7] positives=12 negatives=911 pos_nan=0 neg_nan=0
+    pos_range=[1.02943087, 1.14095863] neg_range=[1.0002792, 1.24369939]
+    threshold_test=NO: overlapping ranges
+    top_pos_values=[(1.11752577, 1), (1.109551362, 1), (1.029430866, 1), (1.043534372, 1), (1.111747844, 1)]
+    top_neg_values=[(1.104646334, 2), (1.02153233, 2), (1.009544988, 1), (1.007050446, 1), (1.052589845, 1)]
+
+eye_R (Eye)
+  f64[3] positives=12 negatives=911 pos_nan=0 neg_nan=0
+    pos_range=[0, 0.25] neg_range=[0, 0.45325]
+    threshold_test=NO: overlapping ranges
+    top_pos_values=[(0.0, 10), (0.25, 1), (0.164025, 1)]
+    top_neg_values=[(0.0, 527), (0.25, 105), (0.225, 56), (0.2025, 44), (0.18225, 34)]
+  f64[6] positives=12 negatives=911 pos_nan=0 neg_nan=0
+    pos_range=[0, 0.5] neg_range=[0, 0.625]
+    threshold_test=NO: overlapping ranges
+    top_pos_values=[(0.0, 10), (0.5, 1), (0.18225, 1)]
+    top_neg_values=[(0.0, 446), (0.5, 133), (0.25, 124), (0.45, 40), (0.225, 39)]
+  f64[7] positives=12 negatives=911 pos_nan=0 neg_nan=0
+    pos_range=[1.02943087, 1.14095863] neg_range=[1.0002792, 1.24369939]
+    threshold_test=NO: overlapping ranges
+    top_pos_values=[(1.11752577, 1), (1.109551362, 1), (1.029430866, 1), (1.043534372, 1), (1.111747844, 1)]
+    top_neg_values=[(1.104646334, 2), (1.02153233, 2), (1.009544988, 1), (1.007050446, 1), (1.052589845, 1)]
+
+eyebrow_L (Eyebrow)
+  f64[3] positives=27 negatives=896 pos_nan=0 neg_nan=0
+    pos_range=[0, 0.3925] neg_range=[0, 0.45325]
+    threshold_test=NO: overlapping ranges
+    top_pos_values=[(0.0, 20), (0.25, 2), (0.326925, 1), (0.18225, 1), (0.12149937, 1)]
+    top_neg_values=[(0.0, 517), (0.25, 104), (0.225, 56), (0.2025, 44), (0.18225, 33)]
+  f64[6] positives=27 negatives=896 pos_nan=0 neg_nan=0
+    pos_range=[0, 0.625] neg_range=[0, 0.625]
+    threshold_test=NO: overlapping ranges
+    top_pos_values=[(0.0, 19), (0.25, 2), (0.1476225, 1), (0.52875, 1), (0.236925, 1)]
+    top_neg_values=[(0.0, 437), (0.5, 134), (0.25, 122), (0.45, 40), (0.225, 38)]
+  f64[7] positives=27 negatives=896 pos_nan=0 neg_nan=0
+    pos_range=[1.00398105, 1.1940728] neg_range=[1.0002792, 1.24369939]
+    threshold_test=NO: overlapping ranges
+    top_pos_values=[(1.092982121, 1), (1.086566909, 1), (1.051277899, 1), (1.022480945, 1), (1.02749983, 1)]
+    top_neg_values=[(1.104646334, 2), (1.02153233, 2), (1.009544988, 1), (1.007050446, 1), (1.052589845, 1)]
+
+eyebrow_R (Eyebrow)
+  f64[3] positives=27 negatives=896 pos_nan=0 neg_nan=0
+    pos_range=[0, 0.3925] neg_range=[0, 0.45325]
+    threshold_test=NO: overlapping ranges
+    top_pos_values=[(0.0, 20), (0.25, 2), (0.326925, 1), (0.18225, 1), (0.12149937, 1)]
+    top_neg_values=[(0.0, 517), (0.25, 104), (0.225, 56), (0.2025, 44), (0.18225, 33)]
+  f64[6] positives=27 negatives=896 pos_nan=0 neg_nan=0
+    pos_range=[0, 0.625] neg_range=[0, 0.625]
+    threshold_test=NO: overlapping ranges
+    top_pos_values=[(0.0, 19), (0.25, 2), (0.1476225, 1), (0.52875, 1), (0.236925, 1)]
+    top_neg_values=[(0.0, 437), (0.5, 134), (0.25, 122), (0.45, 40), (0.225, 38)]
+  f64[7] positives=27 negatives=896 pos_nan=0 neg_nan=0
+    pos_range=[1.00398105, 1.1940728] neg_range=[1.0002792, 1.24369939]
+    threshold_test=NO: overlapping ranges
+    top_pos_values=[(1.092982121, 1), (1.086566909, 1), (1.051277899, 1), (1.022480945, 1), (1.02749983, 1)]
+    top_neg_values=[(1.104646334, 2), (1.02153233, 2), (1.009544988, 1), (1.007050446, 1), (1.052589845, 1)]
+
+fur (Fur)
+  f64[3] positives=13 negatives=910 pos_nan=0 neg_nan=0
+    pos_range=[0, 0.25] neg_range=[0, 0.45325]
+    threshold_test=NO: overlapping ranges
+    top_pos_values=[(0.0, 11), (0.25, 2)]
+    top_neg_values=[(0.0, 526), (0.25, 104), (0.225, 56), (0.2025, 44), (0.18225, 34)]
+  f64[6] positives=13 negatives=910 pos_nan=0 neg_nan=0
+    pos_range=[0, 0.25] neg_range=[0, 0.625]
+    threshold_test=NO: overlapping ranges
+    top_pos_values=[(0.0, 11), (0.25, 1), (0.2025, 1)]
+    top_neg_values=[(0.0, 445), (0.5, 134), (0.25, 123), (0.45, 40), (0.225, 39)]
+  f64[7] positives=13 negatives=910 pos_nan=0 neg_nan=0
+    pos_range=[1.01432498, 1.16812989] neg_range=[1.0002792, 1.24369939]
+    threshold_test=NO: overlapping ranges
+    top_pos_values=[(1.041903573, 1), (1.098167445, 1), (1.032210951, 1), (1.168129894, 1), (1.051538932, 1)]
+    top_neg_values=[(1.104646334, 2), (1.02153233, 2), (1.009544988, 1), (1.007050446, 1), (1.052589845, 1)]
+
+head (Head)
+  f64[3] positives=10 negatives=913 pos_nan=0 neg_nan=0
+    pos_range=[0, 0] neg_range=[0, 0.45325]
+    threshold_test=NO: overlapping ranges
+    top_pos_values=[(0.0, 10)]
+    top_neg_values=[(0.0, 527), (0.25, 106), (0.225, 56), (0.2025, 44), (0.18225, 34)]
+  f64[6] positives=10 negatives=913 pos_nan=0 neg_nan=0
+    pos_range=[0, 0.25] neg_range=[0, 0.625]
+    threshold_test=NO: overlapping ranges
+    top_pos_values=[(0.0, 7), (0.25, 2), (0.225, 1)]
+    top_neg_values=[(0.0, 449), (0.5, 134), (0.25, 122), (0.45, 40), (0.225, 38)]
+  f64[7] positives=10 negatives=913 pos_nan=0 neg_nan=0
+    pos_range=[1.00802062, 1.18272494] neg_range=[1.0002792, 1.24369939]
+    threshold_test=NO: overlapping ranges
+    top_pos_values=[(1.118616457, 1), (1.04018294, 1), (1.049151869, 1), (1.008020618, 1), (1.125193297, 1)]
+    top_neg_values=[(1.104646334, 2), (1.02153233, 2), (1.009544988, 1), (1.007050446, 1), (1.052589845, 1)]
+
+leg_L (Leg)
+  f64[3] positives=16 negatives=907 pos_nan=0 neg_nan=0
+    pos_range=[0, 0.2925] neg_range=[0, 0.45325]
+    threshold_test=NO: overlapping ranges
+    top_pos_values=[(0.0, 11), (0.2025, 1), (0.21386025, 1), (0.2925, 1), (0.25, 1)]
+    top_neg_values=[(0.0, 526), (0.25, 105), (0.225, 55), (0.2025, 43), (0.18225, 34)]
+  f64[6] positives=16 negatives=907 pos_nan=0 neg_nan=0
+    pos_range=[0, 0.5] neg_range=[0, 0.625]
+    threshold_test=NO: overlapping ranges
+    top_pos_values=[(0.0, 9), (0.5, 3), (0.192474225, 1), (0.2025, 1), (0.225, 1)]
+    top_neg_values=[(0.0, 447), (0.5, 131), (0.25, 123), (0.45, 40), (0.225, 38)]
+  f64[7] positives=16 negatives=907 pos_nan=0 neg_nan=0
+    pos_range=[1.01237243, 1.16580508] neg_range=[1.0002792, 1.24369939]
+    threshold_test=NO: overlapping ranges
+    top_pos_values=[(1.066750609, 1), (1.043387425, 1), (1.09775419, 1), (1.142781386, 1), (1.080444335, 1)]
+    top_neg_values=[(1.104646334, 2), (1.02153233, 2), (1.009544988, 1), (1.007050446, 1), (1.052589845, 1)]
+
+leg_R (Leg)
+  f64[3] positives=15 negatives=908 pos_nan=0 neg_nan=0
+    pos_range=[0, 0.2925] neg_range=[0, 0.45325]
+    threshold_test=NO: overlapping ranges
+    top_pos_values=[(0.0, 11), (0.21386025, 1), (0.2925, 1), (0.25, 1), (0.225, 1)]
+    top_neg_values=[(0.0, 526), (0.25, 105), (0.225, 55), (0.2025, 44), (0.18225, 34)]
+  f64[6] positives=15 negatives=908 pos_nan=0 neg_nan=0
+    pos_range=[0, 0.5] neg_range=[0, 0.625]
+    threshold_test=NO: overlapping ranges
+    top_pos_values=[(0.0, 9), (0.5, 2), (0.192474225, 1), (0.2025, 1), (0.225, 1)]
+    top_neg_values=[(0.0, 447), (0.5, 132), (0.25, 123), (0.45, 40), (0.225, 38)]
+  f64[7] positives=15 negatives=908 pos_nan=0 neg_nan=0
+    pos_range=[1.01237243, 1.16580508] neg_range=[1.0002792, 1.24369939]
+    threshold_test=NO: overlapping ranges
+    top_pos_values=[(1.066750609, 1), (1.09775419, 1), (1.142781386, 1), (1.080444335, 1), (1.098602221, 1)]
+    top_neg_values=[(1.104646334, 2), (1.02153233, 2), (1.009544988, 1), (1.007050446, 1), (1.052589845, 1)]
+
+mouth (Mouth)
+  f64[3] positives=45 negatives=878 pos_nan=0 neg_nan=0
+    pos_range=[0, 0.25] neg_range=[0, 0.45325]
+    threshold_test=NO: overlapping ranges
+    top_pos_values=[(0.0, 29), (0.2025, 4), (0.225, 3), (0.18225, 3), (0.25, 3)]
+    top_neg_values=[(0.0, 508), (0.25, 103), (0.225, 53), (0.2025, 40), (0.18225, 31)]
+  f64[6] positives=45 negatives=878 pos_nan=0 neg_nan=0
+    pos_range=[0, 0.5] neg_range=[0, 0.625]
+    threshold_test=NO: overlapping ranges
+    top_pos_values=[(0.0, 23), (0.5, 6), (0.25, 5), (0.3645, 2), (0.3247695, 1)]
+    top_neg_values=[(0.0, 433), (0.5, 128), (0.25, 119), (0.225, 39), (0.45, 39)]
+  f64[7] positives=45 negatives=878 pos_nan=0 neg_nan=0
+    pos_range=[1.00520846, 1.21848893] neg_range=[1.0002792, 1.24369939]
+    threshold_test=NO: overlapping ranges
+    top_pos_values=[(1.027914254, 1), (1.114784719, 1), (1.019719397, 1), (1.139951117, 1), (1.134138781, 1)]
+    top_neg_values=[(1.104646334, 2), (1.02153233, 2), (1.009544988, 1), (1.007050446, 1), (1.052589845, 1)]
+
+tail (Tail)
+  f64[3] positives=14 negatives=909 pos_nan=0 neg_nan=0
+    pos_range=[0, 0.25] neg_range=[0, 0.45325]
+    threshold_test=NO: overlapping ranges
+    top_pos_values=[(0.0, 11), (0.225, 1), (0.25, 1), (0.164025, 1)]
+    top_neg_values=[(0.0, 526), (0.25, 105), (0.225, 55), (0.2025, 44), (0.18225, 34)]
+  f64[6] positives=14 negatives=909 pos_nan=0 neg_nan=0
+    pos_range=[0, 0.5] neg_range=[0, 0.625]
+    threshold_test=NO: overlapping ranges
+    top_pos_values=[(0.0, 8), (0.5, 2), (0.25, 2), (0.2025, 1), (0.225, 1)]
+    top_neg_values=[(0.0, 448), (0.5, 132), (0.25, 122), (0.45, 40), (0.225, 38)]
+  f64[7] positives=14 negatives=909 pos_nan=0 neg_nan=0
+    pos_range=[1.02465215, 1.18272494] neg_range=[1.0002792, 1.24369939]
+    threshold_test=NO: overlapping ranges
+    top_pos_values=[(1.060583108, 1), (1.034031421, 1), (1.143502395, 1), (1.102175673, 1), (1.182724945, 1)]
+    top_neg_values=[(1.104646334, 2), (1.02153233, 2), (1.009544988, 1), (1.007050446, 1), (1.052589845, 1)]
+
+======================================================================
+Verdict
+======================================================================
+Across all slot groups with detected birth defects elsewhere in the roster, f64[3], f64[6], and f64[7] were checked for threshold-like separation between cats where that slot is defect-positive and cats where it is not.
+No slot/seed pair produced a clean threshold separation; all finite ranges overlapped.
