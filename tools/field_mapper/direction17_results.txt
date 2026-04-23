@@ -1,0 +1,170 @@
+======================================================================
+Direction #17 -- Discarded u32 after collar in blob head
+======================================================================
+Save: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\steamcampaign01.sav
+
+======================================================================
+STEP 1 -- Full blob head dump for target cats
+======================================================================
+
+Whommie (db_key=853) — MISSING Eye+Eyebrow defects
+  breed_id       : 19
+  uid            : 0xf583b3e1520c04fd
+  name           : 'Whommie'
+  name_tag       : 'poop'
+  parent_uid_a   : 0x0000000200000002
+  parent_uid_b   : 0x0000000000000001
+  collar         : 'None'
+  discarded_u32  : 1 (0x00000001)
+  pre_t_start    : 0x4e
+  detected defects: ['Fur Birth Defect']
+  pre-T f64 values:
+    f64[0] = 0.5976176148312518
+    f64[1] = 0.022129864288530532
+    f64[2] = nan
+    f64[3] = 0.0
+    f64[4] = 0.6553372564097817
+    f64[5] = nan
+    f64[6] = 0.0
+    f64[7] = 1.0143249765334708
+
+Bud (db_key=887) — MISSING Ear defect
+  breed_id       : 19
+  uid            : 0x4d693a3c3fbaa53f
+  name           : 'Bud'
+  name_tag       : 'poop'
+  parent_uid_a   : 0x0000000000000000
+  parent_uid_b   : 0x0000000000000001
+  collar         : 'None'
+  discarded_u32  : 1 (0x00000001)
+  pre_t_start    : 0x46
+  detected defects: []
+  pre-T f64 values:
+    f64[0] = 0.4979596289937075
+    f64[1] = 0.09863390687032757
+    f64[2] = 4.437e-321
+    f64[3] = 0.225
+    f64[4] = 0.08226778971848936
+    f64[5] = 3.463e-321
+    f64[6] = 0.5
+    f64[7] = 1.0277138526353329
+
+Kami (db_key=840) — CLEAN (Whommie's parent, eye=139 brow=23)
+  breed_id       : 19
+  uid            : 0x28d818f66b0ef2e7
+  name           : 'Kami'
+  name_tag       : 'star2'
+  parent_uid_a   : 0x0000000200000002
+  parent_uid_b   : 0x0000000000000003
+  collar         : 'None'
+  discarded_u32  : 1 (0x00000001)
+  pre_t_start    : 0x49
+  detected defects: []
+  pre-T f64 values:
+    f64[0] = 0.7237789406903861
+    f64[1] = 0.0758890237582797
+    f64[2] = 4.155e-321
+    f64[3] = 0.11957422500000003
+    f64[4] = 0.7728958315951745
+    f64[5] = 4.03e-321
+    f64[6] = 0.5
+    f64[7] = 1.0003995208327032
+
+Petronij (db_key=841) — CLEAN (Whommie's parent)
+  breed_id       : 19
+  uid            : 0x43067744b4e01472
+  name           : 'Petronij'
+  name_tag       : ''
+  parent_uid_a   : 0x0000000000000000
+  parent_uid_b   : 0x0000000000000001
+  collar         : 'None'
+  discarded_u32  : 1 (0x00000001)
+  pre_t_start    : 0x4c
+  detected defects: []
+  pre-T f64 values:
+    f64[0] = 0.533676256284906
+    f64[1] = 0.08253412722813003
+    f64[2] = 4.15e-321
+    f64[3] = 0.2025
+    f64[4] = 0.3117378666250491
+    f64[5] = 4.175e-321
+    f64[6] = 0.5
+    f64[7] = 1.1361400872086063
+
+Flekpus (db_key=68) — DETECTED Eyebrow defect (brow=0xFFFFFFFE)
+  breed_id       : 19
+  uid            : 0x3d2abb204c2ccb2a
+  name           : 'Flekpus'
+  name_tag       : ''
+  parent_uid_a   : 0x0000000200000002
+  parent_uid_b   : 0x0000000000010003
+  collar         : 'None'
+  discarded_u32  : 1 (0x00000001)
+  pre_t_start    : 0x4a
+  detected defects: ['Eyebrow Birth Defect']
+  pre-T f64 values:
+    f64[0] = 0.3684210159367777
+    f64[1] = 0.04102946753085053
+    f64[2] = nan
+    f64[3] = 0.0
+    f64[4] = 0.5577984964750311
+    f64[5] = nan
+    f64[6] = 0.0
+    f64[7] = 1.0929821214085902
+
+Romanoba (db_key=96) — CLEAN control
+  breed_id       : 19
+  uid            : 0xf0e5e6f4478d918e
+  name           : 'Ema'
+  name_tag       : ''
+  parent_uid_a   : 0x0000000100000001
+  parent_uid_b   : 0x0000000000040021
+  collar         : 'None'
+  discarded_u32  : 1 (0x00000001)
+  pre_t_start    : 0x42
+  detected defects: []
+  pre-T f64 values:
+    f64[0] = 0.4847536699707301
+    f64[1] = 0.06517266043875965
+    f64[2] = nan
+    f64[3] = 0.0
+    f64[4] = 0.2210247804383758
+    f64[5] = nan
+    f64[6] = 0.0
+    f64[7] = 1.0039419513449064
+
+======================================================================
+STEP 2 -- Roster-wide: discarded_u32 distribution
+======================================================================
+Scanned 120 defective + 803 clean cats (0 errors)
+
+Defective cats — discarded_u32 value distribution (top 10):
+  0x00000001 (         1) : 120 cats
+
+Clean cats — discarded_u32 value distribution (top 10):
+  0x00000001 (         1) : 803 cats
+
+Unique values in defective only: []
+Unique values in clean only: []
+
+======================================================================
+STEP 3 -- Bitwise analysis: any single bit that separates defective from clean?
+======================================================================
+
+======================================================================
+STEP 4 -- Full blob head hex dump: Whommie vs Kami (to pre-T)
+======================================================================
+
+Whommie blob head (0x00..0x4e):
+  0x0000: 13 00 00 00 fd 04 0c 52 e1 b3 83 f5 07 00 00 00  .......R........
+  0x0010: 00 00 00 00 57 00 68 00 6f 00 6d 00 6d 00 69 00  ....W.h.o.m.m.i.
+  0x0020: 65 00 04 00 00 00 00 00 00 00 70 6f 6f 70 02 00  e.........poop..
+  0x0030: 00 00 02 00 00 00 01 00 00 00 00 00 00 00 04 00  ................
+  0x0040: 00 00 00 00 00 00 4e 6f 6e 65 01 00 00 00 0c d7  ......None......
+
+Kami blob head (0x00..0x49):
+  0x0000: 13 00 00 00 e7 f2 0e 6b f6 18 d8 28 04 00 00 00  .......k...(....
+  0x0010: 00 00 00 00 4b 00 61 00 6d 00 69 00 05 00 00 00  ....K.a.m.i.....
+  0x0020: 00 00 00 00 73 74 61 72 32 02 00 00 00 02 00 00  ....star2.......
+  0x0030: 00 03 00 00 00 00 00 00 00 04 00 00 00 00 00 00  ................
+  0x0040: 00 4e 6f 6e 65 01 00 00 00 36 8f f9 73 32 29 e7  .None....6..s2).
