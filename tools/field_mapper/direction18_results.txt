@@ -1,0 +1,91 @@
+======================================================================
+Direction #18 -- Discarded f64 after gender string
+======================================================================
+Save: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\steamcampaign01.sav
+
+======================================================================
+STEP 1 -- Discarded f64 for target cats
+======================================================================
+  Whommie      (MISSING Eye+Eyebrow defects)
+    f64 = 1.168309012320291
+    u64 = 0x3ff2b164ca789a77 (4607940415205186167)
+    defects = ['Fur Birth Defect']
+  Bud          (MISSING Ear defect)
+    f64 = 0.8716979855158715
+    u64 = 0x3febe4f32c78f3b6 (4606026776990774198)
+    defects = []
+  Kami         (CLEAN (Whommie's parent, eye=139 brow=23))
+    f64 = 0.8716979855158715
+    u64 = 0x3febe4f32c78f3b6 (4606026776990774198)
+    defects = []
+  Petronij     (CLEAN (Whommie's parent))
+    f64 = 1.168309012320291
+    u64 = 0x3ff2b164ca789a77 (4607940415205186167)
+    defects = []
+  Flekpus      (DETECTED Eyebrow defect (brow=0xFFFFFFFE))
+    f64 = 0.8420485366339705
+    u64 = 0x3feaf20fc5cf9a1a (4605759718496901658)
+    defects = ['Eyebrow Birth Defect']
+  Romanoba     (CLEAN control)
+    f64 = 0.9304984859541805
+    u64 = 0x3fedc6a4c2c4d2b4 (4606556404814500532)
+    defects = []
+
+======================================================================
+STEP 2 -- Roster-wide distribution: defective vs clean cats
+======================================================================
+Scanned: 120 defective + 803 clean (0 errors)
+
+Defective cats — f64 value distribution (top 10):
+  1.168309012320291              : 49 cats
+  0.7985516603047715             : 14 cats
+  0.7572434270452028             : 11 cats
+  0.9782602544911008             : 6 cats
+  0.8233279690056654             : 5 cats
+  1.0097167005546033             : 4 cats
+  1.174709416267435              : 3 cats
+  0.9791798362215733             : 3 cats
+  1.0390536024303363             : 3 cats
+  0.8420485366339705             : 2 cats
+
+Clean cats — f64 value distribution (top 10):
+  1.168309012320291              : 166 cats
+  0.7572434270452028             : 63 cats
+  0.7985516603047715             : 54 cats
+  0.8233279690056654             : 49 cats
+  1.41960513712214               : 24 cats
+  0.9782602544911008             : 15 cats
+  0.9791798362215733             : 15 cats
+  0.929838233160131              : 14 cats
+  1.0390536024303363             : 14 cats
+  0.9136890521492698             : 13 cats
+
+Values unique to defective cats: [0.8831463268119246, 0.9478823428650947, 1.4629677641811107]
+Values unique to clean cats (first 20): [0.5473558246061188, 0.5901896938446023, 0.591983016139539, 0.6600960325694885, 0.661863262003855, 0.6660346147426128, 0.676605830750836, 0.6820682224987836, 0.683850462578383, 0.685695422189382, 0.6889456786445453, 0.6958638233284149, 0.7037524262904808, 0.7079783602226054, 0.7100967248521581, 0.7155461169334321, 0.7282121008573348, 0.7287335570487006, 0.732466138742192, 0.7348386877974281]
+
+======================================================================
+STEP 3 -- Bitmask analysis: does the f64-as-integer encode defect slots?
+======================================================================
+Slot order: ['fur', 'body', 'head', 'tail', 'leg_L', 'leg_R', 'arm_L', 'arm_R', 'eye_L', 'eye_R', 'eyebrow_L', 'eyebrow_R', 'ear_L', 'ear_R', 'mouth']
+
+  Whommie: f64=1.168309012320291, bits set=[0], defects=['Fur Birth Defect']
+  Bud: f64=0.8716979855158715, bits set=[], defects=[]
+  Kami: f64=0.8716979855158715, bits set=[], defects=[]
+  Petronij: f64=1.168309012320291, bits set=[0], defects=[]
+  Flekpus: f64=0.8420485366339705, bits set=[], defects=['Eyebrow Birth Defect']
+  Romanoba: f64=0.9304984859541805, bits set=[], defects=[]
+
+======================================================================
+STEP 4 -- Check: cats with undetected defects (Whommie/Bud class)
+  Compare their f64 against cats with detected defects of the same slot type
+======================================================================
+  Whommie: post-gender f64 = 1.168309012320291
+  Bud: post-gender f64 = 0.8716979855158715
+
+  Cats with detected Eye/Eyebrow/Ear defects (first 6):
+  Flekpus      db_key=68: f64=0.8420485366339705, defects=['Eyebrow Birth Defect']
+  Cat          db_key=87: f64=0.8420485366339705, defects=['Ear Birth Defect']
+  Joe Cucumber db_key=93: f64=0.9304984859541805, defects=['Ear Birth Defect']
+  Trudy        db_key=106: f64=1.0097167005546033, defects=['Eyebrow Birth Defect']
+  Berlioz      db_key=115: f64=0.9782602544911008, defects=['Eye Birth Defect']
+  Ichabod      db_key=116: f64=1.174709416267435, defects=['Eyebrow Birth Defect']

@@ -304,7 +304,7 @@ All PySide6 code lives here. `mewgenics/__init__.py` runs one-time initializatio
 - `T[index+3]` = small non-zero for some slots (role unknown); does NOT encode mutation stat modifiers
 - `T[index+4]` = 0 in all observed saves
 
-The fur slot at index 0 has only 3 fields (`T[0]`, `T[1]`, `T[2]`); `T[1]` and `T[2]` roles are unknown.
+The fur slot at index 0 has only 3 fields (`T[0]`, `T[1]`, `T[2]`); `T[1]` = small integer breed/body variant ID (e.g., 8 or 31), `T[2]` = highly variable (0xFFFFFFFF mode) — neither encodes birth defect flags (confirmed via Direction 17).
 
 **Mutation stat modifiers** are NOT stored in T. They are defined in the GPAK GON files and the CSV strings table, and applied by the game to stat_mod at save time. The parser reads mutation stat effects from `_VISUAL_MUT_DATA` (populated from the GPAK) purely for display.
 
@@ -382,9 +382,16 @@ The parser already detects `mutation_id == 0xFFFFFFFE` as a defect generically. 
 
   - *Direction 16 (properties table):* Script `investigate_direction16.py`. All 262 rows are world-state only (quest flags, NPC dialogue trackers, map unlocks, global counters). No per-cat entries. None of the known cat db_keys (853, 887, 840, 841, 68) appear as values. No defect-related keys. **RULED OUT.**
 
+  - *Direction 17 (discarded u32 after collar in blob head):* Script `investigate_direction17.py`. In `save_parser.py:1204`, after reading the collar string the parser calls `r.u32()` and discards the result. Roster-wide check across all 923 cats: value is **always exactly 1** — completely constant. Not a defect flag. Also confirmed via hex dump that Whommie/Kami blob heads are identical in structure with no anomalies beyond known fields. **RULED OUT.**
+    - Side finding: The "pre-T 64-byte block" (personality/relationship data) is structured as: f64[0]=libido, f64[1]=sexuality, f64[2]=lover_uid (NaN if no lover), f64[3]=unknown scalar, f64[4]=aggression, f64[5]=hater_uid (NaN if no hater), f64[6]=0.0 or 0.5, f64[7]=slightly above 1.0. These are the same values read via `_read_personality()` at fixed offsets.
+
+  - *Direction 18 (discarded f64 after gender string):* Script `investigate_direction18.py`. In `save_parser.py:1236`, after reading the gender string the parser calls `r.f64()` and discards the result. This is right before stat_base/mod/sec. Roster-wide: value is a continuous scalar in the range ~[0.7, 1.5], shared between defective and clean cats with no correlation. Top value (1.168...) appears in 49 defective AND 166 clean cats. Likely a body-size scale factor. **RULED OUT.**
+    - Side finding: T[1] (second field of fur slot, index=0) = small integer breed/variant ID (Whommie=8, Bud=31, Kami=8). T[2] (third field of fur slot) = 0xFFFFFFFF or small ints, previously found variable — no defect correlation.
+
   **Next concrete steps to try:**
-  - *Direction 15 — Reconsider the runtime-only hypothesis.* After exhausting all binary locations in the cat blob and all SQLite tables, the "No Part" defect for Whommie/Bud may genuinely not be stored as a static value in the save. The game might reconstruct it from: (a) the pre-T seed values (f64[0..7]) via a deterministic defect-roll algorithm, or (b) the parent's genetics (parent db_keys known from pedigree). This was previously dismissed, but all alternatives are exhausted. Investigate whether the pre-T seeds for Whommie produce a "no eyebrows" outcome when run through the game's birth defect roll logic. Seed values for Whommie: f64[0]=0.5976, f64[1]=0.0221, f64[2]=NaN, f64[3]=0.0, f64[4]=0.6553, f64[5]=NaN, f64[6]=0.0, f64[7]=1.014.
+  - *Direction 15 — Reconsider the runtime-only hypothesis.* After exhausting ALL known binary locations (blob head, pre-T personality block, T[72] array, gender/stats gap, run_items/disorders, post-disorders tail, all 5 SQLite tables), the "No Part" defect for Whommie/Bud may genuinely not be stored as a static value in the save. The game might reconstruct it from: (a) the pre-T seed values (f64[0..7]) via a deterministic defect-roll algorithm, or (b) the parent's genetics (parent db_keys known from pedigree). Investigate whether the pre-T seeds for Whommie produce a "no eyebrows" outcome when run through the game's birth defect roll logic. Seed values for Whommie: f64[0]=libido=0.5976, f64[1]=sexuality=0.0221, f64[2]=NaN (no lover), f64[3]=0.0, f64[4]=aggression=0.6553, f64[5]=NaN (no hater), f64[6]=0.0, f64[7]=1.014.
   - *Direction 4 — GPAK text string reverse-lookup:* Still pending.
+  - *Direction 4a — External modding code:* Follow the SciresM "step 11" lead — if reverse-engineered code identifies the unknown structure between part symmetrization and voice inheritance, it may be the hidden body-part-variant state we are missing.
 
 **Ruled-out directions:**
 
