@@ -350,7 +350,15 @@ The parser already detects `mutation_id == 0xFFFFFFFE` as a defect generically. 
 **Open investigation directions (remaining):**
 
 - *Direction 4 — GPAK text string reverse-lookup:* Low priority — tells us what text the game *displays*, not where the defect is *stored*.
-- *Direction 7 — Parallel variant array search:* Based on community findings, a second T-like array of "variant IDs" likely exists somewhere in the cat blob. The parser reads T[72] and stops, but: (a) the T array may extend beyond 72 elements, or (b) a separate variant array may exist elsewhere in the blob. The most likely location is immediately after T[71] (the parser's post-T region reads gender fields starting at T-end — those may actually be the start of a variant array the parser misidentifies). Also untried: enumerating all 11 rows of the `files` SQLite table (only `npc_progress` was checked; 10 rows remain unexamined).
+- *Direction 7 — Parallel variant array search:* Based on community findings, a second T-like array of "variant IDs" likely exists somewhere in the cat blob. Two sub-hypotheses to try in order:
+
+  **(a) T array extends beyond 72 elements.** The parser reads exactly 72 u32s. Dump T[72..79] for Whommie (db_key=853, 3 defects) vs Kami (db_key=840, 0 defects, same eye/eyebrow base-shape IDs). Use `locate_t_start()` from `investigate_direction12.py` to find T-start, then read 8 more u32s past T[71]. If any T[72+] value correlates with defect presence (e.g., value=2 for Whommie's eye/eyebrow slots), that's the variant array. Also check Bud (db_key=887, ear defect).
+
+  **(b) Separate variant array elsewhere in the blob.** If T[72+] is clean, the variant array may begin at a non-contiguous location. Strategy: search Whommie's full decompressed blob for the value `2` (u32 = `02 00 00 00`) at positions that do NOT appear in Kami's blob (accounting for size difference by anchoring to T-start). The GON "No Part" defect ID is 2 for eyes, eyebrows, and ears — if stored anywhere as a u32, it will be `02 00 00 00`.
+
+  **(c) `files` table enumeration.** Only `npc_progress` was checked from the 11-row `files` table. Run `SELECT key, length(data) FROM files` on the save SQLite to list all rows. Then decompress each blob and search for Whommie's UID bytes (`fd 04 0c 52 e1 b3 83 f5` — first 8 bytes of Whommie's uid field at blob offset 0x04) to see if any file blob contains per-cat genetic data.
+
+  **Key reference cats:** Whommie (db_key=853): eye=139, eyebrow=23, defects=[Eye Birth Defect, Eyebrow Birth Defect, Fur Birth Defect]. Kami (db_key=840): eye=139, eyebrow=23, defects=[]. Same slot values, different defect presence — ideal comparison pair. Bud (db_key=887): ear=132, defects=[Ear Birth Defect (undetected), Leg Birth Defect (detected)]. Reuse helper functions from `tools/field_mapper/investigate_direction12.py` (`raw_blob`, `locate_t_start`).
 
 **Ruled-out directions:**
 
