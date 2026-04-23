@@ -1,0 +1,65 @@
+======================================================================
+Direction #13 -- Remaining pedigree and post-run blob leads
+======================================================================
+======================================================================
+STEP 1 -- Verify pedigree blob boundaries
+======================================================================
+Pedigree blob size: 172368 bytes
+Table 1 child->parents rows: 934  next_offset=67600
+Table 2 COI memo rows:       2484  next_offset=170024
+Table 3 accessible rows:     69  next_offset=172368
+Leftover bytes after table 3: 0
+Result: pedigree is fully consumed by the 3 known hash tables; there is no hidden tail section.
+
+======================================================================
+STEP 2 -- Dump unread bytes between ability parse and class prefix
+======================================================================
+Whommie: len(raw)=938 curr=0x224 run_start=0x23e after_run=0x30d
+  class_prefix=0x326 class='Colorless' gap_len=25
+  gap_hex=05000000000500000000050000000005000000000500000000
+Bud: len(raw)=926 curr=0x21e run_start=0x238 after_run=0x301
+  class_prefix=0x31a class='Colorless' gap_len=25
+  gap_hex=05000000000500000000050000000005000000000500000000
+Kami: len(raw)=957 curr=0x21f run_start=0x239 after_run=0x324
+  class_prefix=0x33d class='Druid' gap_len=25
+  gap_hex=05000000000500000000050000000005000000000500000000
+Petronij: len(raw)=943 curr=0x222 run_start=0x23c after_run=0x312
+  class_prefix=0x32b class='Colorless' gap_len=25
+  gap_hex=05000000000500000000050000000005000000000500000000
+Romanoba: len(raw)=962 curr=0x223 run_start=0x23d after_run=0x325
+  class_prefix=0x33e class='Colorless' gap_len=25
+  gap_hex=05000000000500000000050000000005000000000500000000
+Murisha: len(raw)=960 curr=0x226 run_start=0x240 after_run=0x323
+  class_prefix=0x33c class='Colorless' gap_len=25
+  gap_hex=05000000000500000000050000000005000000000500000000
+
+Top roster-wide post-run gap patterns:
+  count=793 gap_len= 25 example=Edwin hex=05000000000500000000050000000005000000000500000000
+  count= 19 gap_len= 70 example=Erin hex=05000000000500000000050000000005000000010b0000000000000042757463686572486f6f6b0000000000000000ffffffff000000000800000000000000ff010500000000
+  count=  5 gap_len=117 example=Frenz hex=050000000005000000000500000000050000000108000000000000004d6f6e6b466973740000000000000000ffffffff000000000800000000000000ff01050000000110000000000000004d6f6e6b5374796c654368616e6765720000000000000000ffffffff000000000800000000000000ff01
+  count=  3 gap_len=117 example=Maggie May hex=050000000005000000000500000000050000000108000000000000004d6f6e6b466973740000000000000000ffffffff00000000080000007f969800ff01050000000110000000000000004d6f6e6b5374796c654368616e6765720000000000000000ffffffff00000000080000007f969800ff01
+  count=  2 gap_len= 71 example=Roxwinne hex=0500000000050000000005000000010c0000000000000042616453706c696e746572730000000000000000ffffffff000000000000000000000000ff0005000000000500000000
+  count=  1 gap_len= 69 example=Melanka hex=050000000005000000000500000000050000000005000000010a0000000000000050757472696450696c650000000000000000ffffffff00000000000000007f969800ff00
+  count=  1 gap_len= 65 example=Estrella hex=05000000000500000001060000000000000043616c6c75730000000000000000ffffffff0600000000000000ef030000ff01050000000005000000000500000000
+  count=  1 gap_len= 70 example=Pixey hex=050000000005000000000500000000050000000005000000010b00000000000000426f74666c794c617276610000000000000000ffffffff00000000000000007f969800ff00
+
+======================================================================
+STEP 3 -- Same-type control check for pre-T patterns
+======================================================================
+Eye Birth Defect: target=Whommie slot=eye_L value=139
+  matched clean controls: 23
+  target pre-T pattern: ('other', 'other', 'NaN', 'zero', 'other', 'NaN', 'zero', 'other')
+  clean controls with same pattern: 12
+  top clean patterns: [(('other', 'other', 'NaN', 'zero', 'other', 'NaN', 'zero', 'other'), 12), (('other', 'other', 'subnormal', 'other', 'other', 'subnormal', '0.5', 'other'), 5), (('other', 'other', 'NaN', 'zero', 'other', 'subnormal', '0.25', 'other'), 4), (('other', 'other', 'subnormal', 'other', 'other', 'subnormal', 'other', 'other'), 1), (('other', 'other', 'subnormal', 'other', 'other', 'NaN', 'zero', 'other'), 1)]
+
+Eyebrow Birth Defect: target=Whommie slot=eyebrow_L value=23
+  matched clean controls: 96
+  target pre-T pattern: ('other', 'other', 'NaN', 'zero', 'other', 'NaN', 'zero', 'other')
+  clean controls with same pattern: 35
+  top clean patterns: [(('other', 'other', 'NaN', 'zero', 'other', 'NaN', 'zero', 'other'), 35), (('other', 'other', 'subnormal', 'other', 'other', 'subnormal', '0.5', 'other'), 19), (('other', 'other', 'subnormal', 'other', 'other', 'subnormal', 'other', 'other'), 10), (('other', 'other', 'NaN', 'zero', 'other', 'subnormal', '0.25', 'other'), 9), (('other', 'other', 'subnormal', 'other', 'other', 'NaN', 'zero', 'other'), 6)]
+
+Ear Birth Defect: target=Bud slot=ear_L value=132
+  matched clean controls: 90
+  target pre-T pattern: ('other', 'other', 'subnormal', 'other', 'other', 'subnormal', '0.5', 'other')
+  clean controls with same pattern: 12
+  top clean patterns: [(('other', 'other', 'NaN', 'zero', 'other', 'NaN', 'zero', 'other'), 41), (('other', 'other', 'subnormal', 'other', 'other', 'subnormal', '0.5', 'other'), 12), (('other', 'other', 'subnormal', 'other', 'other', 'subnormal', 'other', 'other'), 9), (('other', 'other', 'NaN', 'zero', 'other', 'subnormal', '0.25', 'other'), 9), (('other', 'other', 'subnormal', 'other', 'other', 'NaN', 'zero', 'other'), 5)]

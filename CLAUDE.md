@@ -345,7 +345,37 @@ The parser already detects `mutation_id == 0xFFFFFFFE` as a defect generically. 
 
 **External research findings (community reverse-engineering):** Community modders confirm birth defects use a **two-pass system**: first a disorder roll (stored in the disorders array), then separately the game "rolls for birth defect parts" and "applies" them in a second pass. This second pass stores defects as **part variants** — not in the disorder list. The key quote: "birth defects are considered variants of the body part they're on and can pass down like body parts." This implies a **parallel variant array** exists alongside the T mutation array. No public binary spec for this array has been found; the knowledge exists only in tool code and trial-and-error.
 
+**External primary-source reverse-engineering (SciresM gist, last active April 15, 2026):** `https://gist.github.com/SciresM/95a9dbba22937420e75d4da617af1397` documents the breeding pipeline from reverse-engineered game code. Relevant steps: (8) the kitten rolls whether it should receive **birth defect parts later**, (9) visible parts are inherited, (10) parts are symmetrized, (11) an **unknown thing** is inherited with ~98% chance from parents, (12) voice is inherited, and only then (13) the game **applies additional birth defect parts**. This reinforces that the missing-part state is not just `T[index+0]` and suggests there may be another inherited structure adjacent to visible body-part data. The gist does **not** describe save serialization, so this is a lead, not proof of blob layout.
+
 **Implication:** The "No Part" defect (GON block 2 / -2) for Whommie's eyes/eyebrows is NOT stored in T[index+0] (which holds the visual appearance ID 139/23). It is stored in a **separate variant/defect array** somewhere in the cat blob or another per-cat data source. The T array encodes what the part *looks like*; the variant array encodes what the part *biologically is*. The game reads both when displaying defects.
+
+**Current parser boundary map (`save_parser.py::Cat.__init__`)** — included here so future agents do not have to re-open the parser just to know what has already been read vs. skipped:
+
+- `breed_id:u32 -> uid:u64 -> name:utf16str -> name_tag:str`; `personality_anchor = r.pos` immediately after `name_tag`
+- `parent_uid_a:u64 -> parent_uid_b:u64 -> collar:str -> u32`
+- `r.skip(64)` = the **pre-T block**, now confirmed to be 8 x `f64`
+- `T[72]` = visual/body-part array
+- `gender_token_fields` = 3 x `u32`
+- `raw_gender:str`
+- one additional `f64`
+- `stat_base[7] -> stat_mod[7] -> stat_sec[7]`
+- `curr = r.pos`; parser scans forward up to 600 bytes for `"DefaultMove"` and sets `run_start = marker - 8`
+- from `run_start`, parser reads up to 32 identifier strings into `run_items`
+- `abilities = run_items[1:6]` after `_valid_str()` filtering
+- `passives` start from `run_items[10:]`
+- one `u32` passive tier
+- then 3 tail slots of `(str, u32)`:
+  the first slot can add one more passive; the second and third slots become `self.disorders`
+- `after_run = r.pos`
+- class string is **not** read sequentially; parser derives it by searching backward from `class_str_end = len(raw) - 115`
+- age / `creation_day` is also inferred from fixed offsets near the end of the blob, not from `r.pos`
+
+**Known unread / indirectly-read regions after mapping the parser:**
+
+- **Pre-T block (64 bytes before T):** no longer "unread" in practice; classified as 8 `f64` values and ruled out as a defect-exclusive carrier
+- **`curr -> run_start` gap:** Direction #12; 26 bytes, constant across the target cats (`u64 4`, `"none"`, padding)
+- **`after_run -> class_prefix` trailer:** Direction #13; for Whommie/Bud/Kami/Petronij/Romanoba/Murisha it is the same 25-byte empty payload `05000000000500000000050000000005000000000500000000`; longer roster-wide variants contain item/status strings and look like equipment payload, not hidden body-part flags
+- **Blob tail after class string:** already scanned and ruled out; varying data there is limited to the cat-specific `f64` at `+4` and `creation_day` at `+12`
 
 **Open investigation directions (remaining):**
 
@@ -370,10 +400,16 @@ The parser already detects `mutation_id == 0xFFFFFFFE` as a defect generically. 
 
   **Current state:** All concrete binary-search avenues exhausted. Parser currently detects 39 Eye Birth Defects, 27 Eyebrow, 10 Ear, 45 Mouth roster-wide — so generic detection works; Whommie's and Bud's undetected defects are encoded differently from the other cats' detected defects of the same type. Whommie's `disorders` list is empty (confirming community claim defects aren't in disorders).
 
+  **Direction 13 — pedigree tail / post-run trailer / matched-control pre-T recheck — RULED OUT.** Script `tools/field_mapper/investigate_direction13.py`, results in `tools/field_mapper/direction13_results.txt`.
+
+  - **Pedigree blob is fully consumed by the 3 parsed hash tables.** Exact current save layout: table 1 = 934 child→parents rows, table 2 = 2484 COI memo rows, table 3 = 69 accessible-cat rows, final offset = blob length = 172,368 bytes. There is **no leftover pedigree tail** and no fourth hidden section to mine. Earlier worktree-only impressions of extra per-cat pedigree payload were a false lead caused by inspecting raw context without accounting for the parallel-hashmap table layout.
+  - **The unread bytes between the parsed ability/disorder run and the class-string prefix are not a defect signal for the target cats.** Whommie, Bud, Kami, Petronij, Romanoba, and Murisha all have the exact same 25-byte gap: `05000000000500000000050000000005000000000500000000`. Roster-wide, 793/888 cats share that same empty-pattern trailer. Longer variants contain UTF-8 item/status-like strings such as `ButcherHook`, `MonkFist`, `MonkStyleChanger`, `BadSplinters`, and `BotflyLarva`, so this region looks like equipment/status payload, not a hidden body-part defect bitmap. For the missing-defect cats, it is empty and therefore not explanatory.
+  - **Same-type control matching still does not rescue the pre-T f64 block.** Whommie's pre-T pattern `('other','other','NaN','zero','other','NaN','zero','other')` appears in 12/23 clean cats with eye_L=139 and 35/96 clean cats with eyebrow_L=23. Bud's pattern `('other','other','subnormal','other','other','subnormal','0.5','other')` appears in 12/90 clean cats with ear_L=132. So even under phenotype-matched controls, the pre-T block remains non-discriminative.
+
   **Next concrete steps to try:**
-  - *Direction 8 — Cross-reference pedigree records with db_key.* Pedigree is 172KB / 888 cats ≈ 194 bytes per record. Try locating per-cat records keyed by db_key (u32 or u64) or by a derived hash. Dump Whommie's pedigree record and diff vs. Kami.
-  - *Direction 9 — Inspect GPAK disorders.gon / birth_defects file.* The GPAK has per-category GON files for body parts. Check whether there's a top-level `birth_defects.gon` or similar, and look for a mapping from disorder/defect IDs to body-part slots that might be cross-referenced by a numeric ID stored elsewhere in the cat blob.
-  - *Direction 10 — Same-type defect cat comparison.* Pick one of the 39 detected Eye-Birth-Defect cats and diff its T array + blob against Whommie. If the detected defect is stored as `mutation_id=2` at T[eye_L], why is Whommie's T[eye_L]=139 accepted in-game as "eye defect"? Possibly Whommie's defect is runtime-only (applied on load from some flag we've missed).
+  - *Direction 4 — External reverse-lookup / code search.* Still the strongest open lead. Search for primary-source code or modding notes that describe how body-part variants / "No Part" inheritance is serialized.
+  - *Direction 4a — Follow the SciresM "step 11" lead.* If more reverse-engineered code or notes can identify the unknown 98%-inherited structure between part symmetrization and voice inheritance, it may be the hidden body-part-variant state we are missing.
+  - *Fresh local binary lead — target only variable-length structures.* Fixed-layout regions now ruled out include: pre-T block, T array, post-T stat gap, pedigree tail, post-run trailer, and blob tail. Any remaining local save-only explanation is likely inside a **variable-length structure already being stepped over** rather than a simple fixed-offset flag.
 
 **Ruled-out directions:**
 
@@ -386,6 +422,8 @@ The parser already detects `mutation_id == 0xFFFFFFFE` as a defect generically. 
 *Direction 2 — Missing-parts bitmap in blob pre-T block or tail:* **Answer: RULED OUT.** The 64-byte block immediately before the T array is confirmed to be 8 f64 values (not a slot bitmap). The **115-byte blob tail** (after the class string) was fully scanned: varying bytes are limited to the f64 at +4 and `creation_day` u32 at +12; `ff ff ff ff ff ff ff ff` at +20 is constant padding; no defect-correlated bitmap or per-slot array was found. The unmapped middle region between `t_end` and `DefaultMove` was also scanned with no defect signal. SQLite cross-table checking investigated the `pedigree` blob extensively and found no confirmed universal defect flag. The `npc_progress` blob in the `files` table was also investigated: it is a world-state/quest-progression blob (NPC dialogue flags, shop upgrades, ability/item unlock strings) — it contains no per-cat data (no cat name/UID hits for any target cat), no defect-related strings, and no per-cat binary structure. It cannot encode per-cat birth defect flags. **SQLite schema fully enumerated** — the save has exactly 5 tables: `cats` (888 rows, key+blob), `files` (11 rows, key+blob), `furniture` (143 rows, key+blob), `properties` (259 rows, key+integer world-state), `winning_teams` (0 rows). No hidden per-cat defect table exists. Every per-cat piece of data must be inside the `cats.data` blob or the `pedigree` blob.
 
 *Direction 3 — Parent blob comparison for inheritance patterns:* **Answer: RULED OUT.** Parent/offspring byte diffs were run for Whommie vs. Petronij/Kami and Bud vs. Kami/Murisha (see `tools/field_mapper/investigate_direction3.py` and `tools/field_mapper/direction3_results.txt`). Shared parent-equal/offspring-different hits existed only in the pre-T block; the only cross-family candidates collapse back to the pre-T `f64[2]` / adjacent-byte NaN pattern already seen in Direction #1. Those candidates fail full-roster validation badly (about 501 false positives in the 888-cat save), so Direction #3 did not identify a parser-safe defect flag location. No shared validated hit was found in the T array, tail, or `DefaultMove`-anchored window.
+
+*Direction 13 — pedigree tail / post-run trailer / matched-control pre-T recheck:* **Answer: RULED OUT.** `tools/field_mapper/investigate_direction13.py` verified the pedigree blob is exactly the 3 currently parsed hash tables with **zero leftover bytes**. The unread bytes between the parsed ability/disorder run and the class-string prefix are a small trailer that is identical for Whommie/Bud/Kami/Petronij/Romanoba/Murisha and shared by 793/888 cats; longer versions contain item/status strings (`ButcherHook`, `MonkFist`, `BadSplinters`, etc.), not a defect bitmap. Same-type control matching also re-ran the pre-T hypothesis more strictly and still failed: Whommie's/Bud's pre-T patterns appear frequently among clean cats with the same visible eye/eyebrow/ear shapes. Therefore none of these remaining fixed-layout regions explains the undetected missing-part defects.
 
 ### tools/field_mapper/
 
