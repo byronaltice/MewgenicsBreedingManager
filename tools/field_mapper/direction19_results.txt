@@ -1,0 +1,224 @@
+======================================================================
+Direction #19 -- TypeScript structured mutation table scan
+======================================================================
+Save: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\steamcampaign01.sav
+
+======================================================================
+STEP 1 -- Find and dump structured table for target cats
+======================================================================
+
+Whommie (db_key=853) — MISSING Eye+Eyebrow defects
+  Table found at: 0x008a  (blob size: 0x03aa)
+  scale=1.8768  coat_id=706  t1=8  t2=0xffffffff
+  detected defects: ['Fur Birth Defect']
+  Slot            slot_id   coat      unk_a      unk_b      unk_c
+  ------------ ---------- ------ ---------- ---------- ----------
+  body                 95    706          0          0          0
+  head                304    706          0          0          0
+  tail                751    706          0          0          0
+  leg_L                53    706          0          9          0
+  leg_R                53    706          0          9          0
+  arm_L               203    706          0          9          0
+  arm_R               203    706          0          9          0
+  eye_L               139    706          0          0          0 <<<
+  eye_R               139    706          0          0          0
+  eyebrow_L            23    706          0          0          0 <<<
+  eyebrow_R            23    706          0          0          0
+  ear_L                30    706          0          0          0 <<<
+  ear_R                30    706          0          0          0
+  mouth               215    706          0          0          0
+
+Bud (db_key=887) — MISSING Ear defect
+  Table found at: 0x0082  (blob size: 0x039e)
+  scale=1.8785  coat_id=161  t1=31  t2=0xffffffff
+  detected defects: []
+  Slot            slot_id   coat      unk_a      unk_b      unk_c
+  ------------ ---------- ------ ---------- ---------- ----------
+  body                401    161          0          0          0
+  head                319    161          0          0          0
+  tail                751    161          0          0          0
+  leg_L               707    161          0          5          0
+  leg_R               707    161          0          5          0
+  arm_L               203    161          0          5          0
+  arm_R               203    161          0          5          0
+  eye_L               139    161          0          0          0 <<<
+  eye_R               139    161          0          0          0
+  eyebrow_L            23    161          0          0          0 <<<
+  eyebrow_R            23    161          0          0          0
+  ear_L               132    161          0          0          0 <<<
+  ear_R               132    161          0          0          0
+  mouth               410    161          0          0          0
+
+Kami (db_key=840) — CLEAN (Whommie's parent, eye=139 brow=23)
+  Table found at: 0x0085  (blob size: 0x03bd)
+  scale=1.8750  coat_id=174  t1=8  t2=0x00000041
+  detected defects: []
+  Slot            slot_id   coat      unk_a      unk_b      unk_c
+  ------------ ---------- ------ ---------- ---------- ----------
+  body                300    174          0          0          0
+  head                 99    174          0          0          0
+  tail                751    174          0          0          0
+  leg_L                53    174          0          3          0
+  leg_R                53    174          0          3          0
+  arm_L               203    174          0          3          0
+  arm_R               203    174          0          3          0
+  eye_L               139    174          0          0          0 <<<
+  eye_R               139    174          0          0          0
+  eyebrow_L            23    174          0          0          0 <<<
+  eyebrow_R            23    174          0          0          0
+  ear_L                30    174          0          0          0 <<<
+  ear_R                30    174          0          0          0
+  mouth               215    174          0          0          0
+
+Petronij (db_key=841) — CLEAN control
+  Table found at: 0x0088  (blob size: 0x03af)
+  scale=1.8920  coat_id=174  t1=8  t2=0xffffffff
+  detected defects: []
+  Slot            slot_id   coat      unk_a      unk_b      unk_c
+  ------------ ---------- ------ ---------- ---------- ----------
+  body                 95    174          0          0          0
+  head                 99    174          0          0          0
+  tail                751    174          0          0          0
+  leg_L                53    174          0          5          0
+  leg_R                53    174          0          5          0
+  arm_L               203    174          0          5          0
+  arm_R               203    174          0          5          0
+  eye_L               139    174          0          0          0 <<<
+  eye_R               139    174          0          0          0
+  eyebrow_L            23    174          0          0          0 <<<
+  eyebrow_R            23    174          0          0          0
+  ear_L               101     26          0          0          0 <<<
+  ear_R               101     26          0          0          0
+  mouth               215    174          0          0          0
+
+Flekpus (db_key=68) — DETECTED Eyebrow defect (brow=0xFFFFFFFE)
+  Table found at: 0x0086  (blob size: 0x03c5)
+  scale=1.8866  coat_id=165  t1=14  t2=0x00000036
+  detected defects: ['Eyebrow Birth Defect']
+  Slot            slot_id   coat      unk_a      unk_b      unk_c
+  ------------ ---------- ------ ---------- ---------- ----------
+  body                 25    165          0          0          0
+  head                129    165          0          0          0
+  tail                 58    165          0          0          0
+  leg_L                 8    165          0          4          0
+  leg_R                 8    165          0          4          0
+  arm_L                 8    165          0          4          0
+  arm_R                 8    165         18          4          0
+  eye_L               401    165          0          0          0 <<<
+  eye_R               401    165          0          0          0
+  eyebrow_L    4294967294    165          0          0          0 <<<
+  eyebrow_R    4294967294    165          0          0          0
+  ear_L                84    165          0          0          0 <<<
+  ear_R                84    165          0          0          0
+  mouth               168    165          0          0          0
+
+======================================================================
+STEP 2 -- Compare eye_L / eyebrow_L / ear_L slot bytes: defective vs clean
+  Specifically: unk_a, unk_b, unk_c for slots containing UNDETECTED defects
+======================================================================
+
+  Target slots: ['ear_L', 'eye_L', 'eyebrow_L']
+
+  --- ear_L (table slot index 11) ---
+    Whommie     : slot_id=    30  unk_a=         0  unk_b=         0  unk_c=         0  defects=['Fur Birth Defect']
+    Bud         : slot_id=   132  unk_a=         0  unk_b=         0  unk_c=         0  defects=[]
+    Kami        : slot_id=    30  unk_a=         0  unk_b=         0  unk_c=         0  defects=[]
+    Petronij    : slot_id=   101  unk_a=         0  unk_b=         0  unk_c=         0  defects=[]
+    Flekpus     : slot_id=    84  unk_a=         0  unk_b=         0  unk_c=         0  defects=['Eyebrow Birth Defect']
+
+  --- eye_L (table slot index 7) ---
+    Whommie     : slot_id=   139  unk_a=         0  unk_b=         0  unk_c=         0  defects=['Fur Birth Defect']
+    Bud         : slot_id=   139  unk_a=         0  unk_b=         0  unk_c=         0  defects=[]
+    Kami        : slot_id=   139  unk_a=         0  unk_b=         0  unk_c=         0  defects=[]
+    Petronij    : slot_id=   139  unk_a=         0  unk_b=         0  unk_c=         0  defects=[]
+    Flekpus     : slot_id=   401  unk_a=         0  unk_b=         0  unk_c=         0  defects=['Eyebrow Birth Defect']
+
+  --- eyebrow_L (table slot index 9) ---
+    Whommie     : slot_id=    23  unk_a=         0  unk_b=         0  unk_c=         0  defects=['Fur Birth Defect']
+    Bud         : slot_id=    23  unk_a=         0  unk_b=         0  unk_c=         0  defects=[]
+    Kami        : slot_id=    23  unk_a=         0  unk_b=         0  unk_c=         0  defects=[]
+    Petronij    : slot_id=    23  unk_a=         0  unk_b=         0  unk_c=         0  defects=[]
+    Flekpus     : slot_id=4294967294  unk_a=         0  unk_b=         0  unk_c=         0  defects=['Eyebrow Birth Defect']
+
+======================================================================
+STEP 3 -- Roster-wide: for detected eye/brow/ear defects,
+  do unk_a/unk_b/unk_c differ from clean cats in those slots?
+======================================================================
+  Scanned: 918 cats found table, 5 missed
+
+  ear_L:
+    unk_a: n_defect=100 n_clean=818
+      defect top3=[(0, 100)]
+      clean  top3=[(0, 818)]
+    unk_b: n_defect=100 n_clean=818
+      defect top3=[(0, 100)]
+      clean  top3=[(0, 818)]
+    unk_c: n_defect=100 n_clean=818
+      defect top3=[(0, 100)]
+      clean  top3=[(0, 818)]
+
+  eye_L:
+    unk_a: n_defect=42 n_clean=876
+      defect top3=[(0, 42)]
+      clean  top3=[(0, 876)]
+    unk_b: n_defect=42 n_clean=876
+      defect top3=[(0, 42)]
+      clean  top3=[(0, 876)]
+    unk_c: n_defect=42 n_clean=876
+      defect top3=[(0, 42)]
+      clean  top3=[(0, 876)]
+
+  eyebrow_L:
+    unk_a: n_defect=213 n_clean=705
+      defect top3=[(0, 213)]
+      clean  top3=[(0, 705)]
+    unk_b: n_defect=213 n_clean=705
+      defect top3=[(0, 213)]
+      clean  top3=[(0, 705)]
+    unk_c: n_defect=213 n_clean=705
+      defect top3=[(0, 213)]
+      clean  top3=[(0, 705)]
+
+======================================================================
+STEP 4 -- Whommie vs Kami: full hex dump of eye_L/eyebrow_L/ear_L slots
+======================================================================
+
+  Whommie (db_key=853) defects=['Fur Birth Defect']:
+    eye_L        @0x0126: 8b 00 00 00 c2 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+               slot_id=139  unk_a=0  unk_b=0  unk_c=0
+    eyebrow_L    @0x014e: 17 00 00 00 c2 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+               slot_id=23  unk_a=0  unk_b=0  unk_c=0
+    ear_L        @0x0176: 1e 00 00 00 c2 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+               slot_id=30  unk_a=0  unk_b=0  unk_c=0
+    mouth        @0x019e: d7 00 00 00 c2 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+               slot_id=215  unk_a=0  unk_b=0  unk_c=0
+
+  Kami (db_key=840) defects=[]:
+    eye_L        @0x0121: 8b 00 00 00 ae 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+               slot_id=139  unk_a=0  unk_b=0  unk_c=0
+    eyebrow_L    @0x0149: 17 00 00 00 ae 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+               slot_id=23  unk_a=0  unk_b=0  unk_c=0
+    ear_L        @0x0171: 1e 00 00 00 ae 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+               slot_id=30  unk_a=0  unk_b=0  unk_c=0
+    mouth        @0x0199: d7 00 00 00 ae 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+               slot_id=215  unk_a=0  unk_b=0  unk_c=0
+
+  Bud (db_key=887) defects=[]:
+    eye_L        @0x011e: 8b 00 00 00 a1 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+               slot_id=139  unk_a=0  unk_b=0  unk_c=0
+    eyebrow_L    @0x0146: 17 00 00 00 a1 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+               slot_id=23  unk_a=0  unk_b=0  unk_c=0
+    ear_L        @0x016e: 84 00 00 00 a1 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+               slot_id=132  unk_a=0  unk_b=0  unk_c=0
+    mouth        @0x0196: 9a 01 00 00 a1 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+               slot_id=410  unk_a=0  unk_b=0  unk_c=0
+
+  Flekpus (db_key=68) defects=['Eyebrow Birth Defect']:
+    eye_L        @0x0122: 91 01 00 00 a5 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+               slot_id=401  unk_a=0  unk_b=0  unk_c=0
+    eyebrow_L    @0x014a: fe ff ff ff a5 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+               slot_id=4294967294  unk_a=0  unk_b=0  unk_c=0
+    ear_L        @0x0172: 54 00 00 00 a5 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+               slot_id=84  unk_a=0  unk_b=0  unk_c=0
+    mouth        @0x019a: a8 00 00 00 a5 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+               slot_id=168  unk_a=0  unk_b=0  unk_c=0
