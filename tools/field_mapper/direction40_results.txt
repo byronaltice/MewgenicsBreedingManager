@@ -1,0 +1,88 @@
+Direction 40 Results
+============================================================
+
+GPAK: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\resources.gpak
+
+Mutation GON files in GPAK:
+  data/mutations/body.gon
+  data/mutations/ears.gon
+  data/mutations/eyebrows.gon
+  data/mutations/eyes.gon
+  data/mutations/head.gon
+  data/mutations/legs.gon
+  data/mutations/mouth.gon
+  data/mutations/tail.gon
+  data/mutations/texture.gon
+
+============================================================
+CHECK 1: Raw GON block contents
+============================================================
+
+Target: Whommie eye — category='eyes', id=139
+  BLOCK 139: NOT FOUND in eyes.gon
+
+Target: Whommie eyebrow — category='eyebrows', id=23
+  BLOCK 23: NOT FOUND in eyebrows.gon
+
+Target: Bud ear — category='ears', id=132
+  BLOCK 132: NOT FOUND in ears.gon
+
+============================================================
+CHECK 2: Parser _VISUAL_MUT_DATA lookup
+============================================================
+
+_VISUAL_MUT_DATA categories after loading: ['body', 'ears', 'eyebrows', 'eyes', 'head', 'legs', 'mouth', 'tail', 'texture']
+
+Target: Whommie eye — category='eyes', id=139
+  LOOKUP: NOT IN _VISUAL_MUT_DATA
+
+Target: Whommie eyebrow — category='eyebrows', id=23
+  LOOKUP: NOT IN _VISUAL_MUT_DATA
+
+Target: Bud ear — category='ears', id=132
+  LOOKUP: NOT IN _VISUAL_MUT_DATA
+
+============================================================
+CHECK 3: Cross-reference GON vs parser
+============================================================
+
+Whommie eye ('eyes', id=139):
+  GON tag birth_defect: False
+  Parser is_birth_defect: None
+  AGREE: GON not tagged birth_defect, parser skips this base-shape ID (correct)
+
+Whommie eyebrow ('eyebrows', id=23):
+  GON tag birth_defect: False
+  Parser is_birth_defect: None
+  AGREE: GON not tagged birth_defect, parser skips this base-shape ID (correct)
+
+Bud ear ('ears', id=132):
+  GON tag birth_defect: False
+  Parser is_birth_defect: None
+  AGREE: GON not tagged birth_defect, parser skips this base-shape ID (correct)
+
+============================================================
+VERDICT
+============================================================
+
+NONE of the three GON entries (ids 139, 23, 132) are tagged birth_defect.
+These are clean base shapes. The defect source is NOT in these GON blocks.
+The undetected birth defects must come from a source other than the T-slot GON entries.
+
+Additional verification (manual check of GON file contents):
+  eyes.gon    block IDs: [2, 300-353, 400-442, 700-706, 750, 754-755, 900, 1029]
+              ID 139 does not appear at all in the file (not just untagged — absent).
+  eyebrows.gon block IDs: [2, 300-315, 400-441, 700-702, 900]
+              ID 23 appears only as a suffix in '423' — not as a standalone block.
+  ears.gon    block IDs: [2, 300-345, 400-441, 700-704, 750-755, 900, 1500]
+              ID 132 does not appear at all in the file.
+
+Conclusion: IDs 139, 23, 132 are base cosmetic shape IDs with no GON definition.
+They are not in the mutation catalog at all — no name, no stats, no birth_defect tag.
+The parser correctly treats them as invisible base shapes.
+
+Recommended next step:
+  Audit the 10 pre-corridor ability strings (+0x7d0..+0x8f0) across all cats.
+  Compare Whommie/Bud tokens vs controls (Kami, Petronij, Murisha) for any token
+  that appears only in defect-positive cats and survives/fails parser filtering.
+  See CLAUDE.md 'Best Path Forward' step 1.
