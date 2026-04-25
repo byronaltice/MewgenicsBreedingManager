@@ -423,12 +423,30 @@ Directions 37-39 close the post-equipment region. Direction 37 mapped `FUN_14022
 
 The on-disk per-cat blob is now fully mapped byte-for-byte from header through tail and no field distinguishes Whommie/Bud from clean controls. Directions 33-39 close every saved field including: T body-part records, `+0x910..+0x9b0` effect-list corridor, the 10 `+0x7d0..+0x8f0` ability-run strings, the post-equipment `+0xc00..+0xc40` fixed scalars and three u8 flags, the variable byte vector at `CatData+0x8`, and the 16-u32 array at `+0x744..+0x780`.
 
-This eliminates "saved parallel defect array" as a hypothesis. The remaining viable leads are runtime/load-time effect construction:
+Direction 40 ruled out the GON-lookup hypothesis: IDs 139 (eyes), 23 (eyebrows), 132 (ears) have NO GON entries — they are anonymous base cosmetic shapes, not mutations. Parser correctly returns None for them.
 
-1. Load-time finalize: find the executable code that runs after `FUN_14022d360` deserialization and derives `stat_mod` / effect rows from non-body-part saved fields. Candidates include effect application from class, passives, or per-cat counters that resolve to GON entries with `tag birth_defect`. Specifically inspect: how does the game decide Whommie's CHA gets -2 if the eyebrow ID 23 in T does not point to a `birth_defect`-tagged GON entry?
-2. Inspect the GON entries directly for IDs 139 (eyes), 23 (eyebrows), 132 (ears). If those entries are themselves tagged `birth_defect` in the GPAK, the parser's `_VISUAL_MUT_DATA` lookup should already detect them and the bug is in lookup, not data. If they are untagged base shapes, then the defect must come from outside the cat blob (parents, breed-time scratch, or external SQLite tables).
-3. Re-examine SQLite tables one more time with Whommie/Bud-specific queries. Directions 7c/7e/8/13b/16 ruled out per-cat defect data in known tables, but only at the schema level — no Whommie/Bud-specific row pattern was tested.
-4. Lower priority: SciresM's breeding notes describe a "separate birth-defect-parts pass" after normal inheritance. If this pass writes nowhere on disk, the defects may be re-rolled at every load from a deterministic seed (creation day, parent UIDs, RNG state). Test by reproducing the same save twice and checking whether Whommie's defects are stable across load — if so, the seed is in the blob; if not, it's external.
+Direction 41 ruled out saved stat arrays as the carrier: Whommie/Bud have `stat_mod = [0,0,0,0,0,0,0]` in the save. Class bonuses (e.g. Druid on Kami) ARE baked into stat_mod, but defect penalties are NOT. Defects are applied through a different mechanism than class bonuses — likely runtime/display-time, not save-time.
+
+Direction 42 mapped the runtime DISPLAY chain:
+- `FUN_1400c9810` builds the effective-mutations list by reading `CatPart+0x18` (a runtime-only "missing part" flag NOT serialized in the T-array; if 0, effective partID = `0xFFFFFFFE`).
+- `FUN_1400e38c0` (tooltip builder) calls `FUN_1407b1190`; with `0xFFFFFFFE` it finds GON block -2 (tag `birth_defect`) and shows `BirthDefectTooltip`. There is NO fallback path — display strictly requires the `0xFFFFFFFE` substitution.
+
+Direction 43 corrected a Direction 42 misidentification and found a new key:
+- `FUN_1401d2ff0` is `GlobalProgressionData::ComputeSaveFilePercentage`, NOT the per-cat save loader. The `FUN_1400ca4a0` call at `1401d3c8b` applies progression-milestone mutations (save-completion unlocks), not per-cat defect reconstruction. Direction 42's interpretation that this was the post-deserialize defect applier is WRONG.
+- However: `FUN_140230750` (cat save-context loader) reads `"random_seed"` from the SQLite `properties` table and seeds xoshiro256** at `TLS+0x178`. All session-wide `FUN_1400ca4a0` calls use this seeded state.
+- `FUN_1400ca4a0` itself does NOT read from any CatData offset directly. It loads `birth_defect`-tagged candidates from `_DAT_141130700`, filters via lambda, shuffles via the seeded RNG, and applies via `FUN_1400caa20` → `FUN_1400cb130` (the part writer).
+
+**Open question after Direction 43:** If defects are deterministic from `random_seed`, the parser cannot derive Whommie/Bud's specific defects without replaying the entire game RNG — implausible. So one of:
+(i) Per-cat defect results ARE saved somewhere and `random_seed` is only the RNG source at breed time. Then `CatPart+0x18` must be reconstructed at load time from a per-cat saved signal we haven't found.
+(ii) There is a per-cat saved RNG state (creation-event seed) that lets the game replay just that cat's defect roll. Such a field would be small and unmapped in the blob — but the blob is byte-for-byte mapped, so this requires a mis-labeled existing field.
+(iii) The defect's gameplay effects (stat_mod, blind status) are applied without the parser-visible `CatPart+0x18 = 0` substitution — meaning the defect display the user sees comes through a different code path entirely than the one Direction 42 traced.
+
+**Next concrete steps (priority order):**
+
+1. **Find the actual per-cat save loader and its post-deserialize calls.** Direction 42 misidentified `FUN_1401d2ff0`. The real per-cat load function (likely a caller or sibling of `FUN_14022d360`) needs to be located. After `FUN_14022d360` returns, what runs? Is there a function that sets `CatPart+0x18 = 0` for specific cats based on saved data?
+2. **Row-audit the SQLite `properties` and `pedigree` tables for per-cat keys.** Directions 7c/13b only checked schema. Whommie/Bud may have rows referencing their UIDs/db_keys that clean controls don't.
+3. **Decompile `FUN_140230750` fully** (cat save-context loader) — it reads `random_seed` but it may also read other per-cat keys we haven't found.
+4. **Verify with the user whether defects are stable across reloads** — if Whommie always has Eye Birth Defect across multiple saves of the same game state, the data is on disk; if it varies, it's runtime-derived.
 
 **Reference Cats**
 
@@ -494,6 +512,9 @@ Detailed evidence remains in `tools/field_mapper/*direction*_results.txt` and th
 - `CatData+0x910..0x9b0` `birth_defects` effect-list corridor: exactly four `(string, u32)` slots, all read by the parser (slot 0 via the `DefaultMove` run + `passive1_tier`, slots 1-3 via the three tail `(string, u32)` pairs). All four slots are `"None"`/tier 1 for Whommie and Bud. Not the carrier. See Direction 35.
 - `CatData+0x7d0..+0x8f0` 10 pre-corridor strings: every cat's strings are well-formed identifiers; the parser drops only literal `"None"`/`"DefaultMove"` filler. Whommie/Bud have no unique tokens vs the 947-cat roster. See Direction 36.
 - Post-equipment region (Directions 37-39): `FUN_1402345e0` byte vector at `CatData+0x8` is a generic byte-vector serializer; size=0 for all 5 reference cats. The three u8 flags at `+0xc08/+0xc09/+0xc0a` correlate with class/passive counters, not defects. The 16-u32 array at `+0x744..+0x780` is all-zero for all 5 reference cats. The full post-equipment write order is documented in `tools/field_mapper/direction37_results.txt`.
+- GPAK GON entries for IDs 139/23/132 (Direction 40): no GON entries exist for these IDs in `eyes.gon` / `eyebrows.gon` / `ears.gon`. They are anonymous base cosmetic shapes. Parser correctly returns None. Lookup is not the bug.
+- Saved stat arrays (Direction 41): Whommie/Bud have `stat_mod = [0,0,0,0,0,0,0]`. Defect stat penalties are NOT baked into save-time stat_mod. Class bonuses ARE (Kami's Druid bonuses). Different mechanism for defects.
+- `FUN_1401d2ff0` as the per-cat save loader (Direction 43 correction): this function is `GlobalProgressionData::ComputeSaveFilePercentage`, applying progression-milestone mutations from save % vs `next_cat_mutation` SQLite key — not the per-cat defect applier. Direction 42's identification was wrong.
 - COI/ancestry correction: raw parsed `cat.inbredness` was the wrong COI source. Cached pedigree COI / `kinship_coi(parent_a, parent_b)` is the validated source. Directions 22-23 are superseded by Directions 24-25.
 - External reverse-engineering: SciresM's breeding notes support a separate birth-defect-parts pass after normal part inheritance, but do not specify save serialization. Treat as a runtime-code lead, not proof of a saved parallel array.
 
