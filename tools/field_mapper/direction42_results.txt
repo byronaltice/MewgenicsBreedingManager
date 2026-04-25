@@ -1,0 +1,221 @@
+Direction 42 — Runtime/Display Code Path Investigation
+=======================================================
+Date: 2026-04-25
+Script: tools/GhidraDirection42Probe.java
+Output: tools/ghidra_direction42_probe_output.txt (raw UTF-16)
+        tools/ghidra_direction42_probe_utf8.txt (converted)
+
+QUESTION: How does the game produce a Birth Defect display for Whommie/Bud
+when their saved body-part IDs are ordinary base shapes (eye=139, eyebrow=23,
+ear=132) with no GON entries?
+
+---------------------------------------------------------------------------
+TASK 1: FUN_1400e38c0 "no GON entry" path
+---------------------------------------------------------------------------
+
+FINDING: FUN_1400e38c0 iterates a list built by FUN_1400c9810 (see Task 8).
+For each entry in that list, it calls:
+  uVar8 = FUN_1407b1190(DAT_1413b4a10, puVar18)   -- GON lookup by (category,partID)
+  FUN_1400b3940(&local_5a8, uVar8, ...)            -- get tag/stat info
+  FUN_140936440(uVar8, "tag") → lVar11             -- fetch "tag" attribute
+  if (local_518 == 0xc)                            -- length of tag string is 12
+    iVar6 = memcmp(pppppppuVar17, "birth_defect", 0xc)
+    bVar23 = (iVar6 == 0)
+
+If FUN_1407b1190 returns null/empty (no GON entry), then FUN_140936440
+returns a node with lVar11+0xa8 = 0 (default/null node), local_518 will
+be 0 (string length), so bVar23 = false. There is NO fallback path that
+produces a birth-defect display from a null GON entry. The display MUST come
+from an entry with a valid birth_defect-tagged GON block.
+
+CONCLUSION: The 0xFFFFFFFE GON block (block -2, with tag birth_defect) MUST
+appear in the list iterated by FUN_1400e38c0 for Whommie/Bud to display
+their defects. So the list must contain 0xFFFFFFFE for those body-part slots.
+
+---------------------------------------------------------------------------
+TASK 2: FUN_1400a5390 callers
+---------------------------------------------------------------------------
+
+ALL 14 callsites are within FUN_1400a6790 (CatData::breed).
+No load-time or display-time callers.
+This function is breeding-only (applies CatPart+0x18 substitution at breed time).
+
+---------------------------------------------------------------------------
+TASK 3: FUN_1400ca4a0 ("birth_defect" tagged partID) callers
+---------------------------------------------------------------------------
+
+Callers beyond FUN_1400a6790 (breed):
+  FUN_1400ba2e0 @ 1400bb3d5   -- mutation application helper (non-breed)
+  FUN_140607750 @ 14060790f   -- unknown (large function)
+  FUN_140308c90 @ 140308e97   -- unknown
+  FUN_1401d2ff0 @ 1401d3c8b   -- SAVE LOADER (contains FUN_14022d360 calls!)
+  FUN_1400701a0 @ 1400704fa   -- unknown
+  FUN_1401e64a0 @ 1401ea436   -- unknown
+  FUN_1408c3f70 @ 1408c4b94   -- unknown
+  FUN_1403cce80 @ multiple    -- unknown (4 callsites)
+  FUN_14087ef30 @ 14087f4f6   -- unknown
+
+HIGHLIGHT: FUN_1401d2ff0 calls FUN_1400ca4a0 AND contains FUN_14022d360 calls.
+This is the save loader function. It processes each cat from the save file,
+calls FUN_1400b5260 (init), then FUN_14022d360 (deserialize T-array etc.),
+then post-processes including FUN_1400b5260 again. The callsite at 1401d3c8b
+suggests it applies birth_defect logic AFTER deserialization. This is the
+strongest new lead.
+
+---------------------------------------------------------------------------
+TASK 4: FUN_1400c17f0 ("birth_defects" list) callers
+---------------------------------------------------------------------------
+
+Callers beyond FUN_1400a6790 (breed):
+  FUN_1400ba2e0 @ 1400baf8f, 1400bafe3   -- mutation application helper (2 sites)
+  FUN_1401681e0 @ 140168435              -- unknown
+  FUN_1408c3f70 @ 1408c5087              -- unknown
+
+No direct callsite in FUN_1401d2ff0 (the save loader). The "birth_defects"
+list helper is less prominent at load time than FUN_1400ca4a0.
+
+---------------------------------------------------------------------------
+TASK 5: FUN_14022d360 (cat deserializer) callers
+---------------------------------------------------------------------------
+
+8 callsites found in 5 callers:
+  FUN_14022dfb0 @ 14022e0c2  -- single-cat load; immediately calls FUN_140734760(param_3+0x60)
+  FUN_14022fb40 @ 14022fcb1  -- batch cat load; iterates an array of cat refs
+  FUN_1400d6a70 @ 1400d6b1a  -- unknown context; calls FUN_1409ab020 after
+  FUN_1401d2ff0 @ two sites  -- save loader; calls FUN_1400b5260 after one path
+  FUN_140230750 @ two sites  -- save context (uses s_save_file_cat string);
+                               calls FUN_1400b5260 and FUN_140734760 after
+
+POST-DESERIALIZE PATTERN: In FUN_14022dfb0 and FUN_140230750, the call sequence
+after FUN_14022d360 is:
+  FUN_140734760(param_3 + 0x60)  -- visual/render update on body-part container
+
+In FUN_140230750 (when deserialization fails / takes else path):
+  FUN_1400b5260(param_2 + 8)     -- body-part init/reset
+  FUN_140734760(param_2 + 0x68)  -- visual update
+
+The param_3+0x60 / param_2+0x68 pattern confirms the body-part container
+starts at CatData+0x60.
+
+KEY: FUN_1401d2ff0 also calls FUN_1400ca4a0 (birth_defect applier) at 1401d3c8b,
+which is AFTER the FUN_14022d360 deserialize call. This is the post-load
+birth_defect application step that is the primary candidate for populating
+CatPart+0x18 for loaded cats.
+
+---------------------------------------------------------------------------
+TASK 6: FUN_14073ab50
+---------------------------------------------------------------------------
+
+Not found as a function by Ghidra. Address 0x140073ab50 is not a recognized
+function entry point in this analysis context. Likely either: (a) a thunk
+not analyzed as its own function, (b) a data reference, or (c) addressed from
+a prior context with incorrect offset. Not relevant to current findings.
+
+---------------------------------------------------------------------------
+TASK 7: FUN_1400d1470
+---------------------------------------------------------------------------
+
+This function computes a scale/size value from a mutation list (iterates
+SizeScale modifications from GON entries). Not directly related to birth-defect
+flag setting. Called from display/render functions including FUN_1400e9530
+and FUN_1400de330 (which also call FUN_1400e38c0).
+
+---------------------------------------------------------------------------
+TASK 8: FUN_1400c9810 — MAJOR FINDING
+---------------------------------------------------------------------------
+
+This function builds the dynamically-computed effective mutations list for
+FUN_1400e38c0. It reads from the body-part container object (param_1).
+
+For each body-part slot k, the pattern is:
+  base_id = *(u32 *)(param_1 + BASE_OFFSET)           -- default/base shape
+  flag    = *(char *)(param_1 + BASE_OFFSET + 0x18)   -- CatPart+0x18 present/missing byte
+  actual  = *(u32 *)(param_1 + BASE_OFFSET + 0x04)    -- actual/mutated ID
+
+  if (flag == 0) then use 0xFFFFFFFE as the effective ID
+  else           then use actual as the effective ID
+
+Slot offsets from param_1 (body-part container = CatData + 0x60 offset):
+  Slot 0 (body?): base=+0x8c, flag=+0xa4, actual=+0x90
+  Slot 1:         base=+0xe0, flag=+0xf8, actual=+0xe4
+  Slot 2:         base=+0x134, flag=+0x14c, actual=+0x138
+  Slot 3:         base=+0x188, flag=+0x1a0, actual=+0x18c
+  Slot 4 (eyes):  base=+0x230, flag=+0x248, actual=+0x234
+  (and so on for eyebrows, ears, etc.)
+
+Paired-part special logic (for limb-pairs): checks if both L and R values
+differ from the canonical value; if so, adds both. This explains why paired
+parts like left/right eyes can each appear.
+
+CONCLUSION: The effective mutations list WILL contain 0xFFFFFFFE for a slot
+where CatPart+0x18 (= param_1+BASE_OFFSET+0x18) equals zero. This directly
+drives the BirthDefectTooltip display in FUN_1400e38c0.
+
+---------------------------------------------------------------------------
+TASK 9: FUN_1407b1190 (GON entry lookup)
+---------------------------------------------------------------------------
+
+The function does a two-level hash-map lookup:
+  1. FUN_140731870 to construct a key from (category, partID)
+  2. FUN_140936540(param_1 + 0x9d8, key) -- first lookup in body-part GON table
+  3. FUN_140936540(result, subkey) -- second lookup for the specific attribute
+
+If 0xFFFFFFFE is passed as partID with the correct category, this will find
+GON block -2 (which has tag birth_defect, blind/-2cha/-2dex). If partID is a
+normal base-shape ID with no GON entry, FUN_140936540 returns 0/null and
+the tag check fails.
+
+CALLERS beyond the known set: FUN_1400c9810 calls it at 1400ca32a to look up
+each effective-mutation pair it constructs. FUN_1400a5390 calls it at
+1400a53f7 and 1400a5432 to find parent/child part inheritance during breeding.
+
+---------------------------------------------------------------------------
+SYNTHESIS: WHY WHOMMIE/BUD DEFECTS DISPLAY
+---------------------------------------------------------------------------
+
+The display chain is:
+  1. FUN_1400e38c0 iterates the "effective mutations" list.
+  2. The list is built by FUN_1400c9810 from the body-part container.
+  3. FUN_1400c9810 outputs 0xFFFFFFFE for any slot where CatPart+0x18 == 0.
+  4. With 0xFFFFFFFE, FUN_1407b1190 finds GON block -2 (birth_defect tag).
+  5. FUN_1400e38c0 sets BirthDefectTooltip.
+
+So the defect display for Whommie is DRIVEN BY CatPart+0x18 being zero
+for eye slot and eyebrow slot. This flag IS NOT saved in the T-array.
+
+HOW CatPart+0x18 GETS SET AT LOAD TIME:
+  FUN_1401d2ff0 (save loader) calls FUN_1400ca4a0 ("birth_defect" applier)
+  AFTER calling FUN_14022d360 (deserialization). This birth_defect applier
+  is the mechanism that sets CatPart+0x18 = 0 for affected slots on loaded
+  cats. It must reconstruct birth-defect status from some saved signal.
+
+OPEN QUESTION: What saved signal does FUN_1400ca4a0 read inside FUN_1401d2ff0
+to decide which body-part slots get CatPart+0x18 = 0? This is the remaining
+unknown. Candidates:
+  a) The existing T[slot] value itself: if the loaded base-shape ID is one
+     of a predefined set of "missing part" IDs (even if not 0xFFFFFFFE), the
+     game treats it as missing. This would need a lookup table comparison.
+  b) A different saved field, not in T, that indicates which slots were marked
+     missing during breeding. This would be a new area in the blob not yet
+     mapped (e.g., post-equipment area or beyond CatData+0xb90).
+  c) The cat's lineage / parent's body-part flags reconstructed at load time.
+
+NEXT DIRECTION: Decompile FUN_1401d2ff0 focusing on the region around
+callsite 1401d3c8b (the FUN_1400ca4a0 call after deserialization). Understand
+what input FUN_1400ca4a0 receives and what cat fields it reads to decide
+which slots to mark as missing.
+
+---------------------------------------------------------------------------
+FUNCTION REFERENCE SUMMARY
+---------------------------------------------------------------------------
+FUN_1400e38c0  -- mutation tooltip builder; driven by effective-mutations list
+FUN_1400c9810  -- effective-mutations list builder; reads CatPart+0x18
+FUN_1407b1190  -- GON entry lookup by (category, partID)
+FUN_1400a5390  -- body-part inheritance helper (breed-only)
+FUN_1400ca4a0  -- birth_defect tagged partID applier (breed + save-load path)
+FUN_1400c17f0  -- birth_defects list applier (mainly breed path)
+FUN_14022d360  -- cat deserializer (writes T[0..72] to body-part container)
+FUN_1401d2ff0  -- save loader; calls ca4a0 AFTER deserialization --- KEY
+FUN_1400b5260  -- body-part container init/reset (called before deserialization)
+FUN_140734760  -- visual/render update (called after deserialization)
+FUN_1400d1470  -- SizeScale mutation multiplier (display context)
