@@ -1,0 +1,993 @@
+﻿INFO  Using log config file: jar:file:/C:/Users/Byron/gitprojects/MewgenicsBreedingManager/test-runtimes/Ghidra/ghidra_12.0.4_PUBLIC/Ghidra/Framework/Generic/lib/Generic.jar!/generic.log4j.xml (LoggingInitialization)  
+INFO  Using log file: C:\Users\Byron\AppData\Roaming\ghidra\ghidra_12.0.4_PUBLIC\application.log (LoggingInitialization)  
+INFO  Loading user preferences: C:\Users\Byron\AppData\Roaming\ghidra\ghidra_12.0.4_PUBLIC\preferences (Preferences)  
+INFO  Searching for classes... (ClassSearcher)  
+INFO  Class search complete (786 ms) (ClassSearcher)  
+INFO  Initializing SSL Context (DefaultSSLContextInitializer)  
+INFO  Initializing Random Number Generator... (SecureRandomFactory)  
+INFO  Random Number Generator initialization complete: SHA1PRNG (SecureRandomFactory)  
+INFO  Trust manager disabled, cacerts have not been set (DefaultTrustManagerFactory)  
+INFO  Headless startup complete (3123 ms) (AnalyzeHeadless)  
+INFO  Class searcher loaded 58 extension points (18 false positives) (ClassSearcher)  
+analyzeHeadless.bat : WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+At line:1 char:152
++ ... $env:Path"; & "C:\Users\Byron\gitprojects\MewgenicsBreedingManager\te ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (WARNING: A term...has been called:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+WARNING: sun.misc.Unsafe::staticFieldOffset has been called by org.apache.felix.framework.util.SecureAction (file:/C:/U
+sers/Byron/gitprojects/MewgenicsBreedingManager/test-runtimes/Ghidra/ghidra_12.0.4_PUBLIC/Ghidra/Features/Base/lib/org.
+apache.felix.framework-7.0.5.jar)
+WARNING: Please consider reporting this to the maintainers of class org.apache.felix.framework.util.SecureAction
+WARNING: sun.misc.Unsafe::staticFieldOffset will be removed in a future release
+INFO  HEADLESS Script Paths:
+    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\BSim\ghidra_scripts
+    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Processors\Atmel\ghidra_scripts
+    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Processors\PIC\ghidra_scripts
+    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\DecompilerDependent\ghidra_scripts
+    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\SystemEmulation\ghidra_scripts
+    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\Base\ghidra_scripts
+    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Processors\8051\ghidra_scripts
+    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\WildcardAssembler\ghidra_scripts
+    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\GnuDemangler\ghidra_scripts
+    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Processors\DATA\ghidra_scripts
+    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\FunctionID\ghidra_scripts
+    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\BytePatterns\ghidra_scripts
+    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\VersionTracking\ghidra_scripts
+    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Debug\Debugger-rmi-trace\ghidra_scripts
+    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Processors\JVM\ghidra_scripts
+    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\Decompiler\ghidra_scripts
+    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\Jython\ghidra_scripts
+    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\MicrosoftCodeAnalyzer\ghidra_scripts
+    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\PDB\ghidra_scripts
+    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\FileFormats\ghidra_scripts
+    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\PyGhidra\ghidra_scripts
+    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\tools
+    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\SwiftDemangler\ghidra_scripts
+    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Debug\Debugger\ghidra_scripts (HeadlessAnalyzer)  
+INFO  HEADLESS: execution starts (HeadlessAnalyzer)  
+INFO  Opening existing project: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ProjDir\Mewgenics (HeadlessAnalyzer)  
+INFO  Opening project: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ProjDir\Mewgenics (HeadlessProject)  
+INFO  REPORT: Processing project file: /Mewgenics.exe (HeadlessAnalyzer)  
+INFO  REPORT: Execute script: GhidraFun14022d360FullDump.java  (HeadlessAnalyzer)  
+INFO  SCRIPT: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\tools\GhidraFun14022d360FullDump.java (HeadlessAnalyzer)  
+INFO  GhidraFun14022d360FullDump.java> ================================================================================ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> FULL DECOMPILE: FUN_14022d360 @ 14022d360 (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> ================================================================================ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0001: 
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0002: void FUN_14022d360(longlong param_1,int *param_2,char param_3)
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0003: 
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0004: {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0005:   int iVar1;
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0006:   undefined8 uVar2;
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0007:   longlong *plVar3;
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0008:   longlong **pplVar4;
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0009:   longlong lVar5;
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0010:   ulonglong uVar6;
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0011:   undefined4 *puVar7;
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0012:   int local_res8 [2];
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0013:   longlong *local_res10 [2];
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0014:   int local_res20 [2];
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0015:   undefined4 local_88;
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0016:   undefined4 uStack_84;
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0017:   char *local_80;
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0018:   char *local_78;
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0019:   ulonglong local_70;
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0020:   longlong local_68 [3];
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0021:   ulonglong local_50;
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0022:   undefined1 local_48 [32];
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0023:   
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0024:   local_res8[0] = 0x13;
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0025:   if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0026:     FUN_1409ab530(param_2,local_res8,4);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0027:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0028:   else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0029:     FUN_1409ab3a0(param_2,local_res8,4);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0030:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0031:   if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0032:     FUN_1409ab530(param_2,param_1,8);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0033:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0034:   else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0035:     FUN_1409ab3a0(param_2,param_1,8);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0036:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0037:   plVar3 = (longlong *)(param_1 + 0x18);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0038:   if (0x12 < local_res8[0]) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0039:     if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0040:       FUN_1409ab810(param_2);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0041:     }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0042:     else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0043:       FUN_1409ab7c0(param_2);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0044:     }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0045:     goto LAB_14022d576;
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0046:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0047:   if (*(ulonglong *)(param_1 + 0x30) < 8) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0048:     lVar5 = (longlong)plVar3 + *(longlong *)(param_1 + 0x28) * 2;
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0049:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0050:   else {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0051:     plVar3 = (longlong *)*plVar3;
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0052:     lVar5 = (longlong)plVar3 + *(longlong *)(param_1 + 0x28) * 2;
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0053:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0054:   FUN_140062460(&local_88,plVar3,lVar5);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0055:   if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0056:     FUN_1409ab6c0(param_2,&local_88);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0057:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0058:   else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0059:     if (*(longlong *)(param_2 + 0x52) == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0060:       local_res10[0] = (longlong *)local_78;
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0061:       uVar6 = 8;
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0062:       pplVar4 = local_res10;
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0063: LAB_14022d4a6:
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0064:       FUN_1409ab3a0(param_2,pplVar4,uVar6);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0065:       pplVar4 = (longlong **)&local_88;
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0066:       if (0xf < local_70) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0067:         pplVar4 = (longlong **)CONCAT44(uStack_84,local_88);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0068:       }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0069:       uVar6 = (ulonglong)local_78 & 0xffffffff;
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0070:     }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0071:     else {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0072:       iVar1 = FUN_1409aac50(*(longlong *)(param_2 + 0x52),&local_88);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0073:       local_res10[0] = (longlong *)CONCAT44(local_res10[0]._4_4_,iVar1);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0074:       uVar6 = 4;
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0075:       if (iVar1 < 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0076:         local_res20[0] = -(int)local_78;
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0077:         pplVar4 = (longlong **)local_res20;
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0078:         goto LAB_14022d4a6;
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0079:       }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0080:       pplVar4 = local_res10;
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0081:     }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0082:     FUN_1409ab3a0(param_2,pplVar4,uVar6);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0083:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0084:   puVar7 = &local_88;
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0085:   if (0xf < local_70) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0086:     puVar7 = (undefined4 *)CONCAT44(uStack_84,local_88);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0087:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0088:   FUN_1402d6790(&DAT_1413b2490,local_68,puVar7,(longlong)local_78 + (longlong)puVar7);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0089:   FUN_1400623c0(param_1 + 0x18,local_68);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0090:   if (7 < local_50) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0091:     if (0xfff < local_50 * 2 + 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0092:       if (0x1f < (local_68[0] - *(longlong *)(local_68[0] + -8)) - 8U) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0093:                     /* WARNING: Subroutine does not return */
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0094:         FUN_140d3cec8(*(longlong *)(local_68[0] + -8),local_50 * 2 + 0x29);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0095:       }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0096:     }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0097:     thunk_FUN_1409c9360();
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0098:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0099:   if (0xf < local_70) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0100:     if (0xfff < local_70 + 1) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0101:       lVar5 = *(longlong *)(CONCAT44(uStack_84,local_88) + -8);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0102:       if (0x1f < (CONCAT44(uStack_84,local_88) - lVar5) - 8U) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0103:                     /* WARNING: Subroutine does not return */
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0104:         FUN_140d3cec8(lVar5,local_70 + 0x28);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0105:       }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0106:     }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0107:     thunk_FUN_1409c9360();
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0108:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0109: LAB_14022d576:
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0110:   if (10 < local_res8[0]) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0111:     if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0112:       FUN_1409ab6c0(param_2);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0113:     }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0114:     else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0115:       FUN_1409ab630(param_2,param_1 + 0x38);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0116:     }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0117:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0118:   if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0119:     FUN_1409ab530(param_2,param_1 + 0x58,4);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0120:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0121:   else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0122:     FUN_1409ab3a0(param_2,param_1 + 0x58,4);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0123:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0124:   iVar1 = *param_2;
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0125:   if (local_res8[0] < 10) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0126:     if (iVar1 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0127:       *(undefined4 *)(param_1 + 0x5c) = *(undefined4 *)(param_1 + 0x58);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0128:     }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0129:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0130:   else if (iVar1 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0131:     FUN_1409ab530(param_2,param_1 + 0x5c,4);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0132:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0133:   else if (iVar1 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0134:     FUN_1409ab3a0(param_2,param_1 + 0x5c,4);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0135:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0136:   if (1 < local_res8[0]) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0137:     if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0138:       FUN_1409ab530(param_2,param_1 + 0xbf8,8);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0139:     }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0140:     else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0141:       FUN_1409ab3a0(param_2,param_1 + 0xbf8,8);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0142:     }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0143:     if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0144:       FUN_1409ab6c0(param_2);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0145:     }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0146:     else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0147:       FUN_1409ab630(param_2,param_1 + 0xb90);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0148:     }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0149:     if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0150:       FUN_1409ab530(param_2,param_1 + 0xbb0,4);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0151:     }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0152:     else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0153:       FUN_1409ab3a0(param_2,param_1 + 0xbb0,4);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0154:     }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0155:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0156:   if (2 < local_res8[0]) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0157:     if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0158:       FUN_1409ab530(param_2,param_1 + 3000,8);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0159:     }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0160:     else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0161:       FUN_1409ab3a0(param_2,param_1 + 3000,8);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0162:     }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0163:     if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0164:       FUN_1409ab530(param_2,param_1 + 0xbc0,8);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0165:     }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0166:     else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0167:       FUN_1409ab3a0(param_2,param_1 + 0xbc0,8);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0168:     }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0169:     if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0170:       FUN_1409ab530(param_2,param_1 + 0xbc8,8);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0171:     }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0172:     else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0173:       FUN_1409ab3a0(param_2,param_1 + 0xbc8,8);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0174:     }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0175:     if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0176:       FUN_1409ab530(param_2,param_1 + 0xbd0,8);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0177:     }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0178:     else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0179:       FUN_1409ab3a0(param_2,param_1 + 0xbd0,8);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0180:     }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0181:     if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0182:       FUN_1409ab530(param_2,param_1 + 0xbe8,8);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0183:     }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0184:     else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0185:       FUN_1409ab3a0(param_2,param_1 + 0xbe8,8);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0186:     }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0187:     if (5 < local_res8[0]) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0188:       if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0189:         FUN_1409ab530(param_2,param_1 + 0xbd8,8);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0190:       }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0191:       else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0192:         FUN_1409ab3a0(param_2,param_1 + 0xbd8,8);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0193:       }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0194:       if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0195:         FUN_1409ab530(param_2,param_1 + 0xbe0,8);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0196:       }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0197:       else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0198:         FUN_1409ab3a0(param_2,param_1 + 0xbe0,8);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0199:       }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0200:       if (6 < local_res8[0]) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0201:         if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0202:           FUN_1409ab530(param_2,param_1 + 0xbf0,8);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0203:         }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0204:         else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0205:           FUN_1409ab3a0(param_2,param_1 + 0xbf0,8);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0206:         }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0207:       }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0208:     }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0209:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0210:   FUN_14022ce10(param_1 + 0x60,param_2);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0211:   if (0x10 < local_res8[0]) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0212:     if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0213:       FUN_1409ab530(param_2,param_1 + 0x88,4);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0214:     }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0215:     else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0216:       FUN_1409ab3a0(param_2,param_1 + 0x88,4);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0217:     }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0218:     if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0219:       FUN_1409ab530(param_2,param_1 + 0x84,4);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0220:     }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0221:     else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0222:       FUN_1409ab3a0(param_2,param_1 + 0x84,4);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0223:     }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0224:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0225:   if (0 < local_res8[0]) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0226:     if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0227:       FUN_1409ab6c0(param_2);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0228:     }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0229:     else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0230:       FUN_1409ab630(param_2,param_1 + 0x6c8);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0231:     }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0232:     if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0233:       FUN_1409ab530(param_2,param_1 + 0x6e8,8);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0234:     }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0235:     else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0236:       FUN_1409ab3a0(param_2,param_1 + 0x6e8,8);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0237:     }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0238:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0239:   FUN_14022cf90(param_1 + 0x6f0,param_2);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0240:   if (4 < local_res8[0]) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0241:     FUN_14022cf90(param_1 + 0x70c,param_2);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0242:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0243:   FUN_14022cf90(param_1 + 0x728,param_2);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0244:   if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0245:     FUN_1409ab6c0(param_2);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0246:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0247:   else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0248:     FUN_1409ab630(param_2,param_1 + 0x788);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0249:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0250:   FUN_14022d100(param_1 + 0x7a8,param_2);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0251:   if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0252:     FUN_1409ab6c0(param_2);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0253:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0254:   else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0255:     FUN_1409ab630(param_2,param_1 + 2000);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0256:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0257:   if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0258:     FUN_1409ab6c0(param_2);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0259:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0260:   else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0261:     FUN_1409ab630(param_2,param_1 + 0x7f0);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0262:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0263:   if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0264:     FUN_1409ab6c0(param_2);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0265:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0266:   else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0267:     FUN_1409ab630(param_2,param_1 + 0x810);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0268:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0269:   if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0270:     FUN_1409ab6c0(param_2);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0271:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0272:   else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0273:     FUN_1409ab630(param_2,param_1 + 0x830);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0274:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0275:   if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0276:     FUN_1409ab6c0(param_2);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0277:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0278:   else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0279:     FUN_1409ab630(param_2,param_1 + 0x850);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0280:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0281:   if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0282:     FUN_1409ab6c0(param_2);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0283:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0284:   else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0285:     FUN_1409ab630(param_2,param_1 + 0x870);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0286:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0287:   if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0288:     FUN_1409ab6c0(param_2);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0289:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0290:   else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0291:     FUN_1409ab630(param_2,param_1 + 0x890);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0292:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0293:   if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0294:     FUN_1409ab6c0(param_2);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0295:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0296:   else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0297:     FUN_1409ab630(param_2,param_1 + 0x8b0);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0298:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0299:   if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0300:     FUN_1409ab6c0(param_2);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0301:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0302:   else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0303:     FUN_1409ab630(param_2,param_1 + 0x8d0);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0304:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0305:   if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0306:     FUN_1409ab6c0(param_2);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0307:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0308:   else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0309:     FUN_1409ab630(param_2,param_1 + 0x8f0);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0310:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0311:   if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0312:     FUN_1409ab6c0(param_2);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0313:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0314:   else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0315:     FUN_1409ab630(param_2,param_1 + 0x910);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0316:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0317:   if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0318:     FUN_1409ab530(param_2,param_1 + 0x930,4);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0319:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0320:   else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0321:     FUN_1409ab3a0(param_2,param_1 + 0x930,4);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0322:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0323:   if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0324:     FUN_1409ab6c0(param_2);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0325:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0326:   else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0327:     FUN_1409ab630(param_2,param_1 + 0x938);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0328:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0329:   if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0330:     FUN_1409ab530(param_2,param_1 + 0x958,4);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0331:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0332:   else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0333:     FUN_1409ab3a0(param_2,param_1 + 0x958,4);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0334:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0335:   if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0336:     FUN_1409ab6c0(param_2);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0337:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0338:   else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0339:     FUN_1409ab630(param_2,param_1 + 0x960);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0340:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0341:   if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0342:     FUN_1409ab530(param_2,param_1 + 0x980,4);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0343:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0344:   else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0345:     FUN_1409ab3a0(param_2,param_1 + 0x980,4);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0346:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0347:   if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0348:     FUN_1409ab6c0(param_2);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0349:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0350:   else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0351:     FUN_1409ab630(param_2,param_1 + 0x988);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0352:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0353:   if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0354:     FUN_1409ab530(param_2,param_1 + 0x9a8,4);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0355:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0356:   else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0357:     FUN_1409ab3a0(param_2,param_1 + 0x9a8,4);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0358:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0359:   if ((param_3 == '\0') && (local_res8[0] < 4)) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0360:     local_res10[0] = local_68;
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0361:     uVar2 = FUN_140052640(local_68,"MewSaveFile");
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0362:     FUN_140052640(local_48,
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0363:                   "cannot load cat saved on older version of game, start a new adventure from scratch"
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0364:                  );
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0365:     local_88 = 0x1e0;
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0366:     uStack_84 = 0x13;
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0367:     local_80 = "C:\\Users\\Tyler\\Desktop\\SVN\\Mewgenics\\game\\code\\MewSaveFile.cpp";
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0368:     local_78 = 
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0369:     "void __cdecl glaiel::SerializeCatData(struct glaiel::CatData &,class glaiel::ByteStream &,bool)"
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0370:     ;
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0371:                     /* WARNING: Subroutine does not return */
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0372:     FUN_140945d70(&DAT_1412e5ae8,local_48,uVar2,&local_88);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0373:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0374:   FUN_14022b1f0(param_1 + 0x9b0,param_2);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0375:   FUN_14022b1f0(param_1 + 0xa10,param_2);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0376:   FUN_14022b1f0(param_1 + 0xa70,param_2);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0377:   FUN_14022b1f0(param_1 + 0xad0,param_2);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0378:   FUN_14022b1f0(param_1 + 0xb30,param_2);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0379:   if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0380:     FUN_1409ab6c0(param_2);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0381:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0382:   else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0383:     FUN_1409ab630(param_2,param_1 + 0xc10);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0384:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0385:   if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0386:     FUN_1409ab530(param_2,param_1 + 0xc30,4);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0387:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0388:   else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0389:     FUN_1409ab3a0(param_2,param_1 + 0xc30,4);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0390:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0391:   if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0392:     FUN_1409ab530(param_2,param_1 + 0xc50,8);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0393:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0394:   else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0395:     FUN_1409ab3a0(param_2,param_1 + 0xc50,8);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0396:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0397:   if (7 < local_res8[0]) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0398:     if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0399:       FUN_1409ab530(param_2,param_1 + 0xc38,8);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0400:     }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0401:     else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0402:       FUN_1409ab3a0(param_2,param_1 + 0xc38,8);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0403:     }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0404:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0405:   if (8 < local_res8[0]) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0406:     if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0407:       FUN_1409ab530(param_2,param_1 + 0xc40,8);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0408:     }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0409:     else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0410:       FUN_1409ab3a0(param_2,param_1 + 0xc40,8);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0411:     }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0412:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0413:   if (0xd < local_res8[0]) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0414:     FUN_1402345e0(param_2,param_1 + 8);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0415:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0416:   if (0xe < local_res8[0]) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0417:     if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0418:       FUN_1409ab530(param_2,param_1 + 0xc34,4);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0419:     }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0420:     else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0421:       FUN_1409ab3a0(param_2,param_1 + 0xc34,4);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0422:     }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0423:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0424:   if (0xf < local_res8[0]) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0425:     if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0426:       FUN_1409ab530(param_2,param_1 + 0xc00,8);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0427:     }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0428:     else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0429:       FUN_1409ab3a0(param_2,param_1 + 0xc00,8);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0430:     }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0431:     if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0432:       FUN_1409ab530(param_2,param_1 + 0xc08,1);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0433:     }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0434:     else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0435:       FUN_1409ab3a0(param_2,param_1 + 0xc08,1);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0436:     }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0437:     if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0438:       FUN_1409ab530(param_2,param_1 + 0xc09,1);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0439:     }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0440:     else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0441:       FUN_1409ab3a0(param_2,param_1 + 0xc09,1);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0442:     }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0443:     if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0444:       FUN_1409ab530(param_2,param_1 + 0xc0a,1);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0445:     }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0446:     else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0447:       FUN_1409ab3a0(param_2,param_1 + 0xc0a,1);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0448:     }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0449:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0450:   if (0x11 < local_res8[0]) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0451:     param_1 = param_1 + 0x744;
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0452:     lVar5 = 0x10;
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0453:     do {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0454:       if (*param_2 == 0) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0455:         FUN_1409ab530(param_2,param_1,4);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0456:       }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0457:       else if (*param_2 - 1U < 2) {
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0458:         FUN_1409ab3a0(param_2,param_1,4);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0459:       }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0460:       param_1 = param_1 + 4;
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0461:       lVar5 = lVar5 + -1;
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0462:     } while (lVar5 != 0);
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0463:   }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0464:   return;
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0465: }
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> 0466: 
+ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> ================================================================================ (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> END OF DECOMPILE -- total lines: 466 (GhidraScript)  
+INFO  GhidraFun14022d360FullDump.java> ================================================================================ (GhidraScript)  
+INFO  REPORT: Save succeeded for processed file: /Mewgenics.exe (HeadlessAnalyzer)  

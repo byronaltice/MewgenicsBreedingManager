@@ -1,0 +1,176 @@
+Direction 37 - Map post-equipment region of FUN_14022d360 (glaiel::SerializeCatData)
+
+Goal:
+Direction 35 closed the +0x910..+0x9b0 effect-list corridor and Direction 36 closed
+the 10 pre-corridor strings at +0x7d0..+0x8f0. The remaining unmapped region in the
+serializer is everything written AFTER the 5th equipment slot (FUN_14022b1f0 at
+param_1+0xb30, ending at +0xb90) and before the class-string tail. Direction 37
+reads that region directly from the FUN_14022d360 decompile.
+
+Inputs:
+- tools/ghidra_fun14022d360_decompile.txt (full decompile, UTF-16)
+- tools/ghidra_fun14022d360_decompile_utf8.txt (UTF-8 copy used for grepping)
+- tools/GhidraFun14022d360FullDump.java (Ghidra script that produced the dump)
+- src/save_parser.py for parser-side coverage cross-check
+
+Function signature confirmed by assertion strings near line 0367:
+  glaiel::SerializeCatData(struct glaiel::CatData &, class glaiel::ByteStream &, bool)
+  param_1 = CatData*, param_2 = ByteStream* (mode at *param_2: 0=write, 1/2=read).
+
+Save version constant:
+  Line 0024: local_res8[0] = 0x13   (= 19, current save version).
+  All "if (N < local_res8[0])" gates compare against this. With v19 in effect:
+    7 < 0x13  -> TRUE  (writes at +0xc38 happen)
+    8 < 0x13  -> TRUE  (writes at +0xc40 happen)
+    0xd < 0x13 -> TRUE (FUN_1402345e0 call happens; reads param_1+8 reference)
+    0xe < 0x13 -> TRUE (writes at +0xc34)
+    0xf < 0x13 -> TRUE (writes at +0xc00, +0xc08, +0xc09, +0xc0a)
+    0x11 < 0x13 -> TRUE (16-element u32 array starting at +0x744)
+    0x12 < 0x13 -> TRUE (top-of-function, optional FUN_1409ab810/7c0 + goto)
+
+ByteStream helpers (de-aliased from existing decompile output):
+  FUN_1409ab530  raw write   (size param: 1, 4, or 8 bytes)
+  FUN_1409ab3a0  raw read    (mirror of ab530 in the 1U<2 read branch)
+  FUN_1409ab630  string write/read   (used at +0xc10)
+  FUN_1409ab6c0  empty/null marker  (no data; used at +0xc10 when *param_2==0
+                                    in the gated branch)
+  FUN_14022b1f0  equipment slot serializer (5 calls earlier at +0x9b0..+0xb30)
+  FUN_1402345e0  helper called once at line 0414 with (param_2, param_1+8);
+                 not yet decompiled in this direction.
+
+Serializer write order from line 0378 (5th equipment) to function end:
+
+  CatData offset   helper / kind                size      decompile lines
+  ---------------  ---------------------------  --------  ----------------
+  +0xb30           FUN_14022b1f0 (5th equip)    0x60      0378
+  +0xc10           FUN_1409ab630 (string)       variable  0379-0384
+  +0xc30           FUN_1409ab530 (u32)          4         0385-0390
+  +0xc50           FUN_1409ab530 (u64/f64)      8         0391-0396
+  +0xc38           FUN_1409ab530 (u64/f64)      8         0397-0404  (gate: v>7)
+  +0xc40           FUN_1409ab530 (u64/f64)      8         0405-0412  (gate: v>8)
+  param_1 + 8      FUN_1402345e0 (?)            unknown   0413-0415  (gate: v>0xd)
+  +0xc34           FUN_1409ab530 (u32)          4         0416-0423  (gate: v>0xe)
+  +0xc00           FUN_1409ab530 (u64/f64)      8         0424-0430  (gate: v>0xf)
+  +0xc08           FUN_1409ab530 (u8)           1         0431-0436  (gate: v>0xf)
+  +0xc09           FUN_1409ab530 (u8)           1         0437-0442  (gate: v>0xf)
+  +0xc0a           FUN_1409ab530 (u8)           1         0443-0448  (gate: v>0xf)
+  +0x744 .. +0x780 16 x u32 (do-while loop)     16*4=64   0450-0463  (gate: v>0x11)
+
+The +0x744 loop unrolled (lVar5 = 0x10 -> 0x00, stride 4):
+  +0x744, +0x748, +0x74c, +0x750, +0x754, +0x758, +0x75c, +0x760,
+  +0x764, +0x768, +0x76c, +0x770, +0x774, +0x778, +0x77c, +0x780.
+
+Logical layout in the saved blob (with all v19 gates active):
+
+  start of region: equipment-end == CatData+0xb90
+  next byte:       CatData+0xc10 string
+
+  Note the writes are NOT in monotonic offset order. The serializer interleaves
+  fields from different CatData regions:
+    - +0xc10 string         (variable)
+    - +0xc30 u32            (4 bytes)
+    - +0xc50 u64/f64        (8 bytes)
+    - +0xc38 u64/f64        (8 bytes)
+    - +0xc40 u64/f64        (8 bytes)
+    - param_1+8 helper      (unknown size; FUN_1402345e0)
+    - +0xc34 u32            (4 bytes)
+    - +0xc00 u64/f64        (8 bytes)
+    - +0xc08, +0xc09, +0xc0a u8 (1 byte each)
+    - +0x744..+0x780 16 u32 (64 bytes)
+
+Total estimated post-equipment byte size (excluding FUN_1402345e0 unknown):
+  string at +0xc10:                       4 + 4 + 4 + len bytes (length, zero-pad, utf-8)
+                                          for an empty string this is at least 12 bytes
+                                          observed parser strings on this stream are 12 + len.
+  fixed numeric fields:
+    1 * u32 (+0xc30)                  =  4
+    1 * u64 (+0xc50)                  =  8
+    1 * u64 (+0xc38, v>7)             =  8
+    1 * u64 (+0xc40, v>8)             =  8
+    1 * u32 (+0xc34, v>0xe)           =  4
+    1 * u64 (+0xc00, v>0xf)           =  8
+    3 * u8  (+0xc08/+0xc09/+0xc0a)    =  3
+    16 * u32 (+0x744..+0x780, v>0x11) = 64
+                                       ----
+    total fixed numeric                =107 bytes
+  + FUN_1402345e0(param_2, param_1+8) -> unknown variable amount.
+  + +0xc10 string -> minimum 12 bytes for empty string, plus payload.
+
+So the v19 post-equipment fixed numeric tail is 107 bytes, plus one variable
+string at the beginning (+0xc10) and one unknown serializer call midway.
+
+Cross-check against parser tail (src/save_parser.py):
+  _CLASS_STRING_TAIL_OFFSET = 115. The class string is the last variable-size
+  blob and ends exactly 115 bytes before raw end. Class string format on disk
+  is u32 length + u32 zero pad + utf-8 bytes (12 + len bytes total). After the
+  class string the trailing 115 bytes hold a known creation-day window that
+  the age-extraction loop in Cat.__init__ scans (+103/+102/+104/...).
+
+  The 115-byte trailing window plausibly corresponds to FUN_1402345e0 + the
+  16 u32s + the small mid-tail u8s. 16*4 = 64 bytes, plus 4 (one u32 at
+  +0xc34) + 8 (one u64 at +0xc00) + 3 u8s + 8 (+0xc40) + 8 (+0xc38) = 95
+  bytes. The remaining 20 bytes are from FUN_1402345e0 and any padding.
+
+  The class-string write itself is NOT visible in this gap. The +0xc10 string
+  write at line 0383 is therefore the candidate for the class string.
+
+Parser visibility audit (post-equipment):
+  - The +0xc10 string IS observed by the parser as the cat_class (located by
+    the fixed 115-byte tail offset, decoded as length+zero+utf-8).
+  - The 16-u32 array at +0x744..+0x780 IS partially observed. The parser does
+    NOT decode this array structurally. The age-extraction loop reads u32s at
+    fixed offsets in the trailing 110-byte window and accepts the first one
+    that is a plausible creation_day in [0, current_day]. This means most of
+    the 16 u32s are read as raw bytes during the age scan but their semantic
+    meaning is unknown to the parser.
+  - The single u32 at +0xc30, the u64s at +0xc50/+0xc38/+0xc40/+0xc00, and the
+    three u8s at +0xc08/+0xc09/+0xc0a are NOT read by the parser at all. They
+    sit in the gap between the class string and the trailing creation-day
+    region.
+  - FUN_1402345e0(param_2, param_1+8) is NOT read by the parser. param_1+8
+    points into CatData near the breed_id / uid header; this helper may be
+    serializing relationship/social data, not a per-cat defect carrier, but
+    that is not yet confirmed.
+
+Defect-carrier candidates ranked:
+
+  1. FUN_1402345e0(param_2, param_1+8) at line 0414. Variable size (helper-
+     based serializer). The argument param_1+8 references an offset inside
+     CatData near the cat header (not in the +0xc.. tail region). This is the
+     single most opaque write in the post-equipment area. Worth decompiling
+     next.
+  2. Three u8s at +0xc08/+0xc09/+0xc0a. Three single-byte flags written one
+     after another, gated by v>0xf, are exactly the shape of birth-defect
+     bitfield flags (e.g., one byte per defect group: eye-defect, ear-defect,
+     misc-defect). High candidate for defect-carrier.
+  3. The +0xc10 string. Currently the class string in the parser. If the
+     string is sometimes a defect-id token rather than the class name on
+     defect-positive cats, the parser would silently absorb it as
+     `cat_class` and drop the result via the "Colorless" exclusion. This is
+     a low-probability but worth a roster scan.
+  4. The 16 u32 array at +0x744..+0x780. Fixed size, gated by save version
+     >= 0x12. Could be a per-stat tier array (16 entries is suggestive, but
+     stats are 7). If it stores something like passive cooldowns/uses per
+     ability slot, defect-related tiers could live here. Lower probability
+     but cleanly fixed-size and easy to extract.
+  5. The lone u64s at +0xc50/+0xc38/+0xc40/+0xc00. Could be timestamps,
+     personality-anchor f64s, or similar. Low probability for defect data.
+  6. The lone u32 at +0xc30. Single value with no obvious neighbor; low
+     probability.
+
+Conclusion:
+The post-equipment region is 107 fixed bytes plus one variable-size string
+(+0xc10) and one variable-size helper call (FUN_1402345e0). The parser only
+reads the +0xc10 string and incidentally scans the +0x744 u32 array for
+creation_day. Everything else in the region is currently invisible to the
+parser. The strongest defect-carrier candidates are FUN_1402345e0 (size
+unknown) and the three u8s at +0xc08/+0xc09/+0xc0a (gated by save version
+v>0xf, which is exactly when birth-defects could have been added to the
+schema).
+
+Next concrete step:
+Run a Ghidra dump of FUN_1402345e0 and see whether it serializes a list,
+a fixed struct, or references "birth_defect" / "0xFFFFFFFE" constants.
+That single helper is the largest unknown in the post-equipment region.
+If it is empty/short for all 947 cats, escalate to a Whommie/Bud-specific
+binary diff of the +0xc08/+0xc09/+0xc0a bytes and the +0x744 u32 array.

@@ -1,0 +1,122 @@
+Direction 38 results — FUN_1402345e0 analysis
+===============================================
+
+Goal: Determine whether FUN_1402345e0(param_2 = stream, param_1 = CatData+8) is
+the carrier for the missing Whommie/Bud birth-defect effects.
+
+Source: tools/ghidra_fun1402345e0_decompile.txt (UTF-16 BOM, written via
+PowerShell Tee-Object). Function entry 0x1402345e0, 75 decompiled lines.
+
+What FUN_1402345e0 does
+-----------------------
+
+Generic byte-vector (std::vector<uint8_t>-like) serializer. It is NOT
+defect-specific.
+
+Signature (Ghidra): void FUN_1402345e0(int *param_1, uint *param_2)
+- param_1 = stream/archive object. *param_1 is the stream mode:
+    0       = WRITE path (calls FUN_1409ab530 = stream-write byte/bytes primitive)
+    1 or 2  = READ  path (calls FUN_1409ab3a0 = stream-read  byte/bytes primitive)
+    other   = no-op / fall-through (function returns without touching param_2)
+- param_2 = pointer to a 16-byte ByteVector struct laid out as:
+    +0x00 u32 capacity
+    +0x04 u32 size  (count of valid bytes)
+    +0x08 void* data (heap pointer, grown via _realloc_base)
+
+WRITE path (when called from FUN_14022d360 with stream-mode = 0):
+  1. Writes an 8-byte length. The length value is taken from local_res8, which
+     is initialized only by the read path; on the write side the function still
+     writes 8 bytes from local_res8. (In practice the parent serializer fills
+     local_res8 with size before calling — but as decompiled, the write side
+     loops `iVar5 < uVar2` where uVar2 was loaded from a fresh 8-byte read of
+     `local_res8`. Net: the on-disk form is `u64 count, then count bytes`.)
+
+READ path:
+  1. Reads u64 count into local_res8.
+  2. param_2[1] (size) is set to count via FUN_1409ab3a0 storing it into
+     local_res8 then iterating. Buffer is grown to count via _realloc_base,
+     using DAT_14112fc58 (growth factor double, ~2.0 or 1.5).
+  3. Loops count times reading 1 byte at a time into the heap buffer.
+
+So the on-disk format produced/consumed by this function is exactly:
+    u64 byte_count
+    byte_count * u8 raw_bytes
+
+There is no nested object dispatch, no string table, no GON lookup, no
+mutation/passive ID. It is a flat byte blob.
+
+Structure of param_2 (= CatData+0x8)
+------------------------------------
+
+CatData+0x8 is a 16-byte container:
+    +0x00  u32 capacity
+    +0x04  u32 size
+    +0x08  u8* data (owned heap, realloc-grown, factor at DAT_14112fc58)
+
+Stored on disk as `u64 size; size bytes`. Variable-length. Fully invisible to
+the current parser, which jumps over this region by walking later anchors.
+
+Defect-related strings or call-site hints
+-----------------------------------------
+
+None in FUN_1402345e0 itself.
+- No string constants referenced.
+- No calls to FUN_1400c1xxx (`birth_defects` family), FUN_1400ca4a0
+  (`birth_defect`), FUN_1400caa20 (MutatePiece lambda), FUN_1400cb130 (per-part
+  ID writer), or FUN_1407b1190 (mutation lookup).
+- Only callees are FUN_1409ab530, FUN_1409ab3a0 (raw stream prims) and
+  _realloc_base.
+- DAT_14112fc58 is a vector growth-rate float double, not a defect constant.
+
+Verdict
+-------
+
+NOT THE CARRIER (weak-to-zero candidate as a defect store, but still important
+to map for parser completeness).
+
+Reasoning:
+1. The function has zero semantic ties to defects, mutations, GON tables, or
+   the existing birth-defect helpers documented in Directions 32-35. It is a
+   generic byte-array (re)serializer.
+2. CatData+0x8 is too early in the struct layout to be created lazily by the
+   defect path: it is a stable container, not a defect-list. Defect helpers
+   (FUN_1400c17f0, FUN_1400c1ac0) write to CatData+0x910..0x9b0, which Direction
+   35 already mapped and ruled out.
+3. If +0x8 contained the missing effects, defect-positive cats would have
+   non-zero size while clean controls would have size 0. We have not measured
+   that directly — but even if size differs, the bytes are unstructured by this
+   function. The interpretation lives wherever the buffer's CONSUMER lives,
+   which is unrelated to FUN_1402345e0.
+
+That said, the function's existence proves CatData+0x8 holds a per-cat
+variable-length byte blob the parser does not currently read. Worth a
+size-only audit (next step below) to confirm this is not silently carrying
+defect data.
+
+Files
+-----
+
+- Decompile dump: tools/ghidra_fun1402345e0_decompile.txt
+- Ghidra script:  tools/GhidraFun1402345e0Dump.java
+- This file:      tools/field_mapper/direction38_results.txt
+
+Recommended next step (Direction 39)
+------------------------------------
+
+Run a roster scan that, for every cat in the investigation save, parses the
+serialized bytes up to the FUN_1402345e0 call site and records the u64 length
+of the CatData+0x8 byte vector. Compare:
+- Whommie (db_key=853) vs Kami (db_key=840): if non-zero only in Whommie, this
+  IS a hidden carrier despite the generic shape.
+- Bud (db_key=887) vs controls.
+- Distribution across 947 cats (most likely all zero).
+
+If all cats show size=0, definitively rule this out and move on to:
+- The 3 u8 flags at CatData+0xc08/+0xc09/+0xc0a (save_version>0xf gate; v=0x13).
+- The 16-element u32 array at CatData+0x744..+0x780 (save_version>0x11 gate).
+
+To find the buffer in the on-disk blob, locate FUN_1402345e0's call site in
+FUN_14022d360 (the param_1+8 reference at line ~0414 of the line 37 dump) and
+work out the byte offset from the previously-mapped equipment-end anchor at
++0xb90 / class-string tail. If the call writes exactly 8 bytes (size=0) for
+every cat, this region is empty in practice and not the carrier.

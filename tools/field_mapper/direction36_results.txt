@@ -1,0 +1,277 @@
+Direction 36 - Roster-scan 10 pre-corridor strings + corridor slot 0
+Save: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\investigation\steamcampaign01_20260424_191107.sav
+Total cats parsed: 947
+
+=== Focus Cats: per-slot raw dump ===
+
+Whommie (db_key=853) run_start=blob+0x023e  [DEFECT-POSITIVE]
+  slot[ 0] len=   11 span=  19 reason=junk_filler    text='DefaultMove'
+  slot[ 1] len=   16 span=  24 reason=kept           text='BasicShortRanged'
+  slot[ 2] len=    6 span=  14 reason=kept           text='Stasis'
+  slot[ 3] len=    4 span=  12 reason=junk_filler    text='None'
+  slot[ 4] len=    4 span=  12 reason=junk_filler    text='None'
+  slot[ 5] len=    4 span=  12 reason=junk_filler    text='None'
+  slot[ 6] len=    6 span=  14 reason=kept           text='Stasis'
+  slot[ 7] len=    4 span=  12 reason=junk_filler    text='None'
+  slot[ 8] len=    4 span=  12 reason=junk_filler    text='None'
+  slot[ 9] len=    4 span=  12 reason=junk_filler    text='None'
+  slot[10] len=    4 span=  12 reason=junk_filler    text='None'
+  end_pos=blob+0x02d9
+
+Kami (db_key=840) run_start=blob+0x0239  [CLEAN-CONTROL]
+  slot[ 0] len=   11 span=  19 reason=junk_filler    text='DefaultMove'
+  slot[ 1] len=   17 span=  25 reason=kept           text='BasicDruidAbility'
+  slot[ 2] len=    7 span=  15 reason=kept           text='Stasis2'
+  slot[ 3] len=    9 span=  17 reason=kept           text='RhinoForm'
+  slot[ 4] len=   13 span=  21 reason=kept           text='PlantMushroom'
+  slot[ 5] len=    9 span=  17 reason=kept           text='Cheerlead'
+  slot[ 6] len=    6 span=  14 reason=kept           text='Stasis'
+  slot[ 7] len=    4 span=  12 reason=junk_filler    text='None'
+  slot[ 8] len=    4 span=  12 reason=junk_filler    text='None'
+  slot[ 9] len=    4 span=  12 reason=junk_filler    text='None'
+  slot[10] len=    7 span=  15 reason=kept           text='Bouquet'
+  end_pos=blob+0x02ec
+
+Bud (db_key=887) run_start=blob+0x0238  [DEFECT-POSITIVE]
+  slot[ 0] len=   11 span=  19 reason=junk_filler    text='DefaultMove'
+  slot[ 1] len=   10 span=  18 reason=kept           text='BasicMelee'
+  slot[ 2] len=    6 span=  14 reason=kept           text='Stasis'
+  slot[ 3] len=    4 span=  12 reason=junk_filler    text='None'
+  slot[ 4] len=    4 span=  12 reason=junk_filler    text='None'
+  slot[ 5] len=    4 span=  12 reason=junk_filler    text='None'
+  slot[ 6] len=    6 span=  14 reason=kept           text='Stasis'
+  slot[ 7] len=    4 span=  12 reason=junk_filler    text='None'
+  slot[ 8] len=    4 span=  12 reason=junk_filler    text='None'
+  slot[ 9] len=    4 span=  12 reason=junk_filler    text='None'
+  slot[10] len=    4 span=  12 reason=junk_filler    text='None'
+  end_pos=blob+0x02cd
+
+Alaya (db_key=861) run_start=blob+0x0238
+  slot[ 0] len=   11 span=  19 reason=junk_filler    text='DefaultMove'
+  slot[ 1] len=   16 span=  24 reason=kept           text='BasicShortLobbed'
+  slot[ 2] len=    8 span=  16 reason=kept           text='Backflip'
+  slot[ 3] len=    4 span=  12 reason=junk_filler    text='None'
+  slot[ 4] len=    4 span=  12 reason=junk_filler    text='None'
+  slot[ 5] len=    4 span=  12 reason=junk_filler    text='None'
+  slot[ 6] len=    8 span=  16 reason=kept           text='Backflip'
+  slot[ 7] len=    4 span=  12 reason=junk_filler    text='None'
+  slot[ 8] len=    4 span=  12 reason=junk_filler    text='None'
+  slot[ 9] len=    4 span=  12 reason=junk_filler    text='None'
+  slot[10] len=    4 span=  12 reason=junk_filler    text='None'
+  end_pos=blob+0x02d7
+
+Petronij (db_key=841) run_start=blob+0x023c  [CLEAN-CONTROL]
+  slot[ 0] len=   11 span=  19 reason=junk_filler    text='DefaultMove'
+  slot[ 1] len=   10 span=  18 reason=kept           text='BasicMelee'
+  slot[ 2] len=    9 span=  17 reason=kept           text='BodyGuard'
+  slot[ 3] len=    4 span=  12 reason=junk_filler    text='None'
+  slot[ 4] len=    4 span=  12 reason=junk_filler    text='None'
+  slot[ 5] len=    4 span=  12 reason=junk_filler    text='None'
+  slot[ 6] len=    9 span=  17 reason=kept           text='BodyGuard'
+  slot[ 7] len=    4 span=  12 reason=junk_filler    text='None'
+  slot[ 8] len=    4 span=  12 reason=junk_filler    text='None'
+  slot[ 9] len=    4 span=  12 reason=junk_filler    text='None'
+  slot[10] len=   11 span=  19 reason=kept           text='Omniscience'
+  end_pos=blob+0x02de
+
+Murisha (db_key=852) run_start=blob+0x0240  [CLEAN-CONTROL]
+  slot[ 0] len=   11 span=  19 reason=junk_filler    text='DefaultMove'
+  slot[ 1] len=   16 span=  24 reason=kept           text='BasicShortLobbed'
+  slot[ 2] len=   16 span=  24 reason=kept           text='PathOfTheFighter'
+  slot[ 3] len=    4 span=  12 reason=junk_filler    text='None'
+  slot[ 4] len=    4 span=  12 reason=junk_filler    text='None'
+  slot[ 5] len=    4 span=  12 reason=junk_filler    text='None'
+  slot[ 6] len=   16 span=  24 reason=kept           text='PathOfTheFighter'
+  slot[ 7] len=    4 span=  12 reason=junk_filler    text='None'
+  slot[ 8] len=    4 span=  12 reason=junk_filler    text='None'
+  slot[ 9] len=    4 span=  12 reason=junk_filler    text='None'
+  slot[10] len=    4 span=  12 reason=junk_filler    text='None'
+  end_pos=blob+0x02ef
+
+Flekpus (db_key=68) run_start=blob+0x023a
+  slot[ 0] len=   11 span=  19 reason=junk_filler    text='DefaultMove'
+  slot[ 1] len=   18 span=  26 reason=kept           text='BasicMelee_Fighter'
+  slot[ 2] len=    8 span=  16 reason=kept           text='LickHeal'
+  slot[ 3] len=    8 span=  16 reason=kept           text='Confront'
+  slot[ 4] len=    8 span=  16 reason=kept           text='TeamSpin'
+  slot[ 5] len=    8 span=  16 reason=kept           text='Counter2'
+  slot[ 6] len=    8 span=  16 reason=kept           text='LickHeal'
+  slot[ 7] len=    4 span=  12 reason=junk_filler    text='None'
+  slot[ 8] len=    4 span=  12 reason=junk_filler    text='None'
+  slot[ 9] len=    4 span=  12 reason=junk_filler    text='None'
+  slot[10] len=    6 span=  14 reason=kept           text='Dealer'
+  end_pos=blob+0x02e9
+
+Lucyfer (db_key=255) run_start=blob+0x023d
+  slot[ 0] len=   11 span=  19 reason=junk_filler    text='DefaultMove'
+  slot[ 1] len=   15 span=  23 reason=kept           text='BasicMedicMelee'
+  slot[ 2] len=    5 span=  13 reason=kept           text='Smack'
+  slot[ 3] len=   11 span=  19 reason=kept           text='FriendOrFoe'
+  slot[ 4] len=   13 span=  21 reason=kept           text='ChosenWarrior'
+  slot[ 5] len=   11 span=  19 reason=kept           text='RallyCharge'
+  slot[ 6] len=    5 span=  13 reason=kept           text='Smack'
+  slot[ 7] len=    4 span=  12 reason=junk_filler    text='None'
+  slot[ 8] len=    4 span=  12 reason=junk_filler    text='None'
+  slot[ 9] len=    4 span=  12 reason=junk_filler    text='None'
+  slot[10] len=    8 span=  16 reason=kept           text='Purifier'
+  end_pos=blob+0x02f0
+
+=== Focus comparison: defect-positive vs clean controls ===
+  slot[1]:
+    defect-positive: [('Whommie', 'BasicShortRanged'), ('Bud', 'BasicMelee')]
+    clean controls:  [('Kami', 'BasicDruidAbility'), ('Petronij', 'BasicMelee'), ('Murisha', 'BasicShortLobbed')]
+  slot[2]:
+    defect-positive: [('Whommie', 'Stasis'), ('Bud', 'Stasis')]
+    clean controls:  [('Kami', 'Stasis2'), ('Petronij', 'BodyGuard'), ('Murisha', 'PathOfTheFighter')]
+  slot[3]:
+    defect-positive: [('Whommie', 'None'), ('Bud', 'None')]
+    clean controls:  [('Kami', 'RhinoForm'), ('Petronij', 'None'), ('Murisha', 'None')]
+  slot[4]:
+    defect-positive: [('Whommie', 'None'), ('Bud', 'None')]
+    clean controls:  [('Kami', 'PlantMushroom'), ('Petronij', 'None'), ('Murisha', 'None')]
+  slot[5]:
+    defect-positive: [('Whommie', 'None'), ('Bud', 'None')]
+    clean controls:  [('Kami', 'Cheerlead'), ('Petronij', 'None'), ('Murisha', 'None')]
+  slot[6]:
+    defect-positive: [('Whommie', 'Stasis'), ('Bud', 'Stasis')]
+    clean controls:  [('Kami', 'Stasis'), ('Petronij', 'BodyGuard'), ('Murisha', 'PathOfTheFighter')]
+  slot[10]:
+    defect-positive: [('Whommie', 'None'), ('Bud', 'None')]
+    clean controls:  [('Kami', 'Bouquet'), ('Petronij', 'Omniscience'), ('Murisha', 'None')]
+
+=== Roster Scan ===
+  parsed cats: 947 / 947
+  parse failures: 0
+
+  Drop-reason distribution per slot (entries that the parser would silently discard):
+  slot |  read_error  empty  non_identifier  junk_filler  kept  | unique-tokens
+     0   |           0      0               0          947     0  | 1
+     1   |           0      0               0            0   947  | 15
+     2   |           0      0               0            0   947  | 198
+     3   |           0      0               0          612   335  | 170
+     4   |           0      0               0          659   288  | 231
+     5   |           0      0               0          749   198  | 179
+     6   |           0      0               0            0   947  | 150
+     7   |           0      0               0          903    44  | 29
+     8   |           0      0               0          947     0  | 1
+     9   |           0      0               0          947     0  | 1
+    10   |           0      0               0          589   358  | 201
+
+  Top tokens per slot (top 10 each):
+  -- slot[0] --
+      947  'DefaultMove'
+  -- slot[1] --
+      351  'BasicMelee'
+      158  'BasicShortLobbed'
+      143  'BasicShortRanged'
+       55  'BasicMedicMelee'
+       34  'BasicTankMelee'
+       31  'BasicRanged_Hunter'
+       29  'BasicButcherMelee'
+       24  'BasicNecroRanged'
+       23  'BasicMelee_Fighter'
+       21  'BasicMagicShortRanged'
+  -- slot[2] --
+       62  'Blizzard'
+       33  'Blow'
+       22  'Reach'
+       21  'ColdShoulder'
+       21  'ArmorUp'
+       18  'DivineProtection'
+       16  'BurgeoningBlast'
+       15  'PushMove'
+       13  'PokeWound'
+       12  'MiniHook'
+  -- slot[3] --
+      612  'None'
+       12  'HallowedGround'
+        7  'RangedHeal'
+        6  'NeedleShot'
+        6  'Backflip'
+        6  'CoffinFlop'
+        5  'HeavyShot'
+        5  'Zealot'
+        5  'Rally'
+        5  'Telekinesis'
+  -- slot[4] --
+      659  'None'
+        4  'RangedHeal'
+        3  'BackBreaker'
+        3  'StoneGaze'
+        3  'Gore'
+        3  'BlindingLight'
+        3  'StakeOut'
+        3  'Vurp2'
+        3  'HealingFall'
+        2  'GuardianAngel'
+  -- slot[5] --
+      749  'None'
+        3  'HealingFall'
+        3  'RoughToss'
+        2  'EatRock'
+        2  'GuardianAngel'
+        2  'SleeperHold'
+        2  'WitchHunt2'
+        2  'FriendOrFoe'
+        2  'Gore'
+        2  'RallyCharge'
+  -- slot[6] --
+       62  'Blizzard'
+       33  'Blow'
+       23  'Reach'
+       23  'ArmorUp'
+       22  'ColdShoulder'
+       18  'BurgeoningBlast'
+       17  'DivineProtection'
+       15  'PushMove'
+       14  'SoulReap'
+       14  'StackTheDeck'
+  -- slot[7] --
+      903  'None'
+        5  'Blizzard'
+        4  'ColdShoulder'
+        3  'Reach'
+        3  'ArmorUp'
+        2  'Blow'
+        2  'DivineProtection'
+        2  'SneakUp'
+        2  'Stasis'
+        2  'HeavyShot'
+  -- slot[8] --
+      947  'None'
+  -- slot[9] --
+      947  'None'
+  -- slot[10] --
+      589  'None'
+        8  'Omniscience'
+        7  'Shank'
+        7  'Traps'
+        6  'Bouncer'
+        6  'Shadow'
+        5  'Wrestlemaniac'
+        5  'Caretaker'
+        5  'Schadenfreude'
+        4  'AnimalControl'
+
+  Defect-only tokens (in defect-positive but never in clean controls):
+    slot[1]: ['BasicShortRanged']
+    slot[2]: ['Stasis']
+
+  Defect-only tokens vs ENTIRE roster (defect-positive minus all other cats):
+    (none — defect-positive cats share all tokens with the rest of the roster)
+
+  Suspicious tokens roster-wide (regex: blind|defect|missing|birth|no_|deaf|mute|crippl|broken|disabled):
+    Zain (key=49) slot[5] reason=kept text='BlindingLight'
+    Ichabod (key=116) slot[10] reason=kept text='InfiniteRebirth'
+    Daffodil (key=156) slot[4] reason=kept text='BlindingLight'
+    Adalberto (key=168) slot[3] reason=kept text='Rebirth2'
+    Westley (key=190) slot[3] reason=kept text='Rebirth'
+    Mitya (key=203) slot[10] reason=kept text='Cripple'
+    Lucero Esmeralda (key=253) slot[4] reason=kept text='BlindingLight'
+    Sish (key=291) slot[10] reason=kept text='Cripple'
+    Franz (key=339) slot[10] reason=kept text='Cripple'
+    Bluto (key=340) slot[3] reason=kept text='Rebirth2'
+    Olaf (key=357) slot[4] reason=kept text='BlindingFlash'
+    Ukap (key=756) slot[5] reason=kept text='BlindingLight2'
+    Tunico (key=793) slot[2] reason=kept text='Rebirth'
+    Alura (key=901) slot[4] reason=kept text='BlindingLight'
