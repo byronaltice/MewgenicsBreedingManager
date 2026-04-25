@@ -252,12 +252,21 @@ class BreedPriorityView(QWidget):
         # ── Scope, weights, display settings ──
         try:
             self._saved_scope = data.get("scope", {})
+            _saved_weights = data.get("weights", {})
             for key in BREED_PRIORITY_WEIGHTS:
-                if key in data.get("weights", {}):
-                    self._weights[key] = float(data["weights"][key])
-            _old_trait_w = data.get("weights", {}).get("unique_ma_max")
+                if key in _saved_weights:
+                    self._weights[key] = float(_saved_weights[key])
+            if "mate_weight" not in _saved_weights:
+                _old_mate_weight = float(
+                    _saved_weights.get(
+                        "partner_coverage",
+                        _saved_weights.get("partner_balance", self._weights["mate_weight"]),
+                    )
+                )
+                self._weights["mate_weight"] = abs(_old_mate_weight)
+            _old_trait_w = _saved_weights.get("unique_ma_max")
             if _old_trait_w is not None and not any(
-                k in data.get("weights", {})
+                k in _saved_weights
                 for k in ("trait_top_priority", "trait_desirable", "trait_undesirable")
             ):
                 _old_trait_w = float(_old_trait_w)
@@ -462,6 +471,15 @@ class BreedPriorityView(QWidget):
         """Apply a profile blob to all instance vars and refresh every UI widget."""
         # Weights
         new_w = data.get("weights", {})
+        if "mate_weight" not in new_w:
+            _old_mate_weight = float(
+                new_w.get(
+                    "partner_coverage",
+                    new_w.get("partner_balance", BREED_PRIORITY_WEIGHTS["mate_weight"]),
+                )
+            )
+            new_w = dict(new_w)
+            new_w["mate_weight"] = abs(_old_mate_weight)
         _old_trait_w = new_w.get("unique_ma_max")
         if _old_trait_w is not None and not any(
             k in new_w for k in ("trait_top_priority", "trait_desirable", "trait_undesirable")
@@ -1101,6 +1119,7 @@ class BreedPriorityView(QWidget):
                 "age_threshold":         (1, 30),
                 "seven_sub_threshold":   (1, 20),
                 "gene_risk_threshold":   (0, 50),
+                "mate_imbalance_threshold": (0, 50),
                 "gene_risk_penalty_scale": (1, 100),
             }
             if key in _INT_PARAM_RANGES:
@@ -1161,7 +1180,7 @@ class BreedPriorityView(QWidget):
             "Lib":  "Libido — flat weight if High or Low.",
             "Sex":  "Sexuality — flat Gay or Bi weight (straight = no score).",
             "Gene":    "Genetic Safety — average in-scope inbreeding risk; penalties start above 2% baseline.",
-            "Mate":    "Mate coverage + balance — how much this cat improves breedable-partner coverage and moves the room toward a 1:1 male/female mix.",
+            "Mate":    "Mate penalty — if one known gender reaches the configured majority threshold in the selected scope, cats of that dominant gender take a flat penalty.",
             "Age":     "Age penalty. No penalty at/below threshold. Each 3 years over = +1× multiplier (1 over=1×, 4 over=2×, 7 over=3×…).",
             "💗": "Love — 🔭 chip = love interest in scope (flat weight); 🐱 chip = love interest in same room. Both directions.",
             "💥": "Hate — 🔭 chip = rival in scope (per rival, both directions); 🐱 chip = rival in same room. Both directions.",
@@ -2276,8 +2295,7 @@ class BreedPriorityView(QWidget):
             result = results[id(cat)]
             scope_gene_risk = result.scope_gene_risk
             mate_score = float(
-                result.subtotals.get("partner_coverage", 0.0)
-                + result.subtotals.get("partner_balance", 0.0)
+                result.subtotals.get("mate_weight", 0.0)
             )
             ch_in_scope = _children_in_scope(cat)
             _sub_count = _cat_sub_counts.get(id(cat), 0)
@@ -2544,10 +2562,7 @@ class BreedPriorityView(QWidget):
                             _chips = [(_risk_txt, _cbg, _cfg)]
                             text, color = "", _cfg
                     elif hdr == "Mate":
-                        _mate_score = float(
-                            result.subtotals.get("partner_coverage", 0.0)
-                            + result.subtotals.get("partner_balance", 0.0)
-                        )
+                        _mate_score = float(result.subtotals.get("mate_weight", 0.0))
                         score_val = _mate_score
                         if _mate_score == 0.0:
                             _chips = [("—", CLR_BG_SCORE_AREA, CLR_TEXT_GRAYEDOUT)]

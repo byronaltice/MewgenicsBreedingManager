@@ -3,8 +3,6 @@
 Standalone module — no imports from mewgenics_manager to avoid circular deps.
 """
 
-from math import log1p
-
 from save_parser import risk_percent, can_breed
 
 from .stats_overview import get_cat_stats
@@ -14,6 +12,7 @@ from .stats_overview import get_cat_stats
 TRAIT_LOW_THRESHOLD  = 0.3   # < this  → "low"
 TRAIT_HIGH_THRESHOLD = 0.7   # >= this → "high"
 GENETIC_SAFE_RISK_FLOOR = 2.0  # baseline/non-blood-risk floor (%)
+MATE_IMBALANCE_BASE_PERCENT = 50.0
 
 # ── Scoring weights ───────────────────────────────────────────────────────────
 
@@ -36,8 +35,8 @@ BREED_PRIORITY_WEIGHTS = {
     "zero_risk_bonus":        2.0,
     "gene_risk_threshold":    2.0,   # risk% threshold; below = bonus, above = scaling penalty
     "gene_risk_penalty_scale": 10.0, # higher = faster penalty growth (rate per 1% above threshold)
-    "partner_coverage":       1.0,
-    "partner_balance":        0.05,
+    "mate_weight":     1.0,
+    "mate_imbalance_threshold": 10.0,
     "stat_sum":        4.0,
     "age_penalty":    -2.0,
     "age_threshold":  10.0,
@@ -80,8 +79,8 @@ WEIGHT_UI_ROWS = [
     ("gene_risk_threshold",     "  └ threshold (%)"),
     ("gene_risk_penalty_scale", "  └ penalty scale"),
     (None, None),
-    ("partner_coverage",        "Mate coverage"),
-    ("partner_balance",         "Mate balance"),
+    ("mate_weight",             "Mate"),
+    ("mate_imbalance_threshold", "  threshold (%)"),
     (None, None),
     ("high_aggression",  ("Aggro", "High")),
     ("low_aggression",   ("",      "Low")),
@@ -111,7 +110,7 @@ SCORE_COLUMNS = [
     ("Lib",   ["high_libido", "low_libido"]),
     ("Gender", ["unknown_gender"]),
     ("Gene",  ["no_children", "zero_risk_bonus"]),
-    ("Mate",  ["partner_coverage", "partner_balance"]),
+    ("Mate",  ["mate_weight"]),
     ("Aggro", ["low_aggression", "high_aggression"]),
     ("💥",     ["rivalry", "rivalry_room"]),
     ("💗",     ["love_interest", "love_interest_room"]),
@@ -144,21 +143,21 @@ RATING_SHORT_LABELS = ["Top Priority", "Desirable", "Neutral", "Undecided", "Und
 
 class ScoreResult:
     __slots__ = ("total", "tier", "tier_color", "breakdown", "subtotals",
-                 "scope_gene_risk", "partner_coverage_delta",
-                 "partner_balance_delta")
+                 "scope_gene_risk", "mate_penalty_applied",
+                 "mate_majority_percent")
 
     def __init__(self, total: float, tier: str, tier_color: str, breakdown: list,
                  subtotals: dict | None = None, scope_gene_risk: float | None = None,
-                 partner_coverage_delta: float = 0.0,
-                 partner_balance_delta: float = 0.0):
+                 mate_penalty_applied: float = 0.0,
+                 mate_majority_percent: float = 0.0):
         self.total = total
         self.tier = tier
         self.tier_color = tier_color
         self.breakdown = breakdown
         self.subtotals = subtotals or {}
         self.scope_gene_risk = scope_gene_risk
-        self.partner_coverage_delta = partner_coverage_delta
-        self.partner_balance_delta = partner_balance_delta
+        self.mate_penalty_applied = mate_penalty_applied
+        self.mate_majority_percent = mate_majority_percent
 
 
 def priority_tier(score: float) -> tuple:
@@ -185,38 +184,14 @@ def is_upgraded(name: str) -> bool:
     return len(name) > 1 and name[-1] == "2"
 
 
-def _partner_counts(cats: list) -> dict[int, int]:
-    """Return breedable-partner counts for each cat in *cats*."""
-    counts = {id(cat): 0 for cat in cats}
-    for index, cat in enumerate(cats):
-        for partner in cats[index + 1:]:
-            if not can_breed(cat, partner)[0]:
-                continue
-            counts[id(cat)] += 1
-            counts[id(partner)] += 1
-    return counts
-
-
-def _partner_coverage_utility(partner_counts: dict[int, int]) -> float:
-    """Return room utility from breedable-partner counts with diminishing returns."""
-    return sum(log1p(partner_count) for partner_count in partner_counts.values())
-
-
-def _partner_coverage_delta(cat, scope_cats: list) -> tuple[float, int, int]:
-    """Return coverage delta, cats helped count, and candidate partner count."""
-    baseline_scope = [scope_cat for scope_cat in scope_cats if scope_cat is not cat]
-    baseline_counts = _partner_counts(baseline_scope)
-    candidate_scope = baseline_scope + [cat]
-    candidate_counts = _partner_counts(candidate_scope)
-    baseline_utility = _partner_coverage_utility(baseline_counts)
-    candidate_utility = _partner_coverage_utility(candidate_counts)
-    coverage_delta = round(candidate_utility - baseline_utility, 3)
-    cats_helped = sum(
-        1 for cat_id, partner_count in candidate_counts.items()
-        if partner_count > baseline_counts.get(cat_id, 0)
-    )
-    candidate_partner_count = candidate_counts.get(id(cat), 0)
-    return coverage_delta, cats_helped, candidate_partner_count
+def _normalized_gender_token(cat) -> str:
+    """Return compact gender token used by mate scoring: m, f, or ?."""
+    gender = (getattr(cat, "gender", "?") or "?").strip().lower()
+    if gender in ("m", "male"):
+        return "m"
+    if gender in ("f", "female"):
+        return "f"
+    return "?"
 
 
 def _gender_counts(cats: list) -> tuple[int, int]:
@@ -224,25 +199,37 @@ def _gender_counts(cats: list) -> tuple[int, int]:
     male_count = 0
     female_count = 0
     for cat in cats:
-        gender = (getattr(cat, "gender", "?") or "?").strip().lower()
-        if gender in ("m", "male"):
+        gender = _normalized_gender_token(cat)
+        if gender == "m":
             male_count += 1
-        elif gender in ("f", "female"):
+        elif gender == "f":
             female_count += 1
     return male_count, female_count
 
 
-def _partner_balance_delta(cat, scope_cats: list) -> tuple[float, int, int, int]:
-    """Return balance delta and before/after counts for the room gender gap."""
-    baseline_scope = [scope_cat for scope_cat in scope_cats if scope_cat is not cat]
-    baseline_male, baseline_female = _gender_counts(baseline_scope)
-    candidate_gender = (getattr(cat, "gender", "?") or "?").strip().lower()
-    candidate_male = baseline_male + (1 if candidate_gender in ("m", "male") else 0)
-    candidate_female = baseline_female + (1 if candidate_gender in ("f", "female") else 0)
-    baseline_gap = abs(baseline_male - baseline_female)
-    candidate_gap = abs(candidate_male - candidate_female)
-    balance_delta = float(baseline_gap * baseline_gap - candidate_gap * candidate_gap)
-    return balance_delta, baseline_male, baseline_female, candidate_gap
+def _mate_penalty(cat, scope_cats: list, weights: dict) -> tuple[float, int, int, float]:
+    """Return Mate penalty, gender counts, and dominant-gender share."""
+    male_count, female_count = _gender_counts(scope_cats)
+    known_total = male_count + female_count
+    if known_total == 0 or male_count == female_count:
+        return 0.0, male_count, female_count, 0.0
+
+    threshold_percent = float(weights.get("mate_imbalance_threshold", 10.0))
+    trigger_percent = MATE_IMBALANCE_BASE_PERCENT + threshold_percent
+    if male_count > female_count:
+        majority_gender = "m"
+        majority_count = male_count
+    else:
+        majority_gender = "f"
+        majority_count = female_count
+
+    majority_percent = 100.0 * majority_count / known_total
+    cat_gender = _normalized_gender_token(cat)
+    if majority_percent < trigger_percent or cat_gender != majority_gender:
+        return 0.0, male_count, female_count, majority_percent
+
+    mate_weight = abs(float(weights.get("mate_weight", 0.0)))
+    return -mate_weight, male_count, female_count, majority_percent
 
 
 def compute_breed_priority_score(cat, scope_cats: list, ma_ratings: dict,
@@ -276,8 +263,7 @@ def compute_breed_priority_score(cat, scope_cats: list, ma_ratings: dict,
         "unknown_gender": 0.0,
         "high_libido": 0.0, "low_libido": 0.0,
         "no_children": 0.0, "zero_risk_bonus": 0.0,
-        "partner_coverage": 0.0,
-        "partner_balance": 0.0,
+        "mate_weight": 0.0,
         "stat_sum": 0.0, "age_penalty": 0.0,
         "love_interest": 0.0, "rivalry": 0.0,
         "cha_low": 0.0,
@@ -471,27 +457,16 @@ def compute_breed_priority_score(cat, scope_cats: list, ma_ratings: dict,
                 breakdown.append((f"Genetic safety (R{int(_gene_risk_display)} ≤ {_gene_threshold:.0f})", safe_pts))
                 subtotals["zero_risk_bonus"] = safe_pts
 
-    coverage_delta, cats_helped, candidate_partner_count = _partner_coverage_delta(cat, scope_cats)
-    coverage_weight = float(_w.get("partner_coverage", 0.0))
-    if coverage_weight != 0.0 and coverage_delta != 0.0:
-        coverage_points = round(coverage_delta * coverage_weight, 3)
+    mate_points, male_count, female_count, majority_percent = _mate_penalty(cat, scope_cats, _w)
+    if mate_points != 0.0:
+        trigger_percent = MATE_IMBALANCE_BASE_PERCENT + float(_w.get("mate_imbalance_threshold", 10.0))
+        dominant_label = "M" if male_count > female_count else "F"
         breakdown.append((
-            f"Mate coverage +{coverage_delta:.2f} "
-            f"({cats_helped} cats helped, {candidate_partner_count} partners)",
-            coverage_points,
+            f"Mate imbalance ({dominant_label}-heavy {majority_percent:.0f}% "
+            f"at M{male_count}/F{female_count}, threshold {trigger_percent:.0f}%)",
+            mate_points,
         ))
-        subtotals["partner_coverage"] = coverage_points
-
-    balance_delta, baseline_male, baseline_female, candidate_gap = _partner_balance_delta(cat, scope_cats)
-    balance_weight = float(_w.get("partner_balance", 0.0))
-    if balance_weight != 0.0 and balance_delta != 0.0:
-        balance_points = round(balance_delta * balance_weight, 3)
-        breakdown.append((
-            f"Mate balance {balance_delta:+.0f} "
-            f"(M{baseline_male}/F{baseline_female} -> gap {candidate_gap})",
-            balance_points,
-        ))
-        subtotals["partner_balance"] = balance_points
+        subtotals["mate_weight"] = mate_points
 
     # ── Stat sum rank-based scoring ───────────────────────────────────────────
     # Ranks by unique values so all cats at the same sum share a rank and a
@@ -590,5 +565,5 @@ def compute_breed_priority_score(cat, scope_cats: list, ma_ratings: dict,
     return ScoreResult(total=total, tier=tier, tier_color=color,
                        breakdown=breakdown, subtotals=subtotals,
                        scope_gene_risk=gene_risk,
-                       partner_coverage_delta=coverage_delta,
-                       partner_balance_delta=balance_delta)
+                       mate_penalty_applied=mate_points,
+                       mate_majority_percent=majority_percent)

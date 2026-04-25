@@ -1,0 +1,142 @@
+Direction 31 - Map ability tail through equipment and class string
+Save: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\investigation\steamcampaign01_20260424_191107.sav
+
+=== Focus Cats ===
+
+Whommie (db_key=853)
+  run_start: blob+0x023e; run item count=11
+  run items: ['DefaultMove', 'BasicShortRanged', 'Stasis', 'None', 'None', 'None', 'Stasis', 'None', 'None', 'None', 'None']
+  passive tier: 1
+  tail slots: [('None', 1), ('None', 1), ('None', 1)]
+  equipment: blob+0x030d..0x0326 (25 bytes)
+  equipment slots: [(5, 0), (5, 0), (5, 0), (5, 0), (5, 0)]
+  empty-slot format: True
+  class: 'Colorless'; parsed_end before fixed tail: blob+0x0337
+  raw equipment: 05 00 00 00 00 05 00 00 00 00 05 00 00 00 00 05 00 00 00 00 05 00 00 00 00
+
+Kami (db_key=840)
+  run_start: blob+0x0239; run item count=11
+  run items: ['DefaultMove', 'BasicDruidAbility', 'Stasis2', 'RhinoForm', 'PlantMushroom', 'Cheerlead', 'Stasis', 'None', 'None', 'None', 'Bouquet']
+  passive tier: 1
+  tail slots: [('BarkSkin', 1), ('None', 1), ('None', 1)]
+  equipment: blob+0x0324..0x033d (25 bytes)
+  equipment slots: [(5, 0), (5, 0), (5, 0), (5, 0), (5, 0)]
+  empty-slot format: True
+  class: 'Druid'; parsed_end before fixed tail: blob+0x034a
+  raw equipment: 05 00 00 00 00 05 00 00 00 00 05 00 00 00 00 05 00 00 00 00 05 00 00 00 00
+
+Bud (db_key=887)
+  run_start: blob+0x0238; run item count=11
+  run items: ['DefaultMove', 'BasicMelee', 'Stasis', 'None', 'None', 'None', 'Stasis', 'None', 'None', 'None', 'None']
+  passive tier: 1
+  tail slots: [('None', 1), ('None', 1), ('None', 1)]
+  equipment: blob+0x0301..0x031a (25 bytes)
+  equipment slots: [(5, 0), (5, 0), (5, 0), (5, 0), (5, 0)]
+  empty-slot format: True
+  class: 'Colorless'; parsed_end before fixed tail: blob+0x032b
+  raw equipment: 05 00 00 00 00 05 00 00 00 00 05 00 00 00 00 05 00 00 00 00 05 00 00 00 00
+
+Alaya (db_key=861)
+  run_start: blob+0x0238; run item count=11
+  run items: ['DefaultMove', 'BasicShortLobbed', 'Backflip', 'None', 'None', 'None', 'Backflip', 'None', 'None', 'None', 'None']
+  passive tier: 1
+  tail slots: [('None', 1), ('None', 1), ('None', 1)]
+  equipment: blob+0x030b..0x0324 (25 bytes)
+  equipment slots: [(5, 0), (5, 0), (5, 0), (5, 0), (5, 0)]
+  empty-slot format: True
+  class: 'Colorless'; parsed_end before fixed tail: blob+0x0335
+  raw equipment: 05 00 00 00 00 05 00 00 00 00 05 00 00 00 00 05 00 00 00 00 05 00 00 00 00
+
+Petronij (db_key=841)
+  run_start: blob+0x023c; run item count=11
+  run items: ['DefaultMove', 'BasicMelee', 'BodyGuard', 'None', 'None', 'None', 'BodyGuard', 'None', 'None', 'None', 'Omniscience']
+  passive tier: 1
+  tail slots: [('None', 1), ('None', 1), ('None', 1)]
+  equipment: blob+0x0312..0x032b (25 bytes)
+  equipment slots: [(5, 0), (5, 0), (5, 0), (5, 0), (5, 0)]
+  empty-slot format: True
+  class: 'Colorless'; parsed_end before fixed tail: blob+0x033c
+  raw equipment: 05 00 00 00 00 05 00 00 00 00 05 00 00 00 00 05 00 00 00 00 05 00 00 00 00
+
+Murisha (db_key=852)
+  run_start: blob+0x0240; run item count=11
+  run items: ['DefaultMove', 'BasicShortLobbed', 'PathOfTheFighter', 'None', 'None', 'None', 'PathOfTheFighter', 'None', 'None', 'None', 'None']
+  passive tier: 1
+  tail slots: [('None', 1), ('None', 1), ('None', 1)]
+  equipment: blob+0x0323..0x033c (25 bytes)
+  equipment slots: [(5, 0), (5, 0), (5, 0), (5, 0), (5, 0)]
+  empty-slot format: True
+  class: 'Colorless'; parsed_end before fixed tail: blob+0x034d
+  raw equipment: 05 00 00 00 00 05 00 00 00 00 05 00 00 00 00 05 00 00 00 00 05 00 00 00 00
+
+Flekpus (db_key=68)
+  run_start: blob+0x023a; run item count=11
+  run items: ['DefaultMove', 'BasicMelee_Fighter', 'LickHeal', 'Confront', 'TeamSpin', 'Counter2', 'LickHeal', 'None', 'None', 'None', 'Dealer']
+  passive tier: 1
+  tail slots: [('DualWield', 2), ('Scatological', 1), ('None', 1)]
+  equipment: blob+0x032a..0x0343 (25 bytes)
+  equipment slots: [(5, 0), (5, 0), (5, 0), (5, 0), (5, 0)]
+  empty-slot format: True
+  class: 'Fighter'; parsed_end before fixed tail: blob+0x0352
+  raw equipment: 05 00 00 00 00 05 00 00 00 00 05 00 00 00 00 05 00 00 00 00 05 00 00 00 00
+
+Lucyfer (db_key=255)
+  run_start: blob+0x023d; run item count=11
+  run items: ['DefaultMove', 'BasicMedicMelee', 'Smack', 'FriendOrFoe', 'ChosenWarrior', 'RallyCharge', 'Smack', 'None', 'None', 'None', 'Purifier']
+  passive tier: 1
+  tail slots: [('ThouShaltNotKill', 1), ('None', 1), ('None', 1)]
+  equipment: blob+0x0330..0x0421 (241 bytes)
+  equipment slots: []
+  empty-slot format: False
+  class: 'Medic'; parsed_end before fixed tail: blob+0x042e
+  raw equipment: 05 00 00 00 01 0a 00 00 00 00 00 00 00 53 70 61 72 65 50 61 72 74 73 00 00 00 00 00 00 00 00 ff ff ff ff 00 00 00 00 00 00 00 00 e9 03 00 00 ff 01 05 00 00 00 01 07 00 00 00 00 00 00 00 52 61 67 4d 61 73 6b 00 00 00 00 00 00 00 00 ff ff ff ff 00 00 00 00 00 00 00 00 ef 03 00 00 ff 03 05 00 00 00 01 0b 00 00 00 00 00 00 00 42 6f 78 69 6e 67 43 68 61 72 6d 00 00 00 00 00 00 00 00 ff ff ff ff 00 00 00 00 00 00 00 00 7f 96 98 00 ff 00 05 00 00 00 01 0a 00 00 00 00 00 00 00 42 6c 61 63 6b 53 68 61 72 64 00 00 00 00 00 00 00 00 ff ff ff ff 06 00 00 00 00 00 00 00 00 00 00 00 ff 01 05 00 00 00 01 08 00 00 00 00 00 00 00 41 6e 74 69 64 6f 74 65 00 00 00 00 00 00 00 00 02 00 00 00 00 00 00 00 00 00 00 00 f9 03 00 00 ff 00
+
+=== Roster Scan ===
+  parsed cats: 947 / 947
+  parse failures: 0
+  ability run length distribution:
+    11: 947
+  class distribution:
+    'Colorless': 652
+    'Medic': 55
+    'Tank': 33
+    'Hunter': 29
+    'Butcher': 29
+    'Necromancer': 23
+    'Fighter': 22
+    'Mage': 21
+    'Druid': 19
+    'Thief': 18
+    'Psychic': 14
+    'Tinkerer': 14
+  equipment pattern distribution:
+    [(5, 0), (5, 0), (5, 0), (5, 0), (5, 0)]: 841
+    []: 67
+    [(5, 0), (5, 0), (5, 0), (5, 16777216), (11, 0), (0, 1967259648), (116, 1919248483), (72, 7040879), (0, 0), (0, 4294967040), (255, 0), (8, 0), (0, 33488896), (5, 0)]: 19
+    [(5, 0), (5, 0), (5, 0), (5, 16777216), (11, 0), (0, 1967259648), (116, 1919248483), (72, 7040879), (0, 0), (0, 4294967040), (255, 0), (8, 2164260864), (105, 33554279), (5, 0)]: 2
+    [(5, 0), (5, 16777216), (6, 0), (0, 1631780864), (108, 7566700), (0, 0), (0, 4294967040), (255, 6), (0, 4009754624), (3, 33488896), (5, 0), (5, 0), (5, 0)]: 1
+    [(5, 0), (5, 0), (5, 0), (5, 0), (5, 16777216), (11, 0), (0, 1866596352), (116, 1283026022), (97, 6387314), (0, 0), (0, 4294967040), (255, 0), (0, 2130706432), (150, 16711832)]: 1
+    [(5, 16777216), (7, 0), (0, 1632763904), (105, 1952532590), (0, 0), (0, 4294901760), (255, 255), (0, 0), (252, 4278190083), (0, 5), (1, 20), (0, 1342177280), (101, 1399153505), (121, 1819239021), (70, 1348821857), (97, 7630441), (0, 0), (0, 4294967040), (255, 0), (0, 2130706432), (150, 16711832), (5, 16777216), (10, 0), (0, 1766653952), (110, 1916891749), (109, 29295), (0, 0), (0, 4294967295), (0, 0), (0, 66650112), (0, 84147968), (0, 218169344), (0, 0), (0, 1634879232), (112, 1852402800), (103, 1802465096), (0, 0), (0, 4294901760), (255, 255), (0, 0), (247, 4278190083), (1, 5), (1, 10), (0, 1308622848), (101, 1936876918), (116, 6647407), (0, 0), (0, 4294967040), (255, 0), (0, 4278190080), (3, 16711680)]: 1
+    [(5, 16777216), (8, 0), (0, 1767112704), (110, 1866625899), (119, 0), (0, 4278190080), (255, 65535), (0, 0), (0, 1016), (255, 1281), (0, 1280), (0, 2305), (0, 0), (85, 1097098611), (114, 7499629), (0, 0), (0, 4294967040), (255, 0), (0, 0), (4, 33488896), (5, 16777216), (9, 0), (0, 1750532096), (101, 1869902708), (110, 101), (0, 0), (255, 16777215), (0, 0), (0, 258304), (0, 328703), (0, 524544), (0, 0), (0, 1752394071), (66, 6647407), (0, 0), (0, 256), (0, 0), (0, 4244635648), (3, 33488896)]: 1
+  equipment byte-size distribution:
+    25: 841
+    70: 24
+    117: 10
+    69: 2
+    244: 2
+    255: 2
+    111: 2
+    162: 2
+    240: 2
+    68: 2
+    206: 2
+    209: 2
+  tail slot pattern distribution:
+    [('None', 1), ('None', 1), ('None', 1)]: 654
+    [('Caretaker', 1), ('None', 1), ('None', 1)]: 6
+    [('ThouShaltObey', 1), ('None', 1), ('None', 1)]: 4
+    [('HawkEye', 1), ('None', 1), ('None', 1)]: 3
+    [('Recoil', 1), ('None', 1), ('None', 1)]: 3
+    [('VeneratedTouch', 1), ('None', 1), ('None', 1)]: 3
+    [('OffloadPain', 1), ('None', 1), ('None', 1)]: 3
+    [('EnchantedRelic', 1), ('None', 1), ('None', 1)]: 3

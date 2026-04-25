@@ -1,0 +1,95 @@
+Direction 30 - Decode post-stat gap and d100 fixed header
+Save: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\investigation\steamcampaign01_20260424_191107.sav
+
+=== Focus Cats ===
+
+Whommie (db_key=853)
+  gap: blob+0x0224..0x023e (26 bytes)
+  +0x788 string: 'none'
+  d100 header: u32@+0=0x3fffffff, u8@+4=0x00, u8@+5=0x00, u32@+8=0x00000000, count=0
+  parsed_end matches DefaultMove run_start: True
+  raw gap: 04 00 00 00 00 00 00 00 6e 6f 6e 65 ff ff ff 3f 00 00 00 00 00 00 00 00 00 00
+
+Kami (db_key=840)
+  gap: blob+0x021f..0x0239 (26 bytes)
+  +0x788 string: 'none'
+  d100 header: u32@+0=0x3fffffff, u8@+4=0x00, u8@+5=0x00, u32@+8=0x00000000, count=0
+  parsed_end matches DefaultMove run_start: True
+  raw gap: 04 00 00 00 00 00 00 00 6e 6f 6e 65 ff ff ff 3f 00 00 00 00 00 00 00 00 00 00
+
+Bud (db_key=887)
+  gap: blob+0x021e..0x0238 (26 bytes)
+  +0x788 string: 'none'
+  d100 header: u32@+0=0x3fffffff, u8@+4=0x00, u8@+5=0x00, u32@+8=0x00000000, count=0
+  parsed_end matches DefaultMove run_start: True
+  raw gap: 04 00 00 00 00 00 00 00 6e 6f 6e 65 ff ff ff 3f 00 00 00 00 00 00 00 00 00 00
+
+Alaya (db_key=861)
+  gap: blob+0x021e..0x0238 (26 bytes)
+  +0x788 string: 'none'
+  d100 header: u32@+0=0x0000001c, u8@+4=0x01, u8@+5=0x00, u32@+8=0x00000000, count=0
+  parsed_end matches DefaultMove run_start: True
+  raw gap: 04 00 00 00 00 00 00 00 6e 6f 6e 65 1c 00 00 00 01 00 00 00 00 00 00 00 00 00
+
+Petronij (db_key=841)
+  gap: blob+0x0222..0x023c (26 bytes)
+  +0x788 string: 'none'
+  d100 header: u32@+0=0x3fffffff, u8@+4=0x00, u8@+5=0x00, u32@+8=0x00000000, count=0
+  parsed_end matches DefaultMove run_start: True
+  raw gap: 04 00 00 00 00 00 00 00 6e 6f 6e 65 ff ff ff 3f 00 00 00 00 00 00 00 00 00 00
+
+Murisha (db_key=852)
+  gap: blob+0x0226..0x0240 (26 bytes)
+  +0x788 string: 'none'
+  d100 header: u32@+0=0x3fffffff, u8@+4=0x00, u8@+5=0x00, u32@+8=0x00000000, count=0
+  parsed_end matches DefaultMove run_start: True
+  raw gap: 04 00 00 00 00 00 00 00 6e 6f 6e 65 ff ff ff 3f 00 00 00 00 00 00 00 00 00 00
+
+Flekpus (db_key=68)
+  gap: blob+0x0221..0x023a (25 bytes)
+  +0x788 string: 'str'
+  d100 header: u32@+0=0x3fffffff, u8@+4=0x00, u8@+5=0x00, u32@+8=0x00000000, count=0
+  parsed_end matches DefaultMove run_start: True
+  raw gap: 03 00 00 00 00 00 00 00 73 74 72 ff ff ff 3f 00 00 00 00 00 00 00 00 00 00
+
+Lucyfer (db_key=255)
+  gap: blob+0x0224..0x023d (25 bytes)
+  +0x788 string: 'spd'
+  d100 header: u32@+0=0x3fffffff, u8@+4=0x01, u8@+5=0x00, u32@+8=0x00000000, count=0
+  parsed_end matches DefaultMove run_start: True
+  raw gap: 03 00 00 00 00 00 00 00 73 70 64 ff ff ff 3f 01 00 00 00 00 00 00 00 00 00
+
+=== Roster Scan ===
+  parsed cats: 947 / 947
+  parse failures: 0
+  gap size distribution:
+    26 bytes: 693
+    25 bytes: 245
+    30 bytes: 5
+    28 bytes: 4
+  +0x788 string distribution:
+    'none': 693
+    'str': 43
+    'cha': 40
+    'spd': 36
+    'dex': 35
+    'int': 35
+    'con': 35
+    'lck': 21
+    'burned': 4
+    'bleeding': 3
+    'poisoned': 2
+  d100 fixed header distribution:
+    (0x3fffffff, 0x00, 0x00, 0x00000000, count=0): 682
+    (0x3fffffff, 0x01, 0x00, 0x00000000, count=0): 140
+    (0x00000018, 0x00, 0x00, 0x00000000, count=0): 35
+    (0x0000001c, 0x00, 0x00, 0x00000000, count=0): 35
+    (0x0000001c, 0x01, 0x00, 0x00000000, count=0): 12
+    (0x00000018, 0x01, 0x00, 0x00000000, count=0): 8
+    (0x00000014, 0x00, 0x00, 0x00000000, count=0): 6
+    (0x00000020, 0x00, 0x00, 0x00000000, count=0): 5
+    (0x00000024, 0x00, 0x00, 0x00000000, count=0): 4
+    (0x0000002c, 0x00, 0x00, 0x00000000, count=0): 3
+    (0x00000014, 0x01, 0x00, 0x00000000, count=0): 3
+    (0x00000028, 0x00, 0x00, 0x00000000, count=0): 3
+  cats with non-empty d100 list: 0

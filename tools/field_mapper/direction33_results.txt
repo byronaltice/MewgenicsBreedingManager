@@ -1,0 +1,163 @@
+Direction 33 - Body-part serializer field map
+Save: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\investigation\steamcampaign01_20260424_191107.sav
+
+Saved T-index map from Ghidra:
+  T[00] fur_top    CatData+0x078  top-level body-part field
+  T[01] fur_top    CatData+0x07c  top-level body-part field
+  T[02] fur_top    CatData+0x080  top-level body-part field
+  T[03] body       CatData+0x090  CatPartBase+0x04
+  T[04] body       CatData+0x094  CatPartBase+0x08
+  T[05] body       CatData+0x098  CatPartBase+0x0c
+  T[06] body       CatData+0x09c  CatPartBase+0x10
+  T[07] body       CatData+0x0a0  CatPartBase+0x14
+  T[08] head       CatData+0x0e4  CatPartBase+0x04
+  T[09] head       CatData+0x0e8  CatPartBase+0x08
+  T[10] head       CatData+0x0ec  CatPartBase+0x0c
+  T[11] head       CatData+0x0f0  CatPartBase+0x10
+  T[12] head       CatData+0x0f4  CatPartBase+0x14
+  T[13] tail       CatData+0x138  CatPartBase+0x04
+  T[14] tail       CatData+0x13c  CatPartBase+0x08
+  T[15] tail       CatData+0x140  CatPartBase+0x0c
+  T[16] tail       CatData+0x144  CatPartBase+0x10
+  T[17] tail       CatData+0x148  CatPartBase+0x14
+  T[18] leg_L      CatData+0x18c  CatPartBase+0x04
+  T[19] leg_L      CatData+0x190  CatPartBase+0x08
+  T[20] leg_L      CatData+0x194  CatPartBase+0x0c
+  T[21] leg_L      CatData+0x198  CatPartBase+0x10
+  T[22] leg_L      CatData+0x19c  CatPartBase+0x14
+  T[23] leg_R      CatData+0x1e0  CatPartBase+0x04
+  T[24] leg_R      CatData+0x1e4  CatPartBase+0x08
+  T[25] leg_R      CatData+0x1e8  CatPartBase+0x0c
+  T[26] leg_R      CatData+0x1ec  CatPartBase+0x10
+  T[27] leg_R      CatData+0x1f0  CatPartBase+0x14
+  T[28] arm_L      CatData+0x234  CatPartBase+0x04
+  T[29] arm_L      CatData+0x238  CatPartBase+0x08
+  T[30] arm_L      CatData+0x23c  CatPartBase+0x0c
+  T[31] arm_L      CatData+0x240  CatPartBase+0x10
+  T[32] arm_L      CatData+0x244  CatPartBase+0x14
+  T[33] arm_R      CatData+0x288  CatPartBase+0x04
+  T[34] arm_R      CatData+0x28c  CatPartBase+0x08
+  T[35] arm_R      CatData+0x290  CatPartBase+0x0c
+  T[36] arm_R      CatData+0x294  CatPartBase+0x10
+  T[37] arm_R      CatData+0x298  CatPartBase+0x14
+  T[38] eye_L      CatData+0x2dc  CatPartBase+0x04
+  T[39] eye_L      CatData+0x2e0  CatPartBase+0x08
+  T[40] eye_L      CatData+0x2e4  CatPartBase+0x0c
+  T[41] eye_L      CatData+0x2e8  CatPartBase+0x10
+  T[42] eye_L      CatData+0x2ec  CatPartBase+0x14
+  T[43] eye_R      CatData+0x330  CatPartBase+0x04
+  T[44] eye_R      CatData+0x334  CatPartBase+0x08
+  T[45] eye_R      CatData+0x338  CatPartBase+0x0c
+  T[46] eye_R      CatData+0x33c  CatPartBase+0x10
+  T[47] eye_R      CatData+0x340  CatPartBase+0x14
+  T[48] eyebrow_L  CatData+0x384  CatPartBase+0x04
+  T[49] eyebrow_L  CatData+0x388  CatPartBase+0x08
+  T[50] eyebrow_L  CatData+0x38c  CatPartBase+0x0c
+  T[51] eyebrow_L  CatData+0x390  CatPartBase+0x10
+  T[52] eyebrow_L  CatData+0x394  CatPartBase+0x14
+  T[53] eyebrow_R  CatData+0x3d8  CatPartBase+0x04
+  T[54] eyebrow_R  CatData+0x3dc  CatPartBase+0x08
+  T[55] eyebrow_R  CatData+0x3e0  CatPartBase+0x0c
+  T[56] eyebrow_R  CatData+0x3e4  CatPartBase+0x10
+  T[57] eyebrow_R  CatData+0x3e8  CatPartBase+0x14
+  T[58] ear_L      CatData+0x42c  CatPartBase+0x04
+  T[59] ear_L      CatData+0x430  CatPartBase+0x08
+  T[60] ear_L      CatData+0x434  CatPartBase+0x0c
+  T[61] ear_L      CatData+0x438  CatPartBase+0x10
+  T[62] ear_L      CatData+0x43c  CatPartBase+0x14
+  T[63] ear_R      CatData+0x480  CatPartBase+0x04
+  T[64] ear_R      CatData+0x484  CatPartBase+0x08
+  T[65] ear_R      CatData+0x488  CatPartBase+0x0c
+  T[66] ear_R      CatData+0x48c  CatPartBase+0x10
+  T[67] ear_R      CatData+0x490  CatPartBase+0x14
+  T[68] mouth      CatData+0x4d4  CatPartBase+0x04
+  T[69] mouth      CatData+0x4d8  CatPartBase+0x08
+  T[70] mouth      CatData+0x4dc  CatPartBase+0x0c
+  T[71] mouth      CatData+0x4e0  CatPartBase+0x10
+  T[72] mouth      CatData+0x4e4  CatPartBase+0x14
+
+Important negative finding:
+  FUN_1400a5390 checks CatPartBase+0x18 for the missing-part state, but FUN_14022cd00 serializes only CatPartBase+0x04..0x14.
+  Therefore CatPartBase+0x18 is not present in the saved T array.
+
+Focus slot dumps:
+
+Whommie key=853 t_start=0x8e parsed_defects=['Fur Birth Defect']
+  eye_L      T[38..42]: part_id=0x0000008b (139); texture_echo=0x000002c2 (706); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+  eye_R      T[43..47]: part_id=0x0000008b (139); texture_echo=0x000002c2 (706); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+  eyebrow_L  T[48..52]: part_id=0x00000017 (23); texture_echo=0x000002c2 (706); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+  eyebrow_R  T[53..57]: part_id=0x00000017 (23); texture_echo=0x000002c2 (706); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+  ear_L      T[58..62]: part_id=0x0000001e (30); texture_echo=0x000002c2 (706); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+  ear_R      T[63..67]: part_id=0x0000001e (30); texture_echo=0x000002c2 (706); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+
+Kami key=840 t_start=0x89 parsed_defects=[]
+  eye_L      T[38..42]: part_id=0x0000008b (139); texture_echo=0x000000ae (174); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+  eye_R      T[43..47]: part_id=0x0000008b (139); texture_echo=0x000000ae (174); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+  eyebrow_L  T[48..52]: part_id=0x00000017 (23); texture_echo=0x000000ae (174); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+  eyebrow_R  T[53..57]: part_id=0x00000017 (23); texture_echo=0x000000ae (174); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+  ear_L      T[58..62]: part_id=0x0000001e (30); texture_echo=0x000000ae (174); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+  ear_R      T[63..67]: part_id=0x0000001e (30); texture_echo=0x000000ae (174); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+
+Bud key=887 t_start=0x86 parsed_defects=[]
+  eye_L      T[38..42]: part_id=0x0000008b (139); texture_echo=0x000000a1 (161); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+  eye_R      T[43..47]: part_id=0x0000008b (139); texture_echo=0x000000a1 (161); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+  eyebrow_L  T[48..52]: part_id=0x000001a8 (424); texture_echo=0x000000a1 (161); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+  eyebrow_R  T[53..57]: part_id=0x000001a8 (424); texture_echo=0x000000a1 (161); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+  ear_L      T[58..62]: part_id=0x00000084 (132); texture_echo=0x000000a1 (161); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+  ear_R      T[63..67]: part_id=0x00000084 (132); texture_echo=0x000000a1 (161); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+
+Petronij key=841 t_start=0x8c parsed_defects=[]
+  eye_L      T[38..42]: part_id=0x0000008b (139); texture_echo=0x000000ae (174); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+  eye_R      T[43..47]: part_id=0x0000008b (139); texture_echo=0x000000ae (174); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+  eyebrow_L  T[48..52]: part_id=0x00000017 (23); texture_echo=0x000000ae (174); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+  eyebrow_R  T[53..57]: part_id=0x00000017 (23); texture_echo=0x000000ae (174); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+  ear_L      T[58..62]: part_id=0x00000065 (101); texture_echo=0x0000001a (26); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+  ear_R      T[63..67]: part_id=0x00000065 (101); texture_echo=0x0000001a (26); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+
+Romanoba key=847 t_start=0x84 parsed_defects=[]
+  eye_L      T[38..42]: part_id=0x000000b9 (185); texture_echo=0x000000bb (187); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+  eye_R      T[43..47]: part_id=0x000000b9 (185); texture_echo=0x000000bb (187); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+  eyebrow_L  T[48..52]: part_id=0x0000001a (26); texture_echo=0x000000bb (187); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+  eyebrow_R  T[53..57]: part_id=0x0000001a (26); texture_echo=0x000000bb (187); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+  ear_L      T[58..62]: part_id=0x0000001e (30); texture_echo=0x000000bb (187); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+  ear_R      T[63..67]: part_id=0x0000001e (30); texture_echo=0x000000bb (187); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+
+Alaya key=861 t_start=0x86 parsed_defects=['Ear Birth Defect']
+  eye_L      T[38..42]: part_id=0x00000015 (21); texture_echo=0x00000066 (102); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+  eye_R      T[43..47]: part_id=0x00000015 (21); texture_echo=0x00000066 (102); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+  eyebrow_L  T[48..52]: part_id=0x00000136 (310); texture_echo=0x00000066 (102); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+  eyebrow_R  T[53..57]: part_id=0x00000136 (310); texture_echo=0x00000066 (102); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+  ear_L      T[58..62]: part_id=0xfffffffe (4294967294) NO_PART_LITERAL; texture_echo=0x00000066 (102); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+  ear_R      T[63..67]: part_id=0xfffffffe (4294967294) NO_PART_LITERAL; texture_echo=0x00000066 (102); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+
+Affected-slot comparisons:
+
+Whommie vs Kami
+  eye_L     : different
+    Whommie : part_id=0x0000008b (139); texture_echo=0x000002c2 (706); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+    Kami    : part_id=0x0000008b (139); texture_echo=0x000000ae (174); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+  eye_R     : different
+    Whommie : part_id=0x0000008b (139); texture_echo=0x000002c2 (706); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+    Kami    : part_id=0x0000008b (139); texture_echo=0x000000ae (174); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+  eyebrow_L : different
+    Whommie : part_id=0x00000017 (23); texture_echo=0x000002c2 (706); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+    Kami    : part_id=0x00000017 (23); texture_echo=0x000000ae (174); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+  eyebrow_R : different
+    Whommie : part_id=0x00000017 (23); texture_echo=0x000002c2 (706); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+    Kami    : part_id=0x00000017 (23); texture_echo=0x000000ae (174); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+
+Bud vs Romanoba
+  ear_L     : different
+    Bud     : part_id=0x00000084 (132); texture_echo=0x000000a1 (161); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+    Romanoba: part_id=0x0000001e (30); texture_echo=0x000000bb (187); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+  ear_R     : different
+    Bud     : part_id=0x00000084 (132); texture_echo=0x000000a1 (161); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+    Romanoba: part_id=0x0000001e (30); texture_echo=0x000000bb (187); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+
+Bud vs Kami
+  ear_L     : different
+    Bud     : part_id=0x00000084 (132); texture_echo=0x000000a1 (161); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+    Kami    : part_id=0x0000001e (30); texture_echo=0x000000ae (174); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+  ear_R     : different
+    Bud     : part_id=0x00000084 (132); texture_echo=0x000000a1 (161); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)
+    Kami    : part_id=0x0000001e (30); texture_echo=0x000000ae (174); field_0c=0x00000000 (0); field_10=0x00000000 (0); field_14=0x00000000 (0)

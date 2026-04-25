@@ -1,0 +1,624 @@
+Direction 27 — FUN_14022cf90 blob position analysis
+Save: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\investigation\steamcampaign01_20260424_191107.sav
+
+Whommie (db_key=853): t_start=0x8e  defects=['Fur Birth Defect']
+
+Kami (db_key=840): t_start=0x89  defects=[]
+
+Bud (db_key=887): t_start=0x86  defects=[]
+
+Alaya (db_key=861): t_start=0x86  defects=['Ear Birth Defect']
+
+Petronij (db_key=841): t_start=0x8c  defects=[]
+
+Murisha (db_key=852): t_start=0x8e  defects=[]
+
+======================================================================
+INDIVIDUAL DUMPS (first 30 u32s after T[72])
+======================================================================
+
+--- Whommie ---
+
+  After T[72] (30 u32s at blob+0x1ae):
+    T+  0 (blob+0x1ae): 0x00000000 (         0)
+    T+  1 (blob+0x1b2): 0x00000009 (         9)
+    T+  2 (blob+0x1b6): 0x00000004 (         4)
+    T+  3 (blob+0x1ba): 0x00000006 (         6)
+    T+  4 (blob+0x1be): 0x00000000 (         0)
+    T+  5 (blob+0x1c2): 0x656c616d (1701601645)
+    T+  6 (blob+0x1c6): 0x9a773332 (2591503154)
+    T+  7 (blob+0x1ca): 0xb164ca78 (2976172664)
+    T+  8 (blob+0x1ce): 0x00073ff2 (    475122)
+    T+  9 (blob+0x1d2): 0x00070000 (    458752)
+    T+ 10 (blob+0x1d6): 0x00070000 (    458752)
+    T+ 11 (blob+0x1da): 0x00070000 (    458752)
+    T+ 12 (blob+0x1de): 0x00060000 (    393216)
+    T+ 13 (blob+0x1e2): 0x00070000 (    458752)
+    T+ 14 (blob+0x1e6): 0x00070000 (    458752)
+    T+ 15 (blob+0x1ea): 0x00000000 (         0)
+    T+ 16 (blob+0x1ee): 0x00000000 (         0)
+    T+ 17 (blob+0x1f2): 0x00000000 (         0)
+    T+ 18 (blob+0x1f6): 0x00000000 (         0)
+    T+ 19 (blob+0x1fa): 0x00000000 (         0)
+    T+ 20 (blob+0x1fe): 0x00000000 (         0)
+    T+ 21 (blob+0x202): 0x00000000 (         0)
+    T+ 22 (blob+0x206): 0x00000000 (         0)
+    T+ 23 (blob+0x20a): 0x00000000 (         0)
+    T+ 24 (blob+0x20e): 0x00000000 (         0)
+    T+ 25 (blob+0x212): 0x00000000 (         0)
+    T+ 26 (blob+0x216): 0x00000000 (         0)
+    T+ 27 (blob+0x21a): 0x00000000 (         0)
+    T+ 28 (blob+0x21e): 0x00000000 (         0)
+    T+ 29 (blob+0x222): 0x00040000 (    262144)
+
+--- Kami ---
+
+  After T[72] (30 u32s at blob+0x1a9):
+    T+  0 (blob+0x1a9): 0x00000000 (         0)
+    T+  1 (blob+0x1ad): 0x0000000a (        10)
+    T+  2 (blob+0x1b1): 0x00000002 (         2) *** GON_BLOCK_2 ***
+    T+  3 (blob+0x1b5): 0x00000006 (         6)
+    T+  4 (blob+0x1b9): 0x00000000 (         0)
+    T+  5 (blob+0x1bd): 0x656c616d (1701601645)
+    T+  6 (blob+0x1c1): 0xf3b63332 (4088804146)
+    T+  7 (blob+0x1c5): 0xe4f32c78 (3841141880)
+    T+  8 (blob+0x1c9): 0x00073feb (    475115)
+    T+  9 (blob+0x1cd): 0x00070000 (    458752)
+    T+ 10 (blob+0x1d1): 0x00070000 (    458752)
+    T+ 11 (blob+0x1d5): 0x00070000 (    458752)
+    T+ 12 (blob+0x1d9): 0x00060000 (    393216)
+    T+ 13 (blob+0x1dd): 0x00070000 (    458752)
+    T+ 14 (blob+0x1e1): 0x00070000 (    458752)
+    T+ 15 (blob+0x1e5): 0x00010000 (     65536)
+    T+ 16 (blob+0x1e9): 0x00000000 (         0)
+    T+ 17 (blob+0x1ed): 0x00000000 (         0)
+    T+ 18 (blob+0x1f1): 0x00020000 (    131072)
+    T+ 19 (blob+0x1f5): 0x00020000 (    131072)
+    T+ 20 (blob+0x1f9): 0x00020000 (    131072)
+    T+ 21 (blob+0x1fd): 0x00000000 (         0)
+    T+ 22 (blob+0x201): 0x00000000 (         0)
+    T+ 23 (blob+0x205): 0x00000000 (         0)
+    T+ 24 (blob+0x209): 0x00000000 (         0)
+    T+ 25 (blob+0x20d): 0x00000000 (         0)
+    T+ 26 (blob+0x211): 0x00000000 (         0)
+    T+ 27 (blob+0x215): 0x00000000 (         0)
+    T+ 28 (blob+0x219): 0x00000000 (         0)
+    T+ 29 (blob+0x21d): 0x00040000 (    262144)
+
+--- Bud ---
+
+  After T[72] (30 u32s at blob+0x1a6):
+    T+  0 (blob+0x1a6): 0x00000000 (         0)
+    T+  1 (blob+0x1aa): 0x00000001 (         1)
+    T+  2 (blob+0x1ae): 0x00000003 (         3)
+    T+  3 (blob+0x1b2): 0x00000008 (         8)
+    T+  4 (blob+0x1b6): 0x00000000 (         0)
+    T+  5 (blob+0x1ba): 0x616d6566 (1634559334)
+    T+  6 (blob+0x1be): 0x3035656c ( 808805740)
+    T+  7 (blob+0x1c2): 0x2c78f3b6 ( 746124214)
+    T+  8 (blob+0x1c6): 0x3febe4f3 (1072424179)
+    T+  9 (blob+0x1ca): 0x00000007 (         7)
+    T+ 10 (blob+0x1ce): 0x00000007 (         7)
+    T+ 11 (blob+0x1d2): 0x00000007 (         7)
+    T+ 12 (blob+0x1d6): 0x00000007 (         7)
+    T+ 13 (blob+0x1da): 0x00000007 (         7)
+    T+ 14 (blob+0x1de): 0x00000007 (         7)
+    T+ 15 (blob+0x1e2): 0x00000007 (         7)
+    T+ 16 (blob+0x1e6): 0x00000000 (         0)
+    T+ 17 (blob+0x1ea): 0x00000000 (         0)
+    T+ 18 (blob+0x1ee): 0x00000000 (         0)
+    T+ 19 (blob+0x1f2): 0x00000000 (         0)
+    T+ 20 (blob+0x1f6): 0x00000000 (         0)
+    T+ 21 (blob+0x1fa): 0x00000000 (         0)
+    T+ 22 (blob+0x1fe): 0x00000000 (         0)
+    T+ 23 (blob+0x202): 0x00000000 (         0)
+    T+ 24 (blob+0x206): 0x00000000 (         0)
+    T+ 25 (blob+0x20a): 0x00000000 (         0)
+    T+ 26 (blob+0x20e): 0x00000000 (         0)
+    T+ 27 (blob+0x212): 0x00000000 (         0)
+    T+ 28 (blob+0x216): 0x00000000 (         0)
+    T+ 29 (blob+0x21a): 0x00000000 (         0)
+
+--- Alaya ---
+
+  After T[72] (30 u32s at blob+0x1a6):
+    T+  0 (blob+0x1a6): 0x00000000 (         0)
+    T+  1 (blob+0x1aa): 0x00000007 (         7)
+    T+  2 (blob+0x1ae): 0x00000008 (         8)
+    T+  3 (blob+0x1b2): 0x00000008 (         8)
+    T+  4 (blob+0x1b6): 0x00000000 (         0)
+    T+  5 (blob+0x1ba): 0x616d6566 (1634559334)
+    T+  6 (blob+0x1be): 0x3534656c ( 892626284)
+    T+  7 (blob+0x1c2): 0x36259da8 ( 908434856)
+    T+  8 (blob+0x1c6): 0x3fe98dbc (1072270780)
+    T+  9 (blob+0x1ca): 0x00000007 (         7)
+    T+ 10 (blob+0x1ce): 0x00000007 (         7)
+    T+ 11 (blob+0x1d2): 0x00000007 (         7)
+    T+ 12 (blob+0x1d6): 0x00000007 (         7)
+    T+ 13 (blob+0x1da): 0x00000007 (         7)
+    T+ 14 (blob+0x1de): 0x00000007 (         7)
+    T+ 15 (blob+0x1e2): 0x00000007 (         7)
+    T+ 16 (blob+0x1e6): 0x00000000 (         0)
+    T+ 17 (blob+0x1ea): 0x00000000 (         0)
+    T+ 18 (blob+0x1ee): 0x00000000 (         0)
+    T+ 19 (blob+0x1f2): 0x00000000 (         0)
+    T+ 20 (blob+0x1f6): 0x00000000 (         0)
+    T+ 21 (blob+0x1fa): 0x00000002 (         2) *** GON_BLOCK_2 ***
+    T+ 22 (blob+0x1fe): 0x00000000 (         0)
+    T+ 23 (blob+0x202): 0x00000000 (         0)
+    T+ 24 (blob+0x206): 0x00000000 (         0)
+    T+ 25 (blob+0x20a): 0x00000000 (         0)
+    T+ 26 (blob+0x20e): 0x00000000 (         0)
+    T+ 27 (blob+0x212): 0x00000000 (         0)
+    T+ 28 (blob+0x216): 0x00000000 (         0)
+    T+ 29 (blob+0x21a): 0x00000000 (         0)
+
+--- Petronij ---
+
+  After T[72] (30 u32s at blob+0x1ac):
+    T+  0 (blob+0x1ac): 0x00000000 (         0)
+    T+  1 (blob+0x1b0): 0x00000008 (         8)
+    T+  2 (blob+0x1b4): 0x0000000a (        10)
+    T+  3 (blob+0x1b8): 0x00000006 (         6)
+    T+  4 (blob+0x1bc): 0x00000000 (         0)
+    T+  5 (blob+0x1c0): 0x656c616d (1701601645)
+    T+  6 (blob+0x1c4): 0x9a773335 (2591503157)
+    T+  7 (blob+0x1c8): 0xb164ca78 (2976172664)
+    T+  8 (blob+0x1cc): 0x00073ff2 (    475122)
+    T+  9 (blob+0x1d0): 0x00070000 (    458752)
+    T+ 10 (blob+0x1d4): 0x00070000 (    458752)
+    T+ 11 (blob+0x1d8): 0x00070000 (    458752)
+    T+ 12 (blob+0x1dc): 0x00060000 (    393216)
+    T+ 13 (blob+0x1e0): 0x00070000 (    458752)
+    T+ 14 (blob+0x1e4): 0x00070000 (    458752)
+    T+ 15 (blob+0x1e8): 0x00000000 (         0)
+    T+ 16 (blob+0x1ec): 0x00000000 (         0)
+    T+ 17 (blob+0x1f0): 0x00000000 (         0)
+    T+ 18 (blob+0x1f4): 0x00000000 (         0)
+    T+ 19 (blob+0x1f8): 0x00000000 (         0)
+    T+ 20 (blob+0x1fc): 0x00000000 (         0)
+    T+ 21 (blob+0x200): 0x00000000 (         0)
+    T+ 22 (blob+0x204): 0x00000000 (         0)
+    T+ 23 (blob+0x208): 0x00000000 (         0)
+    T+ 24 (blob+0x20c): 0x00000000 (         0)
+    T+ 25 (blob+0x210): 0x00000000 (         0)
+    T+ 26 (blob+0x214): 0x00000000 (         0)
+    T+ 27 (blob+0x218): 0x00000000 (         0)
+    T+ 28 (blob+0x21c): 0x00000000 (         0)
+    T+ 29 (blob+0x220): 0x00040000 (    262144)
+
+--- Murisha ---
+
+  After T[72] (30 u32s at blob+0x1ae):
+    T+  0 (blob+0x1ae): 0x00000000 (         0)
+    T+  1 (blob+0x1b2): 0x00000006 (         6)
+    T+  2 (blob+0x1b6): 0x00000005 (         5)
+    T+  3 (blob+0x1ba): 0x00000008 (         8)
+    T+  4 (blob+0x1be): 0x00000000 (         0)
+    T+  5 (blob+0x1c2): 0x616d6566 (1634559334)
+    T+  6 (blob+0x1c6): 0x3035656c ( 808805740)
+    T+  7 (blob+0x1ca): 0x9148a4b9 (2437457081)
+    T+  8 (blob+0x1ce): 0x3fe83b56 (1072184150)
+    T+  9 (blob+0x1d2): 0x00000007 (         7)
+    T+ 10 (blob+0x1d6): 0x00000007 (         7)
+    T+ 11 (blob+0x1da): 0x00000007 (         7)
+    T+ 12 (blob+0x1de): 0x00000007 (         7)
+    T+ 13 (blob+0x1e2): 0x00000007 (         7)
+    T+ 14 (blob+0x1e6): 0x00000007 (         7)
+    T+ 15 (blob+0x1ea): 0x00000007 (         7)
+    T+ 16 (blob+0x1ee): 0x00000000 (         0)
+    T+ 17 (blob+0x1f2): 0x00000000 (         0)
+    T+ 18 (blob+0x1f6): 0x00000000 (         0)
+    T+ 19 (blob+0x1fa): 0x00000000 (         0)
+    T+ 20 (blob+0x1fe): 0x00000000 (         0)
+    T+ 21 (blob+0x202): 0x00000000 (         0)
+    T+ 22 (blob+0x206): 0x00000000 (         0)
+    T+ 23 (blob+0x20a): 0x00000000 (         0)
+    T+ 24 (blob+0x20e): 0x00000000 (         0)
+    T+ 25 (blob+0x212): 0x00000000 (         0)
+    T+ 26 (blob+0x216): 0x00000000 (         0)
+    T+ 27 (blob+0x21a): 0x00000000 (         0)
+    T+ 28 (blob+0x21e): 0x00000000 (         0)
+    T+ 29 (blob+0x222): 0x00000000 (         0)
+
+======================================================================
+DIFFS vs KAMI
+======================================================================
+
+  DIFF Whommie vs Kami (after T[72], 120 u32s):
+    i=  1: Whommie=0x00000009  Kami=0x0000000a
+    i=  2: Whommie=0x00000004  Kami=0x00000002 <gon2>
+    i=  6: Whommie=0x9a773332  Kami=0xf3b63332
+    i=  7: Whommie=0xb164ca78  Kami=0xe4f32c78
+    i=  8: Whommie=0x00073ff2  Kami=0x00073feb
+    i= 15: Whommie=0x00000000  Kami=0x00010000
+    i= 18: Whommie=0x00000000  Kami=0x00020000
+    i= 19: Whommie=0x00000000  Kami=0x00020000
+    i= 20: Whommie=0x00000000  Kami=0x00020000
+    i= 40: Whommie=0x1065766f  Kami=0x1165766f
+    i= 44: Whommie=0x726f6853  Kami=0x69757244
+    i= 45: Whommie=0x6e615274  Kami=0x69624164
+    i= 46: Whommie=0x06646567  Kami=0x7974696c
+    i= 47: Whommie=0x00000000  Kami=0x00000007
+    i= 48: Whommie=0x53000000  Kami=0x00000000
+    i= 49: Whommie=0x69736174  Kami=0x73617453
+    i= 50: Whommie=0x00000473  Kami=0x09327369
+    i= 52: Whommie=0x6e6f4e00  Kami=0x52000000
+    i= 53: Whommie=0x00000465  Kami=0x6f6e6968
+    i= 54: Whommie=0x00000000  Kami=0x6d726f46
+    i= 55: Whommie=0x6e6f4e00  Kami=0x0000000d
+    i= 56: Whommie=0x00000465  Kami=0x00000000
+    i= 57: Whommie=0x00000000  Kami=0x6e616c50
+    i= 58: Whommie=0x6e6f4e00  Kami=0x73754d74
+    i= 59: Whommie=0x00000665  Kami=0x6f6f7268
+    i= 60: Whommie=0x00000000  Kami=0x0000096d
+    i= 61: Whommie=0x61745300  Kami=0x00000000
+    i= 62: Whommie=0x04736973  Kami=0x65684300
+    i= 63: Whommie=0x00000000  Kami=0x656c7265
+    i= 64: Whommie=0x4e000000  Kami=0x00066461
+    i= 65: Whommie=0x04656e6f  Kami=0x00000000
+    i= 66: Whommie=0x00000000  Kami=0x74530000
+    i= 67: Whommie=0x4e000000  Kami=0x73697361
+    i= 68: Whommie=0x04656e6f  Kami=0x00000004
+    i= 70: Whommie=0x4e000000  Kami=0x656e6f4e
+    i= 71: Whommie=0x04656e6f  Kami=0x00000004
+    i= 73: Whommie=0x4e000000  Kami=0x656e6f4e
+    i= 74: Whommie=0x01656e6f  Kami=0x00000004
+    i= 75: Whommie=0x04000000  Kami=0x00000000
+    i= 76: Whommie=0x00000000  Kami=0x656e6f4e
+    i= 77: Whommie=0x4e000000  Kami=0x00000007
+    i= 78: Whommie=0x01656e6f  Kami=0x00000000
+    i= 79: Whommie=0x04000000  Kami=0x71756f42
+    i= 80: Whommie=0x00000000  Kami=0x01746575
+    i= 81: Whommie=0x4e000000  Kami=0x08000000
+    i= 82: Whommie=0x01656e6f  Kami=0x00000000
+    i= 83: Whommie=0x04000000  Kami=0x42000000
+    i= 84: Whommie=0x00000000  Kami=0x536b7261
+    i= 85: Whommie=0x4e000000  Kami=0x016e696b
+    i= 86: Whommie=0x01656e6f  Kami=0x04000000
+    i= 87: Whommie=0x05000000  Kami=0x00000000
+    i= 88: Whommie=0x00000000  Kami=0x4e000000
+    i= 89: Whommie=0x00000005  Kami=0x01656e6f
+    i= 90: Whommie=0x00000500  Kami=0x04000000
+    i= 91: Whommie=0x00050000  Kami=0x00000000
+    i= 92: Whommie=0x05000000  Kami=0x4e000000
+    i= 93: Whommie=0x00000000  Kami=0x01656e6f
+    i= 94: Whommie=0x00000009  Kami=0x05000000
+    i= 96: Whommie=0x6f6c6f43  Kami=0x00000005
+    i= 97: Whommie=0x73656c72  Kami=0x00000500
+    i= 98: Whommie=0x00000073  Kami=0x00050000
+    i= 99: Whommie=0xa8000000  Kami=0x05000000
+    i=100: Whommie=0xd5233f31  Kami=0x00000000
+    i=101: Whommie=0x0000923f  Kami=0x00000005
+    i=103: Whommie=0xffffff00  Kami=0x69757244
+    i=104: Whommie=0xffffffff  Kami=0x00000664
+    i=105: Whommie=0x000000ff  Kami=0x80000000
+    i=106: Whommie=0x00000000  Kami=0xbf91d560
+    i=107: Whommie=0x00000000  Kami=0x0000903f
+    i=109: Whommie=0x00000000  Kami=0xffffff00
+    i=110: Whommie=0x00000000  Kami=0xffffffff
+    i=111: Whommie=0x00000000  Kami=0x000000ff
+    i=114: Whommie=0x00000000  Kami=0x02c00000
+    i=116: Whommie=0x00000000  Kami=0x00030300
+
+  DIFF Bud vs Kami (after T[72], 120 u32s):
+    i=  1: Bud=0x00000001  Kami=0x0000000a
+    i=  2: Bud=0x00000003  Kami=0x00000002 <gon2>
+    i=  3: Bud=0x00000008  Kami=0x00000006
+    i=  5: Bud=0x616d6566  Kami=0x656c616d
+    i=  6: Bud=0x3035656c  Kami=0xf3b63332
+    i=  7: Bud=0x2c78f3b6  Kami=0xe4f32c78
+    i=  8: Bud=0x3febe4f3  Kami=0x00073feb
+    i=  9: Bud=0x00000007  Kami=0x00070000
+    i= 10: Bud=0x00000007  Kami=0x00070000
+    i= 11: Bud=0x00000007  Kami=0x00070000
+    i= 12: Bud=0x00000007  Kami=0x00060000
+    i= 13: Bud=0x00000007  Kami=0x00070000
+    i= 14: Bud=0x00000007  Kami=0x00070000
+    i= 15: Bud=0x00000007  Kami=0x00010000
+    i= 18: Bud=0x00000000  Kami=0x00020000
+    i= 19: Bud=0x00000000  Kami=0x00020000
+    i= 20: Bud=0x00000000  Kami=0x00020000
+    i= 29: Bud=0x00000000  Kami=0x00040000
+    i= 30: Bud=0x00000004  Kami=0x00000000
+    i= 31: Bud=0x00000000  Kami=0x6f6e0000
+    i= 32: Bud=0x656e6f6e  Kami=0xffff656e
+    i= 33: Bud=0x3fffffff  Kami=0x00003fff
+    i= 36: Bud=0x000b0000  Kami=0x0000000b
+    i= 38: Bud=0x65440000  Kami=0x61666544
+    i= 39: Bud=0x6c756166  Kami=0x4d746c75
+    i= 40: Bud=0x766f4d74  Kami=0x1165766f
+    i= 41: Bud=0x00000a65  Kami=0x00000000
+    i= 42: Bud=0x00000000  Kami=0x42000000
+    i= 43: Bud=0x73614200  Kami=0x63697361
+    i= 44: Bud=0x654d6369  Kami=0x69757244
+    i= 45: Bud=0x0665656c  Kami=0x69624164
+    i= 46: Bud=0x00000000  Kami=0x7974696c
+    i= 47: Bud=0x53000000  Kami=0x00000007
+    i= 48: Bud=0x69736174  Kami=0x00000000
+    i= 49: Bud=0x00000473  Kami=0x73617453
+    i= 50: Bud=0x00000000  Kami=0x09327369
+    i= 51: Bud=0x6e6f4e00  Kami=0x00000000
+    i= 52: Bud=0x00000465  Kami=0x52000000
+    i= 53: Bud=0x00000000  Kami=0x6f6e6968
+    i= 54: Bud=0x6e6f4e00  Kami=0x6d726f46
+    i= 55: Bud=0x00000465  Kami=0x0000000d
+    i= 57: Bud=0x6e6f4e00  Kami=0x6e616c50
+    i= 58: Bud=0x00000665  Kami=0x73754d74
+    i= 59: Bud=0x00000000  Kami=0x6f6f7268
+    i= 60: Bud=0x61745300  Kami=0x0000096d
+    i= 61: Bud=0x04736973  Kami=0x00000000
+    i= 62: Bud=0x00000000  Kami=0x65684300
+    i= 63: Bud=0x4e000000  Kami=0x656c7265
+    i= 64: Bud=0x04656e6f  Kami=0x00066461
+    i= 66: Bud=0x4e000000  Kami=0x74530000
+    i= 67: Bud=0x04656e6f  Kami=0x73697361
+    i= 68: Bud=0x00000000  Kami=0x00000004
+    i= 69: Bud=0x4e000000  Kami=0x00000000
+    i= 70: Bud=0x04656e6f  Kami=0x656e6f4e
+    i= 71: Bud=0x00000000  Kami=0x00000004
+    i= 72: Bud=0x4e000000  Kami=0x00000000
+    i= 73: Bud=0x01656e6f  Kami=0x656e6f4e
+    i= 74: Bud=0x04000000  Kami=0x00000004
+    i= 76: Bud=0x4e000000  Kami=0x656e6f4e
+    i= 77: Bud=0x01656e6f  Kami=0x00000007
+    i= 78: Bud=0x04000000  Kami=0x00000000
+    i= 79: Bud=0x00000000  Kami=0x71756f42
+    i= 80: Bud=0x4e000000  Kami=0x01746575
+    i= 81: Bud=0x01656e6f  Kami=0x08000000
+    i= 82: Bud=0x04000000  Kami=0x00000000
+    i= 83: Bud=0x00000000  Kami=0x42000000
+    i= 84: Bud=0x4e000000  Kami=0x536b7261
+    i= 85: Bud=0x01656e6f  Kami=0x016e696b
+    i= 86: Bud=0x05000000  Kami=0x04000000
+    i= 88: Bud=0x00000005  Kami=0x4e000000
+    i= 89: Bud=0x00000500  Kami=0x01656e6f
+    i= 90: Bud=0x00050000  Kami=0x04000000
+    i= 91: Bud=0x05000000  Kami=0x00000000
+    i= 92: Bud=0x00000000  Kami=0x4e000000
+    i= 93: Bud=0x00000009  Kami=0x01656e6f
+    i= 94: Bud=0x00000000  Kami=0x05000000
+    i= 95: Bud=0x6f6c6f43  Kami=0x00000000
+    i= 96: Bud=0x73656c72  Kami=0x00000005
+    i= 97: Bud=0x00000073  Kami=0x00000500
+    i= 98: Bud=0x50000000  Kami=0x00050000
+    i= 99: Bud=0xb3d74f17  Kami=0x05000000
+    i=100: Bud=0x0000963f  Kami=0x00000000
+    i=101: Bud=0x00000000  Kami=0x00000005
+    i=102: Bud=0xffffff00  Kami=0x00000000
+    i=103: Bud=0xffffffff  Kami=0x69757244
+    i=104: Bud=0x000000ff  Kami=0x00000664
+    i=105: Bud=0x00000000  Kami=0x80000000
+    i=106: Bud=0x00000000  Kami=0xbf91d560
+    i=107: Bud=0x00000000  Kami=0x0000903f
+    i=109: Bud=0x00000000  Kami=0xffffff00
+    i=110: Bud=0x00000000  Kami=0xffffffff
+    i=111: Bud=0x00000000  Kami=0x000000ff
+    i=114: Bud=0x00000000  Kami=0x02c00000
+    i=116: Bud=0x00000000  Kami=0x00030300
+
+  DIFF Alaya vs Kami (after T[72], 120 u32s):
+    i=  1: Alaya=0x00000007  Kami=0x0000000a
+    i=  2: Alaya=0x00000008  Kami=0x00000002 <gon2>
+    i=  3: Alaya=0x00000008  Kami=0x00000006
+    i=  5: Alaya=0x616d6566  Kami=0x656c616d
+    i=  6: Alaya=0x3534656c  Kami=0xf3b63332
+    i=  7: Alaya=0x36259da8  Kami=0xe4f32c78
+    i=  8: Alaya=0x3fe98dbc  Kami=0x00073feb
+    i=  9: Alaya=0x00000007  Kami=0x00070000
+    i= 10: Alaya=0x00000007  Kami=0x00070000
+    i= 11: Alaya=0x00000007  Kami=0x00070000
+    i= 12: Alaya=0x00000007  Kami=0x00060000
+    i= 13: Alaya=0x00000007  Kami=0x00070000
+    i= 14: Alaya=0x00000007  Kami=0x00070000
+    i= 15: Alaya=0x00000007  Kami=0x00010000
+    i= 18: Alaya=0x00000000  Kami=0x00020000
+    i= 19: Alaya=0x00000000  Kami=0x00020000
+    i= 20: Alaya=0x00000000  Kami=0x00020000
+    i= 21: Alaya=0x00000002 <gon2>  Kami=0x00000000
+    i= 29: Alaya=0x00000000  Kami=0x00040000
+    i= 30: Alaya=0x00000004  Kami=0x00000000
+    i= 31: Alaya=0x00000000  Kami=0x6f6e0000
+    i= 32: Alaya=0x656e6f6e  Kami=0xffff656e
+    i= 33: Alaya=0x0000001c  Kami=0x00003fff
+    i= 34: Alaya=0x00000001  Kami=0x00000000
+    i= 36: Alaya=0x000b0000  Kami=0x0000000b
+    i= 38: Alaya=0x65440000  Kami=0x61666544
+    i= 39: Alaya=0x6c756166  Kami=0x4d746c75
+    i= 40: Alaya=0x766f4d74  Kami=0x1165766f
+    i= 41: Alaya=0x00001065  Kami=0x00000000
+    i= 42: Alaya=0x00000000  Kami=0x42000000
+    i= 43: Alaya=0x73614200  Kami=0x63697361
+    i= 44: Alaya=0x68536369  Kami=0x69757244
+    i= 45: Alaya=0x4c74726f  Kami=0x69624164
+    i= 46: Alaya=0x6562626f  Kami=0x7974696c
+    i= 47: Alaya=0x00000864  Kami=0x00000007
+    i= 49: Alaya=0x63614200  Kami=0x73617453
+    i= 50: Alaya=0x696c666b  Kami=0x09327369
+    i= 51: Alaya=0x00000470  Kami=0x00000000
+    i= 52: Alaya=0x00000000  Kami=0x52000000
+    i= 53: Alaya=0x6e6f4e00  Kami=0x6f6e6968
+    i= 54: Alaya=0x00000465  Kami=0x6d726f46
+    i= 55: Alaya=0x00000000  Kami=0x0000000d
+    i= 56: Alaya=0x6e6f4e00  Kami=0x00000000
+    i= 57: Alaya=0x00000465  Kami=0x6e616c50
+    i= 58: Alaya=0x00000000  Kami=0x73754d74
+    i= 59: Alaya=0x6e6f4e00  Kami=0x6f6f7268
+    i= 60: Alaya=0x00000865  Kami=0x0000096d
+    i= 62: Alaya=0x63614200  Kami=0x65684300
+    i= 63: Alaya=0x696c666b  Kami=0x656c7265
+    i= 64: Alaya=0x00000470  Kami=0x00066461
+    i= 66: Alaya=0x6e6f4e00  Kami=0x74530000
+    i= 67: Alaya=0x00000465  Kami=0x73697361
+    i= 68: Alaya=0x00000000  Kami=0x00000004
+    i= 69: Alaya=0x6e6f4e00  Kami=0x00000000
+    i= 70: Alaya=0x00000465  Kami=0x656e6f4e
+    i= 71: Alaya=0x00000000  Kami=0x00000004
+    i= 72: Alaya=0x6e6f4e00  Kami=0x00000000
+    i= 73: Alaya=0x00000465  Kami=0x656e6f4e
+    i= 74: Alaya=0x00000000  Kami=0x00000004
+    i= 75: Alaya=0x6e6f4e00  Kami=0x00000000
+    i= 76: Alaya=0x00000165  Kami=0x656e6f4e
+    i= 77: Alaya=0x00000400  Kami=0x00000007
+    i= 79: Alaya=0x6e6f4e00  Kami=0x71756f42
+    i= 80: Alaya=0x00000165  Kami=0x01746575
+    i= 81: Alaya=0x00000400  Kami=0x08000000
+    i= 83: Alaya=0x6e6f4e00  Kami=0x42000000
+    i= 84: Alaya=0x00000165  Kami=0x536b7261
+    i= 85: Alaya=0x00000400  Kami=0x016e696b
+    i= 86: Alaya=0x00000000  Kami=0x04000000
+    i= 87: Alaya=0x6e6f4e00  Kami=0x00000000
+    i= 88: Alaya=0x00000165  Kami=0x4e000000
+    i= 89: Alaya=0x00000500  Kami=0x01656e6f
+    i= 90: Alaya=0x00050000  Kami=0x04000000
+    i= 91: Alaya=0x05000000  Kami=0x00000000
+    i= 92: Alaya=0x00000000  Kami=0x4e000000
+    i= 93: Alaya=0x00000005  Kami=0x01656e6f
+    i= 94: Alaya=0x00000500  Kami=0x05000000
+    i= 95: Alaya=0x00090000  Kami=0x00000000
+    i= 96: Alaya=0x00000000  Kami=0x00000005
+    i= 97: Alaya=0x6f430000  Kami=0x00000500
+    i= 98: Alaya=0x6c726f6c  Kami=0x00050000
+    i= 99: Alaya=0x00737365  Kami=0x05000000
+    i=101: Alaya=0x6aeea000  Kami=0x00000005
+    i=102: Alaya=0x933fd095  Kami=0x00000000
+    i=103: Alaya=0x00000000  Kami=0x69757244
+    i=104: Alaya=0x9d000000  Kami=0x00000664
+    i=105: Alaya=0x00000000  Kami=0x80000000
+    i=106: Alaya=0x00000000  Kami=0xbf91d560
+    i=107: Alaya=0x00000000  Kami=0x0000903f
+    i=109: Alaya=0x00000000  Kami=0xffffff00
+    i=110: Alaya=0x00000000  Kami=0xffffffff
+    i=111: Alaya=0x00000000  Kami=0x000000ff
+    i=114: Alaya=0x00000000  Kami=0x02c00000
+    i=116: Alaya=0x00000000  Kami=0x00030300
+
+  DIFF Petronij vs Kami (after T[72], 120 u32s):
+    i=  1: Petronij=0x00000008  Kami=0x0000000a
+    i=  2: Petronij=0x0000000a  Kami=0x00000002 <gon2>
+    i=  6: Petronij=0x9a773335  Kami=0xf3b63332
+    i=  7: Petronij=0xb164ca78  Kami=0xe4f32c78
+    i=  8: Petronij=0x00073ff2  Kami=0x00073feb
+    i= 15: Petronij=0x00000000  Kami=0x00010000
+    i= 18: Petronij=0x00000000  Kami=0x00020000
+    i= 19: Petronij=0x00000000  Kami=0x00020000
+    i= 20: Petronij=0x00000000  Kami=0x00020000
+    i= 40: Petronij=0x0a65766f  Kami=0x1165766f
+    i= 44: Petronij=0x656c654d  Kami=0x69757244
+    i= 45: Petronij=0x00000965  Kami=0x69624164
+    i= 46: Petronij=0x00000000  Kami=0x7974696c
+    i= 47: Petronij=0x646f4200  Kami=0x00000007
+    i= 48: Petronij=0x61754779  Kami=0x00000000
+    i= 49: Petronij=0x00046472  Kami=0x73617453
+    i= 50: Petronij=0x00000000  Kami=0x09327369
+    i= 51: Petronij=0x6f4e0000  Kami=0x00000000
+    i= 52: Petronij=0x0004656e  Kami=0x52000000
+    i= 53: Petronij=0x00000000  Kami=0x6f6e6968
+    i= 54: Petronij=0x6f4e0000  Kami=0x6d726f46
+    i= 55: Petronij=0x0004656e  Kami=0x0000000d
+    i= 57: Petronij=0x6f4e0000  Kami=0x6e616c50
+    i= 58: Petronij=0x0009656e  Kami=0x73754d74
+    i= 59: Petronij=0x00000000  Kami=0x6f6f7268
+    i= 60: Petronij=0x6f420000  Kami=0x0000096d
+    i= 61: Petronij=0x75477964  Kami=0x00000000
+    i= 62: Petronij=0x04647261  Kami=0x65684300
+    i= 63: Petronij=0x00000000  Kami=0x656c7265
+    i= 64: Petronij=0x4e000000  Kami=0x00066461
+    i= 65: Petronij=0x04656e6f  Kami=0x00000000
+    i= 66: Petronij=0x00000000  Kami=0x74530000
+    i= 67: Petronij=0x4e000000  Kami=0x73697361
+    i= 68: Petronij=0x04656e6f  Kami=0x00000004
+    i= 70: Petronij=0x4e000000  Kami=0x656e6f4e
+    i= 71: Petronij=0x0b656e6f  Kami=0x00000004
+    i= 73: Petronij=0x4f000000  Kami=0x656e6f4e
+    i= 74: Petronij=0x73696e6d  Kami=0x00000004
+    i= 75: Petronij=0x6e656963  Kami=0x00000000
+    i= 76: Petronij=0x00016563  Kami=0x656e6f4e
+    i= 77: Petronij=0x00040000  Kami=0x00000007
+    i= 79: Petronij=0x6f4e0000  Kami=0x71756f42
+    i= 80: Petronij=0x0001656e  Kami=0x01746575
+    i= 81: Petronij=0x00040000  Kami=0x08000000
+    i= 83: Petronij=0x6f4e0000  Kami=0x42000000
+    i= 84: Petronij=0x0001656e  Kami=0x536b7261
+    i= 85: Petronij=0x00040000  Kami=0x016e696b
+    i= 86: Petronij=0x00000000  Kami=0x04000000
+    i= 87: Petronij=0x6f4e0000  Kami=0x00000000
+    i= 88: Petronij=0x0001656e  Kami=0x4e000000
+    i= 89: Petronij=0x00050000  Kami=0x01656e6f
+    i= 90: Petronij=0x05000000  Kami=0x04000000
+    i= 92: Petronij=0x00000005  Kami=0x4e000000
+    i= 93: Petronij=0x00000500  Kami=0x01656e6f
+    i= 94: Petronij=0x00050000  Kami=0x05000000
+    i= 95: Petronij=0x09000000  Kami=0x00000000
+    i= 96: Petronij=0x00000000  Kami=0x00000005
+    i= 97: Petronij=0x43000000  Kami=0x00000500
+    i= 98: Petronij=0x726f6c6f  Kami=0x00050000
+    i= 99: Petronij=0x7373656c  Kami=0x05000000
+    i=101: Petronij=0x60800000  Kami=0x00000005
+    i=102: Petronij=0x3fbf91d5  Kami=0x00000000
+    i=103: Petronij=0x00000090  Kami=0x69757244
+    i=104: Petronij=0x00000000  Kami=0x00000664
+    i=105: Petronij=0xffffffff  Kami=0x80000000
+    i=106: Petronij=0xffffffff  Kami=0xbf91d560
+    i=107: Petronij=0x00000000  Kami=0x0000903f
+    i=109: Petronij=0x00000000  Kami=0xffffff00
+    i=110: Petronij=0x00000000  Kami=0xffffffff
+    i=111: Petronij=0x00000000  Kami=0x000000ff
+    i=114: Petronij=0x00000000  Kami=0x02c00000
+    i=116: Petronij=0x00000000  Kami=0x00030300
+
+======================================================================
+ROSTER-WIDE: look for 0xFFFFFFFE / GON block 2 in u32s after T[72]
+======================================================================
+
+Total hits: 374
+  Melanka              key=   5  i= 19  val=0x00000002  defects=[]
+  Marcelo              key=   6  i=  2  val=0x00000002  defects=[]
+  Yuffie               key=   7  i=  1  val=0x00000002  defects=[]
+  Yuffie               key=   7  i= 16  val=0x00000002  defects=[]
+  Yuffie               key=   7  i= 21  val=0x00000002  defects=[]
+  Rami                 key=   9  i=117  val=0x00000002  defects=[]
+  Clementina           key=  16  i= 16  val=0x00000002  defects=[]
+  Clementina           key=  16  i= 18  val=0x00000002  defects=[]
+  Clementina           key=  16  i= 19  val=0x00000002  defects=[]
+  Pixey                key=  18  i= 16  val=0x00000002  defects=[]
+  Pixey                key=  18  i= 19  val=0x00000002  defects=[]
+  Korek                key=  25  i=  1  val=0x00000002  defects=[]
+  Zate                 key=  31  i=  2  val=0x00000002  defects=[]
+  Kratos               key=  39  i=104  val=0x00000002  defects=[]
+  Kotomis              key=  43  i= 16  val=0x00000002  defects=[]
+  Kotomis              key=  43  i= 20  val=0x00000002  defects=[]
+  Milly                key=  46  i=  1  val=0x00000002  defects=[]
+  Gatis                key=  47  i=  2  val=0x00000002  defects=[]
+  Tigra                key=  48  i= 16  val=0x00000002  defects=[]
+  Sissy                key=  59  i=  2  val=0x00000002  defects=[]
+  Flekpus              key=  68  i=  2  val=0x00000002  defects=['Eyebrow Birth Defect']
+  Flekpus              key=  68  i= 85  val=0x00000002  defects=['Eyebrow Birth Defect']
+  Meowmeows            key=  70  i= 88  val=0x00000002  defects=[]
+  Oggy                 key=  77  i=114  val=0x00000002  defects=[]
+  Felicity             key=  85  i= 81  val=0x00000002  defects=[]
+  Loxley               key=  86  i=  2  val=0x00000002  defects=[]
+  Creampuff            key=  88  i= 81  val=0x00000002  defects=[]
+  Miss Bobo            key=  90  i=  2  val=0x00000002  defects=[]
+  Bubbers              key=  92  i=  1  val=0x00000002  defects=['Fur Birth Defect']
+  Joe Cucumber         key=  93  i=  1  val=0x00000002  defects=['Ear Birth Defect']
+  Hazelle              key=  95  i=  1  val=0x00000002  defects=[]
+  Ulceretta            key= 100  i= 18  val=0x00000002  defects=[]
+  Ulceretta            key= 100  i= 20  val=0x00000002  defects=[]
+  Beatnik              key= 108  i=  2  val=0x00000002  defects=[]
+  Hispancat            key= 118  i= 17  val=0x00000002  defects=[]
+  Hispancat            key= 118  i= 19  val=0x00000002  defects=[]
+  Spotted              key= 119  i=  1  val=0x00000002  defects=[]
+  Ernest               key= 130  i=  1  val=0x00000002  defects=['Eyebrow Birth Defect']
+  Bingonious Bongo     key= 133  i=  1  val=0x00000002  defects=[]
+  Balbes               key= 138  i=  1  val=0x00000002  defects=[]
+  Clementine           key= 139  i=  1  val=0x00000002  defects=[]
+  Queen Gorda          key= 140  i= 82  val=0x00000002  defects=[]
+  Boc                  key= 141  i=  1  val=0x00000002  defects=[]
+  Boc                  key= 141  i=107  val=0x00000002  defects=[]
+  The Big One          key= 142  i=  1  val=0x00000002  defects=[]
+  Bachelorette         key= 145  i=  2  val=0x00000002  defects=[]
+  Newplaces            key= 151  i=  1  val=0x00000002  defects=[]
+  Arnoldzik            key= 167  i=119  val=0x00000002  defects=[]
+  Valerian             key= 170  i= 16  val=0x00000002  defects=[]
+  Nagomikaze           key= 172  i=105  val=0x00000002  defects=[]

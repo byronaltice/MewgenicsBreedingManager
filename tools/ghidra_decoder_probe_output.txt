@@ -1,0 +1,282 @@
+INFO  Using log config file: jar:file:/C:/Users/Byron/gitprojects/MewgenicsBreedingManager/test-runtimes/Ghidra/ghidra_12.0.4_PUBLIC/Ghidra/Framework/Generic/lib/Generic.jar!/generic.log4j.xml (LoggingInitialization)  
+INFO  Using log file: C:\Users\Byron\AppData\Roaming\ghidra\ghidra_12.0.4_PUBLIC\application.log (LoggingInitialization)  
+INFO  Loading user preferences: C:\Users\Byron\AppData\Roaming\ghidra\ghidra_12.0.4_PUBLIC\preferences (Preferences)  
+INFO  Searching for classes... (ClassSearcher)  
+INFO  Class search complete (640 ms) (ClassSearcher)  
+INFO  Initializing SSL Context (DefaultSSLContextInitializer)  
+INFO  Initializing Random Number Generator... (SecureRandomFactory)  
+INFO  Random Number Generator initialization complete: SHA1PRNG (SecureRandomFactory)  
+INFO  Trust manager disabled, cacerts have not been set (DefaultTrustManagerFactory)  
+INFO  Headless startup complete (2125 ms) (AnalyzeHeadless)  
+INFO  Class searcher loaded 58 extension points (18 false positives) (ClassSearcher)  
+INFO  HEADLESS Script Paths:
+    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\BSim\ghidra_scripts
+    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Processors\Atmel\ghidra_scripts
+    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Processors\PIC\ghidra_scripts
+    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\DecompilerDependent\ghidra_scripts
+    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\SystemEmulation\ghidra_scripts
+    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\Base\ghidra_scripts
+    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Processors\8051\ghidra_scripts
+    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\WildcardAssembler\ghidra_scripts
+    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\GnuDemangler\ghidra_scripts
+    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Processors\DATA\ghidra_scripts
+    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\FunctionID\ghidra_scripts
+    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\BytePatterns\ghidra_scripts
+    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\VersionTracking\ghidra_scripts
+    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Debug\Debugger-rmi-trace\ghidra_scripts
+    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Processors\JVM\ghidra_scripts
+    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\Decompiler\ghidra_scripts
+    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\Jython\ghidra_scripts
+    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\MicrosoftCodeAnalyzer\ghidra_scripts
+    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\PDB\ghidra_scripts
+    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\FileFormats\ghidra_scripts
+    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\PyGhidra\ghidra_scripts
+    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\tools
+    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\SwiftDemangler\ghidra_scripts
+    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Debug\Debugger\ghidra_scripts (HeadlessAnalyzer)  
+INFO  HEADLESS: execution starts (HeadlessAnalyzer)  
+INFO  Opening existing project: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ProjDir\Mewgenics (HeadlessAnalyzer)  
+INFO  Opening project: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ProjDir\Mewgenics (HeadlessProject)  
+INFO  REPORT: Processing project file: /Mewgenics.exe (HeadlessAnalyzer)  
+INFO  REPORT: Execute script: GhidraDecoderProbe.java  (HeadlessAnalyzer)  
+INFO  SCRIPT: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\tools\GhidraDecoderProbe.java (HeadlessAnalyzer)  
+INFO  GhidraDecoderProbe.java>  (GhidraScript)  
+INFO  GhidraDecoderProbe.java> ================================================================================ (GhidraScript)  
+INFO  GhidraDecoderProbe.java> KNOWN FUNCTIONS (GhidraScript)  
+INFO  GhidraDecoderProbe.java> ================================================================================ (GhidraScript)  
+INFO  GhidraDecoderProbe.java> FUN_14022cf90 @ 14022cf90 (GhidraScript)  
+INFO  GhidraDecoderProbe.java> FUN_14022d100 @ 14022d100 (GhidraScript)  
+INFO  GhidraDecoderProbe.java>  (GhidraScript)  
+INFO  GhidraDecoderProbe.java> ================================================================================ (GhidraScript)  
+INFO  GhidraDecoderProbe.java> DECOMPILE: FUN_14022cf90 @ 14022cf90 (GhidraScript)  
+INFO  GhidraDecoderProbe.java> ================================================================================ (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0001:  (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0002: void FUN_14022cf90(longlong param_1,int *param_2) (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0003:  (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0004: { (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0005:   if (*param_2 == 0) { (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0006:     FUN_1409ab530(param_2,param_1,4); (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0007:   } (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0008:   else if (*param_2 - 1U < 2) { (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0009:     FUN_1409ab3a0(param_2,param_1,4); (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0010:   } (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0011:   if (*param_2 == 0) { (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0012:     FUN_1409ab530(param_2,param_1 + 4,4); (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0013:   } (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0014:   else if (*param_2 - 1U < 2) { (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0015:     FUN_1409ab3a0(param_2,param_1 + 4,4); (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0016:   } (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0017:   if (*param_2 == 0) { (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0018:     FUN_1409ab530(param_2,param_1 + 8,4); (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0019:   } (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0020:   else if (*param_2 - 1U < 2) { (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0021:     FUN_1409ab3a0(param_2,param_1 + 8,4); (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0022:   } (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0023:   if (*param_2 == 0) { (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0024:     FUN_1409ab530(param_2,param_1 + 0xc,4); (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0025:   } (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0026:   else if (*param_2 - 1U < 2) { (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0027:     FUN_1409ab3a0(param_2,param_1 + 0xc,4); (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0028:   } (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0029:   if (*param_2 == 0) { (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0030:     FUN_1409ab530(param_2,param_1 + 0x10,4); (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0031:   } (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0032:   else if (*param_2 - 1U < 2) { (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0033:     FUN_1409ab3a0(param_2,param_1 + 0x10,4); (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0034:   } (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0035:   if (*param_2 == 0) { (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0036:     FUN_1409ab530(param_2,param_1 + 0x14,4); (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0037:   } (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0038:   else if (*param_2 - 1U < 2) { (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0039:     FUN_1409ab3a0(param_2,param_1 + 0x14,4); (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0040:   } (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0041:   if (*param_2 == 0) { (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0042:     FUN_1409ab530(param_2,param_1 + 0x18,4); (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0043:     return; (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0044:   } (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0045:   if (*param_2 - 1U < 2) { (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0046:     FUN_1409ab3a0(param_2,param_1 + 0x18,4); (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0047:   } (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0048:   return; (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0049: } (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0050:  (GhidraScript)  
+INFO  GhidraDecoderProbe.java>  (GhidraScript)  
+INFO  GhidraDecoderProbe.java> ================================================================================ (GhidraScript)  
+INFO  GhidraDecoderProbe.java> DECOMPILE: FUN_14022d100 @ 14022d100 (GhidraScript)  
+INFO  GhidraDecoderProbe.java> ================================================================================ (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0001:  (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0002: void FUN_14022d100(longlong param_1,int *param_2) (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0003:  (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0004: { (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0005:   ulonglong uVar1; (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0006:   longlong lVar2; (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0007:   uint uVar3; (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0008:   ulonglong uVar4; (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0009:   uint local_res8 [2]; (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0010:   undefined1 local_d8 [56]; (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0011:   undefined1 local_a0 [48]; (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0012:   undefined1 local_70 [32]; (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0013:   undefined1 local_50 [40]; (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0014:   undefined4 local_28 [4]; (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0015:    (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0016:   if (*param_2 == 0) { (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0017:     FUN_1409ab530(param_2,param_1,4); (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0018:   } (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0019:   else if (*param_2 - 1U < 2) { (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0020:     FUN_1409ab3a0(param_2,param_1,4); (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0021:   } (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0022:   if (*param_2 == 0) { (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0023:     FUN_1409ab530(param_2,param_1 + 4,1); (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0024:   } (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0025:   else if (*param_2 - 1U < 2) { (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0026:     FUN_1409ab3a0(param_2,param_1 + 4,1); (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0027:   } (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0028:   if (*param_2 == 0) { (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0029:     FUN_1409ab530(param_2,param_1 + 5,1); (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0030:   } (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0031:   else if (*param_2 - 1U < 2) { (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0032:     FUN_1409ab3a0(param_2,param_1 + 5,1); (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0033:   } (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0034:   if (*param_2 == 0) { (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0035:     FUN_1409ab530(param_2,param_1 + 8,4); (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0036:   } (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0037:   else if (*param_2 - 1U < 2) { (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0038:     FUN_1409ab3a0(param_2,param_1 + 8,4); (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0039:   } (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0040:   if (*param_2 == 0) { (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0041:     FUN_1409ab530(param_2,local_res8,4); (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0042:     if (0 < (int)local_res8[0]) { (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0043:       uVar4 = (ulonglong)local_res8[0]; (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0044:       do { (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0045:         FUN_1409333f0(local_d8); (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0046:         local_28[0] = 1; (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0047:         FUN_1409ab9d0(param_2,local_d8); (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0048:         FUN_1409ab530(param_2,local_28,4); (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0049:         FUN_140234b70(param_1 + 0x10,local_d8); (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0050:         FUN_1400522d0(local_50); (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0051:         FUN_1400522d0(local_70); (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0052:         FUN_140048470(local_a0); (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0053:         FUN_140048520(local_d8); (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0054:         uVar4 = uVar4 - 1; (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0055:       } while (uVar4 != 0); (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0056:     } (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0057:   } (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0058:   else if (*param_2 - 1U < 2) { (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0059:     local_res8[0] = (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0060:          (int)(*(longlong *)(param_1 + 0x18) - *(longlong *)(param_1 + 0x10) >> 3) * -0x1642c859; (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0061:     FUN_1409ab3a0(param_2,local_res8,4); (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0062:     uVar1 = 0; (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0063:     lVar2 = *(longlong *)(param_1 + 0x10); (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0064:     uVar4 = uVar1; (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0065:     if ((*(longlong *)(param_1 + 0x18) - lVar2 >> 3) * -0x2c8590b21642c859 != 0) { (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0066:       do { (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0067:         FUN_1409ab930(param_2,lVar2 + uVar1 * 0xb8); (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0068:         FUN_1409ab3a0(param_2,*(longlong *)(param_1 + 0x10) + 0xb0 + uVar1 * 0xb8,4); (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0069:         uVar3 = (int)uVar4 + 1; (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0070:         lVar2 = *(longlong *)(param_1 + 0x10); (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0071:         uVar1 = (ulonglong)(int)uVar3; (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0072:         uVar4 = (ulonglong)uVar3; (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0073:       } while (uVar1 < (ulonglong) (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0074:                        ((*(longlong *)(param_1 + 0x18) - lVar2 >> 3) * -0x2c8590b21642c859)); (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0075:     } (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0076:   } (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0077:   return; (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0078: } (GhidraScript)  
+INFO  GhidraDecoderProbe.java> 0079:  (GhidraScript)  
+INFO  GhidraDecoderProbe.java>  (GhidraScript)  
+INFO  GhidraDecoderProbe.java> ================================================================================ (GhidraScript)  
+INFO  GhidraDecoderProbe.java> CALLERS OF: FUN_14022d360 @ 14022d360 (GhidraScript)  
+INFO  GhidraDecoderProbe.java> ================================================================================ (GhidraScript)  
+INFO  GhidraDecoderProbe.java> FUN_14022dfb0 @ 14022dfb0  from 14022e0c2 (GhidraScript)  
+INFO  GhidraDecoderProbe.java> FUN_14022fb40 @ 14022fb40  from 14022fcb1 (GhidraScript)  
+INFO  GhidraDecoderProbe.java> FUN_1400d6a70 @ 1400d6a70  from 1400d6b1a (GhidraScript)  
+INFO  GhidraDecoderProbe.java> FUN_1401d2ff0 @ 1401d2ff0  from 1401d3bf2 (GhidraScript)  
+INFO  GhidraDecoderProbe.java> FUN_1401d2ff0 @ 1401d2ff0  from 1401d3d99 (GhidraScript)  
+INFO  GhidraDecoderProbe.java> FUN_140230750 @ 140230750  from 140230fba (GhidraScript)  
+INFO  GhidraDecoderProbe.java> FUN_140230750 @ 140230750  from 14023105e (GhidraScript)  
+INFO  GhidraDecoderProbe.java> FUN_14022fd70 @ 14022fd70  from 14022ff99 (GhidraScript)  
+INFO  GhidraDecoderProbe.java>  (GhidraScript)  
+INFO  GhidraDecoderProbe.java> ================================================================================ (GhidraScript)  
+INFO  GhidraDecoderProbe.java> CALLERS OF: FUN_14022ce10 @ 14022ce10 (GhidraScript)  
+INFO  GhidraDecoderProbe.java> ================================================================================ (GhidraScript)  
+INFO  GhidraDecoderProbe.java> FUN_14022d360 @ 14022d360  from 14022d858 (GhidraScript)  
+INFO  GhidraDecoderProbe.java>  (GhidraScript)  
+INFO  GhidraDecoderProbe.java> ================================================================================ (GhidraScript)  
+INFO  GhidraDecoderProbe.java> CALLERS OF: FUN_14022cd00 @ 14022cd00 (GhidraScript)  
+INFO  GhidraDecoderProbe.java> ================================================================================ (GhidraScript)  
+INFO  GhidraDecoderProbe.java> FUN_14022ce10 @ 14022ce10  from 14022ceb4 (GhidraScript)  
+INFO  GhidraDecoderProbe.java> FUN_14022ce10 @ 14022ce10  from 14022cec3 (GhidraScript)  
+INFO  GhidraDecoderProbe.java> FUN_14022ce10 @ 14022ce10  from 14022ced2 (GhidraScript)  
+INFO  GhidraDecoderProbe.java> FUN_14022ce10 @ 14022ce10  from 14022cee1 (GhidraScript)  
+INFO  GhidraDecoderProbe.java> FUN_14022ce10 @ 14022ce10  from 14022cef0 (GhidraScript)  
+INFO  GhidraDecoderProbe.java> FUN_14022ce10 @ 14022ce10  from 14022ceff (GhidraScript)  
+INFO  GhidraDecoderProbe.java> FUN_14022ce10 @ 14022ce10  from 14022cf0e (GhidraScript)  
+INFO  GhidraDecoderProbe.java> FUN_14022ce10 @ 14022ce10  from 14022cf1d (GhidraScript)  
+INFO  GhidraDecoderProbe.java> FUN_14022ce10 @ 14022ce10  from 14022cf2c (GhidraScript)  
+INFO  GhidraDecoderProbe.java> FUN_14022ce10 @ 14022ce10  from 14022cf3b (GhidraScript)  
+INFO  GhidraDecoderProbe.java> FUN_14022ce10 @ 14022ce10  from 14022cf4a (GhidraScript)  
+INFO  GhidraDecoderProbe.java> FUN_14022ce10 @ 14022ce10  from 14022cf59 (GhidraScript)  
+INFO  GhidraDecoderProbe.java> FUN_14022ce10 @ 14022ce10  from 14022cf68 (GhidraScript)  
+INFO  GhidraDecoderProbe.java> FUN_14022ce10 @ 14022ce10  from 14022cf81 (GhidraScript)  
+INFO  GhidraDecoderProbe.java>  (GhidraScript)  
+INFO  GhidraDecoderProbe.java> ================================================================================ (GhidraScript)  
+INFO  GhidraDecoderProbe.java> PATTERN SEARCH in range [14022a000, 14023a000) (GhidraScript)  
+INFO  GhidraDecoderProbe.java> ================================================================================ (GhidraScript)  
+INFO  GhidraDecoderProbe.java>  (GhidraScript)  
+INFO  GhidraDecoderProbe.java> --- pattern: 0x14022d --- (GhidraScript)  
+INFO  GhidraDecoderProbe.java>   no matches (GhidraScript)  
+INFO  GhidraDecoderProbe.java>  (GhidraScript)  
+INFO  GhidraDecoderProbe.java> --- pattern: 0x14022b --- (GhidraScript)  
+INFO  GhidraDecoderProbe.java>   no matches (GhidraScript)  
+INFO  GhidraDecoderProbe.java>  (GhidraScript)  
+INFO  GhidraDecoderProbe.java> --- pattern: birth_defect --- (GhidraScript)  
+INFO  GhidraDecoderProbe.java>   no matches (GhidraScript)  
+INFO  GhidraDecoderProbe.java>  (GhidraScript)  
+INFO  GhidraDecoderProbe.java> --- pattern: no_part --- (GhidraScript)  
+INFO  GhidraDecoderProbe.java>   no matches (GhidraScript)  
+INFO  GhidraDecoderProbe.java>  (GhidraScript)  
+INFO  GhidraDecoderProbe.java> --- pattern: NoPart --- (GhidraScript)  
+INFO  GhidraDecoderProbe.java>   no matches (GhidraScript)  
+INFO  GhidraDecoderProbe.java>  (GhidraScript)  
+INFO  GhidraDecoderProbe.java> --- pattern: variant --- (GhidraScript)  
+INFO  GhidraDecoderProbe.java>   no matches (GhidraScript)  
+INFO  GhidraDecoderProbe.java>  (GhidraScript)  
+INFO  GhidraDecoderProbe.java> --- pattern: presence --- (GhidraScript)  
+INFO  GhidraDecoderProbe.java>   no matches (GhidraScript)  
+INFO  GhidraDecoderProbe.java>  (GhidraScript)  
+INFO  GhidraDecoderProbe.java> --- pattern: "cat" --- (GhidraScript)  
+INFO  GhidraDecoderProbe.java>   no matches (GhidraScript)  
+INFO  GhidraDecoderProbe.java>  (GhidraScript)  
+INFO  GhidraDecoderProbe.java> --- pattern: innate --- (GhidraScript)  
+INFO  GhidraDecoderProbe.java>   no matches (GhidraScript)  
+INFO  GhidraDecoderProbe.java>  (GhidraScript)  
+INFO  GhidraDecoderProbe.java> --- pattern: slot --- (GhidraScript)  
+INFO  GhidraDecoderProbe.java>   no matches (GhidraScript)  
+INFO  GhidraDecoderProbe.java>  (GhidraScript)  
+INFO  GhidraDecoderProbe.java> --- pattern: + 0x8a8 --- (GhidraScript)  
+INFO  GhidraDecoderProbe.java>   no matches (GhidraScript)  
+INFO  GhidraDecoderProbe.java>  (GhidraScript)  
+INFO  GhidraDecoderProbe.java> --- pattern: + 0x910 --- (GhidraScript)  
+INFO  GhidraDecoderProbe.java>   match in FUN_14022d360 @ 14022d360
+    0312:     FUN_1409ab6c0(param_2);
+    0313:   }
+    0314:   else if (*param_2 - 1U < 2) {
+    0315:     FUN_1409ab630(param_2,param_1 + 0x910);
+    0316:   }
+    0317:   if (*param_2 == 0) {
+    0318:     FUN_1409ab530(param_2,param_1 + 0x930,4);
+    ---
+ (GhidraScript)  
+INFO  GhidraDecoderProbe.java>  (GhidraScript)  
+INFO  GhidraDecoderProbe.java> --- pattern: + 0x9b0 --- (GhidraScript)  
+INFO  GhidraDecoderProbe.java>   match in FUN_14022d360 @ 14022d360
+    0371:                     /* WARNING: Subroutine does not return */
+    0372:     FUN_140945d70(&DAT_1412e5ae8,local_48,uVar2,&local_88);
+    0373:   }
+    0374:   FUN_14022b1f0(param_1 + 0x9b0,param_2);
+    0375:   FUN_14022b1f0(param_1 + 0xa10,param_2);
+    0376:   FUN_14022b1f0(param_1 + 0xa70,param_2);
+    0377:   FUN_14022b1f0(param_1 + 0xad0,param_2);
+    ---
+ (GhidraScript)  
+INFO  REPORT: Save succeeded for processed file: /Mewgenics.exe (HeadlessAnalyzer)  

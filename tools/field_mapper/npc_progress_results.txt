@@ -1,0 +1,355 @@
+======================================================================
+npc_progress Investigation
+======================================================================
+Save: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\steamcampaign01.sav
+
+----------------------------------------------------------------------
+STEP 1 -- Blob overview
+----------------------------------------------------------------------
+  Blob size: 22272 bytes
+  Leading u32: 38
+  Head hex dump:
+  000000: 26 00 00 00 01 00 00 00 00 00 00 00 14 00 00 00  |&...............|
+  000010: 00 00 00 00 62 65 61 6e 69 65 73 5f 71 75 65 73  |....beanies_ques|
+  000020: 74 73 5f 69 6e 74 72 6f 01 00 00 00 15 00 00 00  |ts_intro........|
+  000030: 00 00 00 00 62 65 61 6e 69 65 73 5f 71 75 65 73  |....beanies_ques|
+  000040: 74 73 5f 72 65 70 65 61 74 00 00 00 00 02 00 00  |ts_repeat.......|
+  000050: 00 00 00 00 00 00 00 00 00 00 01 01 67 4e fb 1d  |............gN..|
+  000060: 56 e5 16 44 ec 4d fb 7b 86 40 da 2d 53 fb 9a 7c  |V..D.M.{.@.-S..||
+  000070: fc a7 25 02 f1 f5 8b 2c 1e 9c be f2 00 00 00 00  |..%....,........|
+  000080: 04 00 00 00 00 00 00 00 11 00 00 00 00 00 00 00  |................|
+  000090: 75 70 67 72 61 64 65 5f 73 74 6f 72 61 67 65 5f  |upgrade_storage_|
+
+----------------------------------------------------------------------
+STEP 2 -- Extract readable strings
+----------------------------------------------------------------------
+  Readable strings found: 794
+  Top prefix groups:
+    TitleCase         301
+    misc              194
+    class              91
+    tracy              23
+    song               22
+    map                16
+    beanies            13
+    tink               13
+    special            12
+    quest              10
+    houseboss           9
+    jack                8
+    organ               8
+    npc                 8
+    butch               6
+    upgrade             5
+    steven              5
+    boss                5
+    house               4
+    trigger             4
+    unlock              4
+    weather             4
+    object              3
+    time                3
+    terminator          3
+  First readable strings:
+    00020  beanies_quests_intro
+    00052  beanies_quests_repeat
+    00144  upgrade_storage_1
+    00173  upgrade_storage_2
+    00202  upgrade_storage_3
+    00231  upgrade_storage_4
+    00260  upgrade_storage_5
+    00348  tink_prettybow
+    00374  tink_basestats
+    00400  tink_inbreeding
+    00427  tink_sexuality
+    00453  tink_tags
+    00474  tink_aggression
+    00501  tink_relationships
+    00531  tink_max_intro
+    00557  tink_max_repeating
+    00646  house_upgrade_attic
+    00677  house_upgrade_mediumhouse
+    00714  house_upgrade_largehouse
+    00750  house_upgrade_4throom
+    00798  neB!
+    00842  jack_shopupgrade1
+    00871  jack_shopupgrade2
+    00900  jack_shopupgrade3
+    00929  jack_shopupgrade4
+    00958  jack_max_intro
+    01043  tracy_foodstorage1
+    01073  tracy_blankcollar1
+    01103  tracy_foodstorage2
+    01133  tracy_idol1
+    01156  tracy_foodstorage3
+    01186  tracy_blankcollar2
+    01216  tracy_foodstorage4
+    01246  tracy_idol2
+    01269  tracy_foodstorage5
+    01299  tracy_blankcollar3
+    01329  tracy_foodstorage6
+    01359  tracy_idol3
+    01382  tracy_foodstorage7
+    01412  tracy_idol4
+    01435  tracy_foodstorage8
+    01465  tracy_idol5
+    01488  tracy_foodstorage9
+    01518  tracy_idol6
+    01541  tracy_foodstorage10
+    01572  tracy_idol7
+    01595  tracy_max_intro
+    01681  organ_unlock
+    01705  organ_upgrade1
+    01731  organ_upgrade2
+    01757  organ_upgrade3
+    01783  organ_upgrade4
+    01868  steven_milliontrashed
+    01980  set_elegant_chair
+    02040  set_sewer_sink
+    02097  object_watertower
+    02157  small_lab_tank1
+    02215  object_fishtank_small_tadpoles
+    02288  object_fishtank_catfish
+    02405  KiloOfCatnip
+    02434  KiloOfCatnip
+    02506  WizCheese
+    02532  WizCheese
+    02601  TrashCanLid
+    02629  TrashCanLid
+    02700  ProwlersCap
+    02728  ProwlersCap
+    02799  special_foodbox
+    02873  special_appealidol
+    02934  special_foodbox
+    02992  special_foodbox
+    03050  special_foodbox
+    03101  Tank
+    03113  Thief
+    03126  MonkY
+    03146  PlayDead
+    03162  BurgeoningBarrier
+    03187  OpenWounds
+    03205  Suppress
+    03221  PushMove
+
+----------------------------------------------------------------------
+STEP 3 -- Search for target cat identifiers
+----------------------------------------------------------------------
+  Whommie:
+    ascii name offsets: []  count=0
+    db_key=853 offsets: []  count=0
+    uid=17691181541566973181 offsets: []  count=0
+    raw parent_uids=(8589934594, 1) offset counts=(0, 67)
+  Bud:
+    ascii name offsets: []  count=0
+    db_key=887 offsets: []  count=0
+    uid=5578053643916715327 offsets: []  count=0
+    raw parent_uids=(0, 1) offset counts=(855, 67)
+  Kami:
+    ascii name offsets: []  count=0
+    db_key=840 offsets: []  count=0
+    uid=2943129803123782375 offsets: []  count=0
+    raw parent_uids=(8589934594, 1) offset counts=(0, 67)
+  Petronij:
+    ascii name offsets: []  count=0
+    db_key=841 offsets: []  count=0
+    uid=4829678787377501298 offsets: []  count=0
+    raw parent_uids=(0, 1) offset counts=(855, 67)
+  Murisha:
+    ascii name offsets: []  count=0
+    db_key=852 offsets: []  count=0
+    uid=6007366287659101502 offsets: []  count=0
+    raw parent_uids=(4294967297, 1) offset counts=(27, 67)
+  Romanoba:
+    ascii name offsets: []  count=0
+    db_key=826 offsets: []  count=0
+    uid=4759406079740382523 offsets: []  count=0
+    raw parent_uids=(0, 1) offset counts=(855, 67)
+
+----------------------------------------------------------------------
+STEP 4 -- Search for defect-related terms
+----------------------------------------------------------------------
+  'blind': []  count=0
+  'eye': []  count=0
+  'eyebrow': []  count=0
+  'ear': [21854]  count=1
+  'ears': []  count=0
+  'birth_defect': []  count=0
+  'defect': []  count=0
+  'mutation': []  count=0
+  'no eyes': []  count=0
+  'no eyebrows': []  count=0
+  'no ears': []  count=0
+
+----------------------------------------------------------------------
+STEP 5 -- Nearby context for the closest semantic leads
+----------------------------------------------------------------------
+  00020  beanies_quests_intro
+  000008: 00 00 00 00 14 00 00 00 00 00 00 00 62 65 61 6e  |............bean|
+  000018: 69 65 73 5f 71 75 65 73 74 73 5f 69 6e 74 72 6f  |ies_quests_intro|
+  000028: 01 00 00 00 15 00 00 00 00 00 00 00              |............|
+  00052  beanies_quests_repeat
+  000028: 01 00 00 00 15 00 00 00 00 00 00 00 62 65 61 6e  |............bean|
+  000038: 69 65 73 5f 71 75 65 73 74 73 5f 72 65 70 65 61  |ies_quests_repea|
+  000048: 74 00 00 00 00 02 00 00 00 00 00 00 00           |t............|
+  00348  tink_prettybow
+  000150: 00 00 00 00 0e 00 00 00 00 00 00 00 74 69 6e 6b  |............tink|
+  000160: 5f 70 72 65 74 74 79 62 6f 77 01 00 00 00 0e 00  |_prettybow......|
+  000170: 00 00 00 00 00 00                                |......|
+  00374  tink_basestats
+  00016a: 01 00 00 00 0e 00 00 00 00 00 00 00 74 69 6e 6b  |............tink|
+  00017a: 5f 62 61 73 65 73 74 61 74 73 01 00 00 00 0f 00  |_basestats......|
+  00018a: 00 00 00 00 00 00                                |......|
+  00400  tink_inbreeding
+  000184: 01 00 00 00 0f 00 00 00 00 00 00 00 74 69 6e 6b  |............tink|
+  000194: 5f 69 6e 62 72 65 65 64 69 6e 67 01 00 00 00 0e  |_inbreeding.....|
+  0001a4: 00 00 00 00 00 00 00                             |.......|
+  00427  tink_sexuality
+  00019f: 01 00 00 00 0e 00 00 00 00 00 00 00 74 69 6e 6b  |............tink|
+  0001af: 5f 73 65 78 75 61 6c 69 74 79 01 00 00 00 09 00  |_sexuality......|
+  0001bf: 00 00 00 00 00 00                                |......|
+  00453  tink_tags
+  0001b9: 01 00 00 00 09 00 00 00 00 00 00 00 74 69 6e 6b  |............tink|
+  0001c9: 5f 74 61 67 73 01 00 00 00 0f 00 00 00 00 00 00  |_tags...........|
+  0001d9: 00                                               |.|
+  00474  tink_aggression
+  0001ce: 01 00 00 00 0f 00 00 00 00 00 00 00 74 69 6e 6b  |............tink|
+  0001de: 5f 61 67 67 72 65 73 73 69 6f 6e 01 00 00 00 12  |_aggression.....|
+  0001ee: 00 00 00 00 00 00 00                             |.......|
+  00501  tink_relationships
+  0001e9: 01 00 00 00 12 00 00 00 00 00 00 00 74 69 6e 6b  |............tink|
+  0001f9: 5f 72 65 6c 61 74 69 6f 6e 73 68 69 70 73 01 00  |_relationships..|
+  000209: 00 00 0e 00 00 00 00 00 00 00                    |..........|
+  00531  tink_max_intro
+  000207: 01 00 00 00 0e 00 00 00 00 00 00 00 74 69 6e 6b  |............tink|
+  000217: 5f 6d 61 78 5f 69 6e 74 72 6f 01 00 00 00 12 00  |_max_intro......|
+  000227: 00 00 00 00 00 00                                |......|
+  00557  tink_max_repeating
+  000221: 01 00 00 00 12 00 00 00 00 00 00 00 74 69 6e 6b  |............tink|
+  000231: 5f 6d 61 78 5f 72 65 70 65 61 74 69 6e 67 00 00  |_max_repeating..|
+  000241: 00 00 08 00 00 00 00 00 00 00                    |..........|
+  00842  jack_shopupgrade1
+  00033e: 00 00 00 00 11 00 00 00 00 00 00 00 6a 61 63 6b  |............jack|
+  00034e: 5f 73 68 6f 70 75 70 67 72 61 64 65 31 01 00 00  |_shopupgrade1...|
+  00035e: 00 11 00 00 00 00 00 00 00                       |.........|
+  00871  jack_shopupgrade2
+  00035b: 01 00 00 00 11 00 00 00 00 00 00 00 6a 61 63 6b  |............jack|
+  00036b: 5f 73 68 6f 70 75 70 67 72 61 64 65 32 01 00 00  |_shopupgrade2...|
+  00037b: 00 11 00 00 00 00 00 00 00                       |.........|
+  00900  jack_shopupgrade3
+  000378: 01 00 00 00 11 00 00 00 00 00 00 00 6a 61 63 6b  |............jack|
+  000388: 5f 73 68 6f 70 75 70 67 72 61 64 65 33 01 00 00  |_shopupgrade3...|
+  000398: 00 11 00 00 00 00 00 00 00                       |.........|
+  00929  jack_shopupgrade4
+  000395: 01 00 00 00 11 00 00 00 00 00 00 00 6a 61 63 6b  |............jack|
+  0003a5: 5f 73 68 6f 70 75 70 67 72 61 64 65 34 01 00 00  |_shopupgrade4...|
+  0003b5: 00 0e 00 00 00 00 00 00 00                       |.........|
+  00958  jack_max_intro
+  0003b2: 01 00 00 00 0e 00 00 00 00 00 00 00 6a 61 63 6b  |............jack|
+  0003c2: 5f 6d 61 78 5f 69 6e 74 72 6f 00 00 00 00 05 00  |_max_intro......|
+  0003d2: 00 00 00 00 00 00                                |......|
+  01043  tracy_foodstorage1
+  000407: 00 00 00 00 12 00 00 00 00 00 00 00 74 72 61 63  |............trac|
+  000417: 79 5f 66 6f 6f 64 73 74 6f 72 61 67 65 31 01 00  |y_foodstorage1..|
+  000427: 00 00 12 00 00 00 00 00 00 00                    |..........|
+  01073  tracy_blankcollar1
+  000425: 01 00 00 00 12 00 00 00 00 00 00 00 74 72 61 63  |............trac|
+  000435: 79 5f 62 6c 61 6e 6b 63 6f 6c 6c 61 72 31 01 00  |y_blankcollar1..|
+  000445: 00 00 12 00 00 00 00 00 00 00                    |..........|
+  01103  tracy_foodstorage2
+  000443: 01 00 00 00 12 00 00 00 00 00 00 00 74 72 61 63  |............trac|
+  000453: 79 5f 66 6f 6f 64 73 74 6f 72 61 67 65 32 01 00  |y_foodstorage2..|
+  000463: 00 00 0b 00 00 00 00 00 00 00                    |..........|
+  01133  tracy_idol1
+  000461: 01 00 00 00 0b 00 00 00 00 00 00 00 74 72 61 63  |............trac|
+  000471: 79 5f 69 64 6f 6c 31 01 00 00 00 12 00 00 00 00  |y_idol1.........|
+  000481: 00 00 00                                         |...|
+  01156  tracy_foodstorage3
+  000478: 01 00 00 00 12 00 00 00 00 00 00 00 74 72 61 63  |............trac|
+  000488: 79 5f 66 6f 6f 64 73 74 6f 72 61 67 65 33 01 00  |y_foodstorage3..|
+  000498: 00 00 12 00 00 00 00 00 00 00                    |..........|
+  01186  tracy_blankcollar2
+  000496: 01 00 00 00 12 00 00 00 00 00 00 00 74 72 61 63  |............trac|
+  0004a6: 79 5f 62 6c 61 6e 6b 63 6f 6c 6c 61 72 32 01 00  |y_blankcollar2..|
+  0004b6: 00 00 12 00 00 00 00 00 00 00                    |..........|
+  01216  tracy_foodstorage4
+  0004b4: 01 00 00 00 12 00 00 00 00 00 00 00 74 72 61 63  |............trac|
+  0004c4: 79 5f 66 6f 6f 64 73 74 6f 72 61 67 65 34 01 00  |y_foodstorage4..|
+  0004d4: 00 00 0b 00 00 00 00 00 00 00                    |..........|
+  01246  tracy_idol2
+  0004d2: 01 00 00 00 0b 00 00 00 00 00 00 00 74 72 61 63  |............trac|
+  0004e2: 79 5f 69 64 6f 6c 32 01 00 00 00 12 00 00 00 00  |y_idol2.........|
+  0004f2: 00 00 00                                         |...|
+  01269  tracy_foodstorage5
+  0004e9: 01 00 00 00 12 00 00 00 00 00 00 00 74 72 61 63  |............trac|
+  0004f9: 79 5f 66 6f 6f 64 73 74 6f 72 61 67 65 35 01 00  |y_foodstorage5..|
+  000509: 00 00 12 00 00 00 00 00 00 00                    |..........|
+  01299  tracy_blankcollar3
+  000507: 01 00 00 00 12 00 00 00 00 00 00 00 74 72 61 63  |............trac|
+  000517: 79 5f 62 6c 61 6e 6b 63 6f 6c 6c 61 72 33 01 00  |y_blankcollar3..|
+  000527: 00 00 12 00 00 00 00 00 00 00                    |..........|
+  01329  tracy_foodstorage6
+  000525: 01 00 00 00 12 00 00 00 00 00 00 00 74 72 61 63  |............trac|
+  000535: 79 5f 66 6f 6f 64 73 74 6f 72 61 67 65 36 01 00  |y_foodstorage6..|
+  000545: 00 00 0b 00 00 00 00 00 00 00                    |..........|
+  01359  tracy_idol3
+  000543: 01 00 00 00 0b 00 00 00 00 00 00 00 74 72 61 63  |............trac|
+  000553: 79 5f 69 64 6f 6c 33 01 00 00 00 12 00 00 00 00  |y_idol3.........|
+  000563: 00 00 00                                         |...|
+  01382  tracy_foodstorage7
+  00055a: 01 00 00 00 12 00 00 00 00 00 00 00 74 72 61 63  |............trac|
+  00056a: 79 5f 66 6f 6f 64 73 74 6f 72 61 67 65 37 01 00  |y_foodstorage7..|
+  00057a: 00 00 0b 00 00 00 00 00 00 00                    |..........|
+  01412  tracy_idol4
+  000578: 01 00 00 00 0b 00 00 00 00 00 00 00 74 72 61 63  |............trac|
+  000588: 79 5f 69 64 6f 6c 34 01 00 00 00 12 00 00 00 00  |y_idol4.........|
+  000598: 00 00 00                                         |...|
+  01435  tracy_foodstorage8
+  00058f: 01 00 00 00 12 00 00 00 00 00 00 00 74 72 61 63  |............trac|
+  00059f: 79 5f 66 6f 6f 64 73 74 6f 72 61 67 65 38 01 00  |y_foodstorage8..|
+  0005af: 00 00 0b 00 00 00 00 00 00 00                    |..........|
+  01465  tracy_idol5
+  0005ad: 01 00 00 00 0b 00 00 00 00 00 00 00 74 72 61 63  |............trac|
+  0005bd: 79 5f 69 64 6f 6c 35 01 00 00 00 12 00 00 00 00  |y_idol5.........|
+  0005cd: 00 00 00                                         |...|
+  01488  tracy_foodstorage9
+  0005c4: 01 00 00 00 12 00 00 00 00 00 00 00 74 72 61 63  |............trac|
+  0005d4: 79 5f 66 6f 6f 64 73 74 6f 72 61 67 65 39 01 00  |y_foodstorage9..|
+  0005e4: 00 00 0b 00 00 00 00 00 00 00                    |..........|
+  01518  tracy_idol6
+  0005e2: 01 00 00 00 0b 00 00 00 00 00 00 00 74 72 61 63  |............trac|
+  0005f2: 79 5f 69 64 6f 6c 36 01 00 00 00 13 00 00 00 00  |y_idol6.........|
+  000602: 00 00 00                                         |...|
+  01541  tracy_foodstorage10
+  0005f9: 01 00 00 00 13 00 00 00 00 00 00 00 74 72 61 63  |............trac|
+  000609: 79 5f 66 6f 6f 64 73 74 6f 72 61 67 65 31 30 01  |y_foodstorage10.|
+  000619: 00 00 00 0b 00 00 00 00 00 00 00                 |...........|
+  01572  tracy_idol7
+  000618: 01 00 00 00 0b 00 00 00 00 00 00 00 74 72 61 63  |............trac|
+  000628: 79 5f 69 64 6f 6c 37 01 00 00 00 0f 00 00 00 00  |y_idol7.........|
+  000638: 00 00 00                                         |...|
+  01595  tracy_max_intro
+  00062f: 01 00 00 00 0f 00 00 00 00 00 00 00 74 72 61 63  |............trac|
+  00063f: 79 5f 6d 61 78 5f 69 6e 74 72 6f 00 00 00 00 06  |y_max_intro.....|
+  00064f: 00 00 00 05 00 00 00                             |.......|
+  01681  organ_unlock
+  000685: 00 00 00 00 0c 00 00 00 00 00 00 00 6f 72 67 61  |............orga|
+  000695: 6e 5f 75 6e 6c 6f 63 6b 01 00 00 00 0e 00 00 00  |n_unlock........|
+  0006a5: 00 00 00 00                                      |....|
+  01705  organ_upgrade1
+  00069d: 01 00 00 00 0e 00 00 00 00 00 00 00 6f 72 67 61  |............orga|
+  0006ad: 6e 5f 75 70 67 72 61 64 65 31 01 00 00 00 0e 00  |n_upgrade1......|
+  0006bd: 00 00 00 00 00 00                                |......|
+  01731  organ_upgrade2
+  0006b7: 01 00 00 00 0e 00 00 00 00 00 00 00 6f 72 67 61  |............orga|
+  0006c7: 6e 5f 75 70 67 72 61 64 65 32 01 00 00 00 0e 00  |n_upgrade2......|
+  0006d7: 00 00 00 00 00 00                                |......|
+
+----------------------------------------------------------------------
+STEP 6 -- Summary signal check
+----------------------------------------------------------------------
+  Total target-name ascii hits: 0
+  Total target-UID hits: 0
+  Defect-term hit counts: {'blind': 0, 'eye': 0, 'eyebrow': 0, 'ear': 1, 'ears': 0, 'birth_defect': 0, 'defect': 0, 'mutation': 0, 'no eyes': 0, 'no eyebrows': 0, 'no ears': 0}
+
+npc_progress appears to be a progression / unlock / NPC-state blob populated with quest, unlock, map, class, item, and ability strings. In this save it contains no direct ascii cat-name hits for the target cats and no raw u64 UID hits for those cats. That makes it a weak candidate for storing the missing-part defect flags directly.

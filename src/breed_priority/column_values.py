@@ -162,7 +162,9 @@ def raw_col_value(
         if total > 0:
             rank = sum(1 for value in all_scope_mate_scores if value <= weighted_delta)
             pct = rank / total * 100
-            if weighted_delta <= 0:
+            if weighted_delta < 0:
+                color = CLR_UNDESIRABLE
+            elif weighted_delta == 0:
                 color = CLR_TEXT_GRAYEDOUT
             elif pct >= 75:
                 color = CLR_DESIRABLE

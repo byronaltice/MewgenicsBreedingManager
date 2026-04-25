@@ -1,0 +1,291 @@
+======================================================================
+Direction #3 -- Parent / Offspring Blob Diff
+======================================================================
+Save: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\steamcampaign01.sav
+
+----------------------------------------------------------------------
+STEP 1 -- Family resolution
+----------------------------------------------------------------------
+  Whommie: db_key=853, uid=17691181541566973181, parents=(Petronij, Kami)
+    pre_t=0x004e, t_end=0x01ae, default_move=0x0246, tail=0x0337, blob_len=938
+  Bud: db_key=887, uid=5578053643916715327, parents=(Kami, Murisha)
+    pre_t=0x0046, t_end=0x01a6, default_move=0x0240, tail=0x032b, blob_len=926
+
+----------------------------------------------------------------------
+STEP 2 -- Parent-equal / child-different offsets
+----------------------------------------------------------------------
+  Whommie:
+    pre_t                 8 hits
+      [17, 18, 19, 20, 21, 22, 23, 31]
+    t_array              30 hits
+      [0, 1, 16, 17, 32, 33, 36, 37, 56, 57, 76, 77, 96, 97, 116, 117, 136, 137, 156, 157] ...
+    tail                  6 hits
+      [6, 7, 8, 9, 10, 12]
+    defaultmove_window    0 hits
+  Bud:
+    pre_t                 8 hits
+      [17, 18, 19, 20, 21, 22, 23, 31]
+    t_array               0 hits
+    tail                  0 hits
+    defaultmove_window   38 hits
+      [59, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 85, 86, 87, 88, 89, 90, 111, 112] ...
+
+----------------------------------------------------------------------
+STEP 3 -- Intersections across Whommie and Bud
+----------------------------------------------------------------------
+  pre_t                 8 shared offsets
+    [17, 18, 19, 20, 21, 22, 23, 31]
+  t_array               0 shared offsets
+  tail                  0 shared offsets
+  defaultmove_window    0 shared offsets
+
+----------------------------------------------------------------------
+STEP 4 -- Candidate scan using both positives vs both clean parents
+----------------------------------------------------------------------
+  pre_t                10 raw candidates
+  t_array               0 raw candidates
+  tail                  0 raw candidates
+  defaultmove_window    0 raw candidates
+
+----------------------------------------------------------------------
+STEP 5 -- Roster-wide validation
+----------------------------------------------------------------------
+  No zero-error candidates survived roster-wide validation.
+
+----------------------------------------------------------------------
+STEP 6 -- Top raw candidates with context
+----------------------------------------------------------------------
+  pre_t              offset= 16  pre-T f64[2] byte+0           pattern=positives_constant_unique       errors=501 samples=877
+    positives=[255, 255] negatives=[72, 73, 73, 72]
+    false_positives=['Tamara=255', 'Micia=255', 'Melanka=255', 'Kilya=255', 'Escobar=255', 'Estrella=255', 'Clementina=255', 'Pixey=255']
+    Whommie: blob[0x005e]  pre-T f64[2] byte+0
+  00004e: 0c d7 e6 f9 ae 1f e3 3f 70 60 89 0d 36 a9 96 3f  |.......?p`..6..?|
+  00005e: ff ff ff ff ff ff ff ff 00 00 00 00 00 00 00 00  |................|
+    Petronij: blob[0x0061]  pre-T f64[2] byte+0
+  000051: 00 a7 6c 3a e0 13 e1 3f 38 ac 3f e1 f4 20 b5 3f  |..l:...?8.?.. .?|
+  000061: 48 03 00 00 00 00 00 00 00 00 00 00 00 00 d0 3f  |H..............?|
+    Kami: blob[0x0059]  pre-T f64[2] byte+0
+  000049: 36 8f f9 73 32 29 e7 3f 33 cc 2a 8b 76 6d b3 3f  |6..s2).?3.*.vm.?|
+  000059: 49 03 00 00 00 00 00 00 6a ae d3 48 4b e5 c2 3f  |I.......j..HK..?|
+    Bud: blob[0x0056]  pre-T f64[2] byte+0
+  000046: ae 66 50 10 92 de df 3f 77 e6 48 5c 12 40 b9 3f  |.fP....?w.H\.@.?|
+  000056: ff ff ff ff ff ff ff ff 00 00 00 00 00 00 00 00  |................|
+    Kami: blob[0x0059]  pre-T f64[2] byte+0
+  000049: 36 8f f9 73 32 29 e7 3f 33 cc 2a 8b 76 6d b3 3f  |6..s2).?3.*.vm.?|
+  000059: 49 03 00 00 00 00 00 00 6a ae d3 48 4b e5 c2 3f  |I.......j..HK..?|
+    Murisha: blob[0x005a]  pre-T f64[2] byte+0
+  00004a: 88 d6 a8 b8 df 58 d7 3f f2 d6 36 15 48 60 a2 3f  |.....X.?..6.H`.?|
+  00005a: 48 03 00 00 00 00 00 00 00 00 00 00 00 00 d0 3f  |H..............?|
+
+  pre_t              offset= 17  pre-T f64[2] byte+1           pattern=positives_constant_unique       errors=501 samples=877
+    positives=[255, 255] negatives=[3, 3, 3, 3]
+    false_positives=['Tamara=255', 'Micia=255', 'Melanka=255', 'Kilya=255', 'Escobar=255', 'Estrella=255', 'Clementina=255', 'Pixey=255']
+    Whommie: blob[0x005f]  pre-T f64[2] byte+1
+  00004f: d7 e6 f9 ae 1f e3 3f 70 60 89 0d 36 a9 96 3f ff  |......?p`..6..?.|
+  00005f: ff ff ff ff ff ff ff 00 00 00 00 00 00 00 00 10  |................|
+    Petronij: blob[0x0062]  pre-T f64[2] byte+1
+  000052: a7 6c 3a e0 13 e1 3f 38 ac 3f e1 f4 20 b5 3f 48  |.l:...?8.?.. .?H|
+  000062: 03 00 00 00 00 00 00 00 00 00 00 00 00 d0 3f d2  |..............?.|
+    Kami: blob[0x005a]  pre-T f64[2] byte+1
+  00004a: 8f f9 73 32 29 e7 3f 33 cc 2a 8b 76 6d b3 3f 49  |..s2).?3.*.vm.?I|
+  00005a: 03 00 00 00 00 00 00 6a ae d3 48 4b e5 c2 3f db  |.......j..HK..?.|
+    Bud: blob[0x0057]  pre-T f64[2] byte+1
+  000047: 66 50 10 92 de df 3f 77 e6 48 5c 12 40 b9 3f ff  |fP....?w.H\.@.?.|
+  000057: ff ff ff ff ff ff ff 00 00 00 00 00 00 00 00 f0  |................|
+    Kami: blob[0x005a]  pre-T f64[2] byte+1
+  00004a: 8f f9 73 32 29 e7 3f 33 cc 2a 8b 76 6d b3 3f 49  |..s2).?3.*.vm.?I|
+  00005a: 03 00 00 00 00 00 00 6a ae d3 48 4b e5 c2 3f db  |.......j..HK..?.|
+    Murisha: blob[0x005b]  pre-T f64[2] byte+1
+  00004b: d6 a8 b8 df 58 d7 3f f2 d6 36 15 48 60 a2 3f 48  |....X.?..6.H`.?H|
+  00005b: 03 00 00 00 00 00 00 00 00 00 00 00 00 d0 3f 80  |..............?.|
+
+  pre_t              offset= 18  pre-T f64[2] byte+2           pattern=positives_constant_unique       errors=501 samples=877
+    positives=[255, 255] negatives=[0, 0, 0, 0]
+    false_positives=['Tamara=255', 'Micia=255', 'Melanka=255', 'Kilya=255', 'Escobar=255', 'Estrella=255', 'Clementina=255', 'Pixey=255']
+    Whommie: blob[0x0060]  pre-T f64[2] byte+2
+  000050: e6 f9 ae 1f e3 3f 70 60 89 0d 36 a9 96 3f ff ff  |.....?p`..6..?..|
+  000060: ff ff ff ff ff ff 00 00 00 00 00 00 00 00 10 2c  |...............,|
+    Petronij: blob[0x0063]  pre-T f64[2] byte+2
+  000053: 6c 3a e0 13 e1 3f 38 ac 3f e1 f4 20 b5 3f 48 03  |l:...?8.?.. .?H.|
+  000063: 00 00 00 00 00 00 00 00 00 00 00 00 d0 3f d2 14  |.............?..|
+    Kami: blob[0x005b]  pre-T f64[2] byte+2
+  00004b: f9 73 32 29 e7 3f 33 cc 2a 8b 76 6d b3 3f 49 03  |.s2).?3.*.vm.?I.|
+  00005b: 00 00 00 00 00 00 6a ae d3 48 4b e5 c2 3f db 4f  |......j..HK..?.O|
+    Bud: blob[0x0058]  pre-T f64[2] byte+2
+  000048: 50 10 92 de df 3f 77 e6 48 5c 12 40 b9 3f ff ff  |P....?w.H\.@.?..|
+  000058: ff ff ff ff ff ff 00 00 00 00 00 00 00 00 f0 e8  |................|
+    Kami: blob[0x005b]  pre-T f64[2] byte+2
+  00004b: f9 73 32 29 e7 3f 33 cc 2a 8b 76 6d b3 3f 49 03  |.s2).?3.*.vm.?I.|
+  00005b: 00 00 00 00 00 00 6a ae d3 48 4b e5 c2 3f db 4f  |......j..HK..?.O|
+    Murisha: blob[0x005c]  pre-T f64[2] byte+2
+  00004c: a8 b8 df 58 d7 3f f2 d6 36 15 48 60 a2 3f 48 03  |...X.?..6.H`.?H.|
+  00005c: 00 00 00 00 00 00 00 00 00 00 00 00 d0 3f 80 32  |.............?.2|
+
+  pre_t              offset= 19  pre-T f64[2] byte+3           pattern=positives_constant_unique       errors=501 samples=877
+    positives=[255, 255] negatives=[0, 0, 0, 0]
+    false_positives=['Tamara=255', 'Micia=255', 'Melanka=255', 'Kilya=255', 'Escobar=255', 'Estrella=255', 'Clementina=255', 'Pixey=255']
+    Whommie: blob[0x0061]  pre-T f64[2] byte+3
+  000051: f9 ae 1f e3 3f 70 60 89 0d 36 a9 96 3f ff ff ff  |....?p`..6..?...|
+  000061: ff ff ff ff ff 00 00 00 00 00 00 00 00 10 2c 84  |..............,.|
+    Petronij: blob[0x0064]  pre-T f64[2] byte+3
+  000054: 3a e0 13 e1 3f 38 ac 3f e1 f4 20 b5 3f 48 03 00  |:...?8.?.. .?H..|
+  000064: 00 00 00 00 00 00 00 00 00 00 00 d0 3f d2 14 85  |............?...|
+    Kami: blob[0x005c]  pre-T f64[2] byte+3
+  00004c: 73 32 29 e7 3f 33 cc 2a 8b 76 6d b3 3f 49 03 00  |s2).?3.*.vm.?I..|
+  00005c: 00 00 00 00 00 6a ae d3 48 4b e5 c2 3f db 4f fd  |.....j..HK..?.O.|
+    Bud: blob[0x0059]  pre-T f64[2] byte+3
+  000049: 10 92 de df 3f 77 e6 48 5c 12 40 b9 3f ff ff ff  |....?w.H\.@.?...|
+  000059: ff ff ff ff ff 00 00 00 00 00 00 00 00 f0 e8 5a  |...............Z|
+    Kami: blob[0x005c]  pre-T f64[2] byte+3
+  00004c: 73 32 29 e7 3f 33 cc 2a 8b 76 6d b3 3f 49 03 00  |s2).?3.*.vm.?I..|
+  00005c: 00 00 00 00 00 6a ae d3 48 4b e5 c2 3f db 4f fd  |.....j..HK..?.O.|
+    Murisha: blob[0x005d]  pre-T f64[2] byte+3
+  00004d: b8 df 58 d7 3f f2 d6 36 15 48 60 a2 3f 48 03 00  |..X.?..6.H`.?H..|
+  00005d: 00 00 00 00 00 00 00 00 00 00 00 d0 3f 80 32 7f  |............?.2.|
+
+  pre_t              offset= 20  pre-T f64[2] byte+4           pattern=positives_constant_unique       errors=501 samples=877
+    positives=[255, 255] negatives=[0, 0, 0, 0]
+    false_positives=['Tamara=255', 'Micia=255', 'Melanka=255', 'Kilya=255', 'Escobar=255', 'Estrella=255', 'Clementina=255', 'Pixey=255']
+    Whommie: blob[0x0062]  pre-T f64[2] byte+4
+  000052: ae 1f e3 3f 70 60 89 0d 36 a9 96 3f ff ff ff ff  |...?p`..6..?....|
+  000062: ff ff ff ff 00 00 00 00 00 00 00 00 10 2c 84 d6  |.............,..|
+    Petronij: blob[0x0065]  pre-T f64[2] byte+4
+  000055: e0 13 e1 3f 38 ac 3f e1 f4 20 b5 3f 48 03 00 00  |...?8.?.. .?H...|
+  000065: 00 00 00 00 00 00 00 00 00 00 d0 3f d2 14 85 61  |...........?...a|
+    Kami: blob[0x005d]  pre-T f64[2] byte+4
+  00004d: 32 29 e7 3f 33 cc 2a 8b 76 6d b3 3f 49 03 00 00  |2).?3.*.vm.?I...|
+  00005d: 00 00 00 00 6a ae d3 48 4b e5 c2 3f db 4f fd 09  |....j..HK..?.O..|
+    Bud: blob[0x005a]  pre-T f64[2] byte+4
+  00004a: 92 de df 3f 77 e6 48 5c 12 40 b9 3f ff ff ff ff  |...?w.H\.@.?....|
+  00005a: ff ff ff ff 00 00 00 00 00 00 00 00 f0 e8 5a 7a  |..............Zz|
+    Kami: blob[0x005d]  pre-T f64[2] byte+4
+  00004d: 32 29 e7 3f 33 cc 2a 8b 76 6d b3 3f 49 03 00 00  |2).?3.*.vm.?I...|
+  00005d: 00 00 00 00 6a ae d3 48 4b e5 c2 3f db 4f fd 09  |....j..HK..?.O..|
+    Murisha: blob[0x005e]  pre-T f64[2] byte+4
+  00004e: df 58 d7 3f f2 d6 36 15 48 60 a2 3f 48 03 00 00  |.X.?..6.H`.?H...|
+  00005e: 00 00 00 00 00 00 00 00 00 00 d0 3f 80 32 7f a6  |...........?.2..|
+
+  pre_t              offset= 21  pre-T f64[2] byte+5           pattern=positives_constant_unique       errors=501 samples=877
+    positives=[255, 255] negatives=[0, 0, 0, 0]
+    false_positives=['Tamara=255', 'Micia=255', 'Melanka=255', 'Kilya=255', 'Escobar=255', 'Estrella=255', 'Clementina=255', 'Pixey=255']
+    Whommie: blob[0x0063]  pre-T f64[2] byte+5
+  000053: 1f e3 3f 70 60 89 0d 36 a9 96 3f ff ff ff ff ff  |..?p`..6..?.....|
+  000063: ff ff ff 00 00 00 00 00 00 00 00 10 2c 84 d6 85  |............,...|
+    Petronij: blob[0x0066]  pre-T f64[2] byte+5
+  000056: 13 e1 3f 38 ac 3f e1 f4 20 b5 3f 48 03 00 00 00  |..?8.?.. .?H....|
+  000066: 00 00 00 00 00 00 00 00 00 d0 3f d2 14 85 61 83  |..........?...a.|
+    Kami: blob[0x005e]  pre-T f64[2] byte+5
+  00004e: 29 e7 3f 33 cc 2a 8b 76 6d b3 3f 49 03 00 00 00  |).?3.*.vm.?I....|
+  00005e: 00 00 00 6a ae d3 48 4b e5 c2 3f db 4f fd 09 90  |...j..HK..?.O...|
+    Bud: blob[0x005b]  pre-T f64[2] byte+5
+  00004b: de df 3f 77 e6 48 5c 12 40 b9 3f ff ff ff ff ff  |..?w.H\.@.?.....|
+  00005b: ff ff ff 00 00 00 00 00 00 00 00 f0 e8 5a 7a 80  |.............Zz.|
+    Kami: blob[0x005e]  pre-T f64[2] byte+5
+  00004e: 29 e7 3f 33 cc 2a 8b 76 6d b3 3f 49 03 00 00 00  |).?3.*.vm.?I....|
+  00005e: 00 00 00 6a ae d3 48 4b e5 c2 3f db 4f fd 09 90  |...j..HK..?.O...|
+    Murisha: blob[0x005f]  pre-T f64[2] byte+5
+  00004f: 58 d7 3f f2 d6 36 15 48 60 a2 3f 48 03 00 00 00  |X.?..6.H`.?H....|
+  00005f: 00 00 00 00 00 00 00 00 00 d0 3f 80 32 7f a6 96  |..........?.2...|
+
+  pre_t              offset= 22  pre-T f64[2] byte+6           pattern=positives_constant_unique       errors=501 samples=877
+    positives=[255, 255] negatives=[0, 0, 0, 0]
+    false_positives=['Tamara=255', 'Micia=255', 'Melanka=255', 'Kilya=255', 'Escobar=255', 'Estrella=255', 'Clementina=255', 'Pixey=255']
+    Whommie: blob[0x0064]  pre-T f64[2] byte+6
+  000054: e3 3f 70 60 89 0d 36 a9 96 3f ff ff ff ff ff ff  |.?p`..6..?......|
+  000064: ff ff 00 00 00 00 00 00 00 00 10 2c 84 d6 85 f8  |...........,....|
+    Petronij: blob[0x0067]  pre-T f64[2] byte+6
+  000057: e1 3f 38 ac 3f e1 f4 20 b5 3f 48 03 00 00 00 00  |.?8.?.. .?H.....|
+  000067: 00 00 00 00 00 00 00 00 d0 3f d2 14 85 61 83 f3  |.........?...a..|
+    Kami: blob[0x005f]  pre-T f64[2] byte+6
+  00004f: e7 3f 33 cc 2a 8b 76 6d b3 3f 49 03 00 00 00 00  |.?3.*.vm.?I.....|
+  00005f: 00 00 6a ae d3 48 4b e5 c2 3f db 4f fd 09 90 bb  |..j..HK..?.O....|
+    Bud: blob[0x005c]  pre-T f64[2] byte+6
+  00004c: df 3f 77 e6 48 5c 12 40 b9 3f ff ff ff ff ff ff  |.?w.H\.@.?......|
+  00005c: ff ff 00 00 00 00 00 00 00 00 f0 e8 5a 7a 80 0f  |............Zz..|
+    Kami: blob[0x005f]  pre-T f64[2] byte+6
+  00004f: e7 3f 33 cc 2a 8b 76 6d b3 3f 49 03 00 00 00 00  |.?3.*.vm.?I.....|
+  00005f: 00 00 6a ae d3 48 4b e5 c2 3f db 4f fd 09 90 bb  |..j..HK..?.O....|
+    Murisha: blob[0x0060]  pre-T f64[2] byte+6
+  000050: d7 3f f2 d6 36 15 48 60 a2 3f 48 03 00 00 00 00  |.?..6.H`.?H.....|
+  000060: 00 00 00 00 00 00 00 00 d0 3f 80 32 7f a6 96 01  |.........?.2....|
+
+  pre_t              offset= 23  pre-T f64[2] byte+7           pattern=positives_constant_unique       errors=501 samples=877
+    positives=[255, 255] negatives=[0, 0, 0, 0]
+    false_positives=['Tamara=255', 'Micia=255', 'Melanka=255', 'Kilya=255', 'Escobar=255', 'Estrella=255', 'Clementina=255', 'Pixey=255']
+    Whommie: blob[0x0065]  pre-T f64[2] byte+7
+  000055: 3f 70 60 89 0d 36 a9 96 3f ff ff ff ff ff ff ff  |?p`..6..?.......|
+  000065: ff 00 00 00 00 00 00 00 00 10 2c 84 d6 85 f8 e4  |..........,.....|
+    Petronij: blob[0x0068]  pre-T f64[2] byte+7
+  000058: 3f 38 ac 3f e1 f4 20 b5 3f 48 03 00 00 00 00 00  |?8.?.. .?H......|
+  000068: 00 00 00 00 00 00 00 d0 3f d2 14 85 61 83 f3 d3  |........?...a...|
+    Kami: blob[0x0060]  pre-T f64[2] byte+7
+  000050: 3f 33 cc 2a 8b 76 6d b3 3f 49 03 00 00 00 00 00  |?3.*.vm.?I......|
+  000060: 00 6a ae d3 48 4b e5 c2 3f db 4f fd 09 90 bb e8  |.j..HK..?.O.....|
+    Bud: blob[0x005d]  pre-T f64[2] byte+7
+  00004d: 3f 77 e6 48 5c 12 40 b9 3f ff ff ff ff ff ff ff  |?w.H\.@.?.......|
+  00005d: ff 00 00 00 00 00 00 00 00 f0 e8 5a 7a 80 0f b5  |...........Zz...|
+    Kami: blob[0x0060]  pre-T f64[2] byte+7
+  000050: 3f 33 cc 2a 8b 76 6d b3 3f 49 03 00 00 00 00 00  |?3.*.vm.?I......|
+  000060: 00 6a ae d3 48 4b e5 c2 3f db 4f fd 09 90 bb e8  |.j..HK..?.O.....|
+    Murisha: blob[0x0061]  pre-T f64[2] byte+7
+  000051: 3f f2 d6 36 15 48 60 a2 3f 48 03 00 00 00 00 00  |?..6.H`.?H......|
+  000061: 00 00 00 00 00 00 00 d0 3f 80 32 7f a6 96 01 ef  |........?.2.....|
+
+  pre_t              offset= 30  pre-T f64[3] byte+6           pattern=positives_constant_unique       errors=501 samples=877
+    positives=[0, 0] negatives=[208, 194, 194, 208]
+    false_positives=['Tamara=0', 'Micia=0', 'Melanka=0', 'Kilya=0', 'Escobar=0', 'Estrella=0', 'Clementina=0', 'Pixey=0']
+    Whommie: blob[0x006c]  pre-T f64[3] byte+6
+  00005c: 96 3f ff ff ff ff ff ff ff ff 00 00 00 00 00 00  |.?..............|
+  00006c: 00 00 10 2c 84 d6 85 f8 e4 3f ff ff ff ff ff ff  |...,.....?......|
+    Petronij: blob[0x006f]  pre-T f64[3] byte+6
+  00005f: b5 3f 48 03 00 00 00 00 00 00 00 00 00 00 00 00  |.?H.............|
+  00006f: d0 3f d2 14 85 61 83 f3 d3 3f 4f 03 00 00 00 00  |.?...a...?O.....|
+    Kami: blob[0x0067]  pre-T f64[3] byte+6
+  000057: b3 3f 49 03 00 00 00 00 00 00 6a ae d3 48 4b e5  |.?I.......j..HK.|
+  000067: c2 3f db 4f fd 09 90 bb e8 3f ff ff ff ff ff ff  |.?.O.....?......|
+    Bud: blob[0x0064]  pre-T f64[3] byte+6
+  000054: b9 3f ff ff ff ff ff ff ff ff 00 00 00 00 00 00  |.?..............|
+  000064: 00 00 f0 e8 5a 7a 80 0f b5 3f ff ff ff ff ff ff  |....Zz...?......|
+    Kami: blob[0x0067]  pre-T f64[3] byte+6
+  000057: b3 3f 49 03 00 00 00 00 00 00 6a ae d3 48 4b e5  |.?I.......j..HK.|
+  000067: c2 3f db 4f fd 09 90 bb e8 3f ff ff ff ff ff ff  |.?.O.....?......|
+    Murisha: blob[0x0068]  pre-T f64[3] byte+6
+  000058: a2 3f 48 03 00 00 00 00 00 00 00 00 00 00 00 00  |.?H.............|
+  000068: d0 3f 80 32 7f a6 96 01 ef 3f 4f 03 00 00 00 00  |.?.2.....?O.....|
+
+  pre_t              offset= 31  pre-T f64[3] byte+7           pattern=positives_constant_unique       errors=501 samples=877
+    positives=[0, 0] negatives=[63, 63, 63, 63]
+    false_positives=['Tamara=0', 'Micia=0', 'Melanka=0', 'Kilya=0', 'Escobar=0', 'Estrella=0', 'Clementina=0', 'Pixey=0']
+    Whommie: blob[0x006d]  pre-T f64[3] byte+7
+  00005d: 3f ff ff ff ff ff ff ff ff 00 00 00 00 00 00 00  |?...............|
+  00006d: 00 10 2c 84 d6 85 f8 e4 3f ff ff ff ff ff ff ff  |..,.....?.......|
+    Petronij: blob[0x0070]  pre-T f64[3] byte+7
+  000060: 3f 48 03 00 00 00 00 00 00 00 00 00 00 00 00 d0  |?H..............|
+  000070: 3f d2 14 85 61 83 f3 d3 3f 4f 03 00 00 00 00 00  |?...a...?O......|
+    Kami: blob[0x0068]  pre-T f64[3] byte+7
+  000058: 3f 49 03 00 00 00 00 00 00 6a ae d3 48 4b e5 c2  |?I.......j..HK..|
+  000068: 3f db 4f fd 09 90 bb e8 3f ff ff ff ff ff ff ff  |?.O.....?.......|
+    Bud: blob[0x0065]  pre-T f64[3] byte+7
+  000055: 3f ff ff ff ff ff ff ff ff 00 00 00 00 00 00 00  |?...............|
+  000065: 00 f0 e8 5a 7a 80 0f b5 3f ff ff ff ff ff ff ff  |...Zz...?.......|
+    Kami: blob[0x0068]  pre-T f64[3] byte+7
+  000058: 3f 49 03 00 00 00 00 00 00 6a ae d3 48 4b e5 c2  |?I.......j..HK..|
+  000068: 3f db 4f fd 09 90 bb e8 3f ff ff ff ff ff ff ff  |?.O.....?.......|
+    Murisha: blob[0x0069]  pre-T f64[3] byte+7
+  000059: 3f 48 03 00 00 00 00 00 00 00 00 00 00 00 00 d0  |?H..............|
+  000069: 3f 80 32 7f a6 96 01 ef 3f 4f 03 00 00 00 00 00  |?.2.....?O......|
+
+
+----------------------------------------------------------------------
+STEP 7 -- DefaultMove anchor windows
+----------------------------------------------------------------------
+  Whommie: DefaultMove offsets child=0x0246, parent_a=0x0249, parent_b=0x0241
+  Bud: DefaultMove offsets child=0x0240, parent_a=0x0241, parent_b=0x0244
+
+======================================================================
+SUMMARY
+======================================================================
+  Parsed cats: 888
+  Candidate count: 10
+  Zero-error validated candidates: 0
+  No candidate currently meets the handoff success condition.

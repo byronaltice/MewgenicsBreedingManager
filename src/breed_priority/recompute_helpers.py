@@ -111,8 +111,7 @@ def compute_all_scores(
     )
 
     all_scope_mate_scores = sorted(
-        results[id(c)].subtotals.get("partner_coverage", 0.0)
-        + results[id(c)].subtotals.get("partner_balance", 0.0)
+        results[id(c)].subtotals.get("mate_weight", 0.0)
         for c in scope_cats
         if id(c) in results
     )

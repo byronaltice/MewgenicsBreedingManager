@@ -1,0 +1,62 @@
+Direction 29 - Identify FUN_14022cf90 as stat arrays
+Save: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\investigation\steamcampaign01_20260424_191107.sav
+
+=== Whommie (db_key=853) ===
+  gender token: 'male23', scale=1.16830901, records_start=blob+0x01d0
+  CatData+0x6f0 / stat_base: STR=7, DEX=7, CON=7, INT=7, SPD=6, CHA=7, LCK=7
+  CatData+0x70c / stat_mod:  STR=0, DEX=0, CON=0, INT=0, SPD=0, CHA=0, LCK=0
+  CatData+0x728 / stat_sec:  STR=0, DEX=0, CON=0, INT=0, SPD=0, CHA=0, LCK=0
+  matches parser stat arrays: True
+
+=== Kami (db_key=840) ===
+  gender token: 'male23', scale=0.87169799, records_start=blob+0x01cb
+  CatData+0x6f0 / stat_base: STR=7, DEX=7, CON=7, INT=7, SPD=6, CHA=7, LCK=7
+  CatData+0x70c / stat_mod:  STR=1, DEX=0, CON=0, INT=2, SPD=2, CHA=2, LCK=0
+  CatData+0x728 / stat_sec:  STR=0, DEX=0, CON=0, INT=0, SPD=0, CHA=0, LCK=0
+  matches parser stat arrays: True
+
+=== Bud (db_key=887) ===
+  gender token: 'female50', scale=0.87169799, records_start=blob+0x01ca
+  CatData+0x6f0 / stat_base: STR=7, DEX=7, CON=7, INT=7, SPD=7, CHA=7, LCK=7
+  CatData+0x70c / stat_mod:  STR=0, DEX=0, CON=0, INT=0, SPD=0, CHA=0, LCK=0
+  CatData+0x728 / stat_sec:  STR=0, DEX=0, CON=0, INT=0, SPD=0, CHA=0, LCK=0
+  matches parser stat arrays: True
+
+=== Alaya (db_key=861) ===
+  gender token: 'female45', scale=0.79855166, records_start=blob+0x01ca
+  CatData+0x6f0 / stat_base: STR=7, DEX=7, CON=7, INT=7, SPD=7, CHA=7, LCK=7
+  CatData+0x70c / stat_mod:  STR=0, DEX=0, CON=0, INT=0, SPD=0, CHA=2, LCK=0
+  CatData+0x728 / stat_sec:  STR=0, DEX=0, CON=0, INT=0, SPD=0, CHA=0, LCK=0
+  matches parser stat arrays: True
+
+=== Petronij (db_key=841) ===
+  gender token: 'male53', scale=1.16830901, records_start=blob+0x01ce
+  CatData+0x6f0 / stat_base: STR=7, DEX=7, CON=7, INT=7, SPD=6, CHA=7, LCK=7
+  CatData+0x70c / stat_mod:  STR=0, DEX=0, CON=0, INT=0, SPD=0, CHA=0, LCK=0
+  CatData+0x728 / stat_sec:  STR=0, DEX=0, CON=0, INT=0, SPD=0, CHA=0, LCK=0
+  matches parser stat arrays: True
+
+=== Murisha (db_key=852) ===
+  gender token: 'female50', scale=0.75724343, records_start=blob+0x01d2
+  CatData+0x6f0 / stat_base: STR=7, DEX=7, CON=7, INT=7, SPD=7, CHA=7, LCK=7
+  CatData+0x70c / stat_mod:  STR=0, DEX=0, CON=0, INT=0, SPD=0, CHA=0, LCK=0
+  CatData+0x728 / stat_sec:  STR=0, DEX=0, CON=0, INT=0, SPD=0, CHA=0, LCK=0
+  matches parser stat arrays: True
+
+=== Flekpus (db_key=68) ===
+  gender token: 'male109', scale=0.84204854, records_start=blob+0x01cd
+  CatData+0x6f0 / stat_base: STR=6, DEX=3, CON=6, INT=5, SPD=5, CHA=6, LCK=7
+  CatData+0x70c / stat_mod:  STR=0, DEX=0, CON=5, INT=4, SPD=3, CHA=0, LCK=0
+  CatData+0x728 / stat_sec:  STR=-1, DEX=0, CON=0, INT=0, SPD=0, CHA=0, LCK=0
+  matches parser stat arrays: True
+
+=== Lucyfer (db_key=255) ===
+  gender token: 'female6', scale=0.82332797, records_start=blob+0x01d0
+  CatData+0x6f0 / stat_base: STR=6, DEX=5, CON=5, INT=6, SPD=6, CHA=6, LCK=6
+  CatData+0x70c / stat_mod:  STR=0, DEX=0, CON=1, INT=3, SPD=0, CHA=2, LCK=0
+  CatData+0x728 / stat_sec:  STR=0, DEX=0, CON=0, INT=0, SPD=-1, CHA=0, LCK=0
+  matches parser stat arrays: True
+
+Conclusion:
+  FUN_14022cf90 serializes the three stat arrays already parsed by save_parser.
+  It is not a hidden missing-part defect structure.

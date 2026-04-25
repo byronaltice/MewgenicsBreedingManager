@@ -70,6 +70,25 @@ CLASS_RATINGS = {
     "Psychic": {"Tankiness": "D", "Damage": "C", "Reach": "A", "Sustain": "D", "Crowd Control": "S", "Utility": "A"},
     "Thief": {"Tankiness": "D", "Damage": "A", "Reach": "S", "Sustain": "D", "Crowd Control": "D", "Utility": "B"},
 }
+
+
+# CLASS_RATINGS = {
+#     "Collarless": {category: 0 for category in CATEGORIES},
+#     "Jester": {category: 1 for category in CATEGORIES},
+#     "Fighter": {"Tankiness": "B", "Damage": "S", "Reach": "C", "Sustain": "D", "Crowd Control": "B", "Utility": "D"},
+#     "Mage": {"Tankiness": "D", "Damage": "A", "Reach": "A", "Sustain": "D", "Crowd Control": "A", "Utility": "B"},
+#     "Monk": {"Tankiness": "B", "Damage": "A", "Reach": "A", "Sustain": "B", "Crowd Control": "C", "Utility": "D"},
+#     "Necromancer": {"Tankiness": "S", "Damage": "C", "Reach": "C", "Sustain": "A", "Crowd Control": "C", "Utility": "C"},
+#     "Druid": {"Tankiness": "A", "Damage": "C", "Reach": "B", "Sustain": "A", "Crowd Control": "C", "Utility": "A"},
+#     "Hunter": {"Tankiness": "C", "Damage": "A", "Reach": "S", "Sustain": "D", "Crowd Control": "A", "Utility": "C"},
+#     "Cleric": {"Tankiness": "B", "Damage": "D", "Reach": "D", "Sustain": "S", "Crowd Control": "C", "Utility": "S"},
+#     "Tinker": {"Tankiness": "B", "Damage": "B", "Reach": "B", "Sustain": "B", "Crowd Control": "C", "Utility": "A"},
+#     "Tank": {"Tankiness": "S", "Damage": "B", "Reach": "C", "Sustain": "C", "Crowd Control": "S", "Utility": "C"},
+#     "Butcher": {"Tankiness": "A", "Damage": "A", "Reach": "A", "Sustain": "A", "Crowd Control": "C", "Utility": "D"},
+#     "Psychic": {"Tankiness": "D", "Damage": "C", "Reach": "A", "Sustain": "D", "Crowd Control": "S", "Utility": "A"},
+#     "Thief": {"Tankiness": "C", "Damage": "S", "Reach": "A", "Sustain": "D", "Crowd Control": "D", "Utility": "B"},
+# }
+
 CLASS_NAMES = tuple(CLASS_RATINGS)
 
 CLASS_COLORS = {

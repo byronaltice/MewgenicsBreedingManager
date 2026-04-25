@@ -1,0 +1,57 @@
+Direction 34 - Birth-defect apply/display path
+
+Inputs:
+- tools/GhidraDefectDisplayProbe.java -> tools/ghidra_defect_display_probe_output.txt
+- tools/GhidraDefectApplyProbe.java -> tools/ghidra_defect_apply_probe_output.txt
+- Direction 33 T/CatPart serializer map
+
+Key functions:
+- FUN_1400caa20 = Ghidra local type identifies this as
+  glaiel::CatData::MutatePiece(enum_glaiel::CatPartID, string)::lambda_1.
+- FUN_1400cb130 = applies selected mutation ID to CatData body-part fields.
+- FUN_1400e38c0 = mutation tooltip/display builder; contains BirthDefectTooltip.
+- FUN_140731aa0 = maps individual left/right CatPartID values to display categories.
+
+FUN_1400caa20:
+- Called by FUN_1400ca4a0 when searching/applying a tagged mutation such as "birth_defect".
+- Searches mutation/resource data, extracts a matching mutation block ID, then calls:
+  FUN_1400cb130(cat_data, CONCAT44(found_mutation_id, cat_part_id)).
+
+FUN_1400cb130:
+- Low 32 bits of param_2 = part category / CatPartID.
+- High 32 bits of param_2 = selected mutation ID.
+- Writes selected mutation ID directly into the same CatData visible-ID fields serialized into T.
+- Important writes:
+  - category 6: CatData+0x2dc and +0x330 = eye_L/eye_R visible IDs = T[38]/T[43]
+  - category 7: CatData+0x384 and +0x3d8 = eyebrow_L/eyebrow_R visible IDs = T[48]/T[53]
+  - category 8: CatData+0x42c and +0x480 = ear_L/ear_R visible IDs = T[58]/T[63]
+  - category 10: writes fur/texture echo fields across body-part records
+
+Conclusion:
+- If the normal birth_defect/MutatePiece path applies no-eyes, no-eyebrows, or no-ears as GON block -2, the save should contain 0xFFFFFFFE in T.
+- Alaya's explicit no-ears defect behaves that way: ear_L/ear_R T part IDs are 0xFFFFFFFE.
+- Whommie and Bud do not behave that way: their affected T part IDs remain ordinary base-shape IDs and all neighboring serialized fields are zero except texture echo.
+- Therefore Whommie/Bud missing detections are probably not coming from the direct body-part mutation application path.
+
+FUN_1400e38c0:
+- Builds mutation/effect display text.
+- Calls FUN_140731aa0 to map a part identifier to labels such as MUTATION_EYE_NAME, MUTATION_EYEBROW_NAME, MUTATION_EAR_NAME.
+- Calls FUN_1407b1190(DAT_1413b4a10, part_id) to look up the mutation/resource entry.
+- Calls FUN_1400b3940 to build text/effect data from that entry.
+- Checks whether the entry tag/name equals "birth_defect"; if so, uses BirthDefectTooltip.
+
+Display conclusion:
+- The game display path marks a displayed mutation as a birth defect by checking the mutation resource tag, matching the parser's GPAK tag-based detection for IDs present in T.
+- This does not explain Whommie/Bud because saved IDs 139/23/132 are ordinary base-shape IDs shared with clean cats.
+
+Next best path:
+- Trace the non-body-part effect/stat construction path after load.
+- Start with FUN_1400c17f0, because CatData::breed calls it with "birth_defects" and it may build a separate count/list.
+- Search for code paths that build stat_mod/passive/display rows from saved fields other than T.
+
+Follow-up in same loop:
+- FUN_1400c17f0 reads one or more strings from the "birth_defects" GON/object value, picks/copies one string, then calls FUN_1400c1600.
+- FUN_1400c1600 checks a serialized string list at CatData+0x910..0x9b0 for duplicates / "None", then calls FUN_1400c1ac0 to insert the selected string.
+- FUN_1400c1ac0 writes a string to CatData+(slot_index * 0x28)+0x910, writes a u32 flag/tier at +0x930 for that slot, then applies any grant_ability / lock_item_slot / bonus_items effects from the matching GON entry.
+- FUN_14022d360 serializes this area: string at +0x910, u32 at +0x930, string at +0x938, u32 at +0x958, string at +0x960, u32 at +0x980, etc.
+- Current save-side check from Direction 31: Whommie and Bud have no detected non-None passive/disorder tail strings in this corridor. So this is a real saved effect-list mechanism, but it is not yet proven to carry the missing Whommie/Bud defects.

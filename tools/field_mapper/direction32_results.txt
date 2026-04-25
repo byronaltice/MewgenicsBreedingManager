@@ -1,0 +1,646 @@
+Direction 32 - Search executable/resources for defect strings and constants
+Mewgenics.exe image_base=0x140000000
+Sections:
+  .text: raw=0x400+0xe30200, rva=0x1000+0xe300a4
+  .rdata: raw=0xe30600+0x4a2800, rva=0xe32000+0x4a27f6
+  .data: raw=0x12d2e00+0xcb800, rva=0x12d5000+0x13a388
+  .pdata: raw=0x139e600+0xa4200, rva=0x1410000+0xa4184
+  _RDATA: raw=0x1442800+0x13e00, rva=0x14b5000+0x13c08
+  .rsrc: raw=0x1456600+0xca00, rva=0x14c9000+0xc830
+  .reloc: raw=0x1463000+0x89800, rva=0x14d6000+0x89664
+
+=== C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Mewgenics\Mewgenics.exe ===
+
+pattern 'u32 0xFFFFFFFE / -2': 40 hit(s) shown
+  file+0x46642 -> 0x0000000140047242 (.text+0x46242)
+    context: K..C .....A.....L.W.A..........t.I......f..D..H99D.D...H.I.;.r......I9.....D.D......I9.....D.D......I9.....D.D.L......M..t.I..........&H.G0H...t.I......H..t.H;.....
+  file+0x4a4fb -> 0x000000014004b0fb (.text+0x4a0fb)
+    context: I...O.I.A.....M.A.fE..N..u....H.7H..I..7.....H.{..v.H..M..H..H.......L.o......H.........H..I+.I;.......I..H...H;.v}H.........H..L.d$P.[t..H..L..L.o.H.o.H.{..v.H..M.
+  file+0x4ffe3 -> 0x0000000140050be3 (.text+0x4fbe3)
+    context: .............................H..(H..-O...(v..................L.L$ SWAVH..@L.q.H.........H..H..I+.H;.......H.l$hH.i.L.|$ M.<.I..H...H;.w8H..H..H..H+.H;.w'H..)H..H;.H
+  file+0x50451 -> 0x0000000140051051 (.text+0x50051)
+    context: .L.S.H..H.C.....D..H..@[.L.D$=I..M+.H...s...H..H..@[...........@SWAUAVH..(L.q.H.........H..M..I+.H..H;...>...H.l$PH.i.L.|$ M.<.I..H...H;.w8H..H..H..H+.H;.w'H..)H..H
+  file+0x50734 -> 0x0000000140051334 (.text+0x50334)
+    context: 0fE..D....u..W.H..$.......H.D$RL.~.L.~.H..$....L;.u.L.~.H.F.....fD.>.....H.\$RH.........I+.H..H;.......H...w$H.^.I..H..H.F.....L..H.......fD.<3.RH..H...H;.vcH......
+  file+0x50ae7 -> 0x00000001400516e7 (.text+0x506e7)
+    context: ..H..HF...K.....@...H.......H.\$0@...H.. _...............H.\$.H.l$.H.t$ AVH.. H.........I..H..L..L;.......H...w H.Y.H..L..H.A......R...3.fB..3.MH..H...H;.vWH.......
+  file+0x59e16 -> 0x000000014005aa16 (.text+0x59a16)
+    context: t.H+...D..D....fD;.u.H...I...u.3.............B............H.\$.H.l$.H.t$.WH.. H.........I..H..H..L;.......H...w.H.Y.H.A............<H..H...H;.vEH.........H...({..L.
+  file+0x59f0b -> 0x000000014005ab0b (.text+0x59b0b)
+    context: w.....x....fz........H.\$.H.t$.H.|$.AVH.. 3..W....H.A.L..H.A.H..H.z..H.z.v.L.2H.........H;.......H...w.H.y.H.A.....A.......<H..H...H;.vIH.........H...;z..L..}....H.
+  file+0x5a016 -> 0x000000014005ac16 (.text+0x59c16)
+    context: .l$.H.t$.WAVAWH.. H.q.M..L..H..L;.w*H..H...v.H.)K...L.q.L..H...g...3.f..+.....H.........L;.......I..H...H;.w8H..H..H..H+.H;.w'H..2H..H;.H.B.H.........H.K.H;........
+  file+0x784ed -> 0x00000001400790ed (.text+0x780ed)
+    context: E......E..H.U.H...v1H..H.M.H..H......r.H..'H.I.H+.H...H..........zT..........H......H.EXH..t.H.H0H.M.L.e.H.U.I........x..........L.E.H.U.I.......N{...W...E.H.E.....
+  file+0x78657 -> 0x0000000140079257 (.text+0x78257)
+    context: t$.H.|$.UAVAWH..H..PI..I..L..H...}P...6...A..H.....x.....#...H.....x.........H......H.EHH..t.H.H0H.M.L.u.H.U.H.......Pw..........L.E.H.U.H........y..H._h.W...E.H.E.
+  file+0x788e7 -> 0x00000001400794e7 (.text+0x784e7)
+    context: t$.H.|$.UAVAWH..H..PI..I..L..H...}P...6...A..H.....x.....#...H.....x.........H......H.EHH..t.H.H0H.M.L.u.H.U.H........t..........L.E.H.U.H.......Tw..H._h.W...E.H.E.
+  file+0x880f1 -> 0x0000000140088cf1 (.text+0x87cf1)
+    context: ...............H....W....H.B.....H.B........................f.B.H...B..H.......................H...............H.\$.H.t$ H.T$.WH..@H..L.B.H..H.z..v.H..I...u.H......
+  file+0xa47c5 -> 0x00000001400a53c5 (.text+0xa43c5)
+    context: ............I..........I...H.\$.H.l$.H.t$.WH..P.z..I...)t$@H...)|$0H......$.........D.)D$ .D.......A.(.t..B.....H..$.0.....H.. H.....p........t..(..A.X..(....A.X...
+  file+0xa952b -> 0x00000001400aa12b (.text+0xa912b)
+    context: H..@...H..t4H......H.U.I...I.G.L.A.H.y..v.H..M;.u.M..tB.......t9H...H;}Pu.H...........;...v...H.K..2........H....D...[...I......H.F.I......A.......H..t....;...H.K..
+  file+0xb5f2e -> 0x00000001400b6b2e (.text+0xb5b2e)
+    context: ./....!..f.o.1...f..E.H.E......E.....E3.L.E.H......I........I....u.A.D$\..../.H.........H..L.m.L......I+.H......"..H.U.H.E.H.E H.M.H..x...H...H.G.H..p....W........H
+  file+0xc80e7 -> 0x00000001400c8ce7 (.text+0xc7ce7)
+    context: ..v..B....v..B.......G.....................................L$@t........D$D...D$D.......5eo.......E;.u/.W.H...I.*...Y..H.,.;..B..%...D.C...D;.v..C.D..H.K.H.D$@A..H..
+  file+0xc81b1 -> 0x00000001400c8db1 (.text+0xc7db1)
+    context: ..v..B....v..B.......G.....................................L$@t........D$D...D$D......D;.u/.W.H...H.*...Y..H.,.;..B..f...D.C...D;.v..C.D..H.K.H.D$@A..H...D.C.A..D.C
+  file+0xc8270 -> 0x00000001400c8e70 (.text+0xc7e70)
+    context: ..v..B....v..B.......G...............................L.....L$@t...8....D$D...D$D......D;.u/.W.H...H.*...Y..H.,.;..B......D.C...D;.v..C.D..H.K.H.D$@A..H...D.C.A..D.C
+  file+0xc832f -> 0x00000001400c8f2f (.text+0xc7f2f)
+    context: ..v..B....v..B.......G.....................................L$@t........D$D...D$D......D;.u/.W.H...H.*...Y..H.,.;..B......D.C...D;.v..C.D..H.K.H.D$@A..H...D.C.A..D.C
+  file+0xc83ee -> 0x00000001400c8fee (.text+0xc7fee)
+    context: ..v..B....v..B.......G.....................................L$@t........D$D...D$D......D;.u/.W.H...H.*...Y..H.,.;..B..)...D.C...D;.v..C.D..H.K.H.D$@A..H...D.C.A..D.C
+  file+0xc84ad -> 0x00000001400c90ad (.text+0xc80ad)
+    context: ..v..B....v..B.......G...............................H.....L$@t...4....D$D...D$D......D;.u/.W.H...H.*...Y..H.,.;..B..j...D.C...D;.v..C.D..H.K.H.D$@A..H...D.C.A..D.C
+  file+0xc856c -> 0x00000001400c916c (.text+0xc816c)
+    context: ..v..B....v..B.......G.....................................L$@t........D$D...D$D......D;.u/.W.H...H.*...Y..H.,.;..B......D.C...D;.v..C.D..H.K.H.D$@A..H...D.C.A..D.C
+  file+0xc862b -> 0x00000001400c922b (.text+0xc822b)
+    context: ..v..B....v..B.......G.....................................L$@t........D$D...D$D......D;.u/.W.H...H.*...Y..H.,.;..B......D.C...D;.v..C.D..H.K.H.D$@A..H...D.C.A..D.C
+  file+0xc86ea -> 0x00000001400c92ea (.text+0xc82ea)
+    context: ..v..B....v..B.......G...............................D.....L$@t...0....D$D...D$D......D;.u/.W.H...H.*...Y..H.,.;..B..-...D.C...D;.v..C.D..H.K.H.D$@A..H...D.C.A..D.C
+  file+0xc87a9 -> 0x00000001400c93a9 (.text+0xc83a9)
+    context: ..v..B....v..B.......G.....................................L$@t........D$D...D$D......D;.u/.W.H...H.*...Y..H.,.;..B..n...D.C...D;.v..C.D..H.K.H.D$@A..H...D.C.A..D.C
+  file+0xc8868 -> 0x00000001400c9468 (.text+0xc8468)
+    context: ..v..B....v..B.......G.....................................L$@t........D$D...D$D......D;.u/.W.H...H.*...Y..H.,.;..B......D.C...D;.v..C.D..H.K.H.D$@A..H...D.C.A..D.C
+  file+0xc8927 -> 0x00000001400c9527 (.text+0xc8527)
+    context: ..v..B....v..B.......G...............................@.....L$@t...,....D$D...D$D......D;.u/.W.H...H.*...Y..H.,.;..B......D.C...D;.v..C.D..H.K.H.D$@A..H...D.C.A..D.C
+  file+0xc89e6 -> 0x00000001400c95e6 (.text+0xc85e6)
+    context: ..v..B....v..B.......G.....................................L$@t........D$D...D$D......D;.u/.W.H...H.*...Y..H.,.;..B..1...D.C...D;.v..C.D..H.K.H.D$@A..H....S....S...
+  file+0xc8aa0 -> 0x00000001400c96a0 (.text+0xc86a0)
+    context: ....v..A....v..A.....G.....................................t$@t........D$D...D$D......;.u,.W.H...H.*...Y..H.,.;..B..x....S...;.v..C...H.D$@H.K..D$@....H....C..Gx.K.
+  file+0xc8c83 -> 0x00000001400c9883 (.text+0xc8883)
+    context: t$0H..H.E.H..H.E......H.M.......U.D.E.......A;..E0A.G.........U.t........E4...E4.......5.c..A.....A;.u/.W.H.M..I.*...Y..H.,.A;.A.B.......U.D.E.A;.A.G.H.E0H.}.H.....
+  file+0xc8cfa -> 0x00000001400c98fa (.text+0xc88fa)
+    context: .H.,.A;.A.B.......U.D.E.A;.A.G.H.E0H.}.H...................U..E0t........E4...E4....A;.u6.W.A..H.M..H.*...Y..H.,.A;.A.B.......U.D.E.A;.H.}.A.G.H.E0H.......L......4.
+  file+0xc8d66 -> 0x00000001400c9966 (.text+0xc8966)
+    context: .H.,.A;.A.B.......U.D.E.A;.H.}.A.G.H.E0H.......L......4....U..E0t...8....E4...E4....A;.u6.W.A..H.M..H.*...Y..H.,.A;.A.B.......U.D.E.A;.H.}.A.G.H.E0H................
+  file+0xc8dd2 -> 0x00000001400c99d2 (.text+0xc89d2)
+    context: .H.,.A;.A.B.......U.D.E.A;.H.}.A.G.H.E0H...................U..E0t........E4...E4....A;.u6.W.A..H.M..H.*...Y..H.,.A;.A.B..A....U.D.E.A;.H.}.A.G.H.E0A.....H.....D....
+  file+0xc8e95 -> 0x00000001400c9a95 (.text+0xc8a95)
+    context: !A.G....v.A.G.E.....E.G...A.......A.......A.......A.....D.......E..t.D........A.....D......A.A....v@A.A....v0A.A....v A.A....v.A.A.A.....A.G........................
+  file+0xc8f00 -> 0x00000001400c9b00 (.text+0xc8b00)
+    context: v0A.A....v A.A....v.A.A.A.....A.G....................................t..............D;.u.D;.tbE..t.D........A.....A;.u6.W.A..H.M..H.*...Y..H.,.A;.A.B.......U.D.E.A;
+  file+0xc8f1e -> 0x00000001400c9b1e (.text+0xc8b1e)
+    context: A.G....................................t..............D;.u.D;.tbE..t.D........A.....A;.u6.W.A..H.M..H.*...Y..H.,.A;.A.B.......U.D.E.A;.H.}.A.G.A..H.. I..H......U...
+  file+0xc8f90 -> 0x00000001400c9b90 (.text+0xc8b90)
+    context: ;.A.B.......U.D.E.A;.H.}.A.G.A..H.. I..H......U...H......0....E0t...4....E4...E4....A;.u6.W.A..H.M..H.*...Y..H.,.A;.A.B.......U.D.E.A;.H.}.A.G.H.E0H.....D.......U.A
+  file+0xc904d -> 0x00000001400c9c4d (.text+0xc8c4d)
+    context: !A.G....v.A.G.E.....E.G...A.......A.......A.......A.....D.......E..t.D........A.....D..0...A.A....v@A.A....v0A.A....v A.A....v.A.A.A.....A.G........................
+  file+0xc90b8 -> 0x00000001400c9cb8 (.text+0xc8cb8)
+    context: v0A.A....v A.A....v.A.A.A.....A.G...............................H....t...4..........D;.u.D;.tbE..t.D........A.....A;.u6.W.A..H.M..H.*...Y..H.,.A;.A.B..=....U.D.E.A;
+
+pattern 'i32 -2 plus zero': 3 hit(s) shown
+  file+0x12ded80 -> 0x00000001412e0f80 (.data+0xbf80)
+    context: ........................................................................................................................................................................
+  file+0x12e7b18 -> 0x00000001412e9d18 (.data+0x14d18)
+    context: ........P..@............................................................................................................................................................
+  file+0x12e7cb8 -> 0x00000001412e9eb8 (.data+0x14eb8)
+    context: ........................................................................................................................................P[.@............................
+
+pattern 'utf8 birth_defect': 2 hit(s) shown
+  file+0xeca6b0 -> 0x0000000140ecc0b0 (.rdata+0x9a0b0)
+    context: ........................................................class...SkillShare......birth_defect....birth_defects...Jester..data/special_strays.gon.catdata.gender..any.male....
+  file+0xeca6c0 -> 0x0000000140ecc0c0 (.rdata+0x9a0c0)
+    context: ........................................class...SkillShare......birth_defect....birth_defects...Jester..data/special_strays.gon.catdata.gender..any.male....female......neut
+
+pattern 'utf16le birth_defect': 0 hit(s) shown
+
+pattern 'utf8 tag birth_defect': 0 hit(s) shown
+
+pattern 'utf16le tag birth_defect': 0 hit(s) shown
+
+pattern 'utf8 MUTATION_EYES_M2_DESC': 0 hit(s) shown
+
+pattern 'utf16le MUTATION_EYES_M2_DESC': 0 hit(s) shown
+
+pattern 'utf8 MUTATION_EYEBROWS_M2_DESC': 0 hit(s) shown
+
+pattern 'utf16le MUTATION_EYEBROWS_M2_DESC': 0 hit(s) shown
+
+pattern 'utf8 MUTATION_EARS_M2_DESC': 0 hit(s) shown
+
+pattern 'utf16le MUTATION_EARS_M2_DESC': 0 hit(s) shown
+
+pattern 'utf8 blind': 1 hit(s) shown
+  file+0x110b668 -> 0x000000014110d068 (.rdata+0x2db068)
+    context: self_move_exclude_self_abilities........on_self_move_too........forward_only....blind_spot..golem.......on_self_move....idleSpent.......character_filter........idleC
+
+pattern 'utf16le blind': 0 hit(s) shown
+
+pattern 'utf8 no eyes': 0 hit(s) shown
+
+pattern 'utf16le no eyes': 0 hit(s) shown
+
+pattern 'utf8 no eyebrows': 0 hit(s) shown
+
+pattern 'utf16le no eyebrows': 0 hit(s) shown
+
+pattern 'utf8 no ears': 0 hit(s) shown
+
+pattern 'utf16le no ears': 0 hit(s) shown
+
+pattern 'utf8 cha -2': 0 hit(s) shown
+
+pattern 'utf16le cha -2': 0 hit(s) shown
+
+pattern 'utf8 dex -2': 0 hit(s) shown
+
+pattern 'utf16le dex -2': 0 hit(s) shown
+
+=== C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Mewgenics\resources.gpak ===
+  pattern 'u32 0xFFFFFFFE / -2' file+0x1bd8ad
+    context: ..Z.Q..".t.p.._h..*.h..?s^KmN.Wsa...Iid..h~$..U.OggS....................................!........>...............@jhV>_..".......%F.^...V..V...8Hd..=.{......UQ.M...
+  pattern 'u32 0xFFFFFFFE / -2' file+0x22597a
+    context: ...,..1......m.>.|3d.),'{g.g.......~......i.....OggS...z..........|.....KM...................qs..#..8..]O.#Xn.....:.w.&Re....Wt.S....G..MA......-d.?..I.SE.HiQZu".y.
+  pattern 'u32 0xFFFFFFFE / -2' file+0x22df24
+    context: ...[....g..o....J...cjB.5...6s.T..%..........OggS....................i...............n...x}..........zoFmH,........?.a....^.9.|.1.2..{.zlv..v.z_$......o.o.{.1.=....
+  pattern 'u32 0xFFFFFFFE / -2' file+0x2482ab
+    context: .|Y.4.F..u....I...=....M..xhV.3U...g.}.....y..l.OggS..@.............../[ ...........................0...}.e..0Q.h..u..Q.9/R........9.Y..xV>.?[...x.....`M.^C.@...../
+  pattern 'u32 0xFFFFFFFE / -2' file+0x24d895
+    context: ........-.-OR...&fQ=..0.<Ru.^......M.OggS..@...............0.v.................................B...@........a......t.....:..{.....|.....~..@......+=y."....'....t.h.
+  pattern 'u32 0xFFFFFFFE / -2' file+0x25e0de
+    context: I...p!5.~o8..+.rY.M...0GV..H...}.P_`....V..k..Kq!a.OggS..................h.B.........qr.........tt{.....8.....D...,...R.L.9N...JM.....<...q.]k.2...4..H.{..h..R.....
+  pattern 'u32 0xFFFFFFFE / -2' file+0x262327
+    context: ..9...........g..|.u>.......5\...K..OggS..@P..............1....z~}yz...................|R....].|RL.Wc...K../..f.i.E.%....%..x..<$....&..E./s.y../.+y.........J/.0_]z
+  pattern 'u32 0xFFFFFFFE / -2' file+0x27e786
+    context: ....o.U^.vP.F...^....BH=.t.......~}Q....#G-.C..}_J.OggS..................................sn.........'$.......T>...`..B.....x)Y...;.8n...n.|EF.{7.KwK.q....``T.......
+  pattern 'u32 0xFFFFFFFE / -2' file+0x28c6b0
+    context: p.>.3?..xVxvc>.P.V6.zq...x.^..K..g....j^V..y@0.OggS....................$....................~.......4........L...F.Ev...........j.....J.......................yO.G..
+  pattern 'u32 0xFFFFFFFE / -2' file+0x321da1
+    context: .0.Z...........~za....1,Nt.D..W.u...r.,...'.}..*...OggS..............f....2.........".../....~uv...>.#A.....NQ#@..&.....NW.....^A..'f....QC...y`$[#'..QY.S...c~..H..
+  pattern 'u32 0xFFFFFFFE / -2' file+0x50b8b1
+    context: `..w[b..kcfn=.&.%....R.`...4R...j..B.K......o._.OggS.............&....:..1..........C...I......Z\A.......1..,}..p...z.hU.....T..*..!. @.@v..qI..KVY...h.3f7......T{.
+  pattern 'u32 0xFFFFFFFE / -2' file+0x55a986
+    context: Vz.{...a.Q0OB_.NL#.....s(...`..*....[.... ...z.....OggS..@..........&X....,.C...........>...5.............F..w:.l.h?h....0...>El.._..HD.TTzc ...3Ag....f..K..>.w.D.%
+  pattern 'u32 0xFFFFFFFE / -2' file+0x5b1237
+    context: ...w.....i.*.........Qh.....m..U..&......\b.;...OggS.............&................................zlhM5......bN....O..Y...}..8....z....]................]p.....?m.6.
+  pattern 'u32 0xFFFFFFFE / -2' file+0x5dfebb
+    context: ...G...t.>&\5..;..=...dj}..2.t>.ZV.,>.O+.l_.$2.OggS.............&......./....E...........{~..|{..J...I`4pC...4..0.{.h.+........b...9........^F.$.N....#X~..zs+.k.g..
+  pattern 'utf8 blind' file+0x60221
+    context: .audio/music/radio/transitionals/birds.ogg....-.audio/music/radio/transitionals/blindness.ogg....?.audio/music/radio/transitionals/boon_county_communist_party.ogg+..
+  pattern 'u32 0xFFFFFFFE / -2' file+0x1c8e283
+    context: ......K6-...L../.E..............B~q_n.i.P.OggS.....................)...................>(........A"..F?..pn..V...'z.Y..&u.sF........pIjzu....J....u1.b...|... m..|..
+  pattern 'u32 0xFFFFFFFE / -2' file+0x1ced84f
+    context: ..P.?T.gau.e.....1.0%...(cHE..4g.5.....TOggS..............f....7H............*.......}.'...........C...xe......95.<D...I-.....5..=#.O.u4..j"9.nk....N...x.$...u..E.#
+  pattern 'u32 0xFFFFFFFE / -2' file+0x1cf2e53
+    context: ..i...u.\k...[.y.c..W..\.q_.........U.....V...}...6OggS..@Z..........k...k.<:......................'..6Z.a..HHy...~.k.Q....ELY..E...........q..((...=f......s....i?H
+  pattern 'u32 0xFFFFFFFE / -2' file+0x1d22701
+    context: ..n............4./...f..)h1.....u.[.Ki,`M....6.l.).OggS..@...............n:.......................~...H....PH.pMuE44G...!Z.]...i..o*Iy....C.8>2.<.<R...7.../.W.+....
+  pattern 'u32 0xFFFFFFFE / -2' file+0x28397e6
+    context: .. ..f.....02..}5%.=..Tif7...e2.U.z)...OggS..@................m.s...................q^*.x.`..F.W......1t...4.c..F.[;.D=.C.q."ke..Ob....g}s...#r..i...&.....I.....^.P
+  pattern 'u32 0xFFFFFFFE / -2' file+0x283fefc
+    context: f:...M[..#...$..P...........`...o..\.R...<Tp.OggS....................................vuotuv..~.... ....%......j-.. O.UV.u......*..+*....*.lJ..^.TM.....N.B(.".^.....
+  pattern 'u32 0xFFFFFFFE / -2' file+0x2854e42
+    context: .n..i.z.#M.....r..3....NYJM...&FoG...VOggS....................e................................l(.........x,S..4E......v.n..D.K....Ou.A3..n....q...%.C$i......R...9.
+  pattern 'u32 0xFFFFFFFE / -2' file+0x2868913
+    context: ._...#x..5.B.7..u.w....t1.T.........;..OggS..@*................ ......................).+.N.0.....M.`\....1....U.../..e..0rD#'.9.Gbt..!.......z.!T..S2I......c......
+  pattern 'u32 0xFFFFFFFE / -2' file+0x28ae5b6
+    context: ..5A"...e.P.......F.2.]......o...6...-.C.^t..(i....OggS...{..............!.. ......................>..5......`.8......Z..-d.,..G.B.....o....!eS]zP.4.'...K.V.......#
+  pattern 'u32 0xFFFFFFFE / -2' file+0x28ec5ba
+    context: ..\...v......w...o.^_.*..+.>..f...{U^.@.OggS..@D..........9..............................Y<.....J..(......./.a.C}$.1sp./..h.......Q.g+B....3..........h....c...F.f.4
+  pattern 'u32 0xFFFFFFFE / -2' file+0x2a9313a
+    context: ..{.*....T.._r."8..../B[.P..^...@y........OggS..@.9.............;Rx.....................~..\.M...t9\....0..9[4...a.S..D.cw6.....6t....yv.1..T....;....iT..H...;.....
+  pattern 'u32 0xFFFFFFFE / -2' file+0x2ad7eca
+    context: .L..D.S....../...q?....0.g...3..>....u..(7.OggS....>.............;-................................%0...'C(....OZ=.j3...sW.......l....<b...Q.........=~S*z.}........
+  pattern 'u32 0xFFFFFFFE / -2' file+0x2b7955e
+    context: _?.vQ.~.....L.z.:....`m]....@..m..&....QR...OggS..@.K...............\.......................~.\.k.5....<......L...Z.YhOP.....V.$g.:#.P.0.l..J.|.Eh..JEf{?qB..0c..f.S
+  pattern 'u32 0xFFFFFFFE / -2' file+0x2ba72f7
+    context: ..T..;.;.75&N3...PLnse........{.......A%.(...._.&..OggS....N.............;T>........onq..................I5....gpI...z..H.j-Z.X........"..Dk.....U..E{]..r.!M..B|i{j
+  pattern 'u32 0xFFFFFFFE / -2' file+0x2c24287
+    context: .<..N......9.m.e.......w*O.Y...s.b}x..w.,_!..OggS....W.........(...X................sxrrvwr....,F....t.LF. ...e%[-..H....%v......G.IC...-Z.......3.M....>..DGUsA.C4.
+  pattern 'u32 0xFFFFFFFE / -2' file+0x2c4f531
+    context: .....m.|..x...jO.......a..^X.YE..:........OggS..@.Z.........O.....q(.......................\;.. ..g..,..0........:S....d1....E.Lq...tG+.....y.."X].W...gLn.v...Q7a?`
+  pattern 'u32 0xFFFFFFFE / -2' file+0x2c7cc14
+    context: }q.......VW9...n._..z.h3....mp..@~....dOggS...G^.........x...(..............................M.S`01..".Wb...,.'..Z...|..q.jb....A..d......|oh..4......c.9S0;..;...g..
+  pattern 'u32 0xFFFFFFFE / -2' file+0x2ca878b
+    context: j........z:Z...4........^V}D.......T^T.OggS....a.............,ao.....................~Z.E...`.Z|W..0.......a.-VRh...3&D.-.AE.O....f...C....L...-.&&...I..g..e%.".}.v
+  pattern 'u32 0xFFFFFFFE / -2' file+0x2f12e4f
+    context: ............................................................................................................................................ .!.#.$.%.&.'.).*.+.,.-.
+  pattern 'u32 0xFFFFFFFE / -2' file+0x2f139f3
+    context: ....................................................................................................................................................................
+  pattern 'u32 0xFFFFFFFE / -2' file+0x2f13eed
+    context: ....................................................................................................................................................................
+  pattern 'u32 0xFFFFFFFE / -2' file+0x2f14475
+    context: ....................................................................................................................................................................
+  pattern 'u32 0xFFFFFFFE / -2' file+0x2f14a81
+    context: .............................................................................................................................................. ...".#.$.%.&.'.'.).+.
+  pattern 'u32 0xFFFFFFFE / -2' file+0x2f15623
+    context: ....................................................................................................................................................................
+  pattern 'u32 0xFFFFFFFE / -2' file+0x2f1562b
+    context: ....................................................................................................................................................................
+  pattern 'u32 0xFFFFFFFE / -2' file+0x2f1587f
+    context: ....................................................................................................................................................................
+  pattern 'i32 -2 plus zero' file+0x2f14a81
+    context: .............................................................................................................................................. ...".#.$.%.&.'.'.).+.,.-.
+  pattern 'i32 -2 plus zero' file+0x2f2b6a5
+    context: ........................................................................................................................................................................
+  pattern 'i32 -2 plus zero' file+0x2f2b8f1
+    context: ........................................................................................................................................................................
+  pattern 'i32 -2 plus zero' file+0x2f2bacb
+    context: ........................................................................................................................................................................
+  pattern 'i32 -2 plus zero' file+0x2f2bb65
+    context: ........................................................................................................................................................................
+  pattern 'i32 -2 plus zero' file+0x2f2c3bf
+    context: ........................................................................................................................................................................
+  pattern 'i32 -2 plus zero' file+0x2f46783
+    context: ........................................................................................................................................................................
+  pattern 'i32 -2 plus zero' file+0x2f46add
+    context: ........................................................................................................................................................................
+  pattern 'i32 -2 plus zero' file+0x2f46d0d
+    context: ........................................................................................................................................................................
+  pattern 'i32 -2 plus zero' file+0x2f470d9
+    context: ........................................................................................................................................................................
+  pattern 'i32 -2 plus zero' file+0x2f470ed
+    context: ........................................................................................................................................................................
+  pattern 'i32 -2 plus zero' file+0x2f4728d
+    context: ........................................................................................................................................................................
+  pattern 'i32 -2 plus zero' file+0x2f4731f
+    context: ........................................................................................................................................................................
+  pattern 'i32 -2 plus zero' file+0x2f73867
+    context: ........................................................................................................................................................................
+  pattern 'i32 -2 plus zero' file+0x2f8add3
+    context: ........................................................................................................................................................................
+  pattern 'i32 -2 plus zero' file+0x2f8af4b
+    context: ........................................................................................................................................................................
+  pattern 'i32 -2 plus zero' file+0x2f8ccd3
+    context: ........................................................................................................................................................................
+  pattern 'i32 -2 plus zero' file+0x2fa3e23
+    context: ........................................................................................................................................................................
+  pattern 'i32 -2 plus zero' file+0x2fa3f0d
+    context: ........................................................................................................................................................................
+  pattern 'i32 -2 plus zero' file+0x2fa3f89
+    context: ........................................................................................................................................................................
+  pattern 'i32 -2 plus zero' file+0x2fa401f
+    context: ........................................................................................................................................................................
+  pattern 'i32 -2 plus zero' file+0x30678e1
+    context: ........................................................................................................................................................................
+  pattern 'i32 -2 plus zero' file+0x3094f89
+    context: ........................................................................................................................................................................
+  pattern 'i32 -2 plus zero' file+0x309567f
+    context: ........................................................................................................................................................................
+  pattern 'i32 -2 plus zero' file+0x30fdb23
+    context: ........................................................................................................................................................................
+  pattern 'i32 -2 plus zero' file+0x30fdcc3
+    context: ........................................................................................................................................................................
+  pattern 'i32 -2 plus zero' file+0x30fe0ab
+    context: ........................................................................................................................................................................
+  pattern 'i32 -2 plus zero' file+0x30fe1d9
+    context: ........................................................................................................................................................................
+  pattern 'i32 -2 plus zero' file+0x3111c1b
+    context: ........................................................................................................................................................................
+  pattern 'i32 -2 plus zero' file+0x31167a5
+    context: ........................................................................................................................................................................
+  pattern 'i32 -2 plus zero' file+0x3116843
+    context: ........................................................................................................................................................................
+  pattern 'i32 -2 plus zero' file+0x3116c23
+    context: ........................................................................................................................................................................
+  pattern 'i32 -2 plus zero' file+0x3117025
+    context: ........................................................................................................................................................................
+  pattern 'i32 -2 plus zero' file+0x31170a1
+    context: ........................................................................................................................................................................
+  pattern 'i32 -2 plus zero' file+0x31178ad
+    context: ........................................................................................................................................................................
+  pattern 'i32 -2 plus zero' file+0x3117a93
+    context: ........................................................................................................................................................................
+  pattern 'i32 -2 plus zero' file+0x3117dfb
+    context: ........................................................................................................................................................................
+  pattern 'i32 -2 plus zero' file+0x31181f5
+    context: ........................................................................................................................................................................
+  pattern 'i32 -2 plus zero' file+0x31182df
+    context: ........................................................................................................................................................................
+  pattern 'i32 -2 plus zero' file+0x3118305
+    context: ........................................................................................................................................................................
+  pattern 'utf8 birth_defect' file+0xc7f2a69e
+    context: l 1500..    ears 1500..    mouth -1  //-1 means pick a random mutation..    tag birth_defect //if -1 is the frame, "tag" can filter by tag ("none" is default, "any" means a
+  pattern 'utf8 birth_defect' file+0xc7f2a703
+    context: is the frame, "tag" can filter by tag ("none" is default, "any" means anything. birth_defect is the only tag currently)..}..mutation { //gives all..    tail 1500..    ears 
+  pattern 'utf8 birth_defect' file+0xc7f2a77d
+    context: ..mutation { //gives all..    tail 1500..    ears 1500..    mouth 1500..    tag birth_defect //if -1 is the frame, "tag" can filter by tag ("none" is default, "any" means a
+  pattern 'utf8 birth_defect' file+0xc7f2a7e2
+    context: is the frame, "tag" can filter by tag ("none" is default, "any" means anything. birth_defect is the only tag currently)..}..random_mutation 4 //mutates 4 parts....random_mu
+  pattern 'utf8 birth_defect' file+0xc7f2a980
+    context: y default. There are 10 symmetric parts. There are 15 asymmetric parts..    tag birth_defect //if -1 is the frame, "tag" can filter by tag ("none" is default, "any" means a
+  pattern 'utf8 birth_defect' file+0xc7f2a9e5
+    context: is the frame, "tag" can filter by tag ("none" is default, "any" means anything. birth_defect is the only tag currently)..}..party_random_mutation 4 //same options as random
+  pattern 'utf8 birth_defect' file+0xc7fd67d2
+    context: n the general pool..    //Albinism..    //Dwarfism..    //PrimordialDwarf..]....birth_defects [ //not all birth defects need to be put in the all_disorders category (these 
+  pattern 'utf8 tag birth_defect' file+0xc7f2a69a
+    context:  tail 1500..    ears 1500..    mouth -1  //-1 means pick a random mutation..    tag birth_defect //if -1 is the frame, "tag" can filter by tag ("none" is default, "any" means a
+  pattern 'utf8 tag birth_defect' file+0xc7f2a779
+    context: )..}..mutation { //gives all..    tail 1500..    ears 1500..    mouth 1500..    tag birth_defect //if -1 is the frame, "tag" can filter by tag ("none" is default, "any" means a
+  pattern 'utf8 tag birth_defect' file+0xc7f2a97c
+    context: se by default. There are 10 symmetric parts. There are 15 asymmetric parts..    tag birth_defect //if -1 is the frame, "tag" can filter by tag ("none" is default, "any" means a
+  pattern 'utf8 birth_defect' file+0xc8232ac4
+    context: ount 15..                        asymmetric true..                      //  tag birth_defect..                    }..                }..            }..        }..    }..}..
+  pattern 'utf8 birth_defect' file+0xc8252437
+    context:                    asymmetric true..                                        tag birth_defect..                                    }..                                }..    
+  pattern 'utf8 birth_defect' file+0xc825fe5e
+    context:                            asymmetric true..                                tag birth_defect..                            }..                        }..                    
+  pattern 'utf8 birth_defect' file+0xc8269ded
+    context: {..                                count 2..                                tag birth_defect..                            }..                        }..                    
+  pattern 'utf8 birth_defect' file+0xc8277f2f
+    context:                          random_mutation {..                                tag birth_defect..                            }..                        }..                    
+  pattern 'utf8 birth_defect' file+0xc8278098
+    context: {..                                count 2..                                tag birth_defect..                            }..                        }..                    
+  pattern 'utf8 birth_defect' file+0xc8278cc4
+    context:                          random_mutation {..                                tag birth_defect..                            }..                        }..                    
+  pattern 'utf8 birth_defect' file+0xc8278e2d
+    context: {..                                count 2..                                tag birth_defect..                            }..                        }..                    
+  pattern 'utf8 birth_defect' file+0xc830e933
+    context:  cha -1..    }......    //birth defects..    700 { //Gastroschisis..        tag birth_defect..        con -2..    }..    701 { //Deformed Ribcage..        tag birth_defect.
+  pattern 'utf8 birth_defect' file+0xc830e982
+    context:  birth_defect..        con -2..    }..    701 { //Deformed Ribcage..        tag birth_defect..        spd -2..    }..    702 { //Malnurished..        tag birth_defect..    
+  pattern 'utf8 birth_defect' file+0xc830e9cc
+    context:   tag birth_defect..        spd -2..    }..    702 { //Malnurished..        tag birth_defect..        con -1..    }    ...703 { //Body Welts..        desc "MUTATION_BODY_70
+  pattern 'utf8 birth_defect' file+0xc830ea3d
+    context:  }    ...703 { //Body Welts..        desc "MUTATION_BODY_703_DESC"..        tag birth_defect....        passives {..            Bruise 1..        }..    }...704 { //Conjoin
+  pattern 'utf8 birth_defect' file+0xc830eaae
+    context: {..            Bruise 1..        }..    }...704 { //Conjoined Body..        tag birth_defect..        spd -3....con 2..    }.....}..ears {..    300 { //horn..        tag an
+  pattern 'utf8 birth_defect' file+0xc83119df
+    context: ..        lck -1..    }....    //Birth Defects..    700 { //anotia..        tag birth_defect..        lck -2..    }..    701 { //turner syndrome..        tag birth_defect..
+  pattern 'utf8 birth_defect' file+0xc8311a2d
+    context: g birth_defect..        lck -2..    }..    701 { //turner syndrome..        tag birth_defect..        int -2..    }...702 { //underdeveloped ears..        tag birth_defect.
+  pattern 'utf8 birth_defect' file+0xc8311a7c
+    context:  birth_defect..        int -2..    }...702 { //underdeveloped ears..        tag birth_defect..        cha -1..    }...703 { //low ears..        desc "MUTATION_EARS_703_DESC
+  pattern 'utf8 birth_defect' file+0xc8311ae7
+    context: 1..    }...703 { //low ears..        desc "MUTATION_EARS_703_DESC"..        tag birth_defect....        passives {..            Confusion 2..        }..    }...704 { //wilt
+  pattern 'utf8 birth_defect' file+0xc8311b7f
+    context:     }...704 { //wilted ears..        desc "MUTATION_EARS_704_DESC"..        tag birth_defect....        passives {..            Immobile 1..        }..    }...-2 { //no ear
+  pattern 'utf8 birth_defect' file+0xc8311c33
+    context: etely missing part) //TODO: deaf (unaffected by musical abilities)..        tag birth_defect..        dex -2..    }..}..eyebrows {..    300 { // Bolt Brows..        spd 1..
+  pattern 'utf8 birth_defect' file+0xc8312e33
+    context: ..        lck -1..    }.....    //Birth Defects..    700 { //bushy..        tag birth_defect..        lck -1..    }...701 { //no eyebrows..        tag birth_defect..       
+  pattern 'utf8 birth_defect' file+0xc8312e7a
+    context:      tag birth_defect..        lck -1..    }...701 { //no eyebrows..        tag birth_defect..        cha -1..    }...702 { //unibrow..        tag birth_defect..        int
+  pattern 'utf8 birth_defect' file+0xc8312ebd
+    context: .        tag birth_defect..        cha -1..    }...702 { //unibrow..        tag birth_defect..        int -1..    }..    -2 { //no eyebrows (completely missing part)..     
+  pattern 'utf8 birth_defect' file+0xc8312f20
+    context:    int -1..    }..    -2 { //no eyebrows (completely missing part)..        tag birth_defect..        cha -2..    }..}..eyes {..    300 { //Button Eyes..        desc "MUTAT
+  pattern 'utf8 birth_defect' file+0xc8316054
+    context: ck -1..    }..   ..    //Birth Defects..    700 { //graves disease..        tag birth_defect..        cha -2..    }..   ..    701 { //anophthalmia..        tag birth_defect
+  pattern 'utf8 birth_defect' file+0xc83160a4
+    context: birth_defect..        cha -2..    }..   ..    701 { //anophthalmia..        tag birth_defect..        lck -2..    }..   ..    //Human eyes..    702 {..        cha 1..      
+  pattern 'utf8 birth_defect' file+0xc83161af
+    context:  special and keyed in on -2)..        desc "MUTATION_EYES_M2_DESC"..        tag birth_defect..   ..        passives {..            Blind -1..        }..    }..    704 { //l
+  pattern 'utf8 birth_defect' file+0xc8316247
+    context:     }..    704 { //lazy eye..        desc "MUTATION_EYES_704_DESC"..        tag birth_defect..   ..        passives {..            MissChance 10..        }..   ..    }..   
+  pattern 'utf8 birth_defect' file+0xc83162c3
+    context:        MissChance 10..        }..   ..    }..    705 { //cataracts..        tag birth_defect..        desc "MUTATION_EYES_705_DESC"..   ..        passives {..            St
+  pattern 'utf8 birth_defect' file+0xc83163c5
+    context: }..    706 { //crossed eyes..        desc "MUTATION_EYES_706_DESC"..        tag birth_defect..   ..        passives {..            Confusion 2..        }..    }..   ..    1
+  pattern 'utf8 birth_defect' file+0xc8317ca0
+    context:   lck -1..    }......    //Birth Defects..    700 { //microcephaly..        tag birth_defect..        int -2..    }..    701 { //macrocephaly..        tag birth_defect..   
+  pattern 'utf8 birth_defect' file+0xc8317ceb
+    context:  tag birth_defect..        int -2..    }..    701 { //macrocephaly..        tag birth_defect..        int -2..    }...702 { //concave head..        tag birth_defect..      
+  pattern 'utf8 birth_defect' file+0xc8317d33
+    context:     tag birth_defect..        int -2..    }...702 { //concave head..        tag birth_defect..        int -1..    }...703 { //soft spot..        desc "MUTATION_HEAD_703_DES
+  pattern 'utf8 birth_defect' file+0xc8317d9f
+    context: ..    }...703 { //soft spot..        desc "MUTATION_HEAD_703_DESC"..        tag birth_defect....        passives {..            BackstabFront 1..        }..    }...704 { //
+  pattern 'utf8 tag birth_defect' file+0xc8232ac0
+    context:    count 15..                        asymmetric true..                      //  tag birth_defect..                    }..                }..            }..        }..    }..}..
+  pattern 'utf8 tag birth_defect' file+0xc8252433
+    context:                        asymmetric true..                                        tag birth_defect..                                    }..                                }..    
+  pattern 'utf8 tag birth_defect' file+0xc825fe5a
+    context:                                asymmetric true..                                tag birth_defect..                            }..                        }..                    
+  pattern 'utf8 tag birth_defect' file+0xc8269de9
+    context: ion {..                                count 2..                                tag birth_defect..                            }..                        }..                    
+  pattern 'utf8 tag birth_defect' file+0xc8277f2b
+    context: .                            random_mutation {..                                tag birth_defect..                            }..                        }..                    
+  pattern 'utf8 tag birth_defect' file+0xc8278094
+    context: ion {..                                count 2..                                tag birth_defect..                            }..                        }..                    
+  pattern 'utf8 tag birth_defect' file+0xc8278cc0
+    context: .                            random_mutation {..                                tag birth_defect..                            }..                        }..                    
+  pattern 'utf8 tag birth_defect' file+0xc8278e29
+    context: ion {..                                count 2..                                tag birth_defect..                            }..                        }..                    
+  pattern 'utf8 tag birth_defect' file+0xc830e92f
+    context:      cha -1..    }......    //birth defects..    700 { //Gastroschisis..        tag birth_defect..        con -2..    }..    701 { //Deformed Ribcage..        tag birth_defect.
+  pattern 'utf8 tag birth_defect' file+0xc830e97e
+    context:  tag birth_defect..        con -2..    }..    701 { //Deformed Ribcage..        tag birth_defect..        spd -2..    }..    702 { //Malnurished..        tag birth_defect..    
+  pattern 'utf8 tag birth_defect' file+0xc830e9c8
+    context:       tag birth_defect..        spd -2..    }..    702 { //Malnurished..        tag birth_defect..        con -1..    }    ...703 { //Body Welts..        desc "MUTATION_BODY_70
+  pattern 'utf8 tag birth_defect' file+0xc830ea39
+    context: .    }    ...703 { //Body Welts..        desc "MUTATION_BODY_703_DESC"..        tag birth_defect....        passives {..            Bruise 1..        }..    }...704 { //Conjoin
+  pattern 'utf8 tag birth_defect' file+0xc830eaaa
+    context: ves {..            Bruise 1..        }..    }...704 { //Conjoined Body..        tag birth_defect..        spd -3....con 2..    }.....}..ears {..    300 { //horn..        tag an
+  pattern 'utf8 tag birth_defect' file+0xc83119db
+    context: pd 2..        lck -1..    }....    //Birth Defects..    700 { //anotia..        tag birth_defect..        lck -2..    }..    701 { //turner syndrome..        tag birth_defect..
+  pattern 'utf8 tag birth_defect' file+0xc8311a29
+    context:   tag birth_defect..        lck -2..    }..    701 { //turner syndrome..        tag birth_defect..        int -2..    }...702 { //underdeveloped ears..        tag birth_defect.
+  pattern 'utf8 tag birth_defect' file+0xc8311a78
+    context:  tag birth_defect..        int -2..    }...702 { //underdeveloped ears..        tag birth_defect..        cha -1..    }...703 { //low ears..        desc "MUTATION_EARS_703_DESC
+  pattern 'utf8 tag birth_defect' file+0xc8311ae3
+    context: ha -1..    }...703 { //low ears..        desc "MUTATION_EARS_703_DESC"..        tag birth_defect....        passives {..            Confusion 2..        }..    }...704 { //wilt
+  pattern 'utf8 tag birth_defect' file+0xc8311b7b
+    context:  }..    }...704 { //wilted ears..        desc "MUTATION_EARS_704_DESC"..        tag birth_defect....        passives {..            Immobile 1..        }..    }...-2 { //no ear
+  pattern 'utf8 tag birth_defect' file+0xc8311c2f
+    context: ompletely missing part) //TODO: deaf (unaffected by musical abilities)..        tag birth_defect..        dex -2..    }..}..eyebrows {..    300 { // Bolt Brows..        spd 1..
+  pattern 'utf8 tag birth_defect' file+0xc8312e2f
+    context: pd 2..        lck -1..    }.....    //Birth Defects..    700 { //bushy..        tag birth_defect..        lck -1..    }...701 { //no eyebrows..        tag birth_defect..       
+  pattern 'utf8 tag birth_defect' file+0xc8312e76
+    context: .        tag birth_defect..        lck -1..    }...701 { //no eyebrows..        tag birth_defect..        cha -1..    }...702 { //unibrow..        tag birth_defect..        int
+  pattern 'utf8 tag birth_defect' file+0xc8312eb9
+    context: ows..        tag birth_defect..        cha -1..    }...702 { //unibrow..        tag birth_defect..        int -1..    }..    -2 { //no eyebrows (completely missing part)..     
+  pattern 'utf8 tag birth_defect' file+0xc8312f1c
+    context:        int -1..    }..    -2 { //no eyebrows (completely missing part)..        tag birth_defect..        cha -2..    }..}..eyes {..    300 { //Button Eyes..        desc "MUTAT
+  pattern 'utf8 tag birth_defect' file+0xc8316050
+    context:    lck -1..    }..   ..    //Birth Defects..    700 { //graves disease..        tag birth_defect..        cha -2..    }..   ..    701 { //anophthalmia..        tag birth_defect
+  pattern 'utf8 tag birth_defect' file+0xc83160a0
+    context: tag birth_defect..        cha -2..    }..   ..    701 { //anophthalmia..        tag birth_defect..        lck -2..    }..   ..    //Human eyes..    702 {..        cha 1..      
+  pattern 'utf8 tag birth_defect' file+0xc83161ab
+    context:  are special and keyed in on -2)..        desc "MUTATION_EYES_M2_DESC"..        tag birth_defect..   ..        passives {..            Blind -1..        }..    }..    704 { //l
+  pattern 'utf8 tag birth_defect' file+0xc8316243
+    context:  }..    }..    704 { //lazy eye..        desc "MUTATION_EYES_704_DESC"..        tag birth_defect..   ..        passives {..            MissChance 10..        }..   ..    }..   
+  pattern 'utf8 tag birth_defect' file+0xc83162bf
+    context:            MissChance 10..        }..   ..    }..    705 { //cataracts..        tag birth_defect..        desc "MUTATION_EYES_705_DESC"..   ..        passives {..            St
+  pattern 'utf8 tag birth_defect' file+0xc83163c1
+    context:     }..    706 { //crossed eyes..        desc "MUTATION_EYES_706_DESC"..        tag birth_defect..   ..        passives {..            Confusion 2..        }..    }..   ..    1
+  pattern 'utf8 tag birth_defect' file+0xc8317c9c
+    context:       lck -1..    }......    //Birth Defects..    700 { //microcephaly..        tag birth_defect..        int -2..    }..    701 { //macrocephaly..        tag birth_defect..   
+  pattern 'utf8 tag birth_defect' file+0xc8317ce7
+    context:      tag birth_defect..        int -2..    }..    701 { //macrocephaly..        tag birth_defect..        int -2..    }...702 { //concave head..        tag birth_defect..      
+  pattern 'utf8 tag birth_defect' file+0xc8317d2f
+    context:         tag birth_defect..        int -2..    }...702 { //concave head..        tag birth_defect..        int -1..    }...703 { //soft spot..        desc "MUTATION_HEAD_703_DES
+  pattern 'utf8 tag birth_defect' file+0xc8317d9b
+    context: t -1..    }...703 { //soft spot..        desc "MUTATION_HEAD_703_DESC"..        tag birth_defect....        passives {..            BackstabFront 1..        }..    }...704 { //
+  pattern 'utf8 tag birth_defect' file+0xc8317e33
+    context:      }..    }...704 { //cyclops..        desc "MUTATION_HEAD_704_DESC"..        tag birth_defect....        passives {..            MissChance 20..            ManaCostReduction
+  pattern 'utf8 tag birth_defect' file+0xc8317eca
+    context:         ManaCostReduction 1..        }..    }...705 { //conjoined head..        tag birth_defect..        cha -3....int 2..    }...706 { //sloth..        desc "MUTATION_HEAD_70
+  pattern 'utf8 tag birth_defect' file+0xc8317f3b
+    context: ...int 2..    }...706 { //sloth..        desc "MUTATION_HEAD_706_DESC"..        tag birth_defect..        cha -3....        passives {..            Brace 1..        }..    }...
+  pattern 'utf8 tag birth_defect' file+0xc831aa42
+    context:         lck -1..    }....    //Birth Defects..    700 { //lobster claw..        tag birth_defect..        str -2..    }..    701 { //extra finger..        tag birth_defect..   
+  pattern 'utf8 MUTATION_EYES_M2_DESC' file+0xc831618b
+    context: 03, but completely missing parts are special and keyed in on -2)..        desc "MUTATION_EYES_M2_DESC"..        tag birth_defect..   ..        passives {..            Blind -1..    
+  pattern 'utf8 MUTATION_EYES_M2_DESC' file+0xc879f3e1
+    context: llentamento.,Seu ataque b..sico possui 15% de chance de aplicar lentid..o.,,,,..MUTATION_EYES_M2_DESC,Blind.,,Sufre ceguera.,C..cit...,Blindheit.,Accecamento.,Cegueira.,,,,..MUTATIO
+  pattern 'utf8 blind' file+0xc80b8f8d
+    context: omStatDown "ceil(X/2)"..            }..        }..    }..}....Flicker { //todo: blind when hit..    template teleport..    ..    meta {..        name "ABILITY_FLICKE
+  pattern 'utf8 blind' file+0xc80d0a5a
+    context: pretends its targeting like a spawn ability so he can jump towards things while blind sometimes..    template spawn....    target {..        min_range 2..        max
+  pattern 'utf8 blind' file+0xc80eb299
+    context: pretends its targeting like a spawn ability so he can jump towards things while blind sometimes..    template spawn....    target {..        min_range 2..        max
+  pattern 'utf8 blind' file+0xc8144704
+    context: ary_damage true..    accurate_knockback false..    consider_overkill true..}....blind {..    damage_ally 0..    damage_enemy 0..    heal_ally 0..    heal_enemy 0..  
+  pattern 'utf8 blind' file+0xc8144cbd
+    context: true..    accurate_knockback false..    consider_overkill true..}......nubs_fakeblind {..    damage_ally 0..    damage_enemy 1..    heal_ally 0..    heal_enemy 0..  
+  pattern 'utf8 blind' file+0xc8148396
+    context: referred_distance 0..    total_distance_moved 1..    face_closest_enemy 1..}....blind_move_far {..    distance_to_enemy 0..    distance_to_ally 0..    distance_to_ch
+  pattern 'utf8 blind' file+0xc8148b33
+    context: ..    total_distance_moved -0.01..    face_closest_enemy 1..}....chubs_and_nubs_blind {..    distance_to_enemy 0..    distance_to_ally 0..    //distance_to_ally 1.. 
+  pattern 'utf8 blind' file+0xc8149b43
+    context: v..    total_distance_moved 0.01..    face_closest_enemy 1..    lava 5..}..semi_blind {..    distance_to_enemy -1..    distance_to_ally 0..    distance_to_character 
+  pattern 'utf8 blind' file+0xc81527ef
+    context: ockySlam..        }..        decision_weights always_cast..        move_weights blind_move_far..        auto_orient false..    }..}......Chubs {..    graphics {..   
+  pattern 'utf8 blind' file+0xc8152c90
+    context: Turn [..                        {..                            decision_weights blind..                            move_weights chubs_and_nubs_blind..               
+  pattern 'utf8 blind' file+0xc8152ccf
+    context: decision_weights blind..                            move_weights chubs_and_nubs_blind..                        }....                        {..                      
+  pattern 'utf8 blind' file+0xc8152d3b
+    context:    }....                        {..                            decision_weights blind..                            move_weights stay_close_always_move..             
+  pattern 'utf8 blind' file+0xc8152f06
+    context: e_then_do attack..                    }....                    decision_weights blind..                    move_weights chubs_and_nubs_rage..                }..     
+  pattern 'utf8 blind' file+0xc8153022
+    context: ttern {..            move_then_do attack..        }....        decision_weights blind..        move_weights chubs_and_nubs_blind..    }..}....Nubs {..    graphics {.
+  pattern 'utf8 blind' file+0xc815304d
+    context:        }....        decision_weights blind..        move_weights chubs_and_nubs_blind..    }..}....Nubs {..    graphics {..        movieclip Nubs..        name "ENEM
+  pattern 'utf8 blind' file+0xc815349c
+    context: Turn [..                        {..                            decision_weights blind..                            move_weights chubs_and_nubs_blind..               
+  pattern 'utf8 blind' file+0xc81534db
+    context: decision_weights blind..                            move_weights chubs_and_nubs_blind..                        }....                        {..                      
+  pattern 'utf8 blind' file+0xc8153547
+    context:    }....                        {..                            decision_weights blind..                            move_weights chubs_and_nubs_blind..               
+  pattern 'utf8 blind' file+0xc8153586
+    context: decision_weights blind..                            move_weights chubs_and_nubs_blind..                        }....                        {..                      
+  pattern 'utf8 blind' file+0xc81535fb
+    context:                        {..                            decision_weights nubs_fakeblind..                            move_weights chubs_and_nubs_blind..               
+  pattern 'utf8 blind' file+0xc815363a
+    context: weights nubs_fakeblind..                            move_weights chubs_and_nubs_blind..                        }....                        {..                      
+  pattern 'utf8 blind' file+0xc81536a6
+    context:    }....                        {..                            decision_weights blind..                            move_weights stay_close_always_move..             
+  pattern 'utf8 blind' file+0xc8153819
+    context:     do *NubsNuke..                    }....                    decision_weights blind..                    move_weights chubs_and_nubs_rage..                }....   
+  pattern 'utf8 blind' file+0xc81539e5
+    context: ern {..            move_then_do NubsJump..        }....        decision_weights blind..        move_weights chubs_and_nubs_blind..    }..}....SpiderQueen {..    grap
+  pattern 'utf8 blind' file+0xc8153a10
+    context:        }....        decision_weights blind..        move_weights chubs_and_nubs_blind..    }..}....SpiderQueen {..    graphics {..        movieclip SpiderQueen..    
+  pattern 'utf8 blind' file+0xc8168f7b
+    context:   RandomizeAIWeightsEachTurn [..            {..                decision_weights blind..                move_weights chubs_and_nubs_blind..            }....          
+  pattern 'utf8 blind' file+0xc8168fae
+    context:             decision_weights blind..                move_weights chubs_and_nubs_blind..            }....            {..                decision_weights blind..      
+  pattern 'utf8 blind' file+0xc8168ff6
+    context: nd_nubs_blind..            }....            {..                decision_weights blind..                move_weights stay_close_always_move..            }..        ].
+  pattern 'utf8 blind' file+0xc8169098
+    context:  ]..    }..    ..    ai {..        brain PatternBrain..        decision_weights blind..        move_weights chubs_and_nubs_blind..        auto_orient false....      
+  pattern 'utf8 blind' file+0xc81690c3
+    context: tternBrain..        decision_weights blind..        move_weights chubs_and_nubs_blind..        auto_orient false....        pattern {..            do attack..       
+  pattern 'utf8 blind' file+0xc8169476
+    context:   RandomizeAIWeightsEachTurn [..            {..                decision_weights blind..                move_weights chubs_and_nubs_blind..            }....          
+  pattern 'utf8 blind' file+0xc81694a9
+    context:             decision_weights blind..                move_weights chubs_and_nubs_blind..            }....            {..                decision_weights blind..      
+  pattern 'utf8 blind' file+0xc81694f1
+    context: nd_nubs_blind..            }....            {..                decision_weights blind..                move_weights stay_close_always_move..            }..        ].
+  pattern 'utf8 blind' file+0xc8169593
+    context:  ]..    }..    ..    ai {..        brain PatternBrain..        decision_weights blind..        move_weights chubs_and_nubs_blind..        auto_orient false....      
+  pattern 'utf8 blind' file+0xc81695be
+    context: tternBrain..        decision_weights blind..        move_weights chubs_and_nubs_blind..        auto_orient false....        pattern {..            do attack..       
+  pattern 'utf8 blind' file+0xc816ad47
+    context: ttack..        }....        decision_weights default..        move_weights semi_blind..    }..}....Rover {..    graphics {..        movieclip _CAT..        name "ENE
+  pattern 'utf8 blind' file+0xc8189501
+    context: domly {..                ability ShamblerDash..                decision_weights blind..            }..        }....        pattern {..            do_priority [Shambl
+  pattern 'utf8 blind' file+0xc818a999
+    context: domly {..                ability ShamblerDash..                decision_weights blind..            }..        }....        pattern {..            do_priority [Shambl
+  pattern 'utf8 blind' file+0xc818d962
+    context:         MovementReaction {..            ability Dash_BabyDeathWorm..            blind_spot true..        }..    }..    ..    ai {..        brain PatternBrain....    
+  pattern 'utf8 no eyes' file+0xc831612b
+    context: yes..    702 {..        cha 1..        int 1..        con -2..    }..    -2 { //no eyes (frame 703, but completely missing parts are special and keyed in on -2)..     
+  pattern 'utf8 no eyes' file+0xc8576848
+    context: ,,..EVENT_HUMANSKIN_REW6_N,,,,,,,,,,,..EVENT_HUMANSKIN_REW7,"Even though it has no eyes, {catname} feels as if it is staring right at {him}.......A shudder runs down {
+  pattern 'utf8 no eyebrows' file+0xc8312e61
+    context: s..    700 { //bushy..        tag birth_defect..        lck -1..    }...701 { //no eyebrows..        tag birth_defect..        cha -1..    }...702 { //unibrow..        tag
+  pattern 'utf8 no eyebrows' file+0xc8312eed
+    context: ...702 { //unibrow..        tag birth_defect..        int -1..    }..    -2 { //no eyebrows (completely missing part)..        tag birth_defect..        cha -2..    }..}..
+  pattern 'utf8 no ears' file+0xc8311bd5
+    context: defect....        passives {..            Immobile 1..        }..    }...-2 { //no ears (completely missing part) //TODO: deaf (unaffected by musical abilities)..     
+  pattern 'utf8 cha -2' file+0xc82d7d3b
+    context: DOODIEMASK_DESC"..    rarity rare..    kind face..    frame 203...set Fecal.....cha -2......passives {....SpawnEachTurn {.....object CharmedFly..        }...}..}....T
+  pattern 'utf8 cha -2' file+0xc82e4131
+    context: ESC"...rarity rare...kind neck...frame 181...set Fatty..    ...con 7...spd -5...cha -2.....    passives {....    }..}....EtherealRings {..    name "ARMOR_ETHEREALRING
+  pattern 'utf8 cha -2' file+0xc82e61e4
+    context: nd face..    frame 43..    cursed true..    parasite true...set Parasite....    cha -2..    str 2..    dex 2....    passives {..    }..}....EyeWorm {..    name "ARMOR
+  pattern 'utf8 cha -2' file+0xc8312f36
+    context: -2 { //no eyebrows (completely missing part)..        tag birth_defect..        cha -2..    }..}..eyes {..    300 { //Button Eyes..        desc "MUTATION_EYES_300_DES
+  pattern 'utf8 cha -2' file+0xc831606a
+    context:  //Birth Defects..    700 { //graves disease..        tag birth_defect..        cha -2..    }..   ..    701 { //anophthalmia..        tag birth_defect..        lck -2
+  pattern 'utf8 cha -2' file+0xc8316642
+    context: udge head..        tag melted..        desc "MUTATION_HEAD_304_DESC"....        cha -2..        passives {..            HealthRegenUp 2..            DodgeChance 5%.. 
+  pattern 'utf8 cha -2' file+0xc831d251
+    context:    //Birth Defects..    700 { //cleft pallet..        tag birth_defect..        cha -2..    }..    701 { //anodontia..        tag birth_defect..        str -1..      
+  pattern 'utf8 cha -2' file+0xc831d4b8
+    context:    int -2....con 1..    }...704 { //overbite..        tag birth_defect..        cha -2....str 1..    }....    705 { // Fetus Mouth..        desc "MUTATION_MOUTH_705_D
+  pattern 'utf8 cha -2' file+0xc8320d4a
+    context: Birth Defects..    700 { //neurofibromatosis..        tag birth_defect..        cha -2..    }..    701 { //melanocytic nevus..        tag birth_defect..        cha -2
+  pattern 'utf8 cha -2' file+0xc8320d9a
+    context: cha -2..    }..    701 { //melanocytic nevus..        tag birth_defect..        cha -2..        shield 1..    }...702 { //bleeding..        desc "MUTATION_TEXTURE_702
+  pattern 'utf8 cha -2' file+0xc8320eb0
+    context: ts..        desc "MUTATION_TEXTURE_703_DESC"..        tag birth_defect..        cha -2....        passives {..            MulticlassLevelUp Mage..        }..    }...7
+  pattern 'utf8 cha -2' file+0xc8320f63
+    context: ts..        desc "MUTATION_TEXTURE_704_DESC"..        tag birth_defect..        cha -2....        passives {..            MulticlassLevelUp Fighter..        }..    }.
+  pattern 'utf8 cha -2' file+0xc8321019
+    context: ce..        desc "MUTATION_TEXTURE_705_DESC"..        tag birth_defect..        cha -2....        passives {..            MulticlassLevelUp Thief..        }..    }...
+  pattern 'utf8 cha -2' file+0xc8360e9c
+    context:        }....        stats {..            int 8..            lck -2..            cha -2..        }..    }..}....NecromancersSoul {..    name "PASSIVE_NECROMANCERSOUL_N
+  pattern 'utf8 cha -2' file+0xc836312d
+    context: item_slot {..        slot face..        frame 16..    }....    stats {..        cha -2..    }....    passives {..        SpawnCreepOnHit 1..        Brace 1..    }..}.
+  pattern 'utf8 cha -2' file+0xc8367b45
+    context: E"..    desc "DISORDER_AUTISM_DESC"..    class Disorder....    stats {..        cha -2..        int 2..    }..    passives {..        Autism {..            innate -2.
+  pattern 'utf8 cha -2' file+0xc836a008
+    context: str -2..        dex -2..        con -2..        spd -2..        int -2..        cha -2..    }....    passives {..        SizeScale .4..    }..}....Sociopathy {..    n
+  pattern 'utf8 cha -2' file+0xc836bda8
+    context: int 12..        str -2..        dex -2..        con -2..        spd -2..        cha -2..        lck -2..    }..}....WilliamsSyndrome {//might be cool to make the mout
+  pattern 'utf8 dex -2' file+0xc8311c49
+    context: TODO: deaf (unaffected by musical abilities)..        tag birth_defect..        dex -2..    }..}..eyebrows {..    300 { // Bolt Brows..        spd 1..    }....    301
+  pattern 'utf8 dex -2' file+0xc831aaa7
+    context:      str -2..    }..    701 { //extra finger..        tag birth_defect..        dex -2..    }..    702 { //club foot..        tag birth_defect..        spd -2..    }.
+  pattern 'utf8 dex -2' file+0xc836028a
+    context:  stats {..            cha 4..            con 4..            spd -2..            dex -2..        }..    }..}....TanksSoul {..    name "PASSIVE_TANKSOUL_NAME"..    desc
+  pattern 'utf8 dex -2' file+0xc8360478
+    context:        }....        stats {..            con 8..            int -2..            dex -2..        }..    }..}....ThiefsSoul {..    name "PASSIVE_THIEFSOUL_NAME"..    de
+  pattern 'utf8 dex -2' file+0xc83608a6
+    context:  stats {..            int 4..            cha 4..            str -2..            dex -2..        }..    }..}....ButchersSoul {..    name "PASSIVE_BUTCHERSOUL_NAME"..  
+  pattern 'utf8 dex -2' file+0xc8369cf2
+    context:  "CAT_NAME_MOD_GIGANTISM"....    stats {..        con 2..        str 2..        dex -2..        lck -2..        spd -2..    }....    passives {..        Trample 3..  
+  pattern 'utf8 dex -2' file+0xc8369fc8
+    context: d "CAT_NAME_MOD_PDWARF"....    stats {..        lck 12..        str -2..        dex -2..        con -2..        spd -2..        int -2..        cha -2..    }....    p
+  pattern 'utf8 dex -2' file+0xc836bd78
+    context: SC"..    class Disorder....    stats {..        int 12..        str -2..        dex -2..        con -2..        spd -2..        cha -2..        lck -2..    }..}....Wi
+
+summary:
+  'u32 0xFFFFFFFE / -2': 40 hit(s) shown
+  'i32 -2 plus zero': 40 hit(s) shown
+  'utf8 birth_defect': 40 hit(s) shown
+  'utf16le birth_defect': 0 hit(s) shown
+  'utf8 tag birth_defect': 40 hit(s) shown
+  'utf16le tag birth_defect': 0 hit(s) shown
+  'utf8 MUTATION_EYES_M2_DESC': 2 hit(s) shown
+  'utf16le MUTATION_EYES_M2_DESC': 0 hit(s) shown
+  'utf8 MUTATION_EYEBROWS_M2_DESC': 0 hit(s) shown
+  'utf16le MUTATION_EYEBROWS_M2_DESC': 0 hit(s) shown
+  'utf8 MUTATION_EARS_M2_DESC': 0 hit(s) shown
+  'utf16le MUTATION_EARS_M2_DESC': 0 hit(s) shown
+  'utf8 blind': 40 hit(s) shown
+  'utf16le blind': 0 hit(s) shown
+  'utf8 no eyes': 2 hit(s) shown
+  'utf16le no eyes': 0 hit(s) shown
+  'utf8 no eyebrows': 2 hit(s) shown
+  'utf16le no eyebrows': 0 hit(s) shown
+  'utf8 no ears': 1 hit(s) shown
+  'utf16le no ears': 0 hit(s) shown
+  'utf8 cha -2': 18 hit(s) shown
+  'utf16le cha -2': 0 hit(s) shown
+  'utf8 dex -2': 8 hit(s) shown
+  'utf16le dex -2': 0 hit(s) shown
