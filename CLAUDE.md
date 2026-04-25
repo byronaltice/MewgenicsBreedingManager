@@ -104,6 +104,61 @@ src/
 
 ---
 
+## Advisor Strategy
+
+A multi-model workflow pattern for non-trivial tasks. Opus advises and reviews; Sonnet/Haiku implements.
+
+### Roles
+
+- **Opus (adviser):** Reads the relevant code, understands the requirement, identifies risks and edge cases, produces a structured plan, dispatches subagents, then reviews the output. Opus does not edit files in the primary workflow — it reasons, plans, and checks. Direct file edits by Opus are reserved for trivial fixups, CLAUDE.md / memory updates, and the orchestration glue between subagent calls.
+- **Sonnet (implementer):** Receives a tight plan from Opus and executes it. Default model for implementation, investigation scripts, refactors, and any task that needs context awareness or judgment.
+- **Haiku (mechanical worker):** Reserved for high-volume mechanical tasks — formatting, lint sweeps, generating fixtures, repetitive find-and-replace across many files. Not for anything that requires understanding context.
+
+### The three-phase loop
+
+1. **Plan** — Opus reads what's needed, writes a plan that names file paths, expected behavior, edge cases, and the report format. Vague plans are pushed back on before dispatch, not after.
+2. **Execute** — Sonnet (or Haiku) carries out the plan via the Agent tool, returns a summary plus paths to any artifacts produced.
+3. **Review** — Opus checks the summary against the plan, spot-checks the artifacts the subagent claims to have produced, and decides whether to accept, iterate, or revise the plan.
+
+The review phase is non-optional. Skipping it to save tokens defeats the strategy.
+
+### When to skip the strategy
+
+Use the active model directly (no subagent dispatch) when:
+
+- The task is small and well-defined — typo fix, single-function rename, obvious one-line change.
+- The work is exploratory scratchpad — poking around to understand something, with no deliverable.
+- The task is genuinely mechanical and high-volume — Haiku territory, but invoke directly rather than wrapping in a planning ceremony.
+
+If the operator started the session on Sonnet, that's a signal the task is bounded — don't spin up Opus orchestration for it.
+
+### Plan quality rules
+
+A plan handed to a subagent must include:
+
+- **Specific file paths** — not "the parser", but `src/save_parser.py`.
+- **Expected output shape** — what the report should contain, what artifacts to produce, where they go.
+- **Constraints** — what not to touch, what conventions to follow, what would count as a failure.
+- **Obstacle protocol** — instruct the subagent to stop and surface ambiguity or unexpected blockers in its summary rather than improvise. The plan is a starting point, not a contract; if reality disagrees, control returns to Opus to revise.
+
+### Common failure modes (and how to avoid them)
+
+- **Ambiguous plans → Sonnet improvises.** Tighten the plan before dispatch. Name edge cases explicitly.
+- **Skipped review → quality drift.** Always run the review phase, even if brief.
+- **Haiku used where Sonnet fits.** "Looks simple" ≠ "is simple." If the task needs context awareness or judgment, use Sonnet.
+- **Stale CLAUDE.md → bad plans.** Update CLAUDE.md and memory as the codebase and investigation state change. Opus plans only as well as the context lets it.
+- **Plan treated as sacred.** When Sonnet hits a real obstacle, it should stop and report. Opus revises; Sonnet does not improvise around the gap.
+
+### Default model selection
+
+- Investigation scripts, blob-walking, roster scans, refactors, well-defined fixes → Sonnet.
+- Decompile interpretation with multiple plausible readings, ambiguous requirements, subtle correctness, planning, review, documentation updates → Opus.
+- Bulk formatting, mechanical regex sweeps across many files → Haiku.
+
+When dispatching a subagent, specify `model:` explicitly. Inheriting the parent model wastes Opus capacity on Sonnet-grade work.
+
+---
+
 ## Project Wide
 
 ### Standing Development Rules
