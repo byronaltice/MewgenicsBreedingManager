@@ -1,0 +1,179 @@
+Direction 43 — Load-Time Birth Defect Signal Source
+=====================================================
+Date: 2026-04-25
+Scripts: tools/GhidraDirection43Probe.java
+         tools/GhidraDirection43bProbe.java
+         tools/GhidraDirection43cProbe.java
+Output:  tools/ghidra_direction43_utf8.txt
+         tools/ghidra_direction43b_utf8.txt
+         tools/ghidra_direction43c_utf8.txt
+
+QUESTION: What saved signal does FUN_1400ca4a0 read inside FUN_1401d2ff0
+to decide which body-part slots get CatPart+0x18 = 0 for Whommie/Bud?
+
+---------------------------------------------------------------------------
+CALLSITE 1401d3c8b CONTEXT (FUN_1401d2ff0)
+---------------------------------------------------------------------------
+
+FUN_1401d2ff0 is not the save-loader for cats. It is
+GlobalProgressionData::ComputeSaveFilePercentage. The function:
+  1. Iterates cats from a save-file catalog (s_save_file_cat_140edc110)
+     and calls FUN_14022d360 (deserialize) for each.
+  2. Reads s_save_file_percent / s_save_file_next_cat_mutation values
+     from the SQLite save.
+  3. Computes iVar4 = save percentage (0-100), iVar5 = next_cat_mutation
+     threshold (FUN_14022a530), then loops uVar18 = (iVar4-iVar5)/10+1
+     times calling FUN_1400ca4a0.
+  4. The call: FUN_1400ca4a0(local_ca8, 1, &"none", &lambda_fd8)
+     - local_ca8 = cat object pointer
+     - param_2 = 1 (use "birth_defect"-tagged candidate list)
+     - param_3 = "none" (4-char literal 0x656e6f6e, the current part string)
+     - param_4 = lambda from GlobalProgressionData::ComputeSaveFilePercentage
+       lambda_1<bool, enum_glaiel::CatPartID> — filters which part IDs qualify
+
+This callsite is applying birth_defects as a progression-unlock mechanism
+(parts unlocked based on save completion percentage), NOT as a per-cat
+load-time birth defect reconstitution. This is NOT the source of
+Whommie/Bud defects.
+
+---------------------------------------------------------------------------
+FUN_1400ca4a0 LOAD-TIME BEHAVIOR
+---------------------------------------------------------------------------
+
+FUN_1400ca4a0(param_1=cat, param_2=flag, param_3=partStr, param_4=lambda):
+  - If param_2 != 0: loads candidate partIDs from _DAT_141130700 (global
+    birth_defect-tagged partID table; up to 10 candidates).
+  - If param_2 == 0: loads from _DAT_1411307e0 (larger table; up to 15
+    candidates).
+  - Filters candidates via param_4[7] virtual dispatch (lambda returns bool).
+  - Shuffles filtered candidates using FUN_1400d2450 (Fisher-Yates shuffle
+    using xoshiro256** state at TLS+0x178).
+  - For each shuffled candidate: calls FUN_1400caa20(param_1, partID, partStr).
+  - FUN_1400caa20: calls FUN_140944300(GON_table, &lambda, TLS+0x178),
+    which uses TLS+0x178 as the RNG source for a second random pick within
+    the MutatePiece path. On success calls FUN_1400cb130 (part writer).
+  - Returns 1 if any mutation applied, 0 otherwise.
+
+WRITE SITE: FUN_1400cb130 (confirmed Direction 34). This writes CatPart+0x04
+(visible ID) for the chosen body-part slot. CatPart+0x18 is set to 0 by the
+body-part initialization code (FUN_1400b5260 / FUN_1400a5390) when no
+explicit part ID has been assigned. The "birth_defect" mechanism may set
+CatPart+0x18 via FUN_1400caa20 → FUN_1400cb130's secondary effects.
+
+KEY: FUN_1400d2450 is the Fisher-Yates shuffle that reads and updates
+TLS+0x178. This IS the RNG state. The shuffle is deterministic given the
+same TLS+0x178 starting value.
+
+---------------------------------------------------------------------------
+RANDOM_SEED: THE SAVED SIGNAL (OPTION b + c)
+---------------------------------------------------------------------------
+
+FUN_140230750 (cat save-context loader) at line 386:
+  local_f08 = s_random_seed_140ef3558  → "random_seed"
+  FUN_1409fc650(param_1 + 0x470, &"properties", &"random_seed", TLS+0x178)
+
+This call reads the "random_seed" key from the SQLite "properties" table
+and seeds TLS+0x178 (the global xoshiro256** RNG state) with it.
+
+After the seed is loaded, subsequent calls to FUN_1400ca4a0 anywhere in
+the load sequence will use this seeded state to deterministically pick
+which body-part slots receive birth_defect mutations.
+
+The SQLite "properties" table contains a "random_seed" entry. This was NOT
+previously identified as a birth-defect carrier — it was invisible to the
+Direction 7c / 13b schema audit because it is a generic key-value store
+and "random_seed" was not suspected.
+
+---------------------------------------------------------------------------
+OTHER CALLERS OF FUN_1400ca4a0
+---------------------------------------------------------------------------
+
+FUN_1403cce80 (AnimationTest::update or cat update function):
+  - Calls FUN_1400ca4a0 3-4 times based on generation/level checks:
+      if (lVar28 - 2U < 3): calls ca4a0 × 3
+      if (lVar28 - 5U < 3): calls ca4a0 × 1
+  - Calls FUN_140734760 (visual update) after.
+  - Does NOT call FUN_14022d360 in this function body.
+  - This is likely an "apply mutations on level-up / room-interaction" path,
+    not a load-time path. The lambda here is local_dd8 (unknown type).
+
+FUN_1401e64a0 (3089 lines; large game-loop function):
+  - Calls FUN_1400ca4a0 at line 2305 in a loop over cats:
+      cVar19 = FUN_1400ca4a0(lVar28, 1, uVar29, uVar27)
+    where uVar29 = FUN_140052640(local_13d8, &DAT_140ec5d04) — the "none"
+    string, and uVar27 = FUN_1401f0310(local_7b8, &local_26f0) — a lambda.
+  - Context: applies mutation when FUN_140943240(RNG, cat+0x178) rolls true,
+    inside a cat loop. This is the mutation-apply-on-room-tick path.
+
+FUN_1400701a0: combat mutation popup path. Not load-time.
+FUN_1400ba2e0: mutation application helper; uses lVar22+0x178 directly.
+
+---------------------------------------------------------------------------
+MAPPING TO BLOB MAP
+---------------------------------------------------------------------------
+
+The "random_seed" is stored in the SQLite "properties" table — NOT in the
+per-cat blob. The blob map is complete and correct. This is a save-wide
+property, not a per-cat field.
+
+The "properties" table was audited in Direction 7e and Direction 13b for
+per-cat defect data but was not inspected for a "random_seed" key. The
+key-value store was not enumerated exhaustively.
+
+---------------------------------------------------------------------------
+VERDICT
+---------------------------------------------------------------------------
+
+Option (b) + (c): The game saves a "random_seed" in the SQLite "properties"
+table. At load time, FUN_140230750 reads it and seeds TLS+0x178. Subsequent
+RNG-driven calls to FUN_1400ca4a0 (in GlobalProgressionData::ComputeSave-
+FilePercentage and in room/interaction update functions) deterministically
+apply birth_defect mutations to cat body-part slots. The CatPart+0x18 flag
+that drives the 0xFFFFFFFE display is set as a side effect of this RNG-based
+mutation application, not from any per-cat blob field.
+
+This means birth defects for Whommie/Bud are NOT stored per-cat in the blob.
+They are reconstructed at load time from the global random_seed, the global
+birth_defect candidate tables, and the per-cat state at the time of mutation
+application (body-part container initialized from T-array, then RNG-driven
+defects layered on top).
+
+---------------------------------------------------------------------------
+RECOMMENDED NEXT STEPS
+---------------------------------------------------------------------------
+
+1. CONFIRM random_seed is in the SQLite properties table:
+   Extract and print the "properties" table from the investigation save.
+   Look for a "random_seed" key and record its value.
+
+2. UNDERSTAND the RNG mutation sequence:
+   Determine the call order of FUN_1400ca4a0 at load time relative to
+   FUN_14022d360 (deserialization). Specifically: does FUN_140230750 call
+   ca4a0 directly after seeding, or is ca4a0 called later by
+   FUN_1403cce80 / FUN_1401d2ff0?
+
+3. IDENTIFY the lambda filter for Whommie/Bud:
+   The lambda passed as param_4 to FUN_1400ca4a0 determines which part IDs
+   are eligible. Understand what the lambda in FUN_140230750's load path
+   tests — this is the key to knowing which body parts get defects.
+
+4. Once the load-time call sequence and lambda are understood, determine
+   whether the parser can reconstruct birth_defect detection without
+   replaying the full RNG sequence (e.g., by reading random_seed and
+   simulating the RNG), or whether a different approach is needed.
+
+5. DO NOT modify save_parser.py until the call sequence and lambda filter
+   are fully understood.
+
+---------------------------------------------------------------------------
+FUNCTION REFERENCE UPDATES
+---------------------------------------------------------------------------
+FUN_1401d2ff0     -- GlobalProgressionData::ComputeSaveFilePercentage (NOT a
+                     simple cat loader); calls FUN_1400ca4a0 at 1401d3c8b
+                     as a progression unlock mechanism
+FUN_140230750     -- Cat save-context loader; reads "random_seed" from
+                     SQLite "properties" table and seeds TLS+0x178 RNG state
+FUN_1409fc650     -- Reads a named key from a SQLite table into RNG state
+FUN_1400d2450     -- Fisher-Yates shuffle using xoshiro256** at TLS+0x178
+FUN_1403cce80     -- Cat update/animation function; applies ca4a0 on level-up
+FUN_1401e64a0     -- Large game-loop function; applies ca4a0 on room tick

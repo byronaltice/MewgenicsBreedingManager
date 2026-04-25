@@ -1,0 +1,895 @@
+﻿
+================================================================================
+CALLER @ 1400ba2e0
+================================================================================
+Function: FUN_1400ba2e0 @ 1400ba2e0
+Total lines: 704
+--- First 30 lines ---
+0001: 
+0002: /* WARNING: Removing unreachable block (ram,0x0001400bb3a8) */
+0003: 
+0004: void FUN_1400ba2e0(longlong param_1,undefined8 *param_2,char param_3)
+0005: 
+0006: {
+0007:   int iVar1;
+0008:   ulonglong uVar2;
+0009:   ulonglong uVar3;
+0010:   ulonglong uVar4;
+0011:   double dVar5;
+0012:   undefined4 uVar6;
+0013:   double dVar7;
+0014:   char cVar8;
+0015:   int iVar9;
+0016:   uint uVar10;
+0017:   undefined8 uVar11;
+0018:   longlong lVar12;
+0019:   undefined8 uVar13;
+0020:   undefined8 uVar14;
+0021:   undefined8 *puVar15;
+0022:   undefined8 *puVar16;
+0023:   char **ppcVar17;
+0024:   ulonglong uVar18;
+0025:   ulonglong uVar19;
+0026:   ulonglong uVar20;
+0027:   undefined4 uVar21;
+0028:   longlong lVar22;
+0029:   longlong lVar23;
+0030:   undefined4 extraout_XMM0_Da;
+
+--- Context around FUN_1400ca4a0 (birth_defect applier) calls ---
+=== Match at line 617 ===
+0587:         local_218 = 0;
+0588:         local_210 = 0;
+0589:         FUN_140050ea0(&local_228,&DAT_140ec2508,3);
+0590:         uVar14 = FUN_1407aedd0(lVar12,local_188,&local_228,0);
+0591:         FUN_1402debc0(extraout_XMM0_Da_05,&local_208,uVar14);
+0592:         local_1b8 = local_1b8 | 1;
+0593:         FUN_1400c8780(param_1,&local_208,4);
+0594:         FUN_1400522d0(local_1e0);
+0595:         FUN_1400522d0(&uStack_200);
+0596:       }
+0597:       cVar8 = FUN_140943240(uVar24,lVar22 + 0x178);
+0598:       if ((cVar8 != '\0') &&
+0599:          (uVar10 = FUN_140943040(1,5,lVar22 + 0x178), dVar7 = DAT_14112fb88, dVar5 = DAT_14112f610,
+0600:          0 < (int)uVar10)) {
+0601:         uVar19 = (ulonglong)uVar10;
+0602:         do {
+0603:           local_150 = 0;
+0604:           uStack_220 = 0;
+0605:           local_218 = 4;
+0606:           local_210 = 0xf;
+0607:           local_228 = 0x656e6f6e;
+0608:           uVar2 = *(ulonglong *)(lVar22 + 400);
+0609:           uVar3 = *(ulonglong *)(lVar22 + 0x178);
+0610:           uVar4 = *(ulonglong *)(lVar22 + 0x180);
+0611:           uVar18 = uVar3 ^ *(ulonglong *)(lVar22 + 0x188);
+0612:           uVar20 = uVar4 ^ uVar2;
+0613:           *(ulonglong *)(lVar22 + 0x180) = uVar4 ^ uVar18;
+0614:           *(ulonglong *)(lVar22 + 0x178) = uVar3 ^ uVar20;
+0615:           *(ulonglong *)(lVar22 + 0x188) = uVar4 << 0x11 ^ uVar18;
+0616:           *(ulonglong *)(lVar22 + 400) = uVar20 >> 0x13 | uVar20 << 0x2d;
+0617:           FUN_1400ca4a0(param_1,CONCAT71((int7)(uVar18 >> 8),
+0618:                                          (double)(uVar3 + uVar2 >> 0xb) * dVar5 < dVar7),&local_228,
+0619:                         local_188);
+0620:           uVar19 = uVar19 - 1;
+0621:         } while (uVar19 != 0);
+0622:       }
+0623:     }
+0624:   }
+0625: LAB_1400bb6e2:
+0626:   local_238 = 8;
+0627:   local_230 = 0xf;
+0628:   local_248 = (char *)0x7363696870617267;
+0629:   uStack_240 = 0;
+0630:   uVar14 = FUN_140936540(uVar11,&local_248);
+0631:   uStack_200 = 0;
+0632:   local_1f8 = 7;
+0633:   local_1f0 = 0xf;
+0634:   local_208._0_6_ = CONCAT24(s_palette_140eca948._4_2_,s_palette_140eca948._0_4_);
+0635:   local_208._0_7_ = CONCAT16(s_palette_140eca948[6],(undefined6)local_208);
+0636:   local_208 = (char *)(ulonglong)(uint7)local_208;
+=== End ===
+
+--- Context around FUN_14022d360 (deserializer) calls ---
+
+--- Lines with save/load/cat strings ---
+0102:           uStack_200._0_3_ = CONCAT12(s_bonus_items_140ecd508[10],s_bonus_items_140ecd508._8_2_);
+0147:               uStack_200._0_3_ = CONCAT12(s_bonus_items_140ecd508[10],s_bonus_items_140ecd508._8_2_)
+0227:     lVar23 = FUN_140943c30(uVar14,lVar12 + 0x178);
+0231:     uStack_200._0_3_ = CONCAT12(s_DefaultMove_140ecaf60[10],s_DefaultMove_140ecaf60._8_2_);
+0254:     uStack_200._0_3_ = CONCAT12(s_attack_pool_140eccef0[10],s_attack_pool_140eccef0._8_2_);
+0257:     lVar12 = FUN_140943c30(uVar14,lVar12 + 0x178);
+0360:         cVar8 = FUN_140943240(uVar24,lVar22 + 0x178);
+0367:                      _Func_impl_no_alloc<class_`public:_void___cdecl_glaiel::CatData::set_class(class_std::basic_string<char,struct_std::char_traits<char>,class_std::allocator<char>_>,bool)___ptr64'::`94'::<lambda_1>,bool,class_GonObject_const&___ptr64>
+0375:           uVar14 = FUN_140944300(uVar14,&local_208,lVar22 + 0x178);
+0392:       cVar8 = FUN_140943240(uVar24,lVar12 + 0x178);
+0422:       cVar8 = FUN_140943240(uVar24,lVar12 + 0x178);
+0477:       cVar8 = FUN_140943240(uVar24,lVar12 + 0x178);
+0481:       cVar8 = FUN_140943240(uVar24,lVar12 + 0x178);
+0485:       cVar8 = FUN_140943240(uVar24,lVar12 + 0x178);
+0489:       cVar8 = FUN_140943240(uVar24,lVar12 + 0x178);
+0493:       cVar8 = FUN_140943240(uVar24,lVar12 + 0x178);
+0498:       cVar8 = FUN_140943240(uVar24,lVar12 + 0x178);
+0503:       cVar8 = FUN_140943240(uVar25,lVar12 + 0x178);
+0512:       cVar8 = FUN_140943240(uVar25,lVar12 + 0x178);
+0523:       cVar8 = FUN_140943240(uVar25,lVar12 + 0x178);
+0538:       cVar8 = FUN_140943240(uVar25,lVar12 + 0x178);
+0552:       cVar8 = FUN_140943240(uVar25,lVar22 + 0x178);
+0567:       cVar8 = FUN_140943240(uVar25,lVar22 + 0x178);
+0582:       cVar8 = FUN_140943240(uVar25,lVar22 + 0x178);
+0597:       cVar8 = FUN_140943240(uVar24,lVar22 + 0x178);
+0599:          (uVar10 = FUN_140943040(1,5,lVar22 + 0x178), dVar7 = DAT_14112fb88, dVar5 = DAT_14112f610,
+0609:           uVar3 = *(ulonglong *)(lVar22 + 0x178);
+0614:           *(ulonglong *)(lVar22 + 0x178) = uVar3 ^ uVar20;
+0617:           FUN_1400ca4a0(param_1,CONCAT71((int7)(uVar18 >> 8),
+0634:   local_208._0_6_ = CONCAT24(s_palette_140eca948._4_2_,s_palette_140eca948._0_4_);
+0635:   local_208._0_7_ = CONCAT16(s_palette_140eca948[6],(undefined6)local_208);
+0671:   local_208._0_6_ = CONCAT24(s_palette_140eca948._4_2_,s_palette_140eca948._0_4_);
+0672:   local_208._0_7_ = CONCAT16(s_palette_140eca948[6],(undefined6)local_208);
+
+================================================================================
+CALLER @ 1400701a0
+================================================================================
+Function: FUN_1400701a0 @ 1400701a0
+Total lines: 141
+--- First 30 lines ---
+0001: 
+0002: void FUN_1400701a0(longlong param_1)
+0003: 
+0004: {
+0005:   undefined1 auVar1 [16];
+0006:   undefined1 auVar2 [16];
+0007:   double dVar3;
+0008:   undefined8 uVar4;
+0009:   char cVar5;
+0010:   longlong *plVar6;
+0011:   ulonglong uVar7;
+0012:   ulonglong uVar8;
+0013:   undefined8 *puVar9;
+0014:   longlong *plVar10;
+0015:   longlong *plVar11;
+0016:   double dVar12;
+0017:   undefined4 uVar13;
+0018:   undefined8 local_d8;
+0019:   undefined8 uStack_d0;
+0020:   ulonglong local_c8;
+0021:   ulonglong local_c0;
+0022:   undefined1 local_b8 [4];
+0023:   uint local_b4;
+0024:   longlong *local_b0;
+0025:   undefined1 local_a8 [16];
+0026:   undefined1 local_98 [16];
+0027:   undefined1 local_88 [56];
+0028:   undefined8 local_50;
+0029:   
+0030:   if (*(longlong *)(*(longlong *)(param_1 + 0x38) + 0x88) != 0) {
+
+--- Context around FUN_1400ca4a0 (birth_defect applier) calls ---
+=== Match at line 135 ===
+0105:                          ((longlong)local_d8 + (-8 - *(longlong *)((longlong)local_d8 + -8)))) {
+0106:                     /* WARNING: Subroutine does not return */
+0107:                 FUN_140d3cec8(*(longlong *)((longlong)local_d8 + -8),local_c0 + 0x28);
+0108:               }
+0109:             }
+0110:             thunk_FUN_1409c9360();
+0111:           }
+0112:           plVar11 = plVar11 + 1;
+0113:         } while (plVar11 != local_b0 + local_b4);
+0114:       }
+0115:       dVar12 = (double)FUN_140943300();
+0116:       if (dVar12 < dVar3) {
+0117:         local_d8 = (char *)0x0;
+0118:         uStack_d0 = 0;
+0119:         local_c8 = 0;
+0120:         local_c0 = 0;
+0121:         local_d8 = (char *)FUN_140052590(0x20);
+0122:         uVar4 = s_COMBAT_POPUP_MUTATED_140ec7a48._8_8_;
+0123:         local_c8 = 0x14;
+0124:         local_c0 = 0x1f;
+0125:         *(undefined8 *)local_d8 = s_COMBAT_POPUP_MUTATED_140ec7a48._0_8_;
+0126:         *(undefined8 *)(local_d8 + 8) = uVar4;
+0127:         *(undefined4 *)(local_d8 + 0x10) = s_COMBAT_POPUP_MUTATED_140ec7a48._16_4_;
+0128:         local_d8[0x14] = '\0';
+0129:         FUN_14075d5f0(param_1,&local_d8,0);
+0130:         local_50 = 0;
+0131:         uStack_d0 = 0;
+0132:         local_c8 = 4;
+0133:         local_c0 = 0xf;
+0134:         local_d8 = (char *)0x656e6f6e;
+0135:         FUN_1400ca4a0(*(undefined8 *)(*(longlong *)(param_1 + 0x38) + 0x88),0,&local_d8,local_88);
+0136:       }
+0137:     }
+0138:   }
+0139:   return;
+0140: }
+0141: 
+=== End ===
+
+--- Context around FUN_14022d360 (deserializer) calls ---
+
+--- Lines with save/load/cat strings ---
+0052:           local_d8 = (char *)(ulonglong)CONCAT24(s_chance_140ec7a10._4_2_,s_chance_140ec7a10._0_4_);
+
+================================================================================
+CALLER @ 1401e64a0
+================================================================================
+Function: FUN_1401e64a0 @ 1401e64a0
+Total lines: 3089
+--- First 30 lines ---
+0001: 
+0002: /* WARNING: Function: __chkstk replaced with injection: alloca_probe */
+0003: /* WARNING: Type propagation algorithm not settling */
+0004: /* WARNING: Globals starting with '_' overlap smaller symbols at the same address */
+0005: 
+0006: longlong * FUN_1401e64a0(longlong param_1,longlong *param_2)
+0007: 
+0008: {
+0009:   longlong *plVar1;
+0010:   int iVar2;
+0011:   longlong lVar3;
+0012:   longlong lVar4;
+0013:   ulonglong uVar5;
+0014:   double dVar6;
+0015:   undefined1 auVar7 [16];
+0016:   double dVar8;
+0017:   double dVar9;
+0018:   double dVar10;
+0019:   double dVar11;
+0020:   double dVar12;
+0021:   undefined8 uVar13;
+0022:   undefined8 uVar14;
+0023:   bool bVar15;
+0024:   undefined4 uVar16;
+0025:   undefined4 uVar17;
+0026:   void *pvVar18;
+0027:   char cVar19;
+0028:   char cVar20;
+0029:   char cVar21;
+0030:   byte bVar22;
+
+--- Context around FUN_1400ca4a0 (birth_defect applier) calls ---
+=== Match at line 2305 ===
+2275:         if (0.0 < (double)local_res18) {
+2276:           plVar50 = (longlong *)plVar25[6];
+2277:           plVar1 = plVar50 + *(uint *)((longlong)plVar25 + 0x2c);
+2278:           for (; plVar50 != plVar1; plVar50 = plVar50 + 1) {
+2279:             lVar28 = *plVar50;
+2280:             lVar30 = FUN_1400d5600(*(undefined8 *)(DAT_1413c7bd0 + 0x598),
+2281:                                    *(undefined8 *)(lVar28 + 0x80));
+2282:             if (*(char *)(lVar30 + 0x7ac) == '\0') {
+2283:               cVar19 = FUN_140943240((int)puVar41,*plVar38 + uVar43);
+2284:               if (cVar19 != '\0') {
+2285:                 lVar28 = FUN_1401fce20(lVar28);
+2286:                 FUN_1401e0ba0(local_dc8);
+2287:                 uVar27 = FUN_1401ec200(&local_2c58,local_1438,*(undefined8 *)(lVar28 + 0xc48));
+2288:                 FUN_140051b90(local_d88,uVar27);
+2289:                 FUN_1400522d0(local_1438);
+2290:                 FUN_140051d30(local_dc8,"mutate");
+2291:                 uVar27 = FUN_140052640(local_1418,&DAT_140ec5d09);
+2292:                 FUN_1400b6a90(lVar28,uVar27);
+2293:                 FUN_140052640(local_1da8,"HOUSE_INTERSTITIAL_MUTATION");
+2294:                 uVar27 = FUN_140956270(&DAT_1413b2590,local_13f8,local_1da8);
+2295:                 FUN_1400623c0(local_d68,uVar27);
+2296:                 FUN_140051de0(local_13f8);
+2297:                 FUN_1400522d0(local_1da8);
+2298:                 FUN_14013f5a0(local_d10,lVar28);
+2299:                 FUN_140047b60(local_d20,lVar28 + 0xc48);
+2300:                 local_ce0 = 1;
+2301:                 local_res18 = (char **)local_7b8;
+2302:                 local_26f0 = lVar28;
+2303:                 uVar27 = FUN_1401f0310(local_7b8,&local_26f0);
+2304:                 uVar29 = FUN_140052640(local_13d8,&DAT_140ec5d04);
+2305:                 cVar19 = FUN_1400ca4a0(lVar28,1,uVar29,uVar27);
+2306:                 if (cVar19 != '\0') {
+2307:                   FUN_14013f5a0(local_cf8,lVar28);
+2308:                   FUN_1401e63b0(plVar24,local_dc8);
+2309:                 }
+2310:                 FUN_1401e0c80(local_dc8);
+2311:                 uVar43 = local_2c78;
+2312:               }
+2313:             }
+2314:             plVar25 = local_2c70;
+2315:           }
+2316:         }
+2317:         plVar24 = local_2c50;
+2318:         puVar41 = local_2c88;
+2319:         uVar54 = SUB84(local_2c90,0);
+2320:         if (((0.0 < (double)local_2c90) || (0.0 < (double)local_2c88)) ||
+2321:            ((double)local_2c50 != 0.0)) {
+2322:           local_2c90 = (longlong *)plVar25[6];
+2323:           local_2c50 = local_2c90 + *(uint *)((longlong)plVar25 + 0x2c);
+2324:           if (local_2c90 != local_2c50) {
+=== End ===
+
+--- Context around FUN_14022d360 (deserializer) calls ---
+
+--- Lines with save/load/cat strings ---
+0682:   local_2c70 = (longlong *)0x178;
+0683:   FUN_140084960(local_2ae8,*(longlong *)ThreadLocalStoragePointer + 0x178);
+0705:   FUN_140084960(&local_2b88,*(longlong *)ThreadLocalStoragePointer + 0x178);
+0716:   FUN_140084960(&local_2be8,*(longlong *)ThreadLocalStoragePointer + 0x178);
+0760:           auVar60._0_8_ = auVar60._0_8_ * (double)CONCAT44(uVar53,uVar51);
+0799:                     cVar19 = FUN_140943240(uVar63,*(longlong *)pvVar18 + 0x178);
+0895:     FUN_140051d30(local_8a8,"eatCat");
+0951:         (cVar19 = FUN_140943240(uVar51,*(longlong *)pvVar18 + 0x178), cVar19 != '\0')))) {
+0981:     FUN_140084960((undefined1 *)((longlong)local_res18 + 0x28),*plVar24 + 0x178);
+0988:   plVar24 = (longlong *)0x178;
+1152:       in_stack_ffffffffffffd348 = CONCAT71((int7)(in_stack_ffffffffffffd348 >> 8),1);
+1164:         local_res18 = (char **)CONCAT71(local_res18._1_7_,1);
+1196:       local_2c78 = CONCAT44(local_2c78._4_4_,uVar42);
+1198:         local_2c78 = CONCAT44(local_2c78._4_4_,uVar42);
+1203:           local_2c78 = CONCAT44(local_2c78._4_4_,uVar42);
+1215:         local_2c78 = CONCAT44(local_2c78._4_4_,1);
+1294:                      _Func_impl_no_alloc<class_`public:_class_std::basic_string<wchar_t,struct_std::char_traits<wchar_t>,class_std::allocator<wchar_t>_>___cdecl_glaiel::StringsDatabase::do_replacements(class_std::basic_string<wchar_t,struct_std::char_traits<wchar_t>,class_std::allocator<wchar_t>_>_const&___ptr64)___ptr64'::`2'::<lambda_1>,class_std::basic_string<wchar_t,struct_std::char_traits<wchar_t>,class_std::allocator<wchar_t>_>,class_std::basic_string<wchar_t,struct_std::char_traits<wchar_t>,class_std::allocator<wchar_t>_>_const&___ptr64>
+1301:           lVar30 = CONCAT62(uStack_2516,local_2518);
+1323:             lVar28 = *(longlong *)(CONCAT44(uStack_2424,local_2428) + -8);
+1324:             if (0x1f < (CONCAT44(uStack_2424,local_2428) - lVar28) - 8U) {
+1342:             lVar28 = *(longlong *)(CONCAT62(uStack_2646,local_2648) + -8);
+1343:             if (0x1f < (CONCAT62(uStack_2646,local_2648) - lVar28) - 8U) {
+1356:             lVar28 = *(longlong *)(CONCAT62(uStack_26a6,local_26a8) + -8);
+1357:             if (0x1f < (CONCAT62(uStack_26a6,local_26a8) - lVar28) - 8U) {
+1435:           lVar28 = *(longlong *)(CONCAT71(uStack_26df,local_26e0) + -8);
+1436:           if (0x1f < (CONCAT71(uStack_26df,local_26e0) - lVar28) - 8U) {
+1475:           in_stack_ffffffffffffd348 = CONCAT71((int7)(in_stack_ffffffffffffd348 >> 8),1);
+1488:             local_res18 = (char **)CONCAT71(local_res18._1_7_,1);
+1601:         FUN_140084960((undefined1 *)((longlong)local_res18 + 0x28),*plVar24 + 0x178);
+1697:         local_2c70 = (longlong *)0x178;
+1763:             uStack_2ac4 = (uint)CONCAT12(s_outside_140eeebc8[6],s_outside_140eeebc8._4_2_);
+1774:           local_27c8 = CONCAT44(uStack_2ac4,local_2ac8);
+1827:           dVar58 = (double)FUN_140d4e370(SUB84(dVar58 / ((double)CONCAT44(uVar55,uVar54) - dVar58),0
+1843:           dVar58 = (double)FUN_140d4e370(SUB84(dVar58 / ((double)CONCAT44(uVar55,uVar54) - dVar58),0
+1896:           local_res18 = (char **)CONCAT44(local_res18._4_4_,uVar42);
+1905:             iVar23 = (int)(double)CONCAT44(uVar51,uVar63);
+1906:             local_2c78 = CONCAT44(local_2c78._4_4_,iVar23);
+1984:             local_2288 = CONCAT44(iStack_2bb4,local_2bb8);
+2117:             local_res18 = (char **)CONCAT44(local_res18._4_4_,uVar47);
+2209:   FUN_140084960(local_2858,*(longlong *)ThreadLocalStoragePointer + 0x178);
+2231:     FUN_140084960(plVar25 + 5,*plVar24 + 0x178);
+2259:     local_2c78 = 0x178;
+2380:                   local_res18 = (char **)CONCAT44(local_res18._4_4_,2);
+2385:                   local_res18 = (char **)CONCAT44(local_res18._4_4_,3);
+2430:                                CONCAT16(s_outside_140eeebc8[6],
+2431:                                         CONCAT24(s_outside_140eeebc8._4_2_,s_outside_140eeebc8._0_4_
+2462:                     uStack_2aa4 = (uint)CONCAT12(s_outside_140eeebc8[6],s_outside_140eeebc8._4_2_);
+2473:                   local_29e8 = CONCAT44(uStack_2aa4,local_2aa8);
+2564:                   local_29c8 = CONCAT44(uStack_2624,local_2628);
+2565:                   uStack_29c0 = CONCAT44(uStack_261c,uStack_2620);
+2593:                              ((double)(local_2980 & 0xffffffff) * (double)CONCAT44(uVar62,uVar61));
+2601:                       local_2980 = CONCAT44((uint)local_2980,(uint)local_2980);
+2608:                   local_2980 = CONCAT44(local_2980._4_4_ + 1,(uint)local_2980);
+2806:             if ((double)CONCAT44(extraout_XMM0_Db,extraout_XMM0_Da_00) <= (double)iVar23) {
+2811:             cVar19 = FUN_140943240(SUB84(dVar56 + dVar6,0),*(longlong *)pvVar18 + 0x178);
+2837:             cVar19 = FUN_140943240(SUB84(dVar56 + dVar57,0),*(longlong *)pvVar18 + 0x178);
+2875:     lVar28 = FUN_1401f03e0(uVar27,lVar28 + 0x178);
+2904:       cVar19 = FUN_140943240(uVar63,*(longlong *)pvVar18 + 0x178);
+3049:     uVar29 = FUN_140052640(local_10d8,"butch_begin_accepting_cats");
+3052:     uVar29 = FUN_140052640(local_10b8,"tink_begin_accepting_cats");
+
+================================================================================
+CALLER @ 1403cce80
+================================================================================
+Function: FUN_1403cce80 @ 1403cce80
+Total lines: 1039
+--- First 30 lines ---
+0001: 
+0002: /* WARNING: Removing unreachable block (ram,0x0001403cea36) */
+0003: /* WARNING: Globals starting with '_' overlap smaller symbols at the same address */
+0004: 
+0005: void FUN_1403cce80(longlong param_1)
+0006: 
+0007: {
+0008:   code *pcVar1;
+0009:   ulonglong uVar2;
+0010:   ulonglong uVar3;
+0011:   double dVar4;
+0012:   bool bVar5;
+0013:   double dVar6;
+0014:   double dVar7;
+0015:   char cVar8;
+0016:   int iVar9;
+0017:   undefined4 uVar10;
+0018:   int iVar11;
+0019:   undefined8 uVar12;
+0020:   undefined8 uVar13;
+0021:   longlong *plVar14;
+0022:   longlong *plVar15;
+0023:   undefined8 *puVar16;
+0024:   longlong lVar17;
+0025:   longlong lVar18;
+0026:   ulonglong *puVar19;
+0027:   undefined8 uVar20;
+0028:   undefined8 *puVar21;
+0029:   ulonglong uVar22;
+0030:   char *pcVar23;
+
+--- Context around FUN_1400ca4a0 (birth_defect applier) calls ---
+=== Match at line 704 ===
+0674:           FUN_1400caa20(local_cd8,0x12,&local_e38);
+0675:           uStack_e30 = 0;
+0676:           local_e28 = 4;
+0677:           local_e20 = 0xf;
+0678:           local_e38 = (char *)(ulonglong)_DAT_140ec5d04;
+0679:           FUN_1400caa20(local_cd8,0x13,&local_e38);
+0680:           local_e38 = (char *)0x0;
+0681:           uStack_e30 = 0;
+0682:           local_e28 = 0;
+0683:           local_e20 = 0;
+0684:           FUN_140050ea0(&local_e38,&DAT_140ec5d04,4);
+0685:           FUN_1400caa20(local_cd8,0x14,&local_e38);
+0686:           uStack_e30 = 0;
+0687:           local_e28 = 4;
+0688:           local_e20 = 0xf;
+0689:           local_e38 = (char *)(ulonglong)_DAT_140ec5d04;
+0690:           FUN_1400caa20(local_cd8,9,&local_e38);
+0691:           uStack_e30 = 0;
+0692:           local_e28 = 4;
+0693:           local_e20 = 0xf;
+0694:           local_e38 = (char *)(ulonglong)_DAT_140ec5d04;
+0695:           goto LAB_1403cde18;
+0696:         }
+0697:         if (lVar28 - 2U < 3) {
+0698:           local_e18 = local_dd8;
+0699:           local_da0 = 0;
+0700:           uStack_e30 = 0;
+0701:           local_e28 = 4;
+0702:           local_e20 = 0xf;
+0703:           local_e38 = (char *)(ulonglong)_DAT_140ec5d04;
+0704:           FUN_1400ca4a0(local_cd8,1,&local_e38,local_dd8);
+0705:           local_e18 = local_dd8;
+0706:           local_da0 = 0;
+0707:           uStack_e30 = 0;
+0708:           local_e28 = 4;
+0709:           local_e20 = 0xf;
+0710:           local_e38 = (char *)(ulonglong)_DAT_140ec5d04;
+0711:           FUN_1400ca4a0(local_cd8,1,&local_e38,local_dd8);
+0712:           local_e18 = local_dd8;
+0713:           local_da0 = 0;
+0714:           uStack_e30 = 0;
+0715:           local_e28 = 4;
+0716:           local_e20 = 0xf;
+0717:           local_e38 = (char *)(ulonglong)_DAT_140ec5d04;
+0718:           FUN_1400ca4a0(local_cd8,1,&local_e38,local_dd8);
+0719:         }
+0720:         if (lVar28 - 5U < 3) {
+0721:           local_e18 = local_dd8;
+0722:           local_da0 = 0;
+0723:           uStack_e30 = 0;
+=== End ===
+=== Match at line 711 ===
+0681:           uStack_e30 = 0;
+0682:           local_e28 = 0;
+0683:           local_e20 = 0;
+0684:           FUN_140050ea0(&local_e38,&DAT_140ec5d04,4);
+0685:           FUN_1400caa20(local_cd8,0x14,&local_e38);
+0686:           uStack_e30 = 0;
+0687:           local_e28 = 4;
+0688:           local_e20 = 0xf;
+0689:           local_e38 = (char *)(ulonglong)_DAT_140ec5d04;
+0690:           FUN_1400caa20(local_cd8,9,&local_e38);
+0691:           uStack_e30 = 0;
+0692:           local_e28 = 4;
+0693:           local_e20 = 0xf;
+0694:           local_e38 = (char *)(ulonglong)_DAT_140ec5d04;
+0695:           goto LAB_1403cde18;
+0696:         }
+0697:         if (lVar28 - 2U < 3) {
+0698:           local_e18 = local_dd8;
+0699:           local_da0 = 0;
+0700:           uStack_e30 = 0;
+0701:           local_e28 = 4;
+0702:           local_e20 = 0xf;
+0703:           local_e38 = (char *)(ulonglong)_DAT_140ec5d04;
+0704:           FUN_1400ca4a0(local_cd8,1,&local_e38,local_dd8);
+0705:           local_e18 = local_dd8;
+0706:           local_da0 = 0;
+0707:           uStack_e30 = 0;
+0708:           local_e28 = 4;
+0709:           local_e20 = 0xf;
+0710:           local_e38 = (char *)(ulonglong)_DAT_140ec5d04;
+0711:           FUN_1400ca4a0(local_cd8,1,&local_e38,local_dd8);
+0712:           local_e18 = local_dd8;
+0713:           local_da0 = 0;
+0714:           uStack_e30 = 0;
+0715:           local_e28 = 4;
+0716:           local_e20 = 0xf;
+0717:           local_e38 = (char *)(ulonglong)_DAT_140ec5d04;
+0718:           FUN_1400ca4a0(local_cd8,1,&local_e38,local_dd8);
+0719:         }
+0720:         if (lVar28 - 5U < 3) {
+0721:           local_e18 = local_dd8;
+0722:           local_da0 = 0;
+0723:           uStack_e30 = 0;
+0724:           local_e28 = 4;
+0725:           local_e20 = 0xf;
+0726:           local_e38 = (char *)(ulonglong)_DAT_140ec5d04;
+0727:           FUN_1400ca4a0(local_cd8,1,&local_e38,local_dd8);
+0728:         }
+0729:       }
+0730:       FUN_140734760(local_c78);
+=== End ===
+=== Match at line 718 ===
+0688:           local_e20 = 0xf;
+0689:           local_e38 = (char *)(ulonglong)_DAT_140ec5d04;
+0690:           FUN_1400caa20(local_cd8,9,&local_e38);
+0691:           uStack_e30 = 0;
+0692:           local_e28 = 4;
+0693:           local_e20 = 0xf;
+0694:           local_e38 = (char *)(ulonglong)_DAT_140ec5d04;
+0695:           goto LAB_1403cde18;
+0696:         }
+0697:         if (lVar28 - 2U < 3) {
+0698:           local_e18 = local_dd8;
+0699:           local_da0 = 0;
+0700:           uStack_e30 = 0;
+0701:           local_e28 = 4;
+0702:           local_e20 = 0xf;
+0703:           local_e38 = (char *)(ulonglong)_DAT_140ec5d04;
+0704:           FUN_1400ca4a0(local_cd8,1,&local_e38,local_dd8);
+0705:           local_e18 = local_dd8;
+0706:           local_da0 = 0;
+0707:           uStack_e30 = 0;
+0708:           local_e28 = 4;
+0709:           local_e20 = 0xf;
+0710:           local_e38 = (char *)(ulonglong)_DAT_140ec5d04;
+0711:           FUN_1400ca4a0(local_cd8,1,&local_e38,local_dd8);
+0712:           local_e18 = local_dd8;
+0713:           local_da0 = 0;
+0714:           uStack_e30 = 0;
+0715:           local_e28 = 4;
+0716:           local_e20 = 0xf;
+0717:           local_e38 = (char *)(ulonglong)_DAT_140ec5d04;
+0718:           FUN_1400ca4a0(local_cd8,1,&local_e38,local_dd8);
+0719:         }
+0720:         if (lVar28 - 5U < 3) {
+0721:           local_e18 = local_dd8;
+0722:           local_da0 = 0;
+0723:           uStack_e30 = 0;
+0724:           local_e28 = 4;
+0725:           local_e20 = 0xf;
+0726:           local_e38 = (char *)(ulonglong)_DAT_140ec5d04;
+0727:           FUN_1400ca4a0(local_cd8,1,&local_e38,local_dd8);
+0728:         }
+0729:       }
+0730:       FUN_140734760(local_c78);
+0731:       lVar28 = *(longlong *)(*(longlong *)(param_1 + 0x18) + 8);
+0732:       if (*(char *)(lVar28 + 0x4b0) == '\0') {
+0733:         uVar12 = FUN_14095afe0(lVar28);
+0734:         plVar14 = (longlong *)FUN_14012af50(lVar28,uVar12,param_1 + 0x80);
+0735:       }
+0736:       else {
+0737:         plVar14 = (longlong *)0x0;
+=== End ===
+=== Match at line 727 ===
+0697:         if (lVar28 - 2U < 3) {
+0698:           local_e18 = local_dd8;
+0699:           local_da0 = 0;
+0700:           uStack_e30 = 0;
+0701:           local_e28 = 4;
+0702:           local_e20 = 0xf;
+0703:           local_e38 = (char *)(ulonglong)_DAT_140ec5d04;
+0704:           FUN_1400ca4a0(local_cd8,1,&local_e38,local_dd8);
+0705:           local_e18 = local_dd8;
+0706:           local_da0 = 0;
+0707:           uStack_e30 = 0;
+0708:           local_e28 = 4;
+0709:           local_e20 = 0xf;
+0710:           local_e38 = (char *)(ulonglong)_DAT_140ec5d04;
+0711:           FUN_1400ca4a0(local_cd8,1,&local_e38,local_dd8);
+0712:           local_e18 = local_dd8;
+0713:           local_da0 = 0;
+0714:           uStack_e30 = 0;
+0715:           local_e28 = 4;
+0716:           local_e20 = 0xf;
+0717:           local_e38 = (char *)(ulonglong)_DAT_140ec5d04;
+0718:           FUN_1400ca4a0(local_cd8,1,&local_e38,local_dd8);
+0719:         }
+0720:         if (lVar28 - 5U < 3) {
+0721:           local_e18 = local_dd8;
+0722:           local_da0 = 0;
+0723:           uStack_e30 = 0;
+0724:           local_e28 = 4;
+0725:           local_e20 = 0xf;
+0726:           local_e38 = (char *)(ulonglong)_DAT_140ec5d04;
+0727:           FUN_1400ca4a0(local_cd8,1,&local_e38,local_dd8);
+0728:         }
+0729:       }
+0730:       FUN_140734760(local_c78);
+0731:       lVar28 = *(longlong *)(*(longlong *)(param_1 + 0x18) + 8);
+0732:       if (*(char *)(lVar28 + 0x4b0) == '\0') {
+0733:         uVar12 = FUN_14095afe0(lVar28);
+0734:         plVar14 = (longlong *)FUN_14012af50(lVar28,uVar12,param_1 + 0x80);
+0735:       }
+0736:       else {
+0737:         plVar14 = (longlong *)0x0;
+0738:       }
+0739:       lVar28 = plVar14[3];
+0740:       if (*(char *)(lVar28 + 0x18) == '\0') {
+0741:         FUN_140127c00(*(undefined8 *)(lVar28 + 8),lVar28);
+0742:       }
+0743:       lVar28 = plVar14[3];
+0744:       if (*(char *)(lVar28 + 0x18) == '\0') {
+0745:         puVar25 = (ulonglong *)FUN_1401279a0(*(undefined8 *)(lVar28 + 8),lVar28);
+0746:       }
+=== End ===
+
+--- Context around FUN_14022d360 (deserializer) calls ---
+
+--- Lines with save/load/cat strings ---
+0343:   local_res10 = (char *)CONCAT44(local_res10._4_4_,0x3c);
+0391:   local_res8 = (longlong *)CONCAT44(local_res8._4_4_,*(int *)(param_1 + 0xb0) + 1);
+0434:     local_res8 = (longlong *)CONCAT44(local_res8._4_4_,10);
+0438:     local_res8 = (longlong *)CONCAT44(local_res8._4_4_,1);
+0444:     local_res8 = (longlong *)CONCAT44(local_res8._4_4_,2);
+0450:     local_res8 = (longlong *)CONCAT44(local_res8._4_4_,3);
+0456:     local_res8 = (longlong *)CONCAT44(local_res8._4_4_,4);
+0462:     local_res8 = (longlong *)CONCAT44(local_res8._4_4_,5);
+0468:     local_res8 = (longlong *)CONCAT44(local_res8._4_4_,6);
+0474:     local_res8 = (longlong *)CONCAT44(local_res8._4_4_,7);
+0480:     local_res8 = (longlong *)CONCAT44(local_res8._4_4_,8);
+0488:     local_res8 = (longlong *)CONCAT44(local_res8._4_4_,9);
+0507:       local_e18 = (ulonglong *)CONCAT44(iVar9,(undefined4)local_e18);
+0516:         local_d98 = CONCAT44(local_d98._4_4_,uVar24);
+0530:     local_d98 = CONCAT44(uVar27,(undefined4)local_d98);
+0533:     local_res18 = CONCAT44(local_res18._4_4_,uVar27);
+0547:     local_res8 = (longlong *)CONCAT71(local_res8._1_7_,1);
+0864:                   _Func_impl_no_alloc<class_`public:_virtual_void___cdecl_glaiel::AnimationTest::update(void)___ptr64'::`88'::<lambda_2>,void,class_std::basic_string<char,struct_std::char_traits<char>,class_std::allocator<char>_>_>
+0895:                   _Func_impl_no_alloc<class_`public:_virtual_void___cdecl_glaiel::AnimationTest::update(void)___ptr64'::`88'::<lambda_3>,void,class_std::basic_string<char,struct_std::char_traits<char>,class_std::allocator<char>_>_>
+0965:       local_res10 = (char *)CONCAT44(local_res10._4_4_,uVar32);
+0976:         local_res10 = (char *)(CONCAT44(local_res10._4_4_,uVar32) & 0xfffffffffffffffd);
+0984:         local_res10 = (char *)(CONCAT44(local_res10._4_4_,uVar27) & 0xfffffffffffffffe);
+
+================================================================================
+SAVE CONTEXT: FUN_140230750 — full context dump
+================================================================================
+Function: FUN_140230750 @ 140230750
+Total lines: 620
+--- First 60 lines ---
+0001: 
+0002: /* WARNING: Type propagation algorithm not settling */
+0003: 
+0004: undefined1 * FUN_140230750(longlong param_1,undefined1 *param_2,undefined8 *param_3,char param_4)
+0005: 
+0006: {
+0007:   bool bVar1;
+0008:   undefined4 uVar2;
+0009:   undefined4 uVar3;
+0010:   char cVar4;
+0011:   undefined4 uVar5;
+0012:   int iVar6;
+0013:   undefined8 *******pppppppuVar7;
+0014:   char *******pppppppcVar8;
+0015:   longlong *plVar9;
+0016:   undefined8 uVar10;
+0017:   longlong lVar11;
+0018:   undefined8 *puVar12;
+0019:   ulonglong uVar13;
+0020:   ulonglong uVar14;
+0021:   undefined8 *puVar15;
+0022:   uint uVar16;
+0023:   uint uVar17;
+0024:   char *******local_f08;
+0025:   undefined8 uStack_f00;
+0026:   longlong local_ef8;
+0027:   ulonglong local_ef0;
+0028:   undefined8 local_ee8;
+0029:   char *local_ee0;
+0030:   undefined8 uStack_ed8;
+0031:   undefined8 local_ed0;
+0032:   undefined8 local_ec8;
+0033:   undefined8 *******local_ec0;
+0034:   longlong lStack_eb8;
+0035:   ulonglong local_eb0;
+0036:   ulonglong uStack_ea8;
+0037:   char *******local_e98;
+0038:   undefined8 *puStack_e90;
+0039:   undefined8 local_e88;
+0040:   ulonglong local_e80;
+0041:   char *******local_e78;
+0042:   undefined8 *local_e70;
+0043:   undefined8 local_e68 [2];
+0044:   longlong local_e58;
+0045:   ulonglong local_e50;
+0046:   char ******local_e48;
+0047:   undefined8 uStack_e40;
+0048:   undefined8 local_e38;
+0049:   undefined8 local_e30;
+0050:   longlong local_e28;
+0051:   int local_e18 [2];
+0052:   undefined8 local_e10;
+0053:   undefined8 local_e08;
+0054:   undefined8 local_e00;
+0055:   char local_df8;
+0056:   int local_df4;
+0057:   undefined8 local_df0;
+0058:   undefined1 local_de8 [264];
+0059:   undefined8 local_ce0;
+0060:   undefined4 local_cd8;
+--- Context around FUN_1400ca4a0 ---
+--- Context around FUN_14022d360 ---
+=== Match at line 354 ===
+0334:   *param_2 = 1;
+0335:   local_e10 = 0;
+0336:   local_e08 = 0;
+0337:   FUN_14032b460(local_de8);
+0338:   local_ce0 = 0;
+0339:   local_cd8 = 8;
+0340:   local_cd0 = 0;
+0341:   local_e18[0] = 1;
+0342:   local_df0 = 0;
+0343:   local_e00 = 0;
+0344:   local_df8 = '\0';
+0345:   local_ef8 = 0xd;
+0346:   local_ef0 = 0xf;
+0347:   local_f08 = (char *******)s_save_file_cat_140edc110._0_8_;
+0348:   uStack_f00._0_5_ = CONCAT14(s_save_file_cat_140edc110[0xc],s_save_file_cat_140edc110._8_4_);
+0349:   uStack_f00 = (ulonglong)(uint5)uStack_f00;
+0350:   FUN_14022afe0(param_1,&local_f08,local_e18);
+0351:   if (local_e18[0] == 0) {
+0352: LAB_140230fa3:
+0353:     if ((local_df4 != 0) && (param_4 == '\0')) {
+0354:       FUN_14022d360(param_2 + 8,local_e18,1);
+0355:       FUN_140734760(param_2 + 0x68);
+0356:       goto LAB_1402311b2;
+0357:     }
+0358:   }
+0359:   else if (local_e18[0] == 1) {
+0360:     local_df4 = local_e10._4_4_;
+0361:     goto LAB_140230fa3;
+0362:   }
+0363:   FUN_1400b5260(param_2 + 8);
+0364:   FUN_140734760(param_2 + 0x68);
+0365:   local_cc0 = 0;
+0366:   local_cb8 = 0;
+0367:   FUN_14032b460(local_c98);
+0368:   local_b90 = 0;
+0369:   local_b88 = 8;
+0370:   local_b80 = 0;
+0371:   local_cc8[0] = 1;
+0372:   local_ca0 = 0;
+0373:   local_cb0 = 0;
+=== End ===
+=== Match at line 375 ===
+0355:       FUN_140734760(param_2 + 0x68);
+0356:       goto LAB_1402311b2;
+0357:     }
+0358:   }
+0359:   else if (local_e18[0] == 1) {
+0360:     local_df4 = local_e10._4_4_;
+0361:     goto LAB_140230fa3;
+0362:   }
+0363:   FUN_1400b5260(param_2 + 8);
+0364:   FUN_140734760(param_2 + 0x68);
+0365:   local_cc0 = 0;
+0366:   local_cb8 = 0;
+0367:   FUN_14032b460(local_c98);
+0368:   local_b90 = 0;
+0369:   local_b88 = 8;
+0370:   local_b80 = 0;
+0371:   local_cc8[0] = 1;
+0372:   local_ca0 = 0;
+0373:   local_cb0 = 0;
+0374:   local_ca8 = '\0';
+0375:   FUN_14022d360(param_2 + 8,local_cc8,1);
+0376:   FUN_1409fb5c0(param_1 + 0x470);
+0377:   local_ef8 = 0xd;
+0378:   local_ef0 = 0xf;
+0379:   local_f08 = (char *******)s_save_file_cat_140edc110._0_8_;
+0380:   uStack_f00._0_5_ = CONCAT14(s_save_file_cat_140edc110[0xc],s_save_file_cat_140edc110._8_4_);
+0381:   uStack_f00 = (ulonglong)(uint5)uStack_f00;
+0382:   FUN_14022ae90(param_1,&local_f08,local_cc8);
+0383:   local_e98 = (char *******)&local_f08;
+0384:   local_ef8 = 0xb;
+0385:   local_ef0 = 0xf;
+0386:   local_f08 = (char *******)s_random_seed_140ef3558._0_8_;
+0387:   uStack_f00 = (ulonglong)CONCAT12(s_random_seed_140ef3558[10],s_random_seed_140ef3558._8_2_);
+0388:   local_ed0 = 10;
+0389:   local_ec8 = 0xf;
+0390:   local_ee0 = (char *)s_properties_140ec86c0._0_8_;
+0391:   uStack_ed8 = (ulonglong)(ushort)s_properties_140ec86c0._8_2_;
+0392:   FUN_1409fc650(param_1 + 0x470,&local_ee0,&local_f08,*(longlong *)ThreadLocalStoragePointer + 0x178
+0393:                );
+0394:   FUN_1409fb660(param_1 + 0x470);
+=== End ===
+
+================================================================================
+UNKNOWN DESERIALIZER CONTEXT: FUN_1400d6a70
+================================================================================
+Function: FUN_1400d6a70 @ 1400d6a70
+Total lines: 198
+--- First 50 lines ---
+0001: 
+0002: void FUN_1400d6a70(longlong param_1,longlong param_2)
+0003: 
+0004: {
+0005:   longlong *plVar1;
+0006:   undefined8 *puVar2;
+0007:   undefined8 *puVar3;
+0008:   undefined4 uVar4;
+0009:   undefined4 uVar5;
+0010:   undefined4 uVar6;
+0011:   undefined8 uVar7;
+0012:   longlong lVar8;
+0013:   longlong *plVar9;
+0014:   uint uVar10;
+0015:   ulonglong uVar12;
+0016:   char **local_res8 [2];
+0017:   char *local_238;
+0018:   undefined8 uStack_230;
+0019:   undefined8 local_228;
+0020:   undefined8 local_220;
+0021:   undefined4 local_218;
+0022:   undefined4 uStack_214;
+0023:   undefined8 uStack_210;
+0024:   ulonglong local_208;
+0025:   undefined4 local_200;
+0026:   undefined4 uStack_1fc;
+0027:   undefined8 uStack_1f8;
+0028:   undefined8 local_1f0;
+0029:   undefined4 local_1e8;
+0030:   undefined4 uStack_1e4;
+0031:   undefined4 uStack_1e0;
+0032:   undefined4 uStack_1dc;
+0033:   undefined8 local_1d8;
+0034:   int local_1c8 [2];
+0035:   undefined8 local_1c0;
+0036:   undefined8 local_1b8;
+0037:   undefined8 local_1b0;
+0038:   char local_1a8;
+0039:   int local_1a4;
+0040:   undefined8 local_1a0;
+0041:   undefined1 local_198 [264];
+0042:   undefined8 local_90;
+0043:   undefined4 local_88;
+0044:   undefined8 local_80;
+0045:   undefined8 local_78;
+0046:   undefined8 uStack_70;
+0047:   ulonglong local_68;
+0048:   undefined1 local_58 [32];
+0049:   ulonglong uVar11;
+0050:   
+=== Match at line 69 ===
+0054:   uVar11 = 0;
+0055:   if (plVar9 != plVar1) {
+0056:     local_res8[0] = &local_238;
+0057:     do {
+0058:       lVar8 = plVar9[3];
+0059:       local_1c0 = 0;
+0060:       local_1b8 = 0;
+0061:       FUN_14032b460(local_198);
+0062:       local_90 = 0;
+0063:       local_88 = 8;
+0064:       local_80 = 0;
+0065:       local_1c8[0] = 1;
+0066:       local_1a0 = 0;
+0067:       local_1b0 = 0;
+0068:       local_1a8 = '\0';
+0069:       FUN_14022d360(lVar8,local_1c8,0);
+0070:       FUN_1409ab020(local_1c8);
+0071:       uStack_1f8 = *(undefined8 *)(lVar8 + 0xc48);
+0072:       uStack_230 = 0;
+0073:       local_228 = 4;
+0074:       local_220 = 0xf;
+0075:       local_238 = (char *)0x73746163;
+0076:       if (local_1c8[0] == 0) {
+0077:         local_208 = (longlong)local_1a4;
+0078:         uStack_210 = local_1b0;
+0079:       }
+0080:       else if (local_1c8[0] == 1) {
+0081:         local_208 = (longlong)local_1c0._4_4_;
+0082:         uStack_210 = local_1b8;
+0083:       }
+=== End ===
+
+================================================================================
+CALLERS of FUN_14022dfb0 (single-cat load wrapper)
+================================================================================
+callsite=1400d5858  in  FUN_1400d5600 @ 1400d5600
+
+================================================================================
+CALLERS of FUN_14022fb40 (batch-cat load wrapper)
+================================================================================
+callsite=1403b2641  in  FUN_1403b1e50 @ 1403b1e50
+
+================================================================================
+DIRECTION 43c PROBE COMPLETE
+================================================================================
