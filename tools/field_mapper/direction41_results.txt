@@ -1,0 +1,168 @@
+Direction 41 — stat_mod vs expected-from-visible-mutations delta check
+Save: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\investigation\steamcampaign01_20260424_191107.sav
+Total cats: 947
+
+============================================================
+Whommie (db_key=853) [DEFECT+]  class=''
+
+  Visible mutation entries (3 total):
+    slot=fur  id=706  name='Fur Birth Defect'  detail=''  defect=True
+    slot=head  id=304  name='Sludge head'  detail=''  defect=False
+    slot=tail  id=751  name='Beaver Tail*'  detail=''  defect=False
+
+  Class stat_mods: {}
+  Stat     actual  expected   delta
+  ----------------------------------
+  STR           0         0       0
+  DEX           0         0       0
+  CON           0         0       0
+  INT           0         0       0
+  SPD           0         0       0
+  CHA           0         0       0
+  LCK           0         0       0
+
+  All deltas zero.
+
+  No blind/vision attributes found.
+
+  stat_base : [7, 7, 7, 7, 6, 7, 7]
+  stat_mod  : [0, 0, 0, 0, 0, 0, 0]
+  stat_sec  : [0, 0, 0, 0, 0, 0, 0]
+
+============================================================
+Bud (db_key=887) [DEFECT+]  class=''
+
+  Visible mutation entries (8 total):
+    slot=body  id=401  name='Body 401'  detail=''  defect=False
+    slot=head  id=319  name='Exposed Brain'  detail=''  defect=False
+    slot=tail  id=751  name='Beaver Tail*'  detail=''  defect=False
+    slot=leg_L  id=707  name='blob legs'  detail=''  defect=False
+    slot=leg_R  id=707  name='blob legs'  detail=''  defect=False
+    slot=eyebrow_L  id=424  name='Eyebrows 424'  detail=''  defect=False
+    slot=eyebrow_R  id=424  name='Eyebrows 424'  detail=''  defect=False
+    slot=mouth  id=410  name='Mouth 410'  detail=''  defect=False
+
+  Class stat_mods: {}
+  Stat     actual  expected   delta
+  ----------------------------------
+  STR           0         0       0
+  DEX           0         0       0
+  CON           0         0       0
+  INT           0         0       0
+  SPD           0         0       0
+  CHA           0         0       0
+  LCK           0         0       0
+
+  All deltas zero.
+
+  No blind/vision attributes found.
+
+  stat_base : [7, 7, 7, 7, 7, 7, 7]
+  stat_mod  : [0, 0, 0, 0, 0, 0, 0]
+  stat_sec  : [0, 0, 0, 0, 0, 0, 0]
+
+============================================================
+Kami (db_key=840) [CONTROL]  class='Druid'
+
+  Visible mutation entries (2 total):
+    slot=body  id=300  name='Rock Bod'  detail=''  defect=False
+    slot=tail  id=751  name='Beaver Tail*'  detail=''  defect=False
+
+  Class stat_mods: {}
+  Stat     actual  expected   delta
+  ----------------------------------
+  STR           1         0       1  <<< UNEXPLAINED
+  DEX           0         0       0
+  CON           0         0       0
+  INT           2         0       2  <<< UNEXPLAINED
+  SPD           2         0       2  <<< UNEXPLAINED
+  CHA           2         0       2  <<< UNEXPLAINED
+  LCK           0         0       0
+
+  Non-zero deltas: STR:+1, INT:+2, SPD:+2, CHA:+2
+
+  No blind/vision attributes found.
+
+  stat_base : [7, 7, 7, 7, 6, 7, 7]
+  stat_mod  : [1, 0, 0, 2, 2, 2, 0]
+  stat_sec  : [0, 0, 0, 0, 0, 0, 0]
+
+============================================================
+Petronij (db_key=841) [CONTROL]  class=''
+
+  Visible mutation entries (1 total):
+    slot=tail  id=751  name='Beaver Tail*'  detail=''  defect=False
+
+  Class stat_mods: {}
+  Stat     actual  expected   delta
+  ----------------------------------
+  STR           0         0       0
+  DEX           0         0       0
+  CON           0         0       0
+  INT           0         0       0
+  SPD           0         0       0
+  CHA           0         0       0
+  LCK           0         0       0
+
+  All deltas zero.
+
+  No blind/vision attributes found.
+
+  stat_base : [7, 7, 7, 7, 6, 7, 7]
+  stat_mod  : [0, 0, 0, 0, 0, 0, 0]
+  stat_sec  : [0, 0, 0, 0, 0, 0, 0]
+
+============================================================
+Murisha (db_key=852) [CONTROL]  class=''
+
+  Visible mutation entries (13 total):
+    slot=fur  id=413  name='Fur 413'  detail=''  defect=False
+    slot=body  id=401  name='Body 401'  detail=''  defect=False
+    slot=head  id=319  name='Exposed Brain'  detail=''  defect=False
+    slot=tail  id=751  name='Beaver Tail*'  detail=''  defect=False
+    slot=leg_L  id=308  name='Human Legs'  detail=''  defect=False
+    slot=leg_R  id=308  name='Human Legs'  detail=''  defect=False
+    slot=arm_L  id=441  name='Legs 441'  detail=''  defect=False
+    slot=arm_R  id=441  name='Legs 441'  detail=''  defect=False
+    slot=eye_L  id=301  name='Demon Eyes'  detail=''  defect=False
+    slot=eye_R  id=301  name='Demon Eyes'  detail=''  defect=False
+    slot=eyebrow_L  id=428  name='Eyebrows 428'  detail=''  defect=False
+    slot=eyebrow_R  id=428  name='Eyebrows 428'  detail=''  defect=False
+    slot=mouth  id=410  name='Mouth 410'  detail=''  defect=False
+
+  Class stat_mods: {}
+  Stat     actual  expected   delta
+  ----------------------------------
+  STR           0         0       0
+  DEX           0         0       0
+  CON           0         0       0
+  INT           0         0       0
+  SPD           0         0       0
+  CHA           0         0       0
+  LCK           0         0       0
+
+  All deltas zero.
+
+  No blind/vision attributes found.
+
+  stat_base : [7, 7, 7, 7, 7, 7, 7]
+  stat_mod  : [0, 0, 0, 0, 0, 0, 0]
+  stat_sec  : [0, 0, 0, 0, 0, 0, 0]
+
+
+============================================================
+SUMMARY
+============================================================
+
+  Whommie / CHA (expected -2)
+
+  Bud / DEX (expected -2)
+  Whommie CHA: actual=0  expected=0  delta=+0
+  Whommie CHA unexplained -2? NO (delta=+0)
+  Bud DEX: actual=0  expected=0  delta=+0
+  Bud DEX unexplained -2? NO (delta=+0)
+
+  Control deltas:
+    Kami: NON-ZERO deltas: {'STR': 1, 'INT': 2, 'SPD': 2, 'CHA': 2}
+    Petronij: all deltas zero
+    Murisha: all deltas zero
