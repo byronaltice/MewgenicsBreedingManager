@@ -1,0 +1,85 @@
+Direction 35 - Confirm parser coverage of CatData+0x910..0x9b0 effect-list corridor
+
+Goal:
+Direction 34 identified the runtime effect-list at CatData+0x910..0x9b0 as the
+next best lead after the body-part / T-array path was ruled out. The next step
+in CLAUDE.md was to confirm whether the parser already reads every slot of the
+serialized corridor or only part of it. This direction answers that question
+from the existing Ghidra decompile of FUN_14022d360 (the cat-blob serializer).
+
+Inputs:
+- tools/ghidra_cf90_probe_output.txt (existing FUN_14022d360 decompile)
+- src/save_parser.py Cat.__init__ ability tail / passive_tier / tail-slot block
+- tools/field_mapper/direction31_results.txt (parser tail map for focus cats)
+
+Serializer write order in FUN_14022d360 (CatData byte offsets, all calls go
+through FUN_1409ab630 for strings and FUN_1409ab530 / FUN_1409ab3a0 for u32s):
+
+  +0x788                  string (gender/stat token, "+0x788 string")
+  +0x7a8                  FUN_14022d100 variable list  (count=0 -> 14 fixed bytes)
+  +0x7d0  (= 2000 decimal) string  (DefaultMove anchor)
+  +0x7f0                  string
+  +0x810                  string
+  +0x830                  string
+  +0x850                  string
+  +0x870                  string
+  +0x890                  string
+  +0x8b0                  string
+  +0x8d0                  string
+  +0x8f0                  string
+  +0x910                  string  | corridor slot 0
+  +0x930                  u32     | corridor slot 0 tier
+  +0x938                  string  | corridor slot 1
+  +0x958                  u32     | corridor slot 1 tier
+  +0x960                  string  | corridor slot 2
+  +0x980                  u32     | corridor slot 2 tier
+  +0x988                  string  | corridor slot 3
+  +0x9a8                  u32     | corridor slot 3 tier
+  +0x9b0..+0xb90          5 equipment slots via FUN_14022b1f0 (stride 0x60)
+
+Pre-corridor strings: 10 strings at fixed 0x20 stride (0x7d0..0x8f0).
+Corridor: exactly 4 (string, u32) slots at fixed 0x28 stride (0x910..0x9a8).
+
+Parser coverage in src/save_parser.py:
+- "DefaultMove" anchor scan finds the 0x7d0 string and reads up to 11
+  consecutive strings (all 10 pre-corridor strings + corridor slot 0 string).
+- Reads passive1_tier u32 = corridor slot 0 u32 at +0x930.
+- Reads 3 (string, u32) tail pairs = corridor slots 1, 2, 3.
+- Total: 11 strings + 4 u32s exactly matches the 10 pre-corridor + 4 corridor
+  pairs the serializer writes.
+
+Disk-size cross-check on Whommie (db_key=853) from direction31_results.txt:
+- run_start = blob+0x023e, equipment_start = blob+0x030d -> 0xcf = 207 bytes.
+- Computed expected size from 11 strings + 1 u32 + 3 (str, u32):
+  19 + 24 + 14 + 36 + 14 + 48 = 155 bytes of strings,
+  + 4 (passive1_tier) + 48 (3 tail (str, u32) pairs at 16 bytes each) = 207.
+- Matches exactly.
+
+Conclusion:
+- The CatData+0x910..0x9b0 effect-list corridor has exactly 4 (string, u32)
+  slots and the parser reads all 4 of them.
+- For Whommie and Bud, all 4 slot strings are literal "None" with tier 1.
+- The corridor does NOT carry their missing birth-defect effects.
+- Direction 34's lead about this corridor is now ruled out.
+
+Next best path forward (recorded in CLAUDE.md update):
+- The non-T, non-corridor effect carrier must be elsewhere in the saved blob
+  or in load-time / finalize-time code that derives effects from non-body-part
+  saved fields.
+- Two unmapped corridors remain in FUN_14022d360 that have not been confirmed
+  empty for focus cats:
+  1) The 10 pre-corridor strings at +0x7d0..+0x8f0. The parser groups them
+     into the ability run ("DefaultMove" + abilities + cooldowns + signature
+     passive). Whommie's last 5 of those strings are "None"/repeats, so they
+     look fully accounted for, but slots 6-10 may still carry hidden tags
+     in other cats. Worth a roster scan for non-"None" entries that the
+     parser currently discards.
+  2) The post-equipment area between +0xb90 (end of 5 equipment slots) and
+     the class-string prefix near the blob tail. FUN_14022d360 lines 0379+
+     contain more serializer calls that have not been mapped in detail yet.
+     The parser locates the class string by its fixed 115-byte tail offset
+     and does not read the gap between equipment end and class prefix.
+- Lower-priority fallback: re-audit FUN_14022d100 with a Whommie/Bud-specific
+  script. Direction 30 found count=0 for all 947 cats, but the script only
+  validated that. If d100 ever serializes a non-empty list for a focus cat,
+  it would be the immediate suspect.
