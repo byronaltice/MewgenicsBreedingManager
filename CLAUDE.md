@@ -44,7 +44,7 @@ Game Files include - `resources.gpak`, `*.sav` files.
 **Pre-extracted GPAK content** — `game-files/resources/` contains files extracted from `resources.gpak`, organized by category. Use these directly instead of processing the gpak archive:
 - `gpak-text/` — all text/data files (`.gon`, `.csv`, etc.) — **fully extracted, use this for lookups**
 - `gpak-other/` — other binary assets (`.mid`, `.lvl`, `.data`, etc.) — **fully extracted**
-- `gpak-images/`, `gpak-audio/`, `gpak-video/` — not yet extracted (large; planned for the future)
+- `gpak-images/`, `gpak-audio/`, `gpak-video/` — fully extracted
 
 When looking up mutation definitions, ability data, or any game data that lives in GON/CSV files, read from `game-files/resources/gpak-text/` directly. Do not parse `resources.gpak` unless you specifically need something from the unextracted categories.
 
