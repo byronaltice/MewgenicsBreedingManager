@@ -538,41 +538,25 @@ Use the fixed investigation save snapshot unless deliberately testing the live s
 $env:INVESTIGATION_SAVE = "C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\investigation\steamcampaign01_20260424_191107.sav"
 ```
 
-The bundled Ghidra install works headlessly, but Java is not on PATH by default. Use the bundled JDK for this repo:
+**Ghidra is accessed via the `mcp__mewgenics-ghidra` MCP server** — do not attempt to run Ghidra headlessly from this project directory. The Ghidra project and binary live in WSL; use MCP tools for all decompilation and symbol work:
 
-```powershell
-$env:JAVA_HOME = "C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\jdk-25.0.2+10"
-$env:Path = "$env:JAVA_HOME\bin;$env:Path"
-```
+- `mcp__mewgenics-ghidra__decompile_function` — decompile a function by address or name
+- `mcp__mewgenics-ghidra__search_symbols_by_name` — find functions/globals by name pattern
+- `mcp__mewgenics-ghidra__search_strings` — search for string literals in the binary
+- `mcp__mewgenics-ghidra__search_code` — search decompiled code
+- `mcp__mewgenics-ghidra__list_cross_references` — find callers/callees of an address
+- `mcp__mewgenics-ghidra__read_bytes` — read raw bytes at a virtual address
+- `mcp__mewgenics-ghidra__gen_callgraph` — generate a call graph around a function
+- `mcp__mewgenics-ghidra__list_imports` / `list_exports` — imports/exports table
 
-Run Ghidra from the bundled project/runtime paths. `-noanalysis` is important after the project has already been analyzed; otherwise startup may take long enough to look hung. Java deprecation warnings can appear on stderr even when the script succeeds, so trust the generated output file if it exists.
-
-```powershell
-& "C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\support\analyzeHeadless.bat" `
-  "C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ProjDir" `
-  Mewgenics `
-  -process Mewgenics.exe `
-  -noanalysis `
-  -scriptPath "C:\Users\Byron\gitprojects\MewgenicsBreedingManager\tools" `
-  -postScript GhidraCf90Probe.java `
-  *>&1 | Tee-Object -FilePath tools\ghidra_cf90_probe_output.txt
-```
-
-If a headless Ghidra run times out, check for and stop the stale Java process before rerunning; the previous session left a `java` process running once and it needed `Stop-Process -Id <pid>`. Do not touch game files outside `test-saves`; the runtime copy under `test-runtimes\Mewgenics` is for decompilation only.
+Java scripts under `tools/` (e.g. `GhidraCf90Probe.java`, `GhidraDefectRefs.java`) are legacy artifacts from the previous headless workflow and do not need to be run. They remain in the repo as reference for the queries they performed.
 
 On 2026-04-25, `rg.exe` returned "Access is denied" in this workspace. If that recurs, use PowerShell `Get-ChildItem ... | Select-String ...` as the fallback search path.
 
-Useful current scripts:
+Useful current Python investigation scripts:
 
 - `tools\field_mapper\investigate_direction32.py` searches `Mewgenics.exe` and `resources.gpak` for defect strings/constants and maps executable hits to virtual addresses.
 - `tools\field_mapper\investigate_direction29.py` confirms `FUN_14022cf90` = stat arrays.
 - `tools\field_mapper\investigate_direction30.py` maps `CatData+0x788` + the empty `FUN_14022d100` header.
 - `tools\field_mapper\investigate_direction31.py` maps the `DefaultMove` run, three tail slots, equipment block, and class string.
-- `tools\GhidraCf90Probe.java` is the focused Ghidra script used for the current serializer call-order audit.
-- `tools\GhidraDefectRefs.java` finds references to executable strings `birth_defect` / `birth_defects`; output is useful but noisy.
-- `tools\GhidraDefectKeyFunctions.java` decompiles the focused birth-defect functions around `CatData::breed`.
-- `tools\GhidraDefectDisplayProbe.java` decompiles `FUN_1400caa20` and callers around `birth_defect` application/display.
-- `tools\GhidraDefectApplyProbe.java` decompiles `FUN_1400cb130`, `FUN_1400e38c0`, and related display helpers.
-- `tools\GhidraBodyPartFlagProbe.java` extracts contexts around the body-part serializer and the `CatPart+0x18` / `0xFFFFFFFE` inheritance helper.
-- `tools\GhidraBodyPartSerializerMap.java` dumps the full `FUN_14022ce10` / `FUN_14022cd00` map.
 - `tools\field_mapper\investigate_direction33.py` writes the T-index-to-CatPart map and focus-cat slot dumps.
