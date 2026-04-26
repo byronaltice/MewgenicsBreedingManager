@@ -25,7 +25,7 @@ What's still unknown: how `CatPart+0x18` gets set to 0 for Whommie's eye/eyebrow
 ## Two confirmed facts from the user (2026-04-25)
 
 1. **Defects are stable across save reloads.** Eliminates runtime-randomness hypotheses. Data IS on disk per-cat (explicit field or derivable from a saved seed).
-2. **The GON files contain the literal string `"Blind."`** — exact display string for Whommie's Eye Birth Defect. Likely the CSV/locale `desc` for eyes block `-2`. The save must carry a key referencing this entry per-cat.
+2. **The GON files contain the literal string `"Blind."`** — exact display string for Whommie's Eye Birth Defect. Likely the CSV/locale `desc` for eyes block `-2`. **Use this as a code landmark, not a blob-scan target.** Find the function that produces the `"Blind."` display, then trace BACKWARD to find what saved input drives it. Do NOT re-scan the .sav binary for this string — extensive blob scanning has already been done.
 
 ## Direction 44 plan (Sonnet-grade Ghidra task)
 
@@ -37,7 +37,7 @@ What's still unknown: how `CatPart+0x18` gets set to 0 for Whommie's eye/eyebrow
 2. **Decompile that loader.** Identify what runs immediately AFTER each `FUN_14022d360` call: any defect-applier calls (`FUN_1400ca4a0`, `FUN_1400caa20`, `FUN_1400cb130`, `FUN_1400a5390`, `FUN_1400a5600`)? Any per-body-part loops touching `CatPart+0x18`?
 3. **If a defect-application call is found post-deserialize**, trace its arguments: what saved per-cat field does it read? CatData offset, SQLite query with cat-keyed lookup, or GPAK reference?
 4. **Full decompile of `FUN_140230750`** (cat save-context loader from Direction 43). It reads `properties.random_seed` but may also read per-cat keys.
-5. **String search of the .sav binary AND SQLite tables** for `"Blind."`, `EYES_BIRTH_DEFECT_DESC`, `EYEBROWS_BIRTH_DEFECT_DESC`, `EARS_BIRTH_DEFECT_DESC`, in both UTF-8 and UTF-16 LE encodings. Also scan for numeric IDs that resolve to those GON entries. The hint is concrete — if a key is in the save, this should find it.
+5. **Trace from the `"Blind."` GON entry forward to its consumers.** In Ghidra, find the function(s) that read or reference the eyes block `-2` GON entry (where `"Blind."` lives). Walk forward from those references to identify how a cat ends up routed to that entry — that path leads to the saved-input source. This is a complementary back-trace to subtask 1's forward-trace from the loader. Do NOT re-scan the .sav binary for `"Blind."` literally.
 
 **Closed leads — do NOT recommend revisiting:**
 - T array (all 72 positions, all ±offsets) — Directions 1-39
