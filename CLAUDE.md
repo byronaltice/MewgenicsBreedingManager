@@ -41,6 +41,13 @@ NEVER read, modify, or delete Game Files that are outside of this directory. If 
 
 Game Files include - `resources.gpak`, `*.sav` files.
 
+**Pre-extracted GPAK content** — `game-files/resources/` contains files extracted from `resources.gpak`, organized by category. Use these directly instead of processing the gpak archive:
+- `gpak-text/` — all text/data files (`.gon`, `.csv`, etc.) — **fully extracted, use this for lookups**
+- `gpak-other/` — other binary assets (`.mid`, `.lvl`, `.data`, etc.) — **fully extracted**
+- `gpak-images/`, `gpak-audio/`, `gpak-video/` — not yet extracted (large; planned for the future)
+
+When looking up mutation definitions, ability data, or any game data that lives in GON/CSV files, read from `game-files/resources/gpak-text/` directly. Do not parse `resources.gpak` unless you specifically need something from the unextracted categories.
+
 Sidecar Files include - `*.json` files.
 
 `*.bat` files - files in the `test-saves` directory to support you in managing the other files here.
@@ -555,7 +562,7 @@ On 2026-04-25, `rg.exe` returned "Access is denied" in this workspace. If that r
 
 Useful current Python investigation scripts:
 
-- `tools\field_mapper\investigate_direction32.py` searches `Mewgenics.exe` and `resources.gpak` for defect strings/constants and maps executable hits to virtual addresses.
+- `tools\field_mapper\investigate_direction32.py` searches `Mewgenics.exe` and `resources.gpak` (legacy — prefer reading `game-files/resources/gpak-text/` directly for GON/CSV lookups) for defect strings/constants and maps executable hits to virtual addresses.
 - `tools\field_mapper\investigate_direction29.py` confirms `FUN_14022cf90` = stat arrays.
 - `tools\field_mapper\investigate_direction30.py` maps `CatData+0x788` + the empty `FUN_14022d100` header.
 - `tools\field_mapper\investigate_direction31.py` maps the `DefaultMove` run, three tail slots, equipment block, and class string.
