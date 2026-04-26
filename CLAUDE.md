@@ -140,14 +140,18 @@ A plan handed to a subagent must include:
 - **Expected output shape** — what the report should contain, what artifacts to produce, where they go.
 - **Constraints** — what not to touch, what conventions to follow, what would count as a failure.
 - **Obstacle protocol** — instruct the subagent to stop and surface ambiguity or unexpected blockers in its summary rather than improvise. The plan is a starting point, not a contract; if reality disagrees, control returns to Opus to revise.
+- **Closed-leads list (when continuing prior work)** — explicitly enumerate prior findings that must NOT be re-recommended as "next steps." Subagents start cold and pattern-match to obvious-looking next moves; without this list, they will recommend revisiting closed leads. Cheap to include, prevents wasted review cycles.
+- **Identity-claim discipline (for code/binary forensics)** — when asking a subagent to identify what a function, address, table, or field IS, instruct it to corroborate the claim with multiple lines of evidence (string refs, callers, signature, expected behavior) rather than inferring identity from one decompile. Treat single-source identity claims as hypotheses that need verification, not conclusions. This prevents the "interesting interpretation gets locked in" failure mode.
 
 ### Common failure modes (and how to avoid them)
 
 - **Ambiguous plans → Sonnet improvises.** Tighten the plan before dispatch. Name edge cases explicitly.
 - **Skipped review → quality drift.** Always run the review phase, even if brief.
+- **Shallow review → missed contradictions.** For findings that drive direction changes (not mere rule-outs), read the actual artifact, not just the subagent's summary. Summaries can flatten ambiguity.
 - **Haiku used where Sonnet fits.** "Looks simple" ≠ "is simple." If the task needs context awareness or judgment, use Sonnet.
 - **Stale CLAUDE.md → bad plans.** Update CLAUDE.md and memory as the codebase and investigation state change. Opus plans only as well as the context lets it.
 - **Plan treated as sacred.** When Sonnet hits a real obstacle, it should stop and report. Opus revises; Sonnet does not improvise around the gap.
+- **Subagent "next step" recommendations adopted uncritically.** Subagents lack full project context and pattern-match to obvious moves, often suggesting closed leads. Treat their recommendations as one input, not a directive. Always validate against the closed-leads list before dispatching.
 
 ### Default model selection
 
