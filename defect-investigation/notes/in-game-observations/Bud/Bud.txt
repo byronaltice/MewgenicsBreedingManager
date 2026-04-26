@@ -1,0 +1,16 @@
+Screenshot shows Mutations and Defects
+
+Passives: None
+Disorders: None
+Active Abilities: 2
+
+Mutations:
+- Body Mutation: +2 Strength, -1 Dexterity
+- Head Mutation: Gain +1 Lightbulb permanently at the end of each battle. Start each battle with Bruise 2
+- Tail Mutation: +1 Brace
+- Eyebrow Mutation: +2 Charisma, -1 Heart
+- Mouth Mutation: +2 Heart, -1 Speed
+
+Defects:
+- Leg Birth Defect: +1 Strength, Permanently Slow
+- Ear Birth Defect: -2 Dexterity

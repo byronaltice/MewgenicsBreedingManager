@@ -1,0 +1,1 @@
+Directory for storing definite findings from the investigation. Use this index to look up findings to aid in investigation. Store new findings to this directory and update the index.

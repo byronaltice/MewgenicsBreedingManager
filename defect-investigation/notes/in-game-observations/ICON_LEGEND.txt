@@ -1,0 +1,24 @@
+Investigation icon legend for screenshot transcription
+
+These names are meant to preserve both the gameplay meaning and the visual icon
+when useful for reverse-engineering.
+
+Stat icons:
+- Lightbulb = Intelligence
+- Arm flex = Strength
+- Bow + arrow = Dexterity
+- Mouth = Charisma
+- Heart = Constitution
+- Boot = Speed
+- Clover = Luck
+
+Other effect icons seen in mutation/defect text:
+- Shield icon = Armor
+- Blue diamond icon = Shield
+- Brace = plain text in screenshots, not an icon
+
+Transcription notes:
+- Preserve punctuation exactly when it may matter (example: "Blind.")
+- Do not add a leading + or - if the game text does not show one
+- If an effect is ambiguous, prefer the icon-aware wording over guessing a stat name
+  Example: write "Heart" instead of "Health"

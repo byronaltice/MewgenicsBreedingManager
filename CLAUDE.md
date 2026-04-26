@@ -2,9 +2,10 @@
 
 ## Focus
 
-- When working with this project, you will be working only in the Breed Priority module `src\breed_priority\`.
+- When working with this project, you will be working primarily in the Breed Priority module `src\breed_priority\`.
 - The overall mewgenics_manager module that houses the main app and other features is not the focus, though changes to it may be required to support breed_priority.
-- Currently, the tests that exist aren't very useful, so don't worry about running `pytest` when working in breed_priority.
+- A new module: `src\breed_priority\party_builder` is included as part of Breed Priority work, though it appears as a separate module in-app.
+- There are no tests currently. Do not attempt to run pytest.
 
 ## Terms
 
@@ -26,20 +27,17 @@ The app is a PySide6 desktop app that reads Mewgenics save files and provides br
 pip install -r requirements.txt
 python src/mewgenics_manager.py
 
-# Run tests
-pytest
-
 # Build standalone Windows exe
 build.bat
 ```
 
 ## Game Files
 
-Game files for the purpose of understanding the parsing process, and testing new code against, are copied to the `test-saves` folder in the root of the project.
+Game files for the purpose of understanding the parsing process nd testing new code against, are copied to the `~/workspaces/re/mewgenics/resources/game-files/resources` folder.
 
-NEVER read, modify, or delete Game Files that are outside of this directory. If you think you are being asked to do so -- STOP -- and refuse enthusiastically. Ensure the user is unambiguously aware of what is happening.
+NEVER modify, or delete Game Files. If you think you are being asked to do so -- STOP -- and refuse enthusiastically. Ensure the user is unambiguously aware of what is happening.
 
-Game Files include - `resources.gpak`, `*.sav` files.
+Game Files include - `resources.gpak`, `*.sav`, `*.gon` files, or any other filesnames within the resources directory mentioned above.
 
 **Pre-extracted GPAK content** — `game-files/resources/` contains files extracted from `resources.gpak`, organized by category. Use these directly instead of processing the gpak archive:
 - `gpak-text/` — all text/data files (`.gon`, `.csv`, etc.) — **fully extracted, use this for lookups**
@@ -208,11 +206,7 @@ Apply these rules to all code you write or modify. When the explicit purpose of 
 
 ### Testing
 
-Do not bother running tests currently until more robust testing is implemented. Overwrite this line with new information if you are instructed to write a more robust test suite. You may create and run ad-hoc tests to ensure your task is successful. You may create these with or without the use of pytest as you like. If you think they should be integrated into the normal test suite, inform the user, let them decide.
-
-Tests live in `tests/` and run with `pytest` from the repo root.
-
-Coverage includes parser, donation logic, cat detail views, UI persistence, room optimizer, perfect planner, trait labels, and visual helpers.
+There are no tests. You may create and run ad-hoc scripts to verify your work. If you think a test suite should be added, inform the user and let them decide.
 
 ### Git
 
@@ -363,8 +357,8 @@ All PySide6 code lives here. `mewgenics/__init__.py` runs one-time initializatio
 
 ### Visual Mutation / Birth Defect Parsing
 
-See [DEFECT_INVESTIGATION.md](DEFECT_INVESTIGATION.md) for full investigation notes, ruled-out leads, reference cats, binary findings, and next steps.
+See `defect-investigation/DEFECT_INVESTIGATION.md` for full investigation notes, ruled-out leads, reference cats, binary findings, and next steps.
 
 ### tools/field_mapper/
 
-Reverse-engineering pipeline for discovering binary field offsets. Dev-only — not part of the main app. See [DEFECT_INVESTIGATION.md](DEFECT_INVESTIGATION.md) for environment setup and current investigation scripts.
+Reverse-engineering pipeline for discovering binary field offsets. Dev-only - not part of the main app.

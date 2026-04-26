@@ -5,10 +5,10 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=[
-        ('../locales/en.json', '.'),
-        ('../locales/ru.json', '.'),
-        ('../locales/zh_CN.json', '.'),
-        ('../locales/pl.json', '.'),
+        ('mewgenics/utils/locales/en.json', '.'),
+        ('mewgenics/utils/locales/ru.json', '.'),
+        ('mewgenics/utils/locales/zh_CN.json', '.'),
+        ('mewgenics/utils/locales/pl.json', '.'),
         ('../VERSION', '.'),
     ],
     hiddenimports=[

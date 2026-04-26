@@ -1,0 +1,11 @@
+Screenshot shows Mutations and Defects
+
+Passives: None
+Disorders: None
+Active Abilities: 3
+
+Mutations:
+- Tail Mutation: Whenever you down a unit, you have a 10% chance to reanimate that unit with 50% HP
+
+Defects:
+- Eyebrow Birth Defect: -1 Charisma

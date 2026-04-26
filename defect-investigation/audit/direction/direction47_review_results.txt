@@ -1,0 +1,95 @@
+Direction 47 Review - FUN_140734760 placement-driven present flags
+
+Date: 2026-04-26
+Binary: /Mewgenics.exe-ee4d13
+Method: Advisor-strategy subagent review plus Ghidra MCP decompile; no save files modified.
+
+Question
+--------
+
+Direction 46 left the open question: what sets runtime CatPart+0x18 present
+flags to zero after load?
+
+Reviewed conclusion
+-------------------
+
+FUN_1400b5260 is not the direct missing-flag setter. Its mode argument changes
+gender/default-data selection, but no evidence was found that it writes
+CatPart+0x18 to zero.
+
+FUN_140734760, previously treated as bone/transform placement only, is now the
+strongest confirmed setter path. It clears several facial/attached CatPart+0x18
+present flags to zero, then sets specific flags back to one only when matching
+anchors exist in the selected CatHeadPlacements entry.
+
+Evidence
+--------
+
+1. FUN_14022dfb0 still matches the load chain: default init, db_key write,
+   SQLite blob read, SerializeCatData, then FUN_140734760(CatData+0x60).
+   Therefore placement reconstruction runs after saved visual fields overwrite
+   default-init visual fields.
+
+2. FUN_140734760 loads the resource named "CatHeadPlacements" and selects an
+   entry using the current head/placement id at container+0x84 minus one. The
+   parser's observed headShape value corresponds to the saved head part ID used
+   in this area.
+
+3. At function entry, FUN_140734760 clears facial/attached present flags:
+   container-relative +0x290 and +0x2e4 for the eye records, +0x3e0 and +0x434
+   for the ear records, plus mouth and attached-face/neck records. It also
+   clears related transform fields.
+
+4. During the CatHeadPlacements anchor loop, it conditionally sets flags back
+   to one when matching anchor labels are present:
+   - "leye" sets the left-eye flag.
+   - "reye" sets the right-eye flag.
+   - "mouth" sets the mouth flag.
+   - "lear" sets the left-ear flag.
+   - "rear" sets the right-ear flag.
+   - "ahead", "aneck", and "aface" set attached head/neck/face flags.
+
+5. When the loop ends, eyebrow-related records are copied from the eye records.
+   This explains why missing eyes can also yield missing eyebrows without a
+   separate saved eyebrow defect flag.
+
+6. The relevant anchor strings were found in the extracted SWF resource
+   `game-files/resources/gpak-video/swfs/catparts.swf`, including
+   "CatHeadPlacements", "leye", "reye", "lear", "rear", "mouth", "ahead",
+   "aneck", and "aface". The table itself is not present as plain GON text in
+   `game-files/resources/gpak-text`.
+
+Reference-cat sanity check
+--------------------------
+
+In the fixed investigation save:
+
+- Whommie has saved headShape 304, eye IDs 139, eyebrow IDs 23, and in-game
+  missing eye + eyebrow defects.
+- Kami has saved headShape 99 with the same eye and eyebrow IDs, and is the
+  clean control for those IDs.
+- Bud has saved headShape 319, ear IDs 132, and in-game missing ear defect.
+
+This supports the placement-driven model for Whommie/Kami: the same saved
+eye/eyebrow IDs can display differently when the saved head placement entry
+differs.
+
+Remaining uncertainty
+---------------------
+
+The exact CatHeadPlacements entry data has not yet been decoded from
+`catparts.swf`, so Direction 47 does not yet prove which specific head IDs omit
+which anchors. It does, however, identify the first confirmed post-load writer
+that can turn runtime missing-part flags off without any serialized per-cat
+defect flag.
+
+Best next step
+--------------
+
+Decode enough of `catparts.swf` / CatHeadPlacements to list anchor names for
+headShape 304, 99, and 319, then compare the anchor sets against Whommie, Kami,
+Bud, and any available controls with the same headShape.
+
+Confidence: high that FUN_140734760 writes the runtime present flags; medium
+that missing CatHeadPlacements anchors fully explain the unresolved defects
+until the SWF table is decoded.

@@ -1,0 +1,13 @@
+Screenshot shows Mutations and Defects
+
+Passives: None
+Disorders: None
+Active Abilities: 2
+
+Mutations:
+- Eyebrow Mutation: +1 Range
+- Fur Mutation: +2 Charisma, -1 Lightbulb
+
+Defects:
+- Body Birth Defect: Start each battle with Bruise 1
+- Ear Birth Defect: -2 Dexterity

@@ -1,0 +1,118 @@
+Direction 46 - Resolve CatPart missing-flag offset puzzle
+
+Date: 2026-04-26
+Binary: /Mewgenics.exe-ee4d13
+Method: Ghidra MCP decompile + xrefs; no save files modified.
+
+Question
+--------
+
+Direction 45 left an apparent contradiction:
+
+- FUN_1400a5390 checked CatPart+0x18.
+- FUN_1400c9810 checked container+0xa4, +0xf8, ... which had been
+  interpreted as CatPart_(k+1)+0x24 if records began at serializer offsets
+  +0x2c, +0x80, ...
+- FUN_14005dfd0 constructor appeared to write byte=1 at CatPart+0x18.
+
+Conclusion
+----------
+
+There is no +0x18 vs +0x24 contradiction. The display/breeding CatPart
+records begin at these CatData-relative offsets:
+
+  +0x8c, +0xe0, +0x134, +0x188, +0x1dc, +0x230, +0x284,
+  +0x2d8, +0x32c, +0x380, +0x3d4, +0x428, +0x47c, +0x4d0
+
+Equivalently, because the CatParts container starts at CatData+0x60, these
+are container-relative offsets:
+
+  +0x2c, +0x80, +0xd4, +0x128, +0x17c, +0x1d0, +0x224,
+  +0x278, +0x2cc, +0x320, +0x374, +0x3c8, +0x41c, +0x470
+
+With those bases:
+
+  base+0x00 = part category
+  base+0x04 = part id / alternate id used by inheritance and display
+  base+0x08 = texture/fur echo copied after inheritance
+  base+0x18 = present/missing flag byte
+
+FUN_1400a5390 and FUN_1400c9810 read the same flag offset: CatPart+0x18.
+
+Evidence
+--------
+
+1. FUN_1400a5390 reads *(char *)(param_2 + 6), where param_2 is an
+   undefined4* CatPart pointer. That is byte offset +0x18. If the byte is
+   zero, the helper substitutes part id 0xfffffffe before GON lookup. It
+   otherwise uses param_2[1] (CatPart+0x04) as the part id.
+
+2. FUN_1400a6790 calls FUN_1400a5390 with CatPart bases:
+
+   child/parent CatData+0x8c, +0xe0, +0x134, +0x188, +0x1dc, +0x230, +0x284,
+   +0x2d8, +0x32c, +0x380, +0x3d4, +0x428, +0x47c, +0x4d0.
+
+   After each inheritance call it writes child base+0x08 from child +0x78
+   (the selected texture/fur id). This matches the observed T-array fur echo
+   field and confirms these are the slot records used by breeding.
+
+3. FUN_1400c9810 reads the same record bases:
+
+   first slot: category at CatData+0x8c, id at +0x90, flag at +0xa4.
+   Since +0xa4 - +0x8c = +0x18, this is CatPart+0x18.
+
+   Later slots follow the same +0x54 stride. Example ear slots:
+   +0x428/+0x42c/+0x440 and +0x47c/+0x480/+0x494.
+
+4. FUN_14005dfd0 initializes these same flag bytes to 1. Examples
+   below are CatData-relative offsets:
+
+   +0xa4, +0xf8, +0x14c, +0x1a0, +0x1f4, +0x248, +0x29c,
+   +0x2f0, +0x344, +0x398, +0x3ec, +0x440, +0x494, +0x4e8.
+
+5. FUN_14022ce10/FUN_14022cd00 serialize these same records through a
+   CatParts-container pointer. Their container-relative bases (+0x2c, +0x80,
+   +0xd4, ...) are the same as the CatData-relative display/breeding bases
+   after adding CatData+0x60. They write only record+0x04..+0x14. The saved
+   T array therefore does not serialize the runtime present/missing flag at
+   record+0x18.
+
+6. FUN_1400ca4a0 -> FUN_1400caa20 -> FUN_1400cb130 is still only an ID-writer
+   path in the checked direct mutation route. FUN_1400cb130 writes part IDs at
+   CatData offsets such as +0x90, +0xe4, +0x138, +0x2dc, +0x330, +0x42c, and
+   +0x480. It does not write the CatPart+0x18 flag bytes.
+
+7. FUN_14022dfb0's load-time call to FUN_1400b5260 does pass extra registers:
+
+   14022e040: xor r9d, r9d
+   14022e043: mov r8d, 3
+   14022e049: mov rcx, rsi
+   14022e04c: call FUN_1400b5260
+
+   So load-time default init is plausibly
+   FUN_1400b5260(CatData*, unused/noisy RDX, 3, 0). This differs from the
+   breed-time call, where FUN_1400a6790 calls
+   FUN_1400b5260(child, parent_a, 3, 1).
+
+Corrected model
+---------------
+
+Direction 33's serialized record bases were correct. The mistake in Direction
+45 was comparing container-relative serializer offsets to CatData-relative
+display offsets without adding the CatParts container base (`CatData+0x60`).
+The missing-part flag is consistently CatPart+0x18 in runtime logic and sits
+immediately after the serialized five-u32 window (`+0x04..+0x14`).
+
+Remaining open question
+-----------------------
+
+What sets CatPart+0x18 to zero for stable missing-part defects after load?
+
+The direct roster blob cannot answer this because the relevant flag is not in
+the serialized T-array. The next lead is broader setter tracing for the runtime
+slot flag bytes (`CatData+0xa4, +0xf8, +0x14c, ...`) and any
+constructor/default-init path that can make those values deterministic per cat.
+
+Confidence: high for offset resolution; high that there is no two-band
+container model; medium for "no obvious setter in the direct mutation path"
+until the setter path is traced more broadly.

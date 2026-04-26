@@ -1,0 +1,70 @@
+Direction 47 - FUN_1400b5260 mode/argument behavior and CatPart+0x18 flags
+
+Scope
+- Binary: /Mewgenics.exe-ee4d13
+- Read-only Ghidra MCP inspection.
+- No save files or game files read/modified.
+
+Conclusions
+1. FUN_1400b5260's apparent signature is:
+   void FUN_1400b5260(CatData *cat, undefined8 arg2, int gender_or_mode, char use_save_context_mode)
+
+2. arg2 is not used by FUN_1400b5260's decompiled body. Raw caller-register evidence shows some callers leave RDX unspecified/stale, so arg2 should not be treated as meaningful unless a specific caller proves otherwise.
+
+3. gender_or_mode controls sex/gender initialization:
+   - If gender_or_mode == 3, FUN_1400b5260 randomly chooses cat+0x58 as 0/1, with a small chance of 2.
+   - If gender_or_mode != 3, it writes that value directly to cat+0x58.
+   - It then copies the resolved value to cat+0x5c and passes it in EDX to FUN_140732750(cat+0x60, resolved_gender).
+
+4. use_save_context_mode does not directly control CatPart+0x18 present/missing flags in the decompiled body.
+   - If use_save_context_mode == 0, or save context is unavailable, FUN_1400b5260 uses FUN_1407a13d0(...) to select class-like data.
+   - If use_save_context_mode != 0 and save context is available, it uses FUN_1400d7200(*(save_ctx+0x598), ...).
+   - This branch feeds FUN_1400623c0(cat+0x18, selected_value). It is not a CatPart flag write.
+
+5. FUN_1400b5260 itself does not directly write CatPart+0x18 = 0. Its important child calls are:
+   - FUN_140732750(cat+0x60, resolved_gender): randomizes visual IDs and type tags, then calls voice/bone placement. It writes saved visual fields, not the present/missing flag as a semantic missing-defect setter.
+   - FUN_140733100(cat+0x60, resolved_gender): voice reroll; not a body-part flag setter.
+   - FUN_140734760(cat+0x60): head placement / transform reconstruction. This DOES write several CatPart+0x18 flag bytes to 0 and conditionally back to 1 based on CatHeadPlacements anchors.
+
+Most important finding
+- FUN_140734760 is the highest-value next function, and likely the actual setter path for stable runtime missing facial parts.
+- It loads "CatHeadPlacements" using the current head-related ID, clears presence bytes for facial/attached parts, then sets them present only when matching placement anchors are found.
+- Observed CatPart+0x18 writes in FUN_140734760 include container-relative:
+  - +0x290 and +0x2e4: eye-related records, cleared to 0, conditionally set to 1 from placement anchors.
+  - +0x338 and +0x38c: eyebrow-related records, copied from eye flags in the no-more-anchors path.
+  - +0x3e0 and +0x434: ear-related records, cleared to 0, conditionally set to 1 from placement anchors.
+  - +0x488 and later attached-face/neck flags are also placement-driven.
+- This provides a plausible stable load-time mechanism: saved visual/head IDs are deserialized, then FUN_140734760 recomputes runtime present/missing flags from CatHeadPlacements. No per-cat saved flag is required if the saved visual/head combination deterministically lacks the relevant placement anchor.
+
+Caller evidence
+- FUN_14022dfb0, call at 14022e04c:
+  - raw bytes show xor r9d,r9d; mov r8d,3; mov rcx,rsi; call FUN_1400b5260.
+  - RDX is not deliberately set at the call site. The decompiler renders this as FUN_1400b5260(param_3).
+  - After deserialize it calls FUN_140734760(param_3+0x60), so load-time flags are recomputed after saved visual fields overwrite default init.
+
+- FUN_1400a6790, call at 1400a6814:
+  - decompile and raw bytes agree on FUN_1400b5260(child, parent_a, 3, 1).
+  - Breed-time then inherits/sets parts and calls FUN_140734760(child+0x60) at function end, so final breed-time flags are also recomputed after final visual IDs are chosen.
+
+- FUN_1400b5cb0:
+  - calls FUN_1400b5260(param_1, param_2, 3, 0), then FUN_140733b50(param_1+0x60, param_2).
+  - FUN_140733b50/FUN_140733670 parse visual defaults from a GON-like object and write saved part fields (+0x04/+0x08/+0x10/+0x14), not CatPart+0x18 directly.
+
+- Other xrefs to FUN_1400b5260:
+  - FUN_1400d5540, FUN_1401d2ff0, FUN_140230750, FUN_14022fd70, FUN_1401f1dd0, FUN_140907460, FUN_1408c3f70, FUN_1403cce80, FUN_14081d440.
+  - Several render in Ghidra as one-argument default-init calls; raw bytes for sampled callers show r8d=3/r9d=0 and no deliberate RDX setup before the call.
+
+Corroborating offsets
+- FUN_14005dfd0 initializes CatPart+0x18 present flags to 1 at container-relative +0x44, +0x98, +0xec, +0x140, +0x194, +0x1e8, +0x23c, +0x290, +0x2e4, +0x338, +0x38c, +0x3e0, +0x434, +0x488, ...
+- FUN_1400a5390 reads parent CatPart+0x18 through param_2/param_3 + 6 u32 slots and substitutes part ID 0xfffffffe when the byte is 0.
+- FUN_1400c9810 reads CatData-relative flag bytes +0xa4, +0xf8, +0x14c, +0x1a0, +0x1f4, +0x248, +0x29c, +0x2f0, +0x344, +0x398, +0x3ec, +0x440, +0x494, +0x4e8 and substitutes 0xfffffffe when the byte is 0.
+- FUN_140734760 uses the same container-relative flag locations after subtracting CatData+0x60, especially the eye/eyebrow/ear cluster.
+
+Hypotheses
+- Strong hypothesis: Whommie's missing eye/eyebrow effects and Bud's missing ear effect are caused by FUN_140734760 recomputing runtime present flags from CatHeadPlacements after deserialize, not by FUN_1400b5260's param_4 and not by a serialized CatPart flag.
+- If the saved head/visual configuration selects a CatHeadPlacements entry with no eye/eyebrow/ear anchors, the corresponding CatPart+0x18 flag remains zero and downstream display/breeding code sees GON block -2 via the existing 0xfffffffe substitution.
+
+Most valuable next functions / data to inspect
+1. FUN_140734760, with a focused map of every anchor string compared and the exact CatPart+0x18 byte it clears/sets/copies.
+2. The CatHeadPlacements data source for the reference cats' saved head/visual IDs, to confirm whether Whommie/Bud select entries lacking the relevant anchors while controls select entries with them.
+3. FUN_140733b50/FUN_140733670 only if a GON-driven visual initialization path is relevant; they do not currently look like the missing flag setters for roster load.

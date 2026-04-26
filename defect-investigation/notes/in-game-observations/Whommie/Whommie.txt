@@ -1,0 +1,14 @@
+Screenshot shows Mutations and Defects
+
+Passives: None
+Disorders: None
+Active Abilities: 2
+
+Mutations:
+- Head Mutation: -2 Charisma, +2 Health Regeneration, +5% dodge chance
+- Tail Mutation: +1 Brace
+
+Defects:
+- Eye Birth Defect: Blind.
+- Eyebrow Birth Defect: -2 Charisma
+- Fur Birth Defect: -1 Charisma, 10% dodge chance

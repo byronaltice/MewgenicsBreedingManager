@@ -1,0 +1,16 @@
+Screenshot shows Mutations and Defects
+
+Passives: None
+Disorders: None
+Active Abilities: 2
+
+Passive Abilities: 1
+
+Note: Emine has no eye or eyebrow defect/mutation. But does have a body mutation and tail mutation.
+
+Mutations:
+- Body Mutation: +2 Strength, -1 Dexterity
+- Tail Mutation: +1 Brace
+
+Passives:
+- Omniscience

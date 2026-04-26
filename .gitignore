@@ -25,22 +25,19 @@ env/
 settings.local.json
 .claude/
 
+# Codex
+.codex/
+
 # OS
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# Screenshots / local assets
-# screenshot.png intentionally tracked for README
-
 # Repo-local scratch space
 tmp/
 .cursor/
-AGENTS.md
-COMPATIBILITY_CHANGE_LIST.md
-REBASE_MAIN_PLAN.md
-TODO.md
-breed-priority-2.md
-push.sh
-test-saves/
+
+# Archived - large files
+*.sqlite
+
 

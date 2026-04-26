@@ -59,7 +59,7 @@ else:
     )
 os.makedirs(APPDATA_CONFIG_DIR, exist_ok=True)
 APP_CONFIG_PATH = os.path.join(APPDATA_CONFIG_DIR, "settings.json")
-LOCALES_DIR = os.path.join(_bundle_dir(), "locales")
+LOCALES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "locales")
 APP_VERSION = _read_app_version()
 
 

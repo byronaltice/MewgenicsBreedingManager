@@ -1,0 +1,13 @@
+Screenshot shows Mutations and Defects
+
+Passives: None
+Disorders: None
+Active Abilities: 2
+
+Note: Alaya is dead, and exists as a corpse in the house in the sav file snapshot.
+
+Mutations:
+- Eyebrow Mutation: +1 Range
+
+Defects:
+- Ear Birth Defect: -2 Dexterity

@@ -1,24 +1,14 @@
 # Mewgenics Breeding Manager
 
-A high-performance, Python-based tool for optimizing breeding operations in Mewgenics. It extracts data directly from your save files and helps you compare pairings, optimize room layouts, and plan long-term lines to maximize strong offspring while minimizing inbreeding risk.
+A fork of the original repo. Currently it is simply to support the Breed Priority and Party Builder submodules. It will later be refactored to separate into its own thing.
 
-Current release: `v5.0.0`
+## Doctrine
 
-## Screenshots
-
-### Main Page
-
-![Main Page](Sceenshots/Home%20Screen.png)
-
-### Breeding Optimizer
-
-![Breeding Optimizer](Sceenshots/Room%20Optimizer.png)
-
-### Perfect 7 Planner
-
-![Perfect 7 Planner](Sceenshots/Perfect%207%20Planner.png)
+See CLAUDE.md as the entry point for repository doctrine.
 
 ## Core Features
+
+Core features below are for the original repo, left here for reference.
 
 - Load your save file and keep your full roster, lineage, and relationships in one place
 - Compare pairings with inheritance odds, expected offspring stats, and risk
@@ -60,27 +50,3 @@ On Linux, use `build.sh`.
 - Community reverse-engineering help from players and mod users
 - Original idea and reference from frankieg33
 
-## Release Notes
-
-### v5.0.0
-
-- Full codebase refactoring: split monolithic `mewgenics_manager.py` (~19k lines) into a structured `mewgenics/` package
-- New package layout: `utils/`, `models/`, `workers/`, `views/`, `panels/`, `dialogs` — 30+ focused modules
-- Entry point (`mewgenics_manager.py`) is now a thin wrapper for backwards compatibility
-- No feature changes or behavior differences — pure structural refactor
-- Updated PyInstaller spec with all new submodule imports
-
-### v4.4.1
-
-- Follow-up release for the same planner, optimizer, localization, and test updates shipped in `v4.4.0`
-- Keeps the shared optimizer search settings, deeper room optimizer controls, breeding partner improvements, and planner persistence updates in sync with the latest release line
-
-### v4.4.0
-
-- Added shared optimizer search settings so the room optimizer and Perfect 7 planner use the same simulated annealing controls
-- Expanded the room optimizer with deeper search options, clearer setup/configuration tabs, and improved room-related tooltips
-- Improved the breeding partners view to distinguish mutual and one-way love links
-- Refined the mutation planner so cats are shown alongside selected traits instead of being buried behind room filters
-- Updated the saved UI defaults and persistence behavior for the new planner and optimizer settings
-- Expanded localization coverage for the new settings, labels, and status messages
-- Added and updated tests around planner persistence, optimizer behavior, trait labels, and UI interactions
