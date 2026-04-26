@@ -16,6 +16,14 @@ Use the **Advisor Strategy** documented in `CLAUDE.md` § "Advisor Strategy":
 - Run the review phase on every dispatch. Spot-check the artifacts the subagent claims to have produced.
 - Stop and report on contradictions or unexpected blockers — do not improvise.
 
+## Terminology — important
+
+The .sav file is a LZ4-compressed SQLite database. It contains:
+- A **per-cat binary blob** stored in one row of one table — this is what `Cat.__init__` parses byte-by-byte. **Fully mapped, exhausted.** All "Direction X mapped the +0xY field" findings are inside this blob.
+- **Other SQLite tables** (`properties`, `pedigree`, `files`, `npc_progress`, etc.) — checked at schema level only in Directions 7c/13b/16, never row-audited per-cat. **Not exhausted.** Direction 43 found `properties.random_seed` is real per-save defect-relevant data, proving these tables carry non-trivial info.
+
+When this doc says "the blob is exhausted" it means item 1. The .sav file as a whole is NOT exhausted.
+
 ## Current state
 
 The on-disk per-cat blob is fully mapped byte-for-byte (Directions 33-39). The runtime DISPLAY chain is mapped (Direction 42): `CatPart+0x18 == 0` → effective partID `0xFFFFFFFE` → GON block `-2` (`tag birth_defect`) → `BirthDefectTooltip`. There is no fallback; display strictly requires the substitution.
