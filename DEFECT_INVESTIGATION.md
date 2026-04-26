@@ -95,11 +95,46 @@ Direction 43 corrected a Direction 42 misidentification and found a new key:
 
 **User-provided hint (2026-04-25):** The GON files contain the literal string `"Blind."` (with period) — the exact display string for Whommie's Eye Birth Defect, likely the CSV/locale-resolved `desc` for eyes GON block `-2`. This is a **code-tracing aid, not a signal to re-scan the blob**. Treat it as a landmark in the executable: find the function that produces the `"Blind."` display for a cat, then trace BACKWARD to discover what saved input drives it. Do NOT re-scan the blob for this string — extensive blob scanning has already been done and is unlikely to surface a missed carrier.
 
+**Direction 45 — Per-cat load chain mapped end-to-end (2026-04-26):**
+
+Renamed/identified key functions:
+- `FUN_14022d360` = `glaiel::SerializeCatData(CatData&, ByteStream&, bool)` — symmetric serializer. `param_2[0]` is ByteStream mode (0=write, 1/2=read). `param_3` is purely a version-strict guard ("cannot load cat saved on older version of game"). NO defect-application logic, NO RNG, NO `FUN_1400ca4a0` calls. Direction 33 was correct: each body-part record writes exactly 5 u32s at +0x04..+0x14.
+- `FUN_14022dfb0` = `glaiel::MewSaveFile::Load(__int64, CatData&)` — per-cat roster blob loader. Reads SQLite `cats` table by db_key, deserializes via SerializeCatData, then bone placement.
+- `FUN_140230750` = `glaiel::MewSaveFile::Load(__int64, SaveFileCat&)` — single-cat **save_file_cat** (player's protagonist) loader. SQLite key `"save_file_cat"`. NOT the roster loader. Direction 43's earlier confusion is resolved: `random_seed` is read here only when initializing a fresh adventure (`save_file_cat` missing).
+- `FUN_1400d5600` = lazy on-demand cat retrieval (`get_cat_by_db_key`). Hash-cache lookup → SQLite check → calls `MewSaveFile::Load`. **There is NO eager roster loader.** All 947 cats are loaded individually on first access through this 200+ caller hub.
+- `FUN_1400b5260` = cat default initializer. Uses TLS+0x178 xoshiro256** RNG directly, calls `FUN_140732750` (body-part randomizer), `FUN_140734760` (bone placement). Runs BEFORE deserialize.
+- `FUN_140732750` = body-part container randomizer. Loads `data/cat.gen.gon`, queries `num_textures/num_palettes/num_wrinkles/num_grays/num_claws/num_bodies/num_heads/num_tails/num_legs/num_ears/num_eyes/num_brows/num_mouths`, calls `FUN_140943040(0, count, RNG)` to pick a random ID for each. Writes part-category type tags at record starts (record_k+0 = category id like 0x0..0x15). Calls `FUN_140733100(param_1, param_2)` before bone placement — `FUN_140733100` is the remaining unmapped step in the chain.
+- `FUN_140734760` = bone/transform placement only ("CatHeadPlacements" GON; copies position/rotation for head/abody/mouth/feet/atail/ahead/aneck/aface anchors). Does NOT write the missing-part flag.
+
+**Body-part container layout (corrected from Direction 33):**
+- Container = `CatData+0x60`. Saved records 0..13 at container offsets `+0x2c, +0x80, +0xd4, +0x128, +0x17c, +0x1d0, +0x224, +0x278, +0x2cc, +0x320, +0x374, +0x3c8, +0x41c, +0x470` (stride `0x54`).
+- Each saved record k holds 5 u32s at offsets `+0x04..+0x14` written by `FUN_14022cd00`. Bytes `+0x18..+0x53` of each record are **runtime-only** (not in the saved blob).
+- `FUN_1400c9810` reads display data with stride `0x54` at container offsets `+0x8c, +0xe0, +0x134, +0x188, +0x1dc, +0x230, +0x284, +0x2d8, +0x32c, +0x380, +0x3d4, +0x428, +0x47c, +0x4d0` (base ID), `+0x90, +0xe4, ...` (alt ID), `+0xa4, +0xf8, ...` (missing-part flag byte). For slot k these map to **record (k+1)** offsets `+0x0c, +0x10, +0x24` respectively. Base/alt IDs ARE saved (record (k+1)+0x0c, +0x10 = T[8+5k+2], T[8+5k+3]). The missing-part flag at record (k+1)+0x24 is **runtime-only**.
+- The first saved record (record 0 at +0x2c) acts as a header; FUN_1400c9810 has no slot reading from it.
+
+**Critical structural insight:** The runtime missing-part flag bytes are populated during the RANDOM INIT step (`FUN_1400b5260`/`FUN_140732750`/`FUN_140733100`), which runs BEFORE deserialize. Deserialize only overwrites the 5 saved u32s per record and never touches the flag bytes. This means defect display is determined by the random init, not the saved blob.
+
+**MewSaveFile::Load wraps the load chain in an RNG state save/restore:**
+```c
+local_188 = TLS+0x178; uStack_180 = TLS+0x180; ... // save 32-byte xoshiro256** state
+FUN_1400b5260(param_3);                              // default init (advances RNG)
+*(param_3+0xc48) = db_key;                           // store db_key (AFTER default init)
+FUN_1409fcc80(save_ctx, "cats", db_key, blob);       // SQLite read by db_key
+FUN_14022d360(param_3, blob, 0);                     // deserialize (overwrites saved fields only)
+FUN_140734760(param_3+0x60);                         // bone placement
+TLS+0x178 = local_188; ...                            // restore RNG state
+```
+
+**Open paradox (Direction 45):** Because the RNG save/restore wraps the entire chain, every cat enters `FUN_1400b5260` with the *same* TLS+0x178 state. With no cat-specific input visible to `FUN_1400b5260` (db_key isn't stored until AFTER it returns), every cat would receive identical default body parts and identical default flags — yet cats clearly differ. Resolution candidates:
+(i) `FUN_140733100` (the unmapped step inside `FUN_140732750`) reads cat-specific state from somewhere and re-seeds the RNG (or hashes into part selection).
+(ii) The save/restore wrapper has a path I missed where it does NOT restore (e.g., on first creation vs reload).
+(iii) Ghidra's argument count for `FUN_1400b5260` is wrong — its true signature has 4 args (`int param_3` and `char param_4` are referenced) and the caller passes more than the decompile shows; one of those carries cat-specific state.
+
 **Next concrete steps (priority order):**
 
-1. **Find the actual per-cat save loader and trace forward to defect application.** Direction 42 misidentified `FUN_1401d2ff0`. The real per-cat load function (a caller or sibling of `FUN_14022d360`) needs to be located. After `FUN_14022d360` returns, what runs? Trace forward to where `FUN_1400ca4a0` / `FUN_1400caa20` / `FUN_1400cb130` / `FUN_1400a5390` get called per-cat at load time, and what saved input each call reads.
-2. **Decompile `FUN_140230750` fully** (cat save-context loader) — it reads `random_seed` but may also read other per-cat keys.
-3. **Trace from the `"Blind."` GON entry forward to its consumers.** Use this as a landmark in the executable: find the function that resolves the eyes block `-2` GON entry to a display, then trace what fed the part ID `0xFFFFFFFE` into that resolver for Whommie. Working from the display end backward to the data source is a complementary path to step 1's forward trace from the loader.
+1. **Decompile `FUN_140733100`.** This is the last unmapped step inside the random-init chain (called by `FUN_140732750` between part randomization and bone placement). Strong candidate for the missing-part flag setter. Verify whether it writes to record_(k+1)+0x24 for each slot, and whether it reads from CatData+0xc48 (db_key) or any other cat-specific field.
+2. **Verify `FUN_1400b5260`'s true signature and the actual call-site arguments** in `FUN_14022dfb0`. Read the assembly at `1400d5858` (the call to MewSaveFile::Load) and the call from there to `FUN_1400b5260` to see what is actually passed in RDX, R8, R9. Ghidra's "1 arg" rendering may be wrong.
+3. **Trace `FUN_1400d5600`'s caller paths to confirm whether the cache check ever bypasses the RNG-restoring path.** If lazy-load order varies between sessions, every cat's defect outcome would also vary — contradicting the observed stability of defects. So either the order is fixed or per-cat reseeding makes order irrelevant.
 4. ~~**Row-audit the .sav file's other SQLite tables for per-cat keys**~~ — **CLOSED (Direction 44).** All 5 tables and all 11 files blobs fully row-audited. No per-cat defect data exists anywhere in the save file. The entire on-disk save is exhausted.
 
 **Reference Cats**
@@ -169,6 +204,7 @@ Detailed evidence remains in `tools/field_mapper/*direction*_results.txt` and th
 - GPAK GON entries for IDs 139/23/132 (Direction 40): no GON entries exist for these IDs in `eyes.gon` / `eyebrows.gon` / `ears.gon`. They are anonymous base cosmetic shapes. Parser correctly returns None. Lookup is not the bug.
 - Saved stat arrays (Direction 41): Whommie/Bud have `stat_mod = [0,0,0,0,0,0,0]`. Defect stat penalties are NOT baked into save-time stat_mod. Class bonuses ARE (Kami's Druid bonuses). Different mechanism for defects.
 - `FUN_1401d2ff0` as the per-cat save loader (Direction 43 correction): this function is `GlobalProgressionData::ComputeSaveFilePercentage`, applying progression-milestone mutations from save % vs `next_cat_mutation` SQLite key — not the per-cat defect applier. Direction 42's identification was wrong.
+- Direction 33's per-record field labels (Direction 45 refinement): the offsets are correct (FUN_14022cd00 writes 5 u32s at record+0x04..+0x14) but the *labels* "visible/base part ID" for `+0x04` and "texture/fur echo" for `+0x08` were inferred from breeding code (FUN_1400a5390) and may not match the runtime display reads. FUN_1400c9810 reads display IDs at record_(k+1)+0x0c (base) and +0x10 (alt), and the missing-part flag at record_(k+1)+0x24. Of these only +0x0c and +0x10 are saved.
 - COI/ancestry correction: raw parsed `cat.inbredness` was the wrong COI source. Cached pedigree COI / `kinship_coi(parent_a, parent_b)` is the validated source. Directions 22-23 are superseded by Directions 24-25.
 - External reverse-engineering: SciresM's breeding notes support a separate birth-defect-parts pass after normal part inheritance, but do not specify save serialization. Treat as a runtime-code lead, not proof of a saved parallel array.
 - **SQLite full row-audit (Direction 44):** All 5 tables and all 11 `files` blobs have now been row-audited. Schema: `cats` (947 rows, key+blob), `files` (11 rows, key+blob), `furniture` (146 rows, key+blob), `properties` (266 rows, key+value), `winning_teams` (0 rows). Files keys: `house_state`, `house_unlocks`, `inventory_backpack`, `inventory_storage`, `inventory_trash`, `name_gen_history_w`, `npc_progress`, `pedigree`, `save_file_cat`, `tutorial_tokens`, `unlocks`. None contain per-cat defect data. `pedigree` blob is a parallel-hashmap of parent links + COI memos — Whommie/Bud have standard entries with no defect flags. `properties.random_seed` is a 32-byte xoshiro256** state (`ea24843d...`). The entire on-disk save is now exhausted. No per-cat defect field exists anywhere in the file.
