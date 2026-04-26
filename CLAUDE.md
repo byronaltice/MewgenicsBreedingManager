@@ -441,12 +441,16 @@ Direction 43 corrected a Direction 42 misidentification and found a new key:
 (ii) There is a per-cat saved RNG state (creation-event seed) that lets the game replay just that cat's defect roll. Such a field would be small and unmapped in the blob — but the blob is byte-for-byte mapped, so this requires a mis-labeled existing field.
 (iii) The defect's gameplay effects (stat_mod, blind status) are applied without the parser-visible `CatPart+0x18 = 0` substitution — meaning the defect display the user sees comes through a different code path entirely than the one Direction 42 traced.
 
+**Confirmed by user (2026-04-25):** Defects are STABLE across save reloads. This eliminates "purely runtime-derived" hypotheses. The defect data is fully on disk per-cat — either as an explicit saved field (in the blob or SQLite) or as a per-cat seed/key from which the defect can be derived. The parser CAN derive these defects given the right input; we just haven't located the input yet.
+
+**User-provided hint (2026-04-25):** The GON files contain the literal string `"Blind."` (with period) — the exact display string for Whommie's Eye Birth Defect. This is likely the CSV/locale-resolved `desc` for eyes GON block `-2`. If the save carries a key (string identifier OR numeric block ID) that references that GON entry per-cat, that is the defect carrier. The blob string scans done earlier may have missed: (a) a non-UTF-16 encoding, (b) a numeric ID resolved via lookup, or (c) a string in SQLite rather than the cat blob.
+
 **Next concrete steps (priority order):**
 
-1. **Find the actual per-cat save loader and its post-deserialize calls.** Direction 42 misidentified `FUN_1401d2ff0`. The real per-cat load function (likely a caller or sibling of `FUN_14022d360`) needs to be located. After `FUN_14022d360` returns, what runs? Is there a function that sets `CatPart+0x18 = 0` for specific cats based on saved data?
-2. **Row-audit the SQLite `properties` and `pedigree` tables for per-cat keys.** Directions 7c/13b only checked schema. Whommie/Bud may have rows referencing their UIDs/db_keys that clean controls don't.
-3. **Decompile `FUN_140230750` fully** (cat save-context loader) — it reads `random_seed` but it may also read other per-cat keys we haven't found.
-4. **Verify with the user whether defects are stable across reloads** — if Whommie always has Eye Birth Defect across multiple saves of the same game state, the data is on disk; if it varies, it's runtime-derived.
+1. **Find the actual per-cat save loader and its post-deserialize calls.** Direction 42 misidentified `FUN_1401d2ff0`. The real per-cat load function (likely a caller or sibling of `FUN_14022d360`) needs to be located. After `FUN_14022d360` returns, what runs? Is there a function that sets `CatPart+0x18 = 0` for specific cats based on saved data? Specifically trace forward to where `FUN_1400ca4a0` / `FUN_1400caa20` / `FUN_1400cb130` / `FUN_1400a5390` get called per-cat at load time.
+2. **Search blob and SQLite for GON desc keys.** Likely identifiers: `EYES_BIRTH_DEFECT_DESC`, `EYEBROWS_BIRTH_DEFECT_DESC`, `EARS_BIRTH_DEFECT_DESC`, or numeric IDs that resolve to them. Search for both UTF-16 and UTF-8 encodings. Also try searching for the literal `"Blind."` and any related effect strings in both the .sav binary AND the SQLite tables.
+3. **Row-audit the SQLite `properties` and `pedigree` tables for per-cat keys.** Directions 7c/13b only checked schema. Whommie/Bud may have rows referencing their UIDs/db_keys that clean controls don't.
+4. **Decompile `FUN_140230750` fully** (cat save-context loader) — it reads `random_seed` but it may also read other per-cat keys we haven't found.
 
 **Reference Cats**
 
