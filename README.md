@@ -4,7 +4,7 @@ A fork of the original repo. Currently it is simply to support the Breed Priorit
 
 ## Doctrine
 
-See CLAUDE.md as the entry point for repository doctrine.
+See CLAUDE.md as the entry point for repository doctrine. Excepting subagents, CLAUDE.md is REQUIRED to be reviewed by agents at the beginning of a new session.
 
 ## Core Features
 
