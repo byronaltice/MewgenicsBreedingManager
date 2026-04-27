@@ -50,7 +50,9 @@ Known facts:
 
 Current working model: missing effects are derived from saved visual/head IDs through post-load `CatHeadPlacements` reconstruction — the first confirmed mechanism that can produce stable runtime missing-part defects without any serialized per-cat flag. Whommie has headShape `304`; clean control Kami has headShape `99` (both share eye 139, eyebrow 23). Bud has headShape `319`, ear 132.
 
-**Direction 48 update (2026-04-26):** spec-compliant SWF accumulation does NOT explain the defects. The outer `CatHeadPlacements` MovieClip (`char_id=11007`) places anchors at frame 0 that persist via the SWF display-list. Whommie's frame 304 accumulated anchor set is *identical* to Kami's frame 99. Refined hypothesis: `FUN_140734760` likely walks the per-frame depth=1 sub-clip (the actual CatHead clip — `char=6534` for head 99, `char=6753` for head 304, TBD for head 319) for named anchor children, not the outer placement clip's display list.
+**Direction 48 update (2026-04-26):** spec-compliant SWF accumulation does NOT explain the defects. The outer `CatHeadPlacements` MovieClip (`char_id=11007`) places anchors at frame 0 that persist via the SWF display-list. Whommie's frame 304 accumulated anchor set is *identical* to Kami's frame 99 under spec-compliant rules.
+
+**Direction 49 update (2026-04-26):** `FUN_140734760` walks the **outer** clip's children at offset `+0xb0`, not a depth=1 sub-clip — sub-clip-descent hypothesis is closed. Frame is selected by `FUN_140996b80(clip, headShape - 1)`, then a flat name-comparison loop runs. The puzzle now lives inside `FUN_140996b80` and the runtime frame-table format at `plVar18 + 0xd0`: how does Glaiel's SWF runtime build the per-frame child list, and does it diverge from the spec-compliant accumulation Direction 48 simulated?
 
 ---
 
@@ -133,13 +135,25 @@ Outer-clip hypothesis is contradicted. Refined hypothesis: `FUN_140734760` walks
 
 Full decode: `audit/direction/direction48_results.txt`. Reusable parser: `scripts/investigate-direction/investigate_direction48.py`.
 
+### Direction 49 — `FUN_140734760` walks the outer clip, not a sub-clip
+
+Decompiled `FUN_140734760` and confirmed (2 lines of evidence per claim):
+
+- Resource fetch: `FUN_1409a5bb0(0x73, &"CatHeadPlacements")` returns the outer `char_id=11007` MovieClip handle (`plVar18`).
+- Frame seek: `FUN_140996b80(plVar18, head_id - 1)` where `head_id` is `*(int*)(CatData + 0x84)` (saved `headShape`, 1-based).
+- Anchor walk: linear pointer iteration over `plVar18 + 0xb0` for `plVar18[0xac]` items (the same small-vector layout used inside `FUN_140996b80`). Each child's name is read from `child + 0x48` and string-compared against `"leye"`, `"reye"`, `"lear"`, `"rear"`, `"mouth"`, `"ahead"`, `"aneck"`, `"aface"` (all confirmed via `read_bytes` at `DAT_1411044b4`, `DAT_1411044bc`, `DAT_141104478`, `DAT_141104480` plus inline literals). No recursion, no descent into the depth=1 sub-clip.
+
+So the depth=1-sub-clip hypothesis from Direction 48 is **closed**. The walk happens on the outer `CatHeadPlacements` clip's children at the seeked frame.
+
+This re-opens a paradox: Direction 48's spec-compliant SWF accumulation gives frames 99 and 304 identical anchor sets, yet Whommie (head 304) has defects Kami (head 99) does not. Resolution must lie in how `FUN_140996b80` populates `plVar18 + 0xb0` from its frame table at `plVar18 + 0xd0` — Glaiel's runtime SWF representation may differ from the on-disk SWF tag stream Direction 48 walked.
+
 ---
 
 ## Open Questions
 
-1. **Does `FUN_140734760` accumulate the outer SWF display list, or walk a per-frame child sub-clip?** Direction 48 ruled out outer-clip accumulation as the missing-anchor source. The remaining candidate is a recursive child-name search inside the per-frame depth=1 CatHead sub-clip (`char=6534` for head 99, `char=6753` for head 304, TBD for head 319).
+1. **What is the format of the frame table at `plVar18 + 0xd0` that `FUN_140996b80` reads to populate `plVar18 + 0xb0`?** Spec-compliant SWF accumulation gives identical anchor sets for frames 99 and 304, yet defects clearly differ. Either Glaiel pre-bakes per-frame snapshots that diverge from spec-compliant accumulation, or `FUN_140996b80` applies tags non-cumulatively, or the frame-table contents elide some inherited placements that the SWF tag stream retains.
 
-2. **What named anchor children live inside the CatHead sub-clips at `char_id` 6534, 6753, and the head-319 equivalent?** If 6753 lacks `leye`/`reye` children and the head-319 sub-clip lacks `lear`/`rear` children while 6534 has all four, the placement-driven model is restored.
+2. **Is there a second mutator of `CatPart+0x18` after `FUN_140734760` runs?** Possible if e.g. equipment or per-cat visual overrides clear specific flags after placement reconstruction.
 
 3. **RNG paradox (Direction 45):** Every cat enters `FUN_1400b5260` with the same TLS state. How do cats get different body parts? One of: (i) undiscovered 4th arg carrying cat-specific state, (ii) a non-restoring branch in the wrapper, (iii) the cache check bypasses the RNG-restoring path for some callers.
 
@@ -147,10 +161,11 @@ Full decode: `audit/direction/direction48_results.txt`. Reusable parser: `script
 
 ## Best Path Forward (priority order)
 
-1. **Direction 49 — Decompile `FUN_140734760`'s anchor-iteration loop.** Determine whether it (a) iterates the outer `CatHeadPlacements` clip's display list at the selected frame, or (b) descends into the depth=1 sub-clip and walks its named children. The audit already confirms (a) cannot produce the observed defects; we need to verify (b) directly in the binary before further SWF work.
-2. **Direction 50 — Decode the per-frame depth=1 sub-clips.** If (b) is confirmed, parse `catparts.swf` to enumerate named children inside `char_id` 6534 (head 99), 6753 (head 304), and the head-319 sub-clip. Confirm anchor omissions match the observed defects.
-3. **Prototype parser-side reconstruction.** Once anchor omissions are confirmed, synthesize `0xFFFFFFFE` visual defect entries from saved headShape data — no new save-field scan needed.
-4. **Resolve the RNG paradox** (lower priority — doesn't block parser fix). Trace `FUN_1400d5600`'s caller paths to check whether lazy-load order is fixed or per-cat reseeding makes it irrelevant.
+1. **Direction 50 — Decompile `FUN_140996b80` and the SWF runtime loader.** Determine whether the frame table at `+0xd0` stores per-frame tag deltas (spec-compliant) or pre-baked per-frame child snapshots, and how it interprets the source SWF's PlaceObject2/RemoveObject2 tags. If pre-baked snapshots exist, they may carry per-head data that the on-disk SWF analysis missed.
+2. **Direction 51 — Snapshot `plVar18 + 0xb0` at runtime for heads 99, 304, 319.** If decompile alone is inconclusive, instrument or read memory after a load to see the actual child list the game produces. (May require user help — game must be running.)
+3. **Audit other writers of `CatPart+0x18`.** Cross-reference all functions that store byte-zero at the `+0x18` offset of any CatPart record to confirm `FUN_140734760` is the only post-load setter.
+4. **Prototype parser-side reconstruction.** Once the missing-anchor source is confirmed, synthesize `0xFFFFFFFE` visual defect entries from saved headShape data.
+5. **Resolve the RNG paradox** (lower priority — doesn't block parser fix).
 
 ---
 

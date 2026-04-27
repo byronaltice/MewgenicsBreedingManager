@@ -44,17 +44,17 @@ flowchart TD
     %% ======================================================================
     subgraph PLACEMENT_INTERNALS[Placement_Reconstruction internals]
         direction TB
-        CLEAR_FLAGS[Clear facial/attached CatPart+0x18 flags<br/>eyes, ears, mouth, ahead, aneck, aface] --> LOAD_PLACEMENT[Load CatHeadPlacements MovieClip<br/>char_id=11007 in catparts.swf]
-        LOAD_PLACEMENT --> SELECT_FRAME[Select frame N = saved head shape ID]
-        SELECT_FRAME --> ITER_ANCHORS{Iterate anchor children}
+        CLEAR_FLAGS[Clear facial/attached CatPart+0x18 flags<br/>eyes, ears, mouth, ahead, aneck, aface] --> FETCH_CLIP[Resource_Fetch_By_Name 0x73, CatHeadPlacements<br/>returns outer clip handle]
+        FETCH_CLIP --> GOTO_FRAME[MovieClip_GotoFrame<br/>frame = CatData+0x84 - 1<br/>rebuilds child list at clip+0xb0]
+        GOTO_FRAME --> ITER_ANCHORS{Flat iterate clip+0xb0 children<br/>read name from child+0x48}
         ITER_ANCHORS -->|leye / reye| SET_EYE[Set eye CatPart+0x18 = 1]
         ITER_ANCHORS -->|lear / rear| SET_EAR[Set ear CatPart+0x18 = 1]
         ITER_ANCHORS -->|mouth| SET_MOUTH[Set mouth flag = 1]
         ITER_ANCHORS -->|ahead / aneck / aface| SET_ATTACH[Set attached-part flags = 1]
         SET_EYE --> COPY_EYEBROWS[Copy eye records to eyebrow records]
 
-        UNKNOWN_WALK[Open question Direction 49:<br/>does iteration walk outer clip's display list,<br/>or descend into per-frame depth=1 sub-clip?]
-        SELECT_FRAME -.-> UNKNOWN_WALK
+        UNKNOWN_FRAMETABLE[Open question Direction 50:<br/>frame table at clip+0xd0 — cumulative replay,<br/>per-frame deltas, or pre-baked snapshots?]
+        GOTO_FRAME -.-> UNKNOWN_FRAMETABLE
     end
 
     PLACE_PRE -. uses .-> PLACEMENT_INTERNALS
