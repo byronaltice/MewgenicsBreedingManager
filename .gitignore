@@ -23,7 +23,10 @@ env/
 
 # Claude
 settings.local.json
-.claude/
+.claude/*
+!.claude/agents/
+!.claude/agents/**
+!.claude/settings.json
 
 # Codex
 .codex/
