@@ -21,3 +21,4 @@ Files and directories listed below are contained within the current directory: `
 | `game-files/saves/`                               | Save file snapshots used during investigation (read and add new snapshots only - preserve old snapshots).                                                      |
 | `notes/`                                          | In-game observations that can only be done by the User while running the game, and other user-only notes, such as actual cat defects observed by the user.     |
 | `scripts/`                                        | Active investigation scripts to aid in parsing files, reading binaries, interacting with mcp.                                                                  |
+| `subagents/`                                      | Resources supporting multi-agent workflow: sub-agent briefing documents and prompt templates. Discuss with operator before adding files.                        |

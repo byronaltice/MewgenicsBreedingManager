@@ -1,9 +1,21 @@
-.sav file is a snapshot of a point in time where we need to investigate the cats in the current state in the game.
+# in-game-observations/ Index
 
-Each cat named folder has the info for that cat saved in it. See the txt file in there first. The screenshots are only there for when we created the txt file summary.
+Ground-truth cat data captured by the operator while running the game. Each cat folder contains a `.txt` summary and screenshots. Read the `.txt` first; screenshots are supplementary.
 
-Active abilities: Are specified by number of actives for that cat in the txt file, if you need more info than that, like the name of the active ability or effects, let the operator know and they can get it for you.
+The `.sav` snapshot alongside this file was current at time of observation. Active ability names/effects are not recorded — ask the operator if needed.
 
-If you need more cat examples, let the operator know.
+See `ICON_LEGEND.txt` for stat icon mappings.
 
-See ICON_LEGEND.txt for how to understand what icon represents what stat.
+## Cat Index
+
+| Folder      | Status  | Notes                                                                 |
+|-------------|---------|-----------------------------------------------------------------------|
+| `Whommie/`  | Active  | Primary investigation target. Has Eye + Eyebrow Birth Defects not detected by parser. Head mutation present. |
+| `Bud/`      | Active  | Secondary investigation target. Has Ear Birth Defect not detected by parser. Body mutation present. |
+| `Alaya/`    | Corpse  | Dead; exists as corpse in save snapshot. Mutations and defects recorded. |
+| `Berlioz/`  | Gone    | Dead or removed from save; no usable data.                            |
+| `Cannelle/` | Active  | Eyebrow mutation (+1 Range). No defects noted.                        |
+| `Emine/`    | Active  | Has a passive ability. No mutations or defects noted in summary.      |
+| `Flekpus/`  | Gone    | Dead; no longer in house. No usable data.                             |
+| `Plurb/`    | Active  | Tail mutation (reanimate on down). No defects noted.                  |
+| `Rowan/`    | Active  | Has a passive ability. Mutations and defects recorded.                |
