@@ -54,6 +54,8 @@ Current working model: missing effects are derived from saved visual/head IDs th
 
 **Direction 49 update (2026-04-26):** `FUN_140734760` walks the **outer** clip's children at offset `+0xb0`, not a depth=1 sub-clip — sub-clip-descent hypothesis is closed. Frame is selected by `FUN_140996b80(clip, headShape - 1)`, then a flat name-comparison loop runs. The puzzle now lives inside `FUN_140996b80` and the runtime frame-table format at `plVar18 + 0xd0`: how does Glaiel's SWF runtime build the per-frame child list, and does it diverge from the spec-compliant accumulation Direction 48 simulated?
 
+**Direction 50 update (2026-04-27):** Two findings, one of which is a major correction. (a) `FUN_140996b80`'s SWF runtime builds spec-compliant cumulative per-frame snapshots at `+0xd0[+0xb0]` via `FUN_140997590` — frames 99 (Kami) and 304 (Whommie) produce IDENTICAL anchor child lists, matching Direction 48. The runtime does NOT diverge from spec. (b) **CRITICAL CORRECTION:** `FUN_140734760` does NOT write `CatPart+0x18`. The bytes it sets (CatData offsets 0x290, 0x2e4, 0x3e0, 0x434, 0x488, 0x4dc, 0x530, 0x584) sit at `CatPart+0xC` — exactly 0xC bytes earlier than the +0x18 missing-part flag. Direction 47's review used the right addresses but mislabeled them as +0x18 flags. Consequence: the load-time mechanism that clears `CatPart+0x18` to zero for missing parts is once again UNIDENTIFIED. Placement reconstruction sets a separate "anchor populated" sub-field at +0xC that the display chain (reading +0x18 per Direction 46) does not consult. See `audit/direction/direction50_results.txt`.
+
 ---
 
 ## Direction History
@@ -135,6 +137,16 @@ Outer-clip hypothesis is contradicted. Refined hypothesis: `FUN_140734760` walks
 
 Full decode: `audit/direction/direction48_results.txt`. Reusable parser: `scripts/investigate-direction/investigate_direction48.py`.
 
+### Direction 50 — SWF runtime is spec-compliant; `FUN_140734760` writes CatPart+0xC, not +0x18
+
+Decompiled the full SWF frame-seek path (`FUN_140996b80` → `FUN_140997590` → `FUN_140996020` → `FUN_140997210`) and re-verified `FUN_140734760` against the Direction 46 record layout.
+
+**SWF runtime is spec-compliant.** `+0xd0` points to a frame-table struct holding raw per-frame tag arrays at `+8` plus a lazily-built cumulative per-frame snapshot vector at `+0xb0` (built by `FUN_140997590` on first frame seek). The snapshot for frame N is the full accumulated display-list state through frame N, computed left-to-right with spec-compliant tag merging. Frames 99 and 304 produce identical anchor sets — outer-clip frame selection cannot explain Whommie/Bud defects.
+
+**`FUN_140734760` writes `CatPart+0xC`, not `+0x18` (Direction 47 corrected).** `param_1` is `double*` (8-byte stride). The bytes set at CatData offsets 0x290, 0x2e4, 0x338, 0x38c, 0x3e0, 0x434, 0x488, 0x4dc, 0x530, 0x584 are at sub-offset 0xC from each CatPart record base — exactly 0xC bytes earlier than the Direction 46 `+0x18` flags at 0x29c, 0x2f0, ..., 0x4e8. `FUN_140734760` is therefore writing a separate "anchor populated" sub-field, NOT the missing-part flag the display chain reads.
+
+**Open consequence:** the load-time setter of `CatPart+0x18 = 0` is unidentified again. Either (i) some downstream function reads `CatPart+0xC` and propagates to `+0x18`, or (ii) a different path entirely produces missing parts. See `audit/direction/direction50_results.txt`.
+
 ### Direction 49 — `FUN_140734760` walks the outer clip, not a sub-clip
 
 Decompiled `FUN_140734760` and confirmed (2 lines of evidence per claim):
@@ -151,21 +163,22 @@ This re-opens a paradox: Direction 48's spec-compliant SWF accumulation gives fr
 
 ## Open Questions
 
-1. **What is the format of the frame table at `plVar18 + 0xd0` that `FUN_140996b80` reads to populate `plVar18 + 0xb0`?** Spec-compliant SWF accumulation gives identical anchor sets for frames 99 and 304, yet defects clearly differ. Either Glaiel pre-bakes per-frame snapshots that diverge from spec-compliant accumulation, or `FUN_140996b80` applies tags non-cumulatively, or the frame-table contents elide some inherited placements that the SWF tag stream retains.
+1. **Who actually clears `CatPart+0x18` to zero?** `FUN_14005dfd0` only writes 1 (default present). `FUN_140734760` writes `CatPart+0xC`, not `+0x18` (Direction 50 correction). The load-time setter that produces the missing-part state is unidentified — exhaustive cross-reference of writers of byte zero at the `+0x18` CatData offsets is needed.
 
-2. **Is there a second mutator of `CatPart+0x18` after `FUN_140734760` runs?** Possible if e.g. equipment or per-cat visual overrides clear specific flags after placement reconstruction.
+2. **Does any function read `CatPart+0xC` and propagate to `+0x18`?** If yes, the placement-reconstruction model is salvaged with a one-step indirection. If no, placement reconstruction is irrelevant to the missing-defect chain and we need an entirely different mechanism.
 
-3. **RNG paradox (Direction 45):** Every cat enters `FUN_1400b5260` with the same TLS state. How do cats get different body parts? One of: (i) undiscovered 4th arg carrying cat-specific state, (ii) a non-restoring branch in the wrapper, (iii) the cache check bypasses the RNG-restoring path for some callers.
+3. **Could `CatPart+0xC` be the actual flag the parser/display reads in a different code path?** Direction 46 confirmed `FUN_1400a5390` and `FUN_1400c9810` read `+0x18`. But there may be a separate display path for facial/attached parts that reads `+0xC` instead. Worth re-checking.
+
+4. **RNG paradox (Direction 45):** Every cat enters `FUN_1400b5260` with the same TLS state. How do cats get different body parts? One of: (i) undiscovered 4th arg carrying cat-specific state, (ii) a non-restoring branch in the wrapper, (iii) the cache check bypasses the RNG-restoring path for some callers.
 
 ---
 
 ## Best Path Forward (priority order)
 
-1. **Direction 50 — Decompile `FUN_140996b80` and the SWF runtime loader.** Determine whether the frame table at `+0xd0` stores per-frame tag deltas (spec-compliant) or pre-baked per-frame child snapshots, and how it interprets the source SWF's PlaceObject2/RemoveObject2 tags. If pre-baked snapshots exist, they may carry per-head data that the on-disk SWF analysis missed.
-2. **Direction 51 — Snapshot `plVar18 + 0xb0` at runtime for heads 99, 304, 319.** If decompile alone is inconclusive, instrument or read memory after a load to see the actual child list the game produces. (May require user help — game must be running.)
-3. **Audit other writers of `CatPart+0x18`.** Cross-reference all functions that store byte-zero at the `+0x18` offset of any CatPart record to confirm `FUN_140734760` is the only post-load setter.
-4. **Prototype parser-side reconstruction.** Once the missing-anchor source is confirmed, synthesize `0xFFFFFFFE` visual defect entries from saved headShape data.
-5. **Resolve the RNG paradox** (lower priority — doesn't block parser fix).
+1. **Direction 51 — Cross-reference readers of `CatPart+0xC` and writers of `CatPart+0x18 = 0`.** Two complementary searches: (a) any function that reads bytes at CatData offsets {0x290, 0x2e4, 0x338, 0x38c, 0x3e0, 0x434, 0x488, 0x4dc, 0x530, 0x584} — these are the `+0xC` flags `FUN_140734760` sets. (b) any function that stores byte zero at CatData offsets {0xa4, 0xf8, 0x14c, 0x1a0, 0x1f4, 0x248, 0x29c, 0x2f0, 0x344, 0x398, 0x3ec, 0x440, 0x494, 0x4e8} — the `+0x18` missing-part flags. Either result names the missing setter or rules out the placement-reconstruction model entirely.
+2. **Re-audit blob corridor for `+0xC` per-record.** If `+0xC` is serialized in the per-cat blob (loaded from SQLite or one of the file blobs) we may have missed a corridor at this sub-offset. The Direction 46 corridor map may need extension.
+3. **Prototype parser-side reconstruction.** Once the missing-flag source is confirmed, synthesize `0xFFFFFFFE` visual defect entries from saved data.
+4. **Resolve the RNG paradox** (lower priority — doesn't block parser fix).
 
 ---
 

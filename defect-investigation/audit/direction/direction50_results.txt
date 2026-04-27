@@ -1,0 +1,186 @@
+Direction 50 Results — FUN_140996b80 SWF runtime + FUN_140734760 offset correction
+
+Date: 2026-04-27
+Binary: /Mewgenics.exe-ee4d13
+Method: defect-ghidra subagent decompile pass over FUN_140996b80,
+FUN_140997590, FUN_140997210, FUN_140996020, FUN_140996500, plus orchestrator
+re-verification of FUN_140734760 against the Direction 46 CatPart record
+layout.
+
+================================================================================
+Headline findings
+================================================================================
+
+1. The CatHeadPlacements outer-clip frame seek (FUN_140996b80) builds a
+   spec-compliant, CUMULATIVE per-frame snapshot. Frames 99 (Kami) and 304
+   (Whommie) produce IDENTICAL anchor child lists under the runtime — same
+   conclusion as Direction 48's spec-compliant simulation. Outer-clip frame
+   selection cannot explain Whommie's eye/eyebrow defects.
+
+2. CRITICAL CORRECTION TO DIRECTION 47: FUN_140734760 does NOT write
+   CatPart+0x18. It writes CatPart+0xC (a different sub-field at -0xC offset
+   from the +0x18 missing-part flag). Direction 47's review correctly cited
+   the byte addresses (0x290, 0x2e4, 0x3e0, 0x434, ...) but mislabeled them as
+   "CatPart+0x18 flags." The CatPart record layout (Direction 46) places +0x18
+   flags at CatData offsets 0x29c, 0x2f0, ..., 0x4e8. The bytes
+   FUN_140734760 writes are at 0x290, 0x2e4, ..., 0x4dc — exactly 0xC bytes
+   earlier, i.e. CatPart+0xC for the same record series.
+
+3. Consequence: the load-time defect-applier (whoever clears CatPart+0x18 to
+   zero for missing parts) remains UNIDENTIFIED. The placement-reconstruction
+   hypothesis (Direction 47) is closed unless we find a downstream function
+   that reads CatPart+0xC and propagates the value to CatPart+0x18.
+
+================================================================================
+SWF runtime decode (FUN_140996b80 et al.)
+================================================================================
+
+MovieClip object layout at the relevant offsets:
+  +0xb0   live child list (vector of DisplayObject*)
+  +0xac   live child count
+  +0xd0   pointer to SWF frame-table struct
+  +0xd8   current frame index
+
+SWF frame-table struct layout:
+  [+0]    int       frame count
+  [+4]    int       max depth slot index + 1
+  [+8]    void**    raw per-frame tag-record array (parsed once at load)
+  [+0xb0] vector    lazy cumulative per-frame snapshot
+                    each entry: { count: int @ +4, ptr: void* @ +8 }
+  [+0xc8] byte      "snapshot built" flag
+
+FUN_140996b80(clip, target_frame):
+  - clamps target to [0, frameCount-1]
+  - if frame differs from clip+0xd8: calls FUN_140997590 (lazy init), resets
+    clip+0xb0 child list, then iterates the snapshot entry for target_frame
+    via FUN_140997210 to replay every tag record into the live child list.
+  - calls FUN_140996500 to finalize/animate.
+
+FUN_140997590 — cumulative snapshot builder (lazy, single-init under
+clip+0xc8 flag):
+  - allocates a per-depth temp array sized depthMax * 0x50.
+  - iterates frames 0..N-1 in order. For each frame's tags (types 1, 2, 3, 4;
+    skips types 5, 6) calls FUN_140996020 to merge into the per-depth temp
+    array.
+  - after each frame, push_back the current temp-array state as a new
+    snapshot entry into the +0xb0 vector.
+  - This is cumulative accumulation. Tag type 3 (RemoveObject) is included
+    in the merge but stored as a record; the actual deletion happens in
+    FUN_140997210 case '\x03' at replay time.
+
+Implication: snapshot[N] = full display-list state at frame N, computed by
+spec-compliant left-to-right tag accumulation. Direction 48's manual
+simulation matches this. Frame 304 = frame 99 anchor set.
+
+================================================================================
+FUN_140734760 — corrected interpretation
+================================================================================
+
+Signature (from decompile): void FUN_140734760(double* param_1)
+  - param_1 is treated as double* throughout. Indexing param_1[0x52] etc.
+    refers to byte offsets * 8.
+  - Despite the signature, callers pass CatData+0x60 (the CatParts container
+    base). param_1[k] with double-stride means param_1 + k*8 = byte offset
+    k*8 from CatData+0x60.
+
+CatPart record layout (Direction 46 baseline):
+  - First CatPart record base: CatData+0x8c
+  - Stride: 0x54
+  - +0x18 within each record = "missing part" flag (Direction 46)
+  - +0xC within each record = "anchor populated" flag (NEW, this direction)
+
+Bytes FUN_140734760 writes (cleared at entry, conditionally set to 1 inside
+the anchor-match loop):
+
+  Anchor    CatData offset    CatPart record    Sub-offset
+  -------   --------------    --------------    ----------
+  leye       0x290             record 6          +0xC
+  reye       0x2e4             record 7          +0xC
+  (eyebrow copy from leye/reye at loop end → 0x338, 0x38c — records 8,9 +0xC)
+  lear       0x3e0             record 10         +0xC
+  rear       0x434             record 11         +0xC
+  mouth      0x488             record 12         +0xC
+  ahead      0x4dc             record 13         +0xC
+  aneck      0x530             record 14         +0xC
+  aface      0x584             record 15         +0xC
+
+(Records 14, 15 extend beyond Direction 46's known 14-record set; CatPart
+records 14 and 15 had no +0x18 init by FUN_14005dfd0, so they may be
+attached-element records with a different presence semantics.)
+
+NONE of these writes touch CatPart+0x18.
+
+================================================================================
+Re-verification trail
+================================================================================
+
+Direct decompile lines from FUN_140734760:
+  *(undefined1*)(param_1 + 0x52) = 0;     // entry clear: 0x52*8 = 0x290
+  *(undefined1*)(param_1 + 0x52) = 1;     // set inside leye match block
+  *(undefined1*)((longlong)param_1 + 0x2e4) = 0/1;   // reye
+  *(undefined1*)(param_1 + 0x7c) = 0/1;   // 0x7c*8 = 0x3e0, lear
+  *(undefined1*)((longlong)param_1 + 0x434) = 0/1;   // rear
+  *(undefined1*)(param_1 + 0x91) = 0/1;   // 0x91*8 = 0x488, mouth
+  *(undefined1*)((longlong)param_1 + 0x4dc) = 0/1;   // ahead
+  *(undefined1*)(param_1 + 0xa6) = 0/1;   // 0xa6*8 = 0x530, aneck
+  *(undefined1*)((longlong)param_1 + 0x584) = 0/1;   // aface
+
+Eyebrow-copy at loop end (named-anchor match for plVar21==plVar1 sentinel):
+  *(undefined1*)(param_1 + 0x67) = *(undefined1*)(param_1 + 0x52);
+   // 0x67*8 = 0x338 ← 0x290 (eyebrow-left mirror of leye)
+  *(undefined1*)((longlong)param_1 + 0x38c) = *(undefined1*)((longlong)param_1 + 0x2e4);
+   // 0x38c ← 0x2e4 (eyebrow-right mirror of reye)
+
+These confirm: same-record offset 0xC, not 0x18.
+
+Direction 46 cross-reference (FUN_14005dfd0 +0x18 init):
+  CatData offsets 0xa4, 0xf8, 0x14c, 0x1a0, 0x1f4, 0x248, 0x29c, 0x2f0,
+  0x344, 0x398, 0x3ec, 0x440, 0x494, 0x4e8
+  Difference vs FUN_140734760's writes at the matching record indices:
+  0x29c - 0x290 = 0xc, 0x2f0 - 0x2e4 = 0xc, 0x344 - 0x338 = 0xc, ... all 0xc.
+
+================================================================================
+Open questions for Direction 51
+================================================================================
+
+1. Who reads CatPart+0xC? Cross-reference all readers of bytes at CatData
+   offsets {0x290, 0x2e4, 0x338, 0x38c, 0x3e0, 0x434, 0x488, 0x4dc, 0x530,
+   0x584}. If any function reads +0xC and writes +0x18 based on it, the
+   placement-reconstruction model is salvaged with a one-step indirection.
+
+2. Who writes CatPart+0x18 = 0? FUN_14005dfd0 only writes 1 (default
+   present). Identify any function that stores byte zero at CatData offsets
+   {0xa4, 0xf8, 0x14c, 0x1a0, 0x1f4, 0x248, 0x29c, 0x2f0, 0x344, 0x398,
+   0x3ec, 0x440, 0x494, 0x4e8}. This is the actual missing-flag setter.
+
+3. Does the parser already read CatPart+0xC for Whommie/Bud? If +0xC is
+   serialized in the per-cat blob (saved into SQLite or one of the file
+   blobs) we may have missed a corridor. Re-audit the blob corridor map at
+   these offsets relative to the CatData container.
+
+================================================================================
+Closed in this direction
+================================================================================
+
+- Direction 47's claim that FUN_140734760 writes CatPart+0x18: CLOSED as
+  incorrect.
+- Direction 49's "frame table at +0xd0 might encode per-head divergent
+  snapshots": CLOSED. The runtime is spec-compliant cumulative accumulation;
+  it matches Direction 48's simulation exactly.
+- Outer CatHeadPlacements clip as the missing-flag mechanism: CLOSED. The
+  walk happens, the anchors found, the anchor-found flags get set at
+  CatPart+0xC — but CatPart+0x18 is not touched, so the display chain
+  (which reads +0x18 per Direction 46) is unaffected by this function.
+
+================================================================================
+Files involved
+================================================================================
+
+- Subagent's full decompile pass: see Direction 50 subagent transcript.
+- Re-verification: orchestrator decompile of FUN_140734760 in this session.
+- Direction 46 baseline: findings/blob_corridor_map.md and
+  audit/direction/direction46_results.txt.
+- Direction 47 review (now superseded for the +0x18 claim):
+  audit/direction/direction47_review_results.txt.
+- Direction 48 spec-compliant simulation:
+  audit/direction/direction48_results.txt.
