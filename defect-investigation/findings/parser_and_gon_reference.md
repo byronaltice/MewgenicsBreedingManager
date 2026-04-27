@@ -5,7 +5,7 @@ These do not change unless the game updates its save format.
 
 ## T Array Structure
 
-`Cat.__init__` reads a 72-element u32 array `T` immediately after a 64-byte skip block. Each body-part slot is defined by `_VISUAL_MUTATION_FIELDS` with a fixed `table_index` into T. Known field layout per 5-element slot window (slots at indices 3, 8, 13, 18 ... 68):
+`Cat.__init__` reads a 72-element u32 array `T` immediately after a 64-byte skip block. (The on-disk serializer actually writes 73 u32s — the final field of the final slot, always 0; the parser historically stops at 72. See `blob_corridor_map.md`.) Each body-part slot is defined by `_VISUAL_MUTATION_FIELDS` with a fixed `table_index` into T. Known field layout per 5-element slot window (slots at indices 3, 8, 13, 18 ... 68):
 
 - `T[index+0]` = mutation_id (the actual mutation or defect in that slot; 0 / 0xFFFFFFFF = empty)
 - `T[index+1]` = always equals `T[0]` (the fur/texture ID repeated in every slot — game engine artifact, not a stat)
