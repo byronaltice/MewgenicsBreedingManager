@@ -1,0 +1,144 @@
+Direction 48 Results: CatHeadPlacements anchor decode from catparts.swf
+========================================================================
+
+SWF FILE
+  Path    : C:\Users\Byron\gitprojects\MewgenicsBreedingManager\defect-investigation\game-files\resources\gpak-video\swfs\catparts.swf
+  Sig     : FWS (uncompressed — no decompression needed)
+  Version : SWF 17
+  Size    : 6240894 bytes
+
+LOCATING CatHeadPlacements
+  'CatHeadPlacements' appears at file offsets 0x5f00c3 and 0x5f2ddd
+  First occurrence (0x5f00c3): AS3 constant pool string index 14
+  Second occurrence (0x5f2ddd): SymbolClass tag, char_id=11007
+  DefineSprite (tag 39) for char_id=11007:
+    body start : 0x5df952
+    body end   : 0x5efa90
+    frames     : 1504
+    PlaceObject2 tags : 4140
+    RemoveObject2 tags: 1326
+
+TABLE LAYOUT
+  CatHeadPlacements is a SWF MovieClip (DefineSprite) with 1505 frames.
+  Anchor strings are NOT stored as a binary key/value table.
+  Instead: each frame N corresponds to head shape N (1-indexed ShowFrame count).
+  Frame 0 (pre-ShowFrame init) places ALL 8 anchors at fixed depths:
+    depth=31 -> 'lear', depth=35 -> 'rear'
+    depth=62 -> 'leye', depth=70 -> 'reye'
+    depth=74 -> 'leye' (2nd), depth=78 -> 'reye' (2nd)
+    depth=82 -> 'ahead', depth=86 -> 'aneck', depth=90 -> 'aface'
+  Subsequent frames may:
+    (a) Only update depth=1 (head shape clip), depth=2 (tex), depth=27 (scars)
+        -> no anchor change; ALL frame-0 anchors persist via SWF display list accumulation
+    (b) Explicitly re-place named anchor objects at the same or different depths
+    (c) Use RemoveObject2 to remove anchor objects from specific depths
+  The accumulated display list (not just per-frame placements) defines the
+  effective anchor set when the game navigates to a given frame.
+
+ANCHOR ANALYSIS PER HEAD SHAPE
+
+  Frame 99 (Kami (clean control)):
+    Accumulated anchor set : ['aface', 'ahead', 'aneck', 'lear', 'leye', 'rear', 'reye']
+    Explicit new placements: []
+    Named display list items at this frame:
+      depth=  2: char=6292, name='tex'
+      depth= 27: char=6338, name='scars'
+      depth= 31: char=10988, name='lear' <-- ANCHOR
+      depth= 35: char=10990, name='rear' <-- ANCHOR
+      depth= 62: char=10994, name='leye' <-- ANCHOR
+      depth= 66: char=10998, name='Nmouth'
+      depth= 70: char=11000, name='reye' <-- ANCHOR
+      depth= 82: char=11002, name='ahead' <-- ANCHOR
+      depth= 86: char=11004, name='aneck' <-- ANCHOR
+      depth= 90: char=11006, name='aface' <-- ANCHOR
+
+  Frame 304 (Whommie (defect+)):
+    Accumulated anchor set : ['aface', 'ahead', 'aneck', 'lear', 'leye', 'rear', 'reye']
+    Explicit new placements: ['reye']
+    Named display list items at this frame:
+      depth=  2: char=6292, name='tex'
+      depth= 27: char=6338, name='scars'
+      depth= 31: char=10988, name='lear' <-- ANCHOR
+      depth= 35: char=10990, name='rear' <-- ANCHOR
+      depth= 62: char=10994, name='leye' <-- ANCHOR
+      depth= 66: char=10998, name='Nmouth'
+      depth= 70: char=11000, name='reye' <-- ANCHOR
+      depth= 82: char=11002, name='ahead' <-- ANCHOR
+      depth= 86: char=11004, name='aneck' <-- ANCHOR
+      depth= 90: char=11006, name='aface' <-- ANCHOR
+
+  Frame 319 (Bud (defect+)):
+    Accumulated anchor set : ['aface', 'ahead', 'aneck', 'lear', 'mouth', 'rear', 'reye']
+    Explicit new placements: ['lear', 'rear']
+    Named display list items at this frame:
+      depth=  2: char=6292, name='tex'
+      depth= 27: char=6338, name='scars'
+      depth= 46: char=10988, name='lear' <-- ANCHOR
+      depth= 50: char=10990, name='rear' <-- ANCHOR
+      depth= 58: char=10998, name='mouth' <-- ANCHOR
+      depth= 62: char=11000, name='reye' <-- ANCHOR
+      depth= 82: char=11002, name='ahead' <-- ANCHOR
+      depth= 86: char=11004, name='aneck' <-- ANCHOR
+      depth= 90: char=11006, name='aface' <-- ANCHOR
+
+COMPARISON: Frame 99 vs Frame 304 (Kami vs Whommie)
+  Accumulated anchor sets are IDENTICAL.
+  Both frames 99 and 304 contain leye, reye, lear, rear, ahead, aneck, aface.
+
+COMPARISON: Frame 99 vs Frame 319 (Kami vs Bud)
+  Accumulated anchor sets are DIFFERENT.
+  In frame 99 but not 319: ['leye']
+  In frame 319 but not 99: ['mouth']
+
+HYPOTHESIS EVALUATION
+
+  Original hypothesis:
+    Head 304 lacks leye/reye -> explains Whommie's missing eye+eyebrow defects.
+    Head 319 lacks lear/rear -> explains Bud's missing ear defect.
+
+  Findings:
+  1. Head 304 (Whommie): leye AND reye BOTH PRESENT in accumulated display list.
+     The hypothesis is CONTRADICTED. Frame 304's anchor set matches frame 99 (Kami).
+     Identity evidence: (a) frame 304 places new char=10994 named 'leye' at depth=62
+     (persists from frame 0 via has_move=True update, no name change), AND
+     (b) frame 304 explicitly places char=11000 named 'reye' at depth=70 (new placement)
+     — so reye is doubly confirmed. leye persists from frame 0 via depth-62 move.
+
+  2. Head 319 (Bud): lear and rear BOTH PRESENT. leye is ABSENT. mouth is present.
+     Frame 319 removes depth=62 (where leye was) and places new objects at depths
+     46 ('lear'), 50 ('rear'), 58 ('mouth'), 62 ('reye' — replacing 'leye' slot).
+     Result: leye is gone; reye is present; lear and rear are present.
+     This does NOT align with Bud's ear defect — ears ARE present in frame 319.
+     Bud would instead be predicted to have a LEFT EYE defect (leye absent),
+     not an ear defect. This CONTRADICTS the hypothesis for Bud.
+
+  OVERALL: The CatHeadPlacements display-list anchor mechanism, as decoded here,
+  does NOT explain the observed missing-flag defects for Whommie (head 304) or Bud
+  (head 319). The hypothesis from Direction 47 is not confirmed by the SWF data.
+
+  CAVEAT: This analysis simulates the SWF display list according to the SWF spec.
+  FUN_140734760 may read the SWF data through the Glaiel engine's own parser,
+  which could differ from spec-compliant accumulation. In particular:
+  - If the engine reads ONLY the explicit new placements in the target frame
+    (ignoring accumulated state), then:
+    frame 304 has only 'reye' (not leye) -> missing leye -> missing eye+eyebrow
+    frame 319 has 'lear' and 'rear' -> ears present -> no ear defect
+    frame 99 has NO anchors -> ALL flags cleared -> Kami would have no eyes/ears
+  - None of these interpretations cleanly explains all three cats simultaneously.
+
+IDENTITY CLAIM CHECK
+  Claim: 'Frame 304 is the head-304 CatHeadPlacements entry.'
+  Evidence line 1: SymbolClass tag associates char_id=11007 with 'CatHeadPlacements'.
+  Evidence line 2: DefineSprite char_id=11007 has 1505 frames; frame count spans
+    known head ID range; frame 304 contains depth=1 with a new cat head clip,
+    consistent with the pattern of one head shape per frame across all frames.
+  Identity claim is SUPPORTED (2 independent lines). Confidence: High.
+
+OPEN QUESTIONS
+  1. Does FUN_140734760 use accumulated display list semantics or per-frame-only?
+  2. What char_id does depth=1 resolve to in frame 304 vs 99?
+     (char=6753 for frame 304, char=6534 for frame 99 — are these CatHead clips
+     that themselves contain named anchor children?)
+  3. Could the CatHead clip at depth=1 in each frame ITSELF contain named children
+     with anchor names, read by FUN_140734760 via a recursive child search?
+  4. Is the frame index truly 1-based (head_id = frame number) or 0-based?

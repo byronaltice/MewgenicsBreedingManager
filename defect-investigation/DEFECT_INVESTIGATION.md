@@ -4,6 +4,22 @@ Visual Mutation and Birth Defect parsing notes. Confirmed findings; history, rul
 
 Less-important, non-current, obsolete, or incorrect info should be placed in `findings/`. Additional files may be made in `findings/` as needed, current files may be updated. Ensure the below index remains updated.
 
+## Multi-Agent Workflow
+
+Investigation work uses registered subagents — dispatch via the Agent tool rather than working inline. Opus plans and reviews; subagents execute.
+
+| Subagent | `subagent_type` | Use for |
+|---|---|---|
+| Ghidra decompile/analysis | `defect-ghidra` | Any Ghidra MCP work: decompile, symbol lookup, cross-references, callgraph |
+| Save-blob script work | `defect-blob-walker` | Any Python script against save blobs: roster scans, byte-diffs, field extraction |
+| gpak text corpus search | `defect-text-resources` | Any search/analysis of `game-files/resources/gpak-text/` |
+
+Briefings, shared rules, and example prompts: `defect-investigation/subagents/`.
+
+Start investigation sessions with `/advisor-strategy` to enter planning mode.
+
+---
+
 **Reference files** (read as needed, not required upfront):
 - `findings/parser_and_gon_reference.md` — T array structure, GON format, defect detection logic, `_VISUAL_MUT_DATA`
 - `findings/blob_corridor_map.md` — Full byte-for-byte save blob field map
@@ -33,6 +49,8 @@ Known facts:
 - The entire on-disk per-cat blob and all SQLite tables are byte-for-byte exhausted. No field distinguishes Whommie/Bud from clean controls. See `findings/ruled_out_leads.md`.
 
 Current working model: missing effects are derived from saved visual/head IDs through post-load `CatHeadPlacements` reconstruction — the first confirmed mechanism that can produce stable runtime missing-part defects without any serialized per-cat flag. Whommie has headShape `304`; clean control Kami has headShape `99` (both share eye 139, eyebrow 23). Bud has headShape `319`, ear 132.
+
+**Direction 48 update (2026-04-26):** spec-compliant SWF accumulation does NOT explain the defects. The outer `CatHeadPlacements` MovieClip (`char_id=11007`) places anchors at frame 0 that persist via the SWF display-list. Whommie's frame 304 accumulated anchor set is *identical* to Kami's frame 99. Refined hypothesis: `FUN_140734760` likely walks the per-frame depth=1 sub-clip (the actual CatHead clip — `char=6534` for head 99, `char=6753` for head 304, TBD for head 319) for named anchor children, not the outer placement clip's display list.
 
 ---
 
@@ -102,23 +120,37 @@ This gives the first confirmed post-load mechanism that can produce **stable run
 
 The placement table is NOT plain GON text. The strings `"CatHeadPlacements"`, `"leye"`, `"reye"`, `"lear"`, `"rear"`, `"mouth"`, `"ahead"`, `"aneck"`, `"aface"` were found in `game-files/resources/gpak-video/swfs/catparts.swf`. See `audit/direction/direction47_b5260_mode_flags_report.txt` and `audit/direction/direction47_review_results.txt`.
 
-**Updated working model after Direction 47:** The unresolved defects are derived from saved visual/head IDs through post-load CatHeadPlacements reconstruction. The parser can probably reproduce them by decoding enough of `catparts.swf` to know which head placement entries omit eye/eyebrow/ear anchors, then adding synthetic `0xFFFFFFFE` defect entries for the affected slots.
+### Direction 48 — Outer CatHeadPlacements clip decoded; outer-clip hypothesis contradicted
+
+`catparts.swf` is uncompressed (FWS, SWF v17). `CatHeadPlacements` is `DefineSprite` `char_id=11007` with 1505 frames; frame N = head shape N (1-indexed). Frame 0 places all 8 anchor objects (`leye, reye, lear, rear, ahead, aneck, aface, mouth`) at fixed depths; subsequent frames update only depth=1 (head clip), depth=2 (tex), depth=27 (scars).
+
+Spec-compliant SWF display-list accumulation:
+- Frame 99 (Kami) anchors: `{aface, ahead, aneck, lear, leye, rear, reye}`.
+- Frame 304 (Whommie) anchors: **identical to frame 99** — frame 304 explicitly re-places `reye`; `leye` persists from frame 0 via depth-62 has_move update.
+- Frame 319 (Bud) anchors: `{aface, ahead, aneck, lear, mouth, rear, reye}` — `lear`+`rear` are present (contradicts ear-defect hypothesis); `leye` is removed (would predict an eye defect Bud doesn't have).
+
+Outer-clip hypothesis is contradicted. Refined hypothesis: `FUN_140734760` walks the depth=1 per-frame child sub-clip (the actual CatHead clip — `char=6534` for head 99, `char=6753` for head 304) recursively for named anchor children. The outer `CatHeadPlacements` clip selects which CatHead sub-clip to render; the missing-anchor signal lives inside each sub-clip, not in the outer display list.
+
+Full decode: `audit/direction/direction48_results.txt`. Reusable parser: `scripts/investigate-direction/investigate_direction48.py`.
 
 ---
 
 ## Open Questions
 
-1. **Which headShape entries omit eye/eyebrow/ear anchors in `catparts.swf`?** Head 304 (Whommie) lacks eye/eyebrow anchors; head 99 (Kami) has them. Head 319 (Bud) likely lacks ear anchors — needs confirmation from the SWF placement table.
+1. **Does `FUN_140734760` accumulate the outer SWF display list, or walk a per-frame child sub-clip?** Direction 48 ruled out outer-clip accumulation as the missing-anchor source. The remaining candidate is a recursive child-name search inside the per-frame depth=1 CatHead sub-clip (`char=6534` for head 99, `char=6753` for head 304, TBD for head 319).
 
-2. **RNG paradox (Direction 45):** Every cat enters `FUN_1400b5260` with the same TLS state. How do cats get different body parts? One of: (i) undiscovered 4th arg carrying cat-specific state, (ii) a non-restoring branch in the wrapper, (iii) the cache check bypasses the RNG-restoring path for some callers.
+2. **What named anchor children live inside the CatHead sub-clips at `char_id` 6534, 6753, and the head-319 equivalent?** If 6753 lacks `leye`/`reye` children and the head-319 sub-clip lacks `lear`/`rear` children while 6534 has all four, the placement-driven model is restored.
+
+3. **RNG paradox (Direction 45):** Every cat enters `FUN_1400b5260` with the same TLS state. How do cats get different body parts? One of: (i) undiscovered 4th arg carrying cat-specific state, (ii) a non-restoring branch in the wrapper, (iii) the cache check bypasses the RNG-restoring path for some callers.
 
 ---
 
 ## Best Path Forward (priority order)
 
-1. **Decode CatHeadPlacements from `catparts.swf`.** Extract anchor names for headShape `304`, `99`, and `319`. Confirm that 304 omits `"leye"`/`"reye"`/eyebrows and 319 omits `"lear"`/`"rear"`.
-2. **Prototype parser-side reconstruction.** Once anchor omissions are confirmed, synthesize `0xFFFFFFFE` visual defect entries from saved headShape/placement data — no new save-field scan needed.
-3. **Resolve the RNG paradox** (lower priority — doesn't block parser fix). Trace `FUN_1400d5600`'s caller paths to check whether lazy-load order is fixed or per-cat reseeding makes it irrelevant.
+1. **Direction 49 — Decompile `FUN_140734760`'s anchor-iteration loop.** Determine whether it (a) iterates the outer `CatHeadPlacements` clip's display list at the selected frame, or (b) descends into the depth=1 sub-clip and walks its named children. The audit already confirms (a) cannot produce the observed defects; we need to verify (b) directly in the binary before further SWF work.
+2. **Direction 50 — Decode the per-frame depth=1 sub-clips.** If (b) is confirmed, parse `catparts.swf` to enumerate named children inside `char_id` 6534 (head 99), 6753 (head 304), and the head-319 sub-clip. Confirm anchor omissions match the observed defects.
+3. **Prototype parser-side reconstruction.** Once anchor omissions are confirmed, synthesize `0xFFFFFFFE` visual defect entries from saved headShape data — no new save-field scan needed.
+4. **Resolve the RNG paradox** (lower priority — doesn't block parser fix). Trace `FUN_1400d5600`'s caller paths to check whether lazy-load order is fixed or per-cat reseeding makes it irrelevant.
 
 ---
 
