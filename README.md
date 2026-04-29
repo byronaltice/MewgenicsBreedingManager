@@ -44,6 +44,10 @@ On Linux, use `build.sh`.
 - lz4
 - openpyxl
 
+## Lessons Learned
+
+If you plan to make your own save parser, please see [MISSING_BIRTH_DEFECTS_REPORT.md](MISSING_BIRTH_DEFECTS_REPORT.md). It details a fix that is not straightforward, and you'll need it if you plan to parse cat defects.
+
 ## Credits
 
 - Save parsing research based on [pzx521521/mewgenics-save-editor](https://github.com/pzx521521/mewgenics-save-editor)
