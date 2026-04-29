@@ -441,8 +441,13 @@ def parse_cat_head_placements(swf_bytes: bytes) -> list[frozenset[str]]:
 
     max_frame = max(event.frame for event in events)
     per_frame: list[frozenset[str]] = []
+    display_list: dict[int, _DisplayEntry] = {}
+    event_iter = iter(events)
+    next_event = next(event_iter, None)
     for frame_index in range(max_frame + 1):
-        display_list = _simulate_display_list(events, frame_index)
+        while next_event is not None and next_event.frame <= frame_index:
+            _apply_event_to_display_list(next_event, display_list)
+            next_event = next(event_iter, None)
         per_frame.append(_anchor_set_from_display_list(display_list))
 
     return per_frame
