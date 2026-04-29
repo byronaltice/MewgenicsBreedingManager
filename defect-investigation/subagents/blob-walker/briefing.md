@@ -48,19 +48,23 @@ DEFAULT_SAVE = ROOT / "test-saves" / "investigation" / "steamcampaign01_20260424
 SAVE = Path(os.environ.get("INVESTIGATION_SAVE", str(DEFAULT_SAVE)))
 ```
 
-## Output path convention (NEW — enforced)
+## Output path convention (enforced)
 
-Write results **directly** to:
+Write results **directly** to `defect-investigation/audit/direction/` using this naming template:
 
-    defect-investigation/audit/direction/directionNN_results.txt
+    defect-investigation/audit/direction/directionNN_<topic>_results.txt
+
+- `NN` is the direction number (e.g. `direction52`).
+- `<topic>` is a short snake_case descriptor of the specific task — `roster_scan`, `byte_diff`, `corridor_audit`, `verification`, etc. The descriptor exists so multiple agents working the same direction (initial scan, follow-up, verifier) produce distinct files and a future verifier can find the right one.
 
 Do not write next to the script. Do not write under `scripts/`. Inside the script:
 
 ```python
-OUT = ROOT / "defect-investigation" / "audit" / "direction" / f"direction{NN}_results.txt"
+TOPIC = "roster_scan"   # set this per task
+OUT = ROOT / "defect-investigation" / "audit" / "direction" / f"direction{NN}_{TOPIC}_results.txt"
 ```
 
-Adjust the `ROOT` path math if needed so this resolves correctly from `scripts/investigate-direction/`.
+Adjust the `ROOT` path math if needed so this resolves correctly from `scripts/investigate-direction/`. If the dispatch prompt names a specific filename, use that exactly.
 
 ## Save file scope
 

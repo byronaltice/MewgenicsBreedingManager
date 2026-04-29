@@ -34,3 +34,13 @@ Full paths to any new files (scripts, audit results, briefings). If none, write 
 - Do not include a "Recommended next directions" or "Suggested follow-up investigation" section. The orchestrator owns direction selection.
 - Do not summarize closed leads as new findings (see investigation_rules.md).
 - Do not include speculation as evidence. Speculation belongs under Open follow-ups, phrased as a question.
+
+---
+
+## Dispatch rules (orchestrator-facing)
+
+When writing a dispatch prompt, the orchestrator must:
+
+- **Only request artifact writes to `defect-investigation/audit/direction/directionNN_<topic>_results.txt`.** All three subagent types (`defect-ghidra`, `defect-blob-walker`, `defect-text-resources`) are scoped to that directory only. Asking a subagent to write to `findings/`, `scripts/`, or anywhere else will fail or be silently ignored — those paths are orchestrator territory.
+- **Pick a descriptive `<topic>` for each dispatch** so multiple artifacts in the same direction don't collide. Examples: `xref_scan`, `corridor_trace`, `verification`, `review`. State the full filename in the dispatch prompt so verifier subagents in later sessions can find the right file unambiguously.
+- **Always request an audit artifact for non-trivial work.** The artifact is the durable record — without it, the subagent's findings live only in the transcript, which is opaque to the orchestrator's context. If the work is too small to merit a file (e.g. a single decompile spot-check), say so explicitly in the dispatch prompt and require the inline report only.

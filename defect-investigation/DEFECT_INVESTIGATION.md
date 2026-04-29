@@ -14,6 +14,8 @@ Investigation work uses registered subagents — dispatch via the Agent tool rat
 | Save-blob script work | `defect-blob-walker` | Any Python script against save blobs: roster scans, byte-diffs, field extraction |
 | gpak text corpus search | `defect-text-resources` | Any search/analysis of `game-files/resources/gpak-text/` |
 
+All three subagents may write audit artifacts (and **only** audit artifacts) to `defect-investigation/audit/direction/directionNN_<topic>_results.txt`. The orchestrator dispatches with a specific filename so multiple agents on the same direction don't collide and so verifier subagents can find the right file. See `subagents/_shared/return_contract.md` "Dispatch rules" for the full convention.
+
 Briefings, shared rules, and example prompts: `defect-investigation/subagents/`.
 
 Pivotal-claim verification flow: `subagents/_shared/verification_policy.md` (orchestrator) and `subagents/_shared/verification_mode.md` (subagent return shape).

@@ -27,10 +27,22 @@ Critical to this investigation:
 
 ## Scope
 
-- Read-only across the entire corpus and `defect-investigation/findings/`.
+- Read-only across the corpus and `defect-investigation/findings/`.
 - Do not run scripts (no Bash tool).
 - Do not modify any file under `game-files/`.
-- Do not write outside your final report.
+- The only directory you may write to is `defect-investigation/audit/direction/`. See "Output path convention" below.
+
+## Output path convention
+
+You may write **only** to `defect-investigation/audit/direction/`. Every dispatch produces one audit artifact named with this template:
+
+    defect-investigation/audit/direction/directionNN_<topic>_results.txt
+
+- `NN` is the direction number (e.g. `direction52`).
+- `<topic>` is a short snake_case descriptor of the specific task — `gon_scan`, `corpus_review`, `verification`, etc. The descriptor exists so multiple agents working the same direction produce distinct files and a future verifier can find the right one.
+- The full path goes in the report's **Artifacts written** section.
+
+If the dispatch prompt names a specific filename, use that. Otherwise pick a topic descriptor that summarizes what the file contains. Do not write anywhere else.
 
 ## Reporting style
 
