@@ -23,6 +23,7 @@ from typing import Iterable, Optional
 from collections import deque
 
 from visual_mutation_catalog import load_visual_mutation_names
+from swf_anchor_walker import parse_cat_head_placements, missing_anchors_for_head_shape
 
 logger = logging.getLogger("mewgenics.parser")
 
@@ -231,6 +232,34 @@ _VISUAL_MUTATION_PART_LABELS = {
     "mouth": "Mouth",
 }
 
+# T-array table indices for each head anchor name.  Only anchors that map to
+# visible part slots are listed; ahead/aneck/aface have no visual mutation
+# slot and are silently skipped during synthesis.
+# Index values must match _VISUAL_MUTATION_FIELDS table_index column above.
+_ANCHOR_TO_TABLE_INDICES: dict[str, tuple[int, ...]] = {
+    "leye":  (38,),   # eye_L
+    "reye":  (43,),   # eye_R
+    "lear":  (58,),   # ear_L
+    "rear":  (63,),   # ear_R
+    "mouth": (68,),   # mouth
+    # ahead, aneck, aface → no visible part slot; omitted intentionally
+}
+
+# Eyebrow propagation: if an eye anchor is absent, the paired eyebrow is also
+# absent (confirmed by Direction 54 investigation).
+_EYE_TO_EYEBROW_TABLE_INDEX: dict[str, int] = {
+    "leye": 48,  # eyebrow_L
+    "reye": 53,  # eyebrow_R
+}
+
+# Sentinel mutation_id used for birth defects in the SWF anchor path.
+_DEFECT_MUTATION_ID: int = 0xFFFF_FFFE
+
+# Build a reverse lookup: table_index -> (_VISUAL_MUTATION_FIELDS row tuple)
+_TABLE_INDEX_TO_FIELD: dict[int, tuple] = {
+    row[1]: row for row in _VISUAL_MUTATION_FIELDS
+}
+
 _STAT_LABELS = {
     "str": "STR",
     "con": "CON",
@@ -252,6 +281,7 @@ class GameData:
     visual_mutation_data: dict[str, dict[int, tuple[str, str, bool]]] = field(default_factory=dict)
     furniture_data: dict[str, "FurnitureDefinition"] = field(default_factory=dict)
     class_stat_mods: dict[str, dict[str, int]] = field(default_factory=dict)
+    cat_head_placements_per_frame: list[frozenset[str]] = field(default_factory=list)
 
     @classmethod
     def from_gpak(cls, gpak_path: str | None) -> "GameData":
@@ -298,7 +328,8 @@ class GameData:
                         content = f.read(fsz).decode("utf-8", errors="replace")
                         furniture_data = _parse_furniture_gon(content, furniture_strings)
                 class_stat_mods = _load_class_stat_mods(f, file_offsets)
-                return cls(result, furniture_data, class_stat_mods)
+                cat_head_placements_per_frame = _load_cat_head_placements(f, file_offsets)
+                return cls(result, furniture_data, class_stat_mods, cat_head_placements_per_frame)
         except Exception:
             return cls()
 
@@ -333,6 +364,17 @@ def set_class_stat_mods(data: dict[str, dict[str, int]]):
 def get_class_stat_mods(class_name: str) -> dict[str, int]:
     """Return {STAT_NAME: delta} for a class, or empty dict if unknown."""
     return _CLASS_STAT_MODS.get(class_name, {})
+
+
+# Per-frame cumulative anchor sets from CatHeadPlacements SWF.
+# Populated at runtime via set_cat_head_placements_per_frame() after gpak load.
+_CAT_HEAD_PLACEMENTS_PER_FRAME: list[frozenset[str]] = []
+
+
+def set_cat_head_placements_per_frame(per_frame: list[frozenset[str]]) -> None:
+    """Update the CatHeadPlacements per-frame anchor data (called after gpak loading)."""
+    global _CAT_HEAD_PLACEMENTS_PER_FRAME
+    _CAT_HEAD_PLACEMENTS_PER_FRAME = per_frame
 
 
 def _parse_class_stat_mods_gon(content: str) -> dict[str, dict[str, int]]:
@@ -380,6 +422,44 @@ def _load_class_stat_mods(file_obj, file_offsets: dict[str, tuple[int, int]]) ->
         content = file_obj.read(fsz).decode("utf-8", errors="replace")
         merged.update(_parse_class_stat_mods_gon(content))
     return merged
+
+
+_SWF_CATPARTS_CANDIDATE_NAMES = (
+    "swfs/catparts.swf",
+    "data/swfs/catparts.swf",
+)
+
+
+def _load_cat_head_placements(
+    file_obj,
+    file_offsets: dict[str, tuple[int, int]],
+) -> list[frozenset[str]]:
+    """Extract and parse the CatHeadPlacements per-frame anchor sets from the gpak.
+
+    Tries a priority list of known SWF paths, then falls back to any .swf
+    path whose name contains "catpart".  Returns an empty list if no matching
+    file is found.
+    """
+    swf_key: str | None = None
+    for candidate in _SWF_CATPARTS_CANDIDATE_NAMES:
+        if candidate in file_offsets:
+            swf_key = candidate
+            break
+
+    if swf_key is None:
+        # Fallback: any .swf path whose name contains "catpart"
+        for fname in file_offsets:
+            if fname.endswith(".swf") and "catpart" in fname.lower():
+                swf_key = fname
+                break
+
+    if swf_key is None:
+        return []
+
+    foff, fsz = file_offsets[swf_key]
+    file_obj.seek(foff)
+    swf_bytes = file_obj.read(fsz)
+    return parse_cat_head_placements(swf_bytes)
 
 
 def _load_gpak_text_strings(file_obj, file_offsets: dict[str, tuple[int, int]]) -> dict[str, str]:
@@ -770,6 +850,67 @@ def build_furniture_room_summaries(
             )
         )
     return summaries
+
+
+def _synthesize_swf_anchor_defects(
+    entries: list[dict[str, object]],
+    head_shape: int,
+) -> None:
+    """Append synthesized birth-defect entries for SWF-anchor-path defects (mutates in place).
+
+    Cats whose birth defects arise from missing CatHeadPlacements anchors (not
+    from T-array 0xFFFFFFFE sentinels) are undetected by _read_visual_mutation_entries.
+    This function computes the missing anchors from the per-frame SWF data and
+    synthesizes the corresponding defect entries, skipping any slot that already
+    has an is_defect entry (i.e. already detected via the sentinel path).
+    """
+    absent_anchors = missing_anchors_for_head_shape(_CAT_HEAD_PLACEMENTS_PER_FRAME, head_shape)
+    if not absent_anchors:
+        return
+
+    # Collect table indices that already have an is_defect entry so we don't duplicate.
+    existing_defect_indices: set[int] = set()
+    for entry in entries:
+        if entry.get("is_defect"):
+            slot_key = str(entry["slot_key"])
+            for row in _VISUAL_MUTATION_FIELDS:
+                if row[0] == slot_key:
+                    existing_defect_indices.add(row[1])
+                    break
+
+    # Determine which table indices need a synthesized entry.
+    indices_to_synthesize: list[int] = []
+    for anchor_name in absent_anchors:
+        primary_indices = _ANCHOR_TO_TABLE_INDICES.get(anchor_name)
+        if primary_indices is None:
+            continue  # ahead/aneck/aface — no visible slot
+        for table_index in primary_indices:
+            if table_index not in existing_defect_indices:
+                indices_to_synthesize.append(table_index)
+        # Eyebrow propagation
+        eyebrow_index = _EYE_TO_EYEBROW_TABLE_INDEX.get(anchor_name)
+        if eyebrow_index is not None and eyebrow_index not in existing_defect_indices:
+            indices_to_synthesize.append(eyebrow_index)
+
+    for table_index in indices_to_synthesize:
+        field_row = _TABLE_INDEX_TO_FIELD.get(table_index)
+        if field_row is None:
+            continue
+        slot_key, _, group_key, gpak_category, _, slot_label = field_row
+        part_label = _VISUAL_MUTATION_PART_LABELS.get(group_key, slot_label)
+        # Try to get effect description from gpak data.
+        gpak_entry = _VISUAL_MUT_DATA.get(gpak_category, {}).get(_DEFECT_MUTATION_ID)
+        detail = str(gpak_entry[1]).strip() if gpak_entry else ""
+        entries.append({
+            "slot_key": slot_key,
+            "slot_label": slot_label,
+            "group_key": group_key,
+            "part_label": part_label,
+            "mutation_id": _DEFECT_MUTATION_ID,
+            "name": f"{part_label} Birth Defect",
+            "detail": detail,
+            "is_defect": True,
+        })
 
 
 def _read_visual_mutation_entries(table: list[int]) -> list[dict[str, object]]:
@@ -1212,6 +1353,9 @@ class Cat:
             if table_index < len(T)
         }
         visual_entries = _read_visual_mutation_entries(T)
+        # Synthesize SWF-anchor-path birth defects not captured by the T-array sentinel.
+        head_shape = int(T[8])
+        _synthesize_swf_anchor_defects(visual_entries, head_shape)
         visual_items = _visual_mutation_chip_items(visual_entries)
         self.visual_mutation_entries = visual_entries
         self.visual_mutation_ids = [int(entry["mutation_id"]) for entry in visual_entries
