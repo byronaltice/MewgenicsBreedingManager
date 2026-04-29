@@ -1,0 +1,92 @@
+# Direction 51 — Cross-reference: readers of CatPart+0xC, writers of zero to CatPart+0x18
+
+Subagent: defect-ghidra (sonnet)
+Status: completed; Low confidence on absence claim.
+
+## Question
+
+(a) Find functions that READ CatPart+0xC ("anchor populated" bytes at CatData offsets {0x290, 0x2e4, 0x338, 0x38c, 0x3e0, 0x434, 0x488, 0x4dc, 0x530, 0x584}). Does any function bridge +0xC → +0x18 propagation?
+
+(b) Find functions that WRITE zero to CatPart+0x18 ("missing part" flag at CatData offsets {0xa4, 0xf8, 0x14c, 0x1a0, 0x1f4, 0x248, 0x29c, 0x2f0, 0x344, 0x398, 0x3ec, 0x440, 0x494, 0x4e8}).
+
+## Method
+
+- Read briefings: investigation_rules.md, return_contract.md, briefing.md, ruled_out_leads.md, binary_function_map.md.
+- list_cross_references on FUN_14005dfd0 (known +0x18 writer of byte=1) and FUN_140734760 (known +0xC writer) to enumerate callers.
+- decompile_function on: FUN_140734760, FUN_1400a7ef0, FUN_140733b50, FUN_140733670,
+  FUN_140737360, FUN_14073ab50, FUN_1400cb130, FUN_140085830, FUN_14022dfb0,
+  FUN_140732750, FUN_1400b5260, FUN_1400a5390, FUN_14022cd00, FUN_14022fd70,
+  FUN_1400c9810, FUN_1400a6790, FUN_1400a5600, FUN_1400c1ac0, FUN_1400c8570.
+- search_code (literal/semantic) attempted for hex offset patterns — returned zero
+  results; the code search index appears unpopulated for this binary.
+
+## Findings
+
+### Task (a) — Readers of CatPart+0xC
+
+- FUN_140734760 zero-initializes ALL CatPart+0xC bytes at function entry, then
+  conditionally sets each to 1 if the matching anchor name (leye/reye/lear/rear/
+  mouth/ahead/aneck/aface) is found. Confirms Direction 50.
+- FUN_1400c9810 (effective display-list builder) reads ONLY the +0x18 offsets
+  to route to 0xFFFFFFFE. It does NOT read any +0xC byte.
+- **No other function reads CatPart+0xC.** The +0xC fields are write-only at
+  the scope of this investigation. There is NO code path that reads +0xC and
+  propagates it to +0x18.
+
+Implication: placement-reconstruction model (Direction 47) cannot reach the
+display chain via a one-step indirection. The hypothesis is closed.
+
+### Task (b) — Writers of zero to CatPart+0x18  [PIVOTAL — absence claim, Low confidence]
+
+No function found that writes zero to CatPart+0x18:
+- FUN_14005dfd0 writes byte=1 (initializes "present"). All 14+ callers enumerated.
+- FUN_14022cd00 (per-part serializer) accesses only +0x04, +0x08, +0x0C, +0x10, +0x14.
+- FUN_14022dfb0 (MewSaveFile::Load), FUN_14022fd70 (winning_teams loader),
+  FUN_1400a6790 (breed): none write zero to +0x18.
+- FUN_1400cb130, FUN_1400a5390, FUN_1400a5600, FUN_1400c1ac0, FUN_1400c8570:
+  none write to +0x18.
+- FUN_140734760 writes only to +0xC bytes, not +0x18.
+
+Either (A) a zero-writer exists in a function not yet decompiled (a callee of an
+analyzed function, or a separate path), or (B) the +0x18 flag is read while still
+1 on Whommie/Bud and the defect is expressed via some other mechanism.
+
+### Supporting findings
+
+- **FUN_1400a5390 reads PARENT's +0x18 during breeding** to determine if parent
+  has a missing part. When parent +0x18 == 0, child gets 0xFFFFFFFE at +0x04.
+  But FUN_1400a5390 does NOT write to the child's +0x18.
+- FUN_140733b50 (a GON-based part randomizer/initializer called from
+  FUN_1400a7ef0) calls FUN_140733670 per named part, which writes only to
+  +0x04, +0x08, +0x10, +0x14. No +0x18 access.
+- FUN_1400a7ef0: loads data/spatial_strays.gon, processes gender, randomizes
+  color/face, calls FUN_140733b50(param_1+0x60, ...), then calls
+  FUN_140734760(param_1+0x60). Hypothesis: random stray cat generator or
+  external cat encounter handler. Single-source identity claim.
+- The +0xC ("anchor populated") and +0x18 ("missing part") fields are
+  structurally independent — no bridging code found.
+
+## Confidence
+
+**Low** for the zero-writer finding (absence of evidence). Additional confidence
+would require decompiling more callers of FUN_1400a5390, FUN_1400c9810, and
+FUN_14022dfb0, plus checking whether any of their callees writes zero before
+return.
+
+## Open follow-ups
+
+- Is there a function in FUN_1400c17f0 → FUN_1400c1600 chain that writes zero
+  to CatPart+0x18 for the defect recipient cat?
+- Does FUN_1400a5390 in the breed path receive the CHILD as param_1 with +0x18
+  already = 1, and is there a post-FUN_1400a5390 path (not yet identified) that
+  checks if param_1+4 == 0xFFFFFFFE and then sets param_1+0x18 = 0?
+- Are there callers of FUN_1400c9810 that perform a zero-write to +0x18 before
+  calling it? FUN_1400c9810 was not cross-referenced in this session.
+- Does FUN_14022d360 (SerializeCatData) have any conditional path (e.g.
+  version-dependent) that writes to +0x18 not visible in the top-level structure?
+- Is FUN_1400c9810's +0x18 read actually reading +0x04 (Ghidra offset misread)?
+  Direction 46 corrected an offset mistake before; verify raw assembly.
+
+## Artifacts
+
+(this file).

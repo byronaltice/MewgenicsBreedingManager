@@ -58,6 +58,8 @@ Current working model: missing effects are derived from saved visual/head IDs th
 
 **Direction 50 update (2026-04-27):** Two findings, one of which is a major correction. (a) `FUN_140996b80`'s SWF runtime builds spec-compliant cumulative per-frame snapshots at `+0xd0[+0xb0]` via `FUN_140997590` — frames 99 (Kami) and 304 (Whommie) produce IDENTICAL anchor child lists, matching Direction 48. The runtime does NOT diverge from spec. (b) **CRITICAL CORRECTION:** `FUN_140734760` does NOT write `CatPart+0x18`. The bytes it sets (CatData offsets 0x290, 0x2e4, 0x3e0, 0x434, 0x488, 0x4dc, 0x530, 0x584) sit at `CatPart+0xC` — exactly 0xC bytes earlier than the +0x18 missing-part flag. Direction 47's review used the right addresses but mislabeled them as +0x18 flags. Consequence: the load-time mechanism that clears `CatPart+0x18` to zero for missing parts is once again UNIDENTIFIED. Placement reconstruction sets a separate "anchor populated" sub-field at +0xC that the display chain (reading +0x18 per Direction 46) does not consult. See `audit/direction/direction50_results.txt`.
 
+**Direction 51 update (2026-04-28):** Cross-reference scan results. (a) **Placement-reconstruction model is closed.** `CatPart+0xC` is written by `FUN_140734760` and read by no one — there is no `+0xC` → `+0x18` bridge. (b) **No zero-writer to `CatPart+0x18` found** across 19 decompiled functions covering all callers of `FUN_14005dfd0`, the load chain, `FUN_140734760`, and the breed path (Low confidence — absence claim, scope-bounded). **Incidental discovery:** `FUN_1400a5390` reads the *parent* cat's +0x18 at breed time and writes `0xFFFFFFFE` to the *child*'s `+0x04` if the parent has the missing-part flag set — but where the child's `+0x04` lands in the on-disk corridor has never been traced. See `audit/direction/direction51_results.txt`.
+
 ---
 
 ## Direction History
@@ -139,6 +141,16 @@ Outer-clip hypothesis is contradicted. Refined hypothesis: `FUN_140734760` walks
 
 Full decode: `audit/direction/direction48_results.txt`. Reusable parser: `scripts/investigate-direction/investigate_direction48.py`.
 
+### Direction 51 — Cross-reference scan: +0xC is a dead-end, no zero-writer to +0x18 found
+
+(a) `CatPart+0xC` ("anchor populated", written by `FUN_140734760`) is read by **no function** in the binary's analyzed scope. `FUN_1400c9810` reads only the `+0x18` offsets to route to `0xFFFFFFFE`; no other readers found. **The placement-reconstruction model (Direction 47) is closed** — there is no one-step indirection from `+0xC` to the missing-part flag.
+
+(b) **No function writes byte zero to `CatPart+0x18`** across 19 decompiled functions: all callers of `FUN_14005dfd0`, the full load chain (`FUN_14022dfb0`, `FUN_14022cd00`, `FUN_14022fd70`), the breed path (`FUN_1400a6790`, `FUN_1400a5390`, `FUN_1400a5600`), `FUN_1400cb130`, `FUN_1400c1ac0`, `FUN_1400c8570`, and `FUN_140734760` itself. `FUN_14005dfd0` writes byte=1; nobody writes byte=0. **Low confidence absence claim** — scope-bounded; a writer may exist in a callee not yet decompiled, or the defect mechanism may not go through `+0x18` at all.
+
+**Incidental discovery (worth following up):** `FUN_1400a5390` reads the **parent** cat's `+0x18` during breeding and writes `0xFFFFFFFE` to the **child**'s `+0x04` if the parent has the missing-part flag set. The child's `+0x04` per CatPart is a serialized field (`FUN_14022cd00` writes +0x04, +0x08, +0x0C, +0x10, +0x14), but where it lands in the on-disk corridor has never been traced. Direction 41's exhaustive corridor scan looked for `0xFFFFFFFE` only in the T array; the per-CatPart `+0x04` field within the CatParts container at `CatData+0x60` may be a separate place to look.
+
+See `audit/direction/direction51_results.txt`.
+
 ### Direction 50 — SWF runtime is spec-compliant; `FUN_140734760` writes CatPart+0xC, not +0x18
 
 Decompiled the full SWF frame-seek path (`FUN_140996b80` → `FUN_140997590` → `FUN_140996020` → `FUN_140997210`) and re-verified `FUN_140734760` against the Direction 46 record layout.
@@ -165,11 +177,11 @@ This re-opens a paradox: Direction 48's spec-compliant SWF accumulation gives fr
 
 ## Open Questions
 
-1. **Who actually clears `CatPart+0x18` to zero?** `FUN_14005dfd0` only writes 1 (default present). `FUN_140734760` writes `CatPart+0xC`, not `+0x18` (Direction 50 correction). The load-time setter that produces the missing-part state is unidentified — exhaustive cross-reference of writers of byte zero at the `+0x18` CatData offsets is needed.
+1. **Where in the on-disk corridor does each CatPart's `+0x04` (effective part ID) land?** `FUN_14022cd00` (per-part serializer) writes +0x04, +0x08, +0x0C, +0x10, +0x14. `FUN_1400a5390` writes `0xFFFFFFFE` into the child's `+0x04` at breed time when a parent's `+0x18` is zero. If `+0x04` survives serialize/load, Whommie/Bud's CatPart+0x04 should hold `0xFFFFFFFE` on disk. Direction 41's exhaustive scan only checked the T array for `0xFFFFFFFE` — the per-CatPart `+0x04` slot within the CatParts container at `CatData+0x60` was never explicitly checked at that sub-offset.
 
-2. **Does any function read `CatPart+0xC` and propagate to `+0x18`?** If yes, the placement-reconstruction model is salvaged with a one-step indirection. If no, placement reconstruction is irrelevant to the missing-defect chain and we need an entirely different mechanism.
+2. **Is `FUN_1400c9810`'s "+0x18" read actually a Ghidra offset misread?** Direction 46 corrected one offset mistake before. If the real check is on `+0x04` (which holds `0xFFFFFFFE` directly when set by breeding), the `+0x18` flag chain is a red herring.
 
-3. **Could `CatPart+0xC` be the actual flag the parser/display reads in a different code path?** Direction 46 confirmed `FUN_1400a5390` and `FUN_1400c9810` read `+0x18`. But there may be a separate display path for facial/attached parts that reads `+0xC` instead. Worth re-checking.
+3. **Who actually clears `CatPart+0x18` to zero?** Direction 51's cross-reference scan found no zero-writer across 19 functions (Low confidence absence claim). Either it lives in an unanalyzed callee or the defect mechanism doesn't go through `+0x18` at all (see Q2).
 
 4. **RNG paradox (Direction 45):** Every cat enters `FUN_1400b5260` with the same TLS state. How do cats get different body parts? One of: (i) undiscovered 4th arg carrying cat-specific state, (ii) a non-restoring branch in the wrapper, (iii) the cache check bypasses the RNG-restoring path for some callers.
 
@@ -177,10 +189,11 @@ This re-opens a paradox: Direction 48's spec-compliant SWF accumulation gives fr
 
 ## Best Path Forward (priority order)
 
-1. **Direction 51 — Cross-reference readers of `CatPart+0xC` and writers of `CatPart+0x18 = 0`.** Two complementary searches: (a) any function that reads bytes at CatData offsets {0x290, 0x2e4, 0x338, 0x38c, 0x3e0, 0x434, 0x488, 0x4dc, 0x530, 0x584} — these are the `+0xC` flags `FUN_140734760` sets. (b) any function that stores byte zero at CatData offsets {0xa4, 0xf8, 0x14c, 0x1a0, 0x1f4, 0x248, 0x29c, 0x2f0, 0x344, 0x398, 0x3ec, 0x440, 0x494, 0x4e8} — the `+0x18` missing-part flags. Either result names the missing setter or rules out the placement-reconstruction model entirely.
-2. **Re-audit blob corridor for `+0xC` per-record.** If `+0xC` is serialized in the per-cat blob (loaded from SQLite or one of the file blobs) we may have missed a corridor at this sub-offset. The Direction 46 corridor map may need extension.
-3. **Prototype parser-side reconstruction.** Once the missing-flag source is confirmed, synthesize `0xFFFFFFFE` visual defect entries from saved data.
-4. **Resolve the RNG paradox** (lower priority — doesn't block parser fix).
+1. **Direction 52 — Trace CatPart+0x04 to its on-disk corridor.** Two complementary tasks. (a) Ghidra: re-read `FUN_14022cd00` (per-part serializer) and identify exactly which save corridor / SQLite column receives each CatPart's `+0x04` field. (b) Blob-walker: once the corridor is mapped, scan Whommie's and Bud's on-disk record at the `+0x04` offset of every CatPart and check for `0xFFFFFFFE`. If found, we've located the defect signal and the parser fix is straightforward.
+2. **Verify `FUN_1400c9810`'s `+0x18` access.** Cheap Ghidra task: read the raw assembly at the relevant lines to confirm the byte offset is `0x18` not something Ghidra mis-decoded. Direction 46 caught one offset error; worth confirming this one isn't another.
+3. **If +0x04 corridor scan comes up empty** — expand the zero-writer search to all callees of `FUN_14022dfb0`, `FUN_1400c9810`, and `FUN_1400b5260` not yet decompiled.
+4. **Prototype parser-side reconstruction.** Once the defect signal source is confirmed, synthesize `0xFFFFFFFE` visual defect entries from saved data.
+5. **Resolve the RNG paradox** (lower priority — doesn't block parser fix).
 
 ---
 
