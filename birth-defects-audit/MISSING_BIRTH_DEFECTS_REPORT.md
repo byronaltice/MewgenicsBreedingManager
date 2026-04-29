@@ -1,30 +1,26 @@
 # Missing Birth Defects in Mewgenics Save Files — Detection & Fix
 
-A report for tool authors, modders, and anyone reading Mewgenics save data outside the game itself.
+A report for tool authors, modders, and anyone reading Mewgenics save data.
 
 ## TL;DR
 
-Some cats carry birth defects that **never appear as data on disk**. The defect is computed at runtime from one byte (`headShape`) and a SWF animation file. If your tool only reads the cat's mutation table, you will silently miss these defects on roughly 1.6% of cats in a typical save (15 out of 947 in the reference save tested).
+Some cats carry birth defects that never appear as data on disk. The defect is computed at runtime from one byte (`headShape`) and a SWF animation file. If your tool only reads the cat's mutation table, you will silently miss these defects on roughly 1.6% of cats in a typical save (15 out of 947 in my save currently).
 
 The fix is small and self-contained: replicate the same SWF-frame-walk the game performs, check which "anchor" names are present at frame `headShape - 1` of the `CatHeadPlacements` clip, and synthesize defect entries when expected anchors are absent.
-
----
 
 ## What the bug looks like
 
 A cat in your tool shows fewer defects than the same cat shows in-game.
 
-Concrete examples from the reference save:
+Concrete examples from the reference save (bundled in this directory as [`example_save.sav`](example_save.sav)):
 
 | Cat | `headShape` | Defects in-game | Defects from naive parsing |
 |---|---|---|---|
 | Whommie | 304 | Eye Birth Defect (Blind), Eyebrow Birth Defect (-2 CHA), Fur Birth Defect | only Fur Birth Defect |
 | Bud | 319 | Leg Birth Defect, Ear Birth Defect (-2 DEX) | only Leg Birth Defect |
-| Murisha | 323 | Ear Birth Defect | (none) |
+| Murisha | 319 | Ear Birth Defect | (none) |
 
-Naive parsing means: scan the cat's per-slot mutation IDs, flag entries whose ID is `0xFFFFFFFE` (the explicit defect placeholder) or whose ID lives in a GON block tagged `birth_defect`. That covers roughly 17 cats per save — but misses the SWF-anchor-absence class entirely.
-
----
+Naive parsing means: scan the cat's per-slot mutation IDs, flag entries whose ID is `0xFFFFFFFE` (the explicit defect placeholder) or whose ID lives in a GON block tagged `birth_defect`. That misses the SWF-anchor-absence class entirely.
 
 ## How to fix it
 
@@ -118,8 +114,8 @@ def synthesize_swf_defects(cat_visual_entries, head_shape, per_frame_anchors):
 The hard part is producing `per_frame_anchors`. That requires walking the SWF's `DefineSprite` tag stream for character ID `11007` and, frame-by-frame, applying `PlaceObject2/3` (tag types 26, 70) and `RemoveObject2` (tag type 28) to a depth-keyed display list, snapshotting the names of children that fall in `ALL_ANCHORS` after each `ShowFrame` (tag type 1).
 
 Critical details:
-- Use **inclusive** frame semantics: a tag labeled `frame=N` is committed when seeking to frame N or later. The game's runtime is spec-compliant on this.
-- **Do NOT skip RemoveObject2.** The defect-producing head shapes use it specifically — the missing-anchor pattern is "remove at frame N-1, re-place at frame N", so seeking to N-1 sees the anchor as absent while seeking to N sees it as present.
+- Use inclusive frame semantics: a tag labeled `frame=N` is committed when seeking to frame N or later. The game's runtime is spec-compliant on this.
+- Do NOT skip RemoveObject2. The defect-producing head shapes use it specifically — the missing-anchor pattern is "remove at frame N-1, re-place at frame N", so seeking to N-1 sees the anchor as absent while seeking to N sees it as present.
 - Build snapshots in O(N), not O(N²) — apply each tag once as you advance the frame counter, snapshot after every `ShowFrame`. Naïvely re-walking from frame 0 for every snapshot turns a 40 ms parse into a 32-second one.
 
 A complete reference implementation in Python is in this project at `src/swf_anchor_walker.py` (~470 lines including SWF tag parsing).
@@ -203,8 +199,6 @@ function synthesizeSwfDefects(catVisualEntries, headShape, perFrameAnchors) {
 
 For the SWF parsing portion in JavaScript, any standard SWF library that exposes `DefineSprite` bodies as a tag stream will do; if you need raw byte parsing, the SWF file format spec is publicly available from Adobe and the relevant tag types are 1 (`ShowFrame`), 26 (`PlaceObject2`), 28 (`RemoveObject2`), and 70 (`PlaceObject3`). Tag types 5 and 6 do not appear in `CatHeadPlacements`, but a complete walker should at least skip them safely.
 
----
-
 ## Why this happens — the full mechanism
 
 The game stores defects in the save file in two distinct ways. Tool authors who only know about the first way will miss the cats covered by the second.
@@ -266,8 +260,6 @@ Concretely:
 - `headShape = 304`: seek to frame 303. Anchor set: `{aface, ahead, aneck, lear, leye, mouth, rear}`. Missing `reye` → eye+eyebrow defect.
 - `headShape = 319`: seek to frame 318. Anchor set: `{aface, ahead, aneck, leye, mouth, reye}`. Missing `lear`+`rear` → ear defects.
 
----
-
 ## Performance notes
 
 The `CatHeadPlacements` clip has 1505 frames. Computing the per-frame anchor sets correctly is fast if you do a single in-order pass (apply each tag once as you advance the frame counter, snapshot after each `ShowFrame`) — about 40 ms in Python on commodity hardware.
@@ -275,8 +267,6 @@ The `CatHeadPlacements` clip has 1505 frames. Computing the per-frame anchor set
 The naïve approach — re-walking from frame 0 for every snapshot — is O(N²) and takes roughly 30 seconds for the same data. Worth getting right.
 
 Once computed, the per-frame list is small (≤8 anchor names per frame as a `frozenset` / `Set`). Cache it for the lifetime of your tool's session; only re-parse if the user changes the game's gpak path.
-
----
 
 ## Verification
 
