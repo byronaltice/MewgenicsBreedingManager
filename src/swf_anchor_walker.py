@@ -457,13 +457,16 @@ def missing_anchors_for_head_shape(
     The game's runtime seeks to headShape - 1 in the CatHeadPlacements clip
     (confirmed by Direction 54/56/57 analysis).
 
-    Returns ANCHOR_NAMES (all anchors "missing") when per_frame is empty or
-    head_shape - 1 is out of range, so that callers degrade gracefully rather
-    than silently treating every cat as defect-free when data is unavailable.
+    Returns an empty frozenset when per_frame is empty (e.g. no gpak loaded)
+    or head_shape - 1 is out of range. The opposite choice (all anchors
+    "missing") would falsely synthesize eye/eyebrow/ear/mouth defects for
+    every cat when SWF data is unavailable, which is far worse than the
+    miss — defect display already degrades to the T-array sentinel path
+    when the SWF can't be consulted.
     """
     if not per_frame:
-        return ANCHOR_NAMES
+        return frozenset()
     target_frame = head_shape - 1
     if target_frame < 0 or target_frame >= len(per_frame):
-        return ANCHOR_NAMES
+        return frozenset()
     return ANCHOR_NAMES - per_frame[target_frame]
