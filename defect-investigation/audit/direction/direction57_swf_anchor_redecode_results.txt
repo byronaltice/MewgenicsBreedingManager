@@ -1,0 +1,203 @@
+Direction 57: CatHeadPlacements Anchor Re-decode (complete tag handling)
+========================================================================
+
+PURPOSE
+  Re-check Direction 48's claim that anchor sets are identical for Whommie
+  (headShape=304) and Kami (headShape=99) using corrected frame indexing.
+  Direction 48 used headShape directly as target frame (99/304/319).
+  Direction 54 confirmed FUN_140734760 seeks to headShape-1.
+  This script uses headShape-1: frame 98 (Kami), 303 (Whommie), 318 (Bud).
+  Also verifies RemoveObject (tag 5) handling and fixes name extraction bug
+  in Direction 48 ('Nmouth' was parsed instead of 'mouth' at depth=66).
+
+SWF FILE
+  Path    : /home/claude/gitprojects/MewgenicsBreedingManager/defect-investigation/game-files/resources/gpak-video/swfs/catparts.swf
+  Sig     : FWS
+  Version : SWF 17
+  Size    : 6240894 bytes
+
+SPRITE LOCATION
+  DefineSprite char_id=11007 (CatHeadPlacements)
+  body_start : 0x5df952
+  body_end   : 0x5efa90
+  Max frame label: 1504
+
+TAG TYPE DISTRIBUTION (in CatHeadPlacements sprite)
+  Tag  26 (PlaceObject2): 4140
+  Tag  28 (RemoveObject2): 1326
+  NOTE: No RemoveObject (tag 5) events found in this sprite.
+        Direction 48's omission of tag 5 handling had no practical effect.
+
+FRAME LABELING AND SEMANTICS
+  Events are labeled with the frame counter value at the time they appear.
+  ShowFrame increments the counter; events AFTER the Nth ShowFrame get label=N.
+  simulate_display_list uses fn <= target_frame (inclusive).
+  Seeking to frame F includes all events labeled 0..F.
+  Key: events labeled fn=303 were placed between the 303rd and 304th ShowFrames.
+       They ARE included when seeking to frame 303 (fn=303 <= 303).
+
+ANCHOR SETS AT headShape-1 TARGETS
+------------------------------------------------------------------------
+  Frame 98 (Kami   (headShape=99,  headShape-1=98)):
+    Anchors present : ['aface', 'ahead', 'aneck', 'lear', 'leye', 'mouth', 'rear', 'reye']
+    Anchors absent  : []
+    Full display list (named items):
+      depth=   2: char=6292, name='tex'
+      depth=  27: char=6338, name='scars'
+      depth=  31: char=10988, name='lear' <-- ANCHOR
+      depth=  35: char=10990, name='rear' <-- ANCHOR
+      depth=  62: char=10994, name='leye' <-- ANCHOR
+      depth=  66: char=10998, name='mouth' <-- ANCHOR
+      depth=  70: char=11000, name='reye' <-- ANCHOR
+      depth=  82: char=11002, name='ahead' <-- ANCHOR
+      depth=  86: char=11004, name='aneck' <-- ANCHOR
+      depth=  90: char=11006, name='aface' <-- ANCHOR
+
+  Frame 303 (Whommie(headShape=304, headShape-1=303)):
+    Anchors present : ['aface', 'ahead', 'aneck', 'lear', 'leye', 'mouth', 'rear']
+    Anchors absent  : ['reye']
+    Full display list (named items):
+      depth=   2: char=6292, name='tex'
+      depth=  27: char=6338, name='scars'
+      depth=  31: char=10988, name='lear' <-- ANCHOR
+      depth=  35: char=10990, name='rear' <-- ANCHOR
+      depth=  62: char=10994, name='leye' <-- ANCHOR
+      depth=  66: char=10998, name='mouth' <-- ANCHOR
+      depth=  82: char=11002, name='ahead' <-- ANCHOR
+      depth=  86: char=11004, name='aneck' <-- ANCHOR
+      depth=  90: char=11006, name='aface' <-- ANCHOR
+
+  Frame 318 (Bud    (headShape=319, headShape-1=318)):
+    Anchors present : ['aface', 'ahead', 'aneck', 'leye', 'mouth', 'reye']
+    Anchors absent  : ['lear', 'rear']
+    Full display list (named items):
+      depth=   2: char=6292, name='tex'
+      depth=  27: char=6338, name='scars'
+      depth=  39: char=10994, name='leye' <-- ANCHOR
+      depth=  58: char=10998, name='mouth' <-- ANCHOR
+      depth=  62: char=11000, name='reye' <-- ANCHOR
+      depth=  82: char=11002, name='ahead' <-- ANCHOR
+      depth=  86: char=11004, name='aneck' <-- ANCHOR
+      depth=  90: char=11006, name='aface' <-- ANCHOR
+
+ANCHOR SETS AT headShape DIRECT TARGETS (for comparison)
+------------------------------------------------------------------------
+  Frame 99 (Kami   (headShape=99)):
+    Anchors present : ['aface', 'ahead', 'aneck', 'lear', 'leye', 'mouth', 'rear', 'reye']
+    Anchors absent  : []
+  Frame 304 (Whommie(headShape=304)):
+    Anchors present : ['aface', 'ahead', 'aneck', 'lear', 'leye', 'mouth', 'rear', 'reye']
+    Anchors absent  : []
+  Frame 319 (Bud    (headShape=319)):
+    Anchors present : ['aface', 'ahead', 'aneck', 'lear', 'mouth', 'rear', 'reye']
+    Anchors absent  : ['leye']
+
+COMPARISON: headShape-1 frame 98 (Kami) vs frame 303 (Whommie)
+------------------------------------------------------------------------
+  Anchor sets: DIFFERENT
+  In Kami(98) but NOT in Whommie(303): ['reye']
+
+COMPARISON: headShape-1 frame 98 (Kami) vs frame 318 (Bud)
+------------------------------------------------------------------------
+  Anchor sets: DIFFERENT
+  In Kami(98) but NOT in Bud(318): ['lear', 'rear']
+
+DIRECTION 48 NAME EXTRACTION BUG
+------------------------------------------------------------------------
+  Direction 48 used a backward-scan heuristic to find child names in
+  PlaceObject2 tags. This produced 'Nmouth' instead of 'mouth' at depth=66.
+  'Nmouth' is not in the ANCHOR_SET so Direction 48 never recorded 'mouth'.
+  This script's forward-parsing correctly extracts 'mouth' at depth=66.
+  Effect on prior Direction 48 report: 'mouth' was never present in any
+  of Dir48's results, but this is a display bug only. The frames checked
+  in Direction 48 (99/304/319) did not differ in the other 7 named anchors,
+  so the 'identical' conclusion for frame 99 vs 304 was correct for those.
+  However: Direction 48 did NOT check frames 98/303/318 (headShape-1).
+
+CRITICAL: FRAME OFFSET EFFECT
+------------------------------------------------------------------------
+  The reye anchor is removed at depth=70 by a RemoveObject2 labeled fn=303.
+  At headShape frame 304 (inclusive, fn<=304): reye is re-placed (fn=304 tag).
+  At headShape-1 frame 303 (inclusive, fn<=303): reye removal is applied,
+    but the re-placement (fn=304) is NOT yet committed. Reye is ABSENT.
+  Similarly for Bud:
+  The lear/rear anchors are removed at depths=31,35 by tags labeled fn=318.
+  At headShape frame 319 (inclusive): lear/rear are re-placed (fn=319 tags).
+  At headShape-1 frame 318 (inclusive): removal applied, re-placement not committed.
+  Lear and rear are ABSENT.
+
+ALL ANCHOR REMOVE EVENTS (frames 0 to 320)
+------------------------------------------------------------------------
+  Total anchor remove events found: 11
+
+  Frame    1  tag=RemoveObject2  depth=  74  prev_name='leye'  prev_char=10994
+  Frame    1  tag=RemoveObject2  depth=  78  prev_name='reye'  prev_char=11000
+  Frame  303  tag=RemoveObject2  depth=  70  prev_name='reye'  prev_char=11000
+  Frame  308  tag=RemoveObject2  depth=  35  prev_name='rear'  prev_char=10990
+  Frame  308  tag=RemoveObject2  depth=  70  prev_name='reye'  prev_char=11000
+  Frame  313  tag=RemoveObject2  depth=  66  prev_name='mouth'  prev_char=10998
+  Frame  313  tag=RemoveObject2  depth=  70  prev_name='reye'  prev_char=11000
+  Frame  314  tag=RemoveObject2  depth=  62  prev_name='leye'  prev_char=10994
+  Frame  318  tag=RemoveObject2  depth=  31  prev_name='lear'  prev_char=10988
+  Frame  318  tag=RemoveObject2  depth=  35  prev_name='rear'  prev_char=10990
+  Frame  319  tag=RemoveObject2  depth=  39  prev_name='leye'  prev_char=10994
+
+  INTERPRETATION:
+  Frame   1: removes leye/reye from depths 74/78 (extra init-frame objects)
+             These are the duplicates placed at frame=0 that are cleaned up.
+  Frame 303: removes reye from depth=70. At headShape-1=303, this commits
+             WITHOUT the fn=304 re-placement -> reye absent for Whommie.
+  Frame 308: removes rear+reye (temporary removal, re-placed in same frame range)
+  Frame 313: removes mouth+reye (temporary removal)
+  Frame 314: removes leye (temporary removal)
+  Frame 318: removes lear+rear from depths 31/35. At headShape-1=318, this
+             commits WITHOUT the fn=319 re-placement -> lear+rear absent for Bud.
+  Frame 319: removes leye from depth=39 (leye was moved to depth=39 for Bud head)
+
+PREDICTED DEFECTS FROM ANCHOR DIFF
+------------------------------------------------------------------------
+
+  FUN_140734760 (per Direction 54): clears CatPart+0x18 for k=7..13 (head slots),
+  then sets it to 1 only if the anchor name for that slot appears in the
+  CatHeadPlacements clip's display list at headShape-1.
+  CatPart+0x18=0 -> renderer emits 0xFFFFFFFE -> missing-part defect signal.
+
+  Whommie (headShape=304, seeks frame 303):
+    Anchor 'reye' absent at frame 303 but present at frame 98 (Kami).
+    Predicted: CatPart+0x18=0 for slot(s) corresponding to: ['reye']
+    'reye' absent -> right-eye CatPart k=8 gets +0x18=0 -> right-eye defect
+    Eye-defect pair: if right-eye slot is missing, eyebrow follows per Direction 54.
+    This MATCHES Whommie's observed eye+eyebrow birth defects.
+
+  Bud (headShape=319, seeks frame 318):
+    Anchor 'lear' absent at frame 318 but present at frame 98 (Kami).
+    Anchor 'rear' absent at frame 318 but present at frame 98 (Kami).
+    Predicted: CatPart+0x18=0 for slot(s) corresponding to: ['lear', 'rear']
+    'lear' absent -> left-ear CatPart gets +0x18=0 -> left-ear defect
+    'rear' absent -> right-ear CatPart gets +0x18=0 -> right-ear defect
+    This MATCHES Bud's observed ear-related DEX penalty birth defect.
+
+CONCLUSION
+------------------------------------------------------------------------
+  [PIVOTAL] Anchor sets DIFFER at headShape-1=303 (Whommie) vs 98 (Kami).
+  Whommie missing: ['reye']
+  [PIVOTAL] Anchor sets DIFFER at headShape-1=318 (Bud) vs 98 (Kami).
+  Bud missing: ['lear', 'rear']
+
+  Root cause of discrepancy with Direction 48:
+    Direction 48 checked frames 99/304/319 (headShape directly).
+    At those frames, re-placement tags (fn=304, fn=319) ARE committed,
+    restoring the removed anchors. Result: sets appeared identical.
+    Direction 54 confirmed the actual code uses headShape-1.
+    At frames 303/318 (headShape-1), the removal tags are committed
+    but the re-placement tags are NOT yet committed.
+    Result: reye absent for Whommie, lear+rear absent for Bud.
+
+  This resolves the investigation for both Whommie and Bud:
+    The CatHeadPlacements SWF, under headShape-1 frame seeking,
+    produces missing anchor names that cause FUN_140734760 to
+    leave CatPart+0x18=0 for the corresponding head part slots.
+    The renderer then emits 0xFFFFFFFE for those slots.
+    The parser detects 0xFFFFFFFE as a birth defect.
+    The entire missing-defect chain is now explained end-to-end.
+

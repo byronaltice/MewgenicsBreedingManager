@@ -2,7 +2,7 @@ Direction 48 Results: CatHeadPlacements anchor decode from catparts.swf
 ========================================================================
 
 SWF FILE
-  Path    : C:\Users\Byron\gitprojects\MewgenicsBreedingManager\defect-investigation\game-files\resources\gpak-video\swfs\catparts.swf
+  Path    : /home/claude/gitprojects/MewgenicsBreedingManager/defect-investigation/game-files/resources/gpak-video/swfs/catparts.swf
   Sig     : FWS (uncompressed — no decompression needed)
   Version : SWF 17
   Size    : 6240894 bytes
