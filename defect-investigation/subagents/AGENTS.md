@@ -8,7 +8,7 @@ Agent definitions (identity, tools, model, system prompt) live at `.claude/agent
 
 | Subdirectory | Purpose |
 |---|---|
-| `_shared/` | Cross-agent rules: return contract, closed-leads/identity discipline. Read by every agent before starting any task. |
+| `_shared/` | Cross-agent rules: return contract (incl. `[PIVOTAL]` flag), closed-leads/identity discipline, verification mode (subagent-facing) and verification policy (orchestrator-facing). Read by every agent before starting any task. Verification mode is a prompt-shape used to second-source pivotal claims, not a separate subagent type. |
 | `ghidra/` | Briefing for `defect-ghidra` subagent (Ghidra MCP decompile/analysis, read-only). |
 | `blob-walker/` | Briefing for `defect-blob-walker` subagent (write/run Python investigation scripts; scoped Bash + Write). |
 | `text-resources/` | Briefing for `defect-text-resources` subagent (search/analyze gpak text corpus, read-only). |

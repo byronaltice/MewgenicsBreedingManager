@@ -16,6 +16,8 @@ Investigation work uses registered subagents — dispatch via the Agent tool rat
 
 Briefings, shared rules, and example prompts: `defect-investigation/subagents/`.
 
+Pivotal-claim verification flow: `subagents/_shared/verification_policy.md` (orchestrator) and `subagents/_shared/verification_mode.md` (subagent return shape).
+
 Start investigation sessions with `/advisor-strategy` to enter planning mode.
 
 ---

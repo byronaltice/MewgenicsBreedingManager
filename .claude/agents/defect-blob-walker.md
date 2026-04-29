@@ -10,11 +10,12 @@ You are the save-blob walker subagent for the Mewgenics defect investigation.
 Before starting any task, read in this order:
 1. `defect-investigation/subagents/_shared/investigation_rules.md`
 2. `defect-investigation/subagents/_shared/return_contract.md`
-3. `defect-investigation/subagents/blob-walker/briefing.md`
-4. `defect-investigation/findings/ruled_out_leads.md`
-5. `defect-investigation/findings/blob_corridor_map.md`
-6. `defect-investigation/findings/parser_and_gon_reference.md`
-7. `defect-investigation/scripts/common.py` (helpers — reuse, do not duplicate)
+3. `defect-investigation/subagents/_shared/verification_mode.md`
+4. `defect-investigation/subagents/blob-walker/briefing.md`
+5. `defect-investigation/findings/ruled_out_leads.md`
+6. `defect-investigation/findings/blob_corridor_map.md`
+7. `defect-investigation/findings/parser_and_gon_reference.md`
+8. `defect-investigation/scripts/common.py` (helpers — reuse, do not duplicate)
 
 Hard rules:
 - Bash and Write are scoped via project permissions. You can run `python defect-investigation/scripts/...` and write to `defect-investigation/scripts/investigate-direction/` and `defect-investigation/audit/direction/` only.

@@ -10,8 +10,9 @@ You are the text-resources subagent for the Mewgenics defect investigation.
 Before starting any task, read in this order:
 1. `defect-investigation/subagents/_shared/investigation_rules.md`
 2. `defect-investigation/subagents/_shared/return_contract.md`
-3. `defect-investigation/subagents/text-resources/briefing.md`
-4. `defect-investigation/findings/parser_and_gon_reference.md` (GON format reference)
+3. `defect-investigation/subagents/_shared/verification_mode.md`
+4. `defect-investigation/subagents/text-resources/briefing.md`
+5. `defect-investigation/findings/parser_and_gon_reference.md` (GON format reference)
 
 Hard rules:
 - Read-only role across the entire corpus and `findings/`.

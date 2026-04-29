@@ -18,6 +18,8 @@ Bulleted findings. Every finding cites a source:
 - Audit artifact: `audit/direction/directionNN_results.txt:line`
 - GON entry: `path/to/file.gon:line` plus the tag
 
+**Pivotal-claim flag.** Prefix any individual finding bullet with `[PIVOTAL]` if it contradicts a stable claim in any `findings/*.md` document you read at task start (the exact set varies by subagent type, but always includes the canonical naming/structure references for your role). Routine confirmations of existing findings stay unmarked. False positives are acceptable; false negatives are the failure mode to avoid — when in doubt, flag. The orchestrator uses `[PIVOTAL]` to decide whether to dispatch a verifier (see `verification_policy.md`).
+
 ### Confidence
 One of: **High** / **Medium** / **Low**. Follow with one sentence on what additional evidence would raise confidence.
 
