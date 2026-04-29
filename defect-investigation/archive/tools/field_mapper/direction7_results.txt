@@ -1,7 +1,7 @@
 ======================================================================
 Direction #7 -- Structured field comparison
 ======================================================================
-Save: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\steamcampaign01.sav
+Save: %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-saves\steamcampaign01.sav
 
 Found 2 defective cats and 4 controls
 

@@ -1,7 +1,7 @@
 Direction 40 Results
 ============================================================
 
-GPAK: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\resources.gpak
+GPAK: %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-saves\resources.gpak
 
 Mutation GON files in GPAK:
   data/mutations/body.gon

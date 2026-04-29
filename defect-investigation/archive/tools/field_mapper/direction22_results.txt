@@ -1,7 +1,7 @@
 ======================================================================
 Direction #22 -- Current-COI threshold audit
 ======================================================================
-Save: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\steamcampaign01.sav
+Save: %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-saves\steamcampaign01.sav
 External rules under test:
   wiki.gg breeding page: https://mewgenics.wiki.gg/wiki/Breeding
     Birth defects check documented as: coi > 0.05 and random < coi * 1.5

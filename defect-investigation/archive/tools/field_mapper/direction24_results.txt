@@ -1,7 +1,7 @@
 ======================================================================
 Direction #24 -- Pedigree cached COI versus derived kinship COI
 ======================================================================
-Save: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\steamcampaign01.sav
+Save: %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-saves\steamcampaign01.sav
 Goal: verify whether our local COI math matches the save's cached pedigree COI.
 
 ======================================================================

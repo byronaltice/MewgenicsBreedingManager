@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd \"C:\\Users\\Byron\\gitprojects\\MewgenicsBreedingManager\\.claude\\worktrees\\main-work\" && git status --short | findstr /v \"^$\" && echo \"WARNING: uncommitted changes — amend the working commit\" || exit 0"
+            "command": "cd \"%USERPROFILE%\\gitprojects\\MewgenicsBreedingManager\\.claude\\worktrees\\main-work\" && git status --short | findstr /v \"^$\" && echo \"WARNING: uncommitted changes — amend the working commit\" || exit 0"
           }
         ]
       }

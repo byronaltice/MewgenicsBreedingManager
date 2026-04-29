@@ -1,5 +1,5 @@
 Direction 31 - Map ability tail through equipment and class string
-Save: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\investigation\steamcampaign01_20260424_191107.sav
+Save: %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-saves\investigation\steamcampaign01_20260424_191107.sav
 
 === Focus Cats ===
 

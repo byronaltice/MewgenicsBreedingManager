@@ -1,8 +1,8 @@
 ======================================================================
 Direction #15 -- Pre-T seed comparison for defect-bearing slots
 ======================================================================
-Save: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\steamcampaign01.sav
-GPAK: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\resources.gpak
+Save: %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-saves\steamcampaign01.sav
+GPAK: %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-saves\resources.gpak
 
 ======================================================================
 Key cats

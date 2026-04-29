@@ -27,7 +27,7 @@ section is **"Visual Mutation / Birth Defect Parsing"** — read it entirely.
 > **Note — worktree-only files**: `investigate_pedigree.py` and
 > `pedigree_results.txt` were never committed to main. They exist only in
 > worktree `gifted-colden-22a33e` at:
-> `C:\Users\Byron\gitprojects\MewgenicsBreedingManager\.claude\worktrees\gifted-colden-22a33e\tools\field_mapper\`
+> `%USERPROFILE%\gitprojects\MewgenicsBreedingManager\.claude\worktrees\gifted-colden-22a33e\tools\field_mapper\`
 > They are useful for reference but not required to proceed with Direction #3.
 
 ## Current status

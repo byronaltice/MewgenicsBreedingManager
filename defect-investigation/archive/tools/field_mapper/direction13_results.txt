@@ -1,7 +1,7 @@
 ======================================================================
 Direction #13 -- Full run_items dump + post-disorders blob analysis
 ======================================================================
-Save: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\steamcampaign01.sav
+Save: %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-saves\steamcampaign01.sav
 
 ======================================================================
 STEP 1 -- Full run_items dump for each target cat

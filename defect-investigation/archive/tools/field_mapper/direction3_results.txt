@@ -1,7 +1,7 @@
 ======================================================================
 Direction #3 -- Parent / Offspring Blob Diff
 ======================================================================
-Save: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\steamcampaign01.sav
+Save: %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-saves\steamcampaign01.sav
 
 ----------------------------------------------------------------------
 STEP 1 -- Family resolution

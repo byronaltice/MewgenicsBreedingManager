@@ -1,5 +1,5 @@
 Direction 39 - Extract bytevec (A), u8 flags (B), u32 array (C) for all cats
-Save: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\investigation\steamcampaign01_20260424_191107.sav
+Save: %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-saves\investigation\steamcampaign01_20260424_191107.sav
 Total cats parsed by save_parser: 947
 
 === Focus Cats ===

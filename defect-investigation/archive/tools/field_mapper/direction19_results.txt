@@ -1,7 +1,7 @@
 ======================================================================
 Direction #19 -- TypeScript structured mutation table scan
 ======================================================================
-Save: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\steamcampaign01.sav
+Save: %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-saves\steamcampaign01.sav
 
 ======================================================================
 STEP 1 -- Find and dump structured table for target cats

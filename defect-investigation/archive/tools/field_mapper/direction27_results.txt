@@ -1,5 +1,5 @@
 Direction 27 — FUN_14022cf90 blob position analysis
-Save: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\investigation\steamcampaign01_20260424_191107.sav
+Save: %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-saves\investigation\steamcampaign01_20260424_191107.sav
 
 Whommie (db_key=853): t_start=0x8e  defects=['Fur Birth Defect']
 

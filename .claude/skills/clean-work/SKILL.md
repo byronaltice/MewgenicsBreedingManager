@@ -44,4 +44,4 @@ Clean up all stale `claude/` worktrees and branches, keeping only the one curren
 - NEVER remove the worktree or branch you are currently operating in.
 - NEVER touch `main`, feature branches, or any non-`claude/` branch.
 - If a worktree has uncommitted changes, warn the user and skip it rather than force-removing silently. Ask whether to proceed.
-- Run all git commands from the repo root: `C:\Users\Byron\gitprojects\MewgenicsBreedingManager`
+- Run all git commands from the repo root: `%USERPROFILE%\gitprojects\MewgenicsBreedingManager`

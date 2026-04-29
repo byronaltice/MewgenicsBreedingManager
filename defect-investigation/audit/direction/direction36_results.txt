@@ -1,5 +1,5 @@
 Direction 36 - Roster-scan 10 pre-corridor strings + corridor slot 0
-Save: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\investigation\steamcampaign01_20260424_191107.sav
+Save: %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-saves\investigation\steamcampaign01_20260424_191107.sav
 Total cats parsed: 947
 
 === Focus Cats: per-slot raw dump ===

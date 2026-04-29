@@ -1,7 +1,7 @@
 ======================================================================
 Direction #18 -- Discarded f64 after gender string
 ======================================================================
-Save: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\steamcampaign01.sav
+Save: %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-saves\steamcampaign01.sav
 
 ======================================================================
 STEP 1 -- Discarded f64 for target cats

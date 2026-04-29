@@ -1,7 +1,7 @@
 ======================================================================
 Direction #8 -- T array per-slot deep dive + pre-T f64 block
 ======================================================================
-Save: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\steamcampaign01.sav
+Save: %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-saves\steamcampaign01.sav
 
 ======================================================================
 STEP 1 -- Per-slot T[index..index+4] dump

@@ -1,8 +1,8 @@
 ======================================================================
 Direction #14 -- Pedigree by db_key + GPAK disorder/birth_defect files
 ======================================================================
-Save: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\steamcampaign01.sav
-GPAK: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\resources.gpak
+Save: %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-saves\steamcampaign01.sav
+GPAK: %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-saves\resources.gpak
 
 ======================================================================
 PART A -- GPAK file listing and disorder/birth_defect content

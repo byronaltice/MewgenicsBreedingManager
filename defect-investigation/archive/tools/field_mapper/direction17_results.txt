@@ -1,7 +1,7 @@
 ======================================================================
 Direction #17 -- Discarded u32 after collar in blob head
 ======================================================================
-Save: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\steamcampaign01.sav
+Save: %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-saves\steamcampaign01.sav
 
 ======================================================================
 STEP 1 -- Full blob head dump for target cats

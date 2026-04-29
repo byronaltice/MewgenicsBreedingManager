@@ -1,7 +1,7 @@
 ======================================================================
 Direction #23 -- Ancestor check for low-COI birth defects
 ======================================================================
-Save: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\steamcampaign01.sav
+Save: %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-saves\steamcampaign01.sav
 Scope: cats with parsed birth defects and current coi <= 0.05, testing whether a matching parsed defect exists anywhere in recorded ancestry.
 
 ======================================================================

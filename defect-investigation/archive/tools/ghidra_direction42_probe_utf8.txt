@@ -1,6 +1,6 @@
-﻿INFO  Using log config file: jar:file:/C:/Users/Byron/gitprojects/MewgenicsBreedingManager/test-runtimes/Ghidra/ghidra_12.0.4_PUBLIC/Ghidra/Framework/Generic/lib/Generic.jar!/generic.log4j.xml (LoggingInitialization)  
-INFO  Using log file: C:\Users\Byron\AppData\Roaming\ghidra\ghidra_12.0.4_PUBLIC\application.log (LoggingInitialization)  
-INFO  Loading user preferences: C:\Users\Byron\AppData\Roaming\ghidra\ghidra_12.0.4_PUBLIC\preferences (Preferences)  
+﻿INFO  Using log config file: jar:file:/%USERPROFILE%/gitprojects/MewgenicsBreedingManager/test-runtimes/Ghidra/ghidra_12.0.4_PUBLIC/Ghidra/Framework/Generic/lib/Generic.jar!/generic.log4j.xml (LoggingInitialization)  
+INFO  Using log file: %USERPROFILE%\AppData\Roaming\ghidra\ghidra_12.0.4_PUBLIC\application.log (LoggingInitialization)  
+INFO  Loading user preferences: %USERPROFILE%\AppData\Roaming\ghidra\ghidra_12.0.4_PUBLIC\preferences (Preferences)  
 INFO  Searching for classes... (ClassSearcher)  
 INFO  Class search complete (785 ms) (ClassSearcher)  
 INFO  Initializing SSL Context (DefaultSSLContextInitializer)  
@@ -11,47 +11,47 @@ INFO  Headless startup complete (3169 ms) (AnalyzeHeadless)
 INFO  Class searcher loaded 58 extension points (18 false positives) (ClassSearcher)  
 analyzeHeadless.bat : WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
 At line:8 char:1
-+ & "C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\ ...
++ & "%USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-runtimes\ ...
 + ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     + CategoryInfo          : NotSpecified: (WARNING: A term...has been called:String) [], RemoteException
     + FullyQualifiedErrorId : NativeCommandError
  
 WARNING: sun.misc.Unsafe::staticFieldOffset has been called by org.apache.felix.framework.util.SecureAction (file:/C:/U
-sers/Byron/gitprojects/MewgenicsBreedingManager/test-runtimes/Ghidra/ghidra_12.0.4_PUBLIC/Ghidra/Features/Base/lib/org.
+sers/<scrubbed>/gitprojects/MewgenicsBreedingManager/test-runtimes/Ghidra/ghidra_12.0.4_PUBLIC/Ghidra/Features/Base/lib/org.
 apache.felix.framework-7.0.5.jar)
 WARNING: Please consider reporting this to the maintainers of class org.apache.felix.framework.util.SecureAction
 WARNING: sun.misc.Unsafe::staticFieldOffset will be removed in a future release
 INFO  HEADLESS Script Paths:
-    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\BSim\ghidra_scripts
-    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Processors\Atmel\ghidra_scripts
-    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Processors\PIC\ghidra_scripts
-    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\DecompilerDependent\ghidra_scripts
-    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\SystemEmulation\ghidra_scripts
-    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\Base\ghidra_scripts
-    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Processors\8051\ghidra_scripts
-    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\WildcardAssembler\ghidra_scripts
-    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\GnuDemangler\ghidra_scripts
-    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Processors\DATA\ghidra_scripts
-    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\FunctionID\ghidra_scripts
-    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\BytePatterns\ghidra_scripts
-    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\VersionTracking\ghidra_scripts
-    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Debug\Debugger-rmi-trace\ghidra_scripts
-    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Processors\JVM\ghidra_scripts
-    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\Decompiler\ghidra_scripts
-    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\Jython\ghidra_scripts
-    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\MicrosoftCodeAnalyzer\ghidra_scripts
-    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\PDB\ghidra_scripts
-    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\FileFormats\ghidra_scripts
-    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\PyGhidra\ghidra_scripts
-    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\tools
-    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\SwiftDemangler\ghidra_scripts
-    C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Debug\Debugger\ghidra_scripts (HeadlessAnalyzer)  
+    %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\BSim\ghidra_scripts
+    %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Processors\Atmel\ghidra_scripts
+    %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Processors\PIC\ghidra_scripts
+    %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\DecompilerDependent\ghidra_scripts
+    %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\SystemEmulation\ghidra_scripts
+    %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\Base\ghidra_scripts
+    %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Processors\8051\ghidra_scripts
+    %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\WildcardAssembler\ghidra_scripts
+    %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\GnuDemangler\ghidra_scripts
+    %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Processors\DATA\ghidra_scripts
+    %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\FunctionID\ghidra_scripts
+    %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\BytePatterns\ghidra_scripts
+    %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\VersionTracking\ghidra_scripts
+    %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Debug\Debugger-rmi-trace\ghidra_scripts
+    %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Processors\JVM\ghidra_scripts
+    %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\Decompiler\ghidra_scripts
+    %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\Jython\ghidra_scripts
+    %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\MicrosoftCodeAnalyzer\ghidra_scripts
+    %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\PDB\ghidra_scripts
+    %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\FileFormats\ghidra_scripts
+    %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\PyGhidra\ghidra_scripts
+    %USERPROFILE%\gitprojects\MewgenicsBreedingManager\tools
+    %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Features\SwiftDemangler\ghidra_scripts
+    %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ghidra_12.0.4_PUBLIC\Ghidra\Debug\Debugger\ghidra_scripts (HeadlessAnalyzer)  
 INFO  HEADLESS: execution starts (HeadlessAnalyzer)  
-INFO  Opening existing project: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ProjDir\Mewgenics (HeadlessAnalyzer)  
-INFO  Opening project: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ProjDir\Mewgenics (HeadlessProject)  
+INFO  Opening existing project: %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ProjDir\Mewgenics (HeadlessAnalyzer)  
+INFO  Opening project: %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-runtimes\Ghidra\ProjDir\Mewgenics (HeadlessProject)  
 INFO  REPORT: Processing project file: /Mewgenics.exe (HeadlessAnalyzer)  
 INFO  REPORT: Execute script: GhidraDirection42Probe.java  (HeadlessAnalyzer)  
-INFO  SCRIPT: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\tools\GhidraDirection42Probe.java (HeadlessAnalyzer)  
+INFO  SCRIPT: %USERPROFILE%\gitprojects\MewgenicsBreedingManager\tools\GhidraDirection42Probe.java (HeadlessAnalyzer)  
 INFO  GhidraDirection42Probe.java>  (GhidraScript)  
 INFO  GhidraDirection42Probe.java> ================================================================================ (GhidraScript)  
 INFO  GhidraDirection42Probe.java> TASK1 FUN_1400e38c0 (mutation tooltip builder): FUN_1400e38c0 @ 1400e38c0 (GhidraScript)  

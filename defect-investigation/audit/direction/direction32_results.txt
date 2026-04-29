@@ -9,7 +9,7 @@ Sections:
   .rsrc: raw=0x1456600+0xca00, rva=0x14c9000+0xc830
   .reloc: raw=0x1463000+0x89800, rva=0x14d6000+0x89664
 
-=== C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Mewgenics\Mewgenics.exe ===
+=== %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-runtimes\Mewgenics\Mewgenics.exe ===
 
 pattern 'u32 0xFFFFFFFE / -2': 40 hit(s) shown
   file+0x46642 -> 0x0000000140047242 (.text+0x46242)
@@ -151,7 +151,7 @@ pattern 'utf8 dex -2': 0 hit(s) shown
 
 pattern 'utf16le dex -2': 0 hit(s) shown
 
-=== C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-runtimes\Mewgenics\resources.gpak ===
+=== %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-runtimes\Mewgenics\resources.gpak ===
   pattern 'u32 0xFFFFFFFE / -2' file+0x1bd8ad
     context: ..Z.Q..".t.p.._h..*.h..?s^KmN.Wsa...Iid..h~$..U.OggS....................................!........>...............@jhV>_..".......%F.^...V..V...8Hd..=.{......UQ.M...
   pattern 'u32 0xFFFFFFFE / -2' file+0x22597a

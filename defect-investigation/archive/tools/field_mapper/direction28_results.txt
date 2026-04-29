@@ -1,5 +1,5 @@
 Direction 28 - FUN_14022cf90 record locator
-Save: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\investigation\steamcampaign01_20260424_191107.sav
+Save: %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-saves\investigation\steamcampaign01_20260424_191107.sav
 
 === Whommie (db_key=853) ===
   defects parsed: ['Fur Birth Defect']

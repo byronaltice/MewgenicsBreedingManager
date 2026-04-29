@@ -1,7 +1,7 @@
 ======================================================================
 npc_progress Investigation
 ======================================================================
-Save: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\steamcampaign01.sav
+Save: %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-saves\steamcampaign01.sav
 
 ----------------------------------------------------------------------
 STEP 1 -- Blob overview

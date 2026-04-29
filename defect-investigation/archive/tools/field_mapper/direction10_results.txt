@@ -1,7 +1,7 @@
 ======================================================================
 Direction #10 -- GPAK mutation data for eyes / eyebrows / ears
 ======================================================================
-GPAK: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\resources.gpak
+GPAK: %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-saves\resources.gpak
 
 ======================================================================
 GON FILE: data/mutations/eyes.gon (13663 bytes)

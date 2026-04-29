@@ -6,8 +6,8 @@ sys.path.insert(0, 'src')
 import struct, re, lz4.block, sqlite3
 from save_parser import parse_save, GameData, set_visual_mut_data, BinaryReader
 
-SAVE = r'C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\steamcampaign01.sav'
-GPAK = r'C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\resources.gpak'
+SAVE = os.path.expandvars(r'%USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-saves\steamcampaign01.sav')
+GPAK = os.path.expandvars(r'%USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-saves\resources.gpak')
 
 gd = GameData.from_gpak(GPAK)
 set_visual_mut_data(gd.visual_mutation_data)

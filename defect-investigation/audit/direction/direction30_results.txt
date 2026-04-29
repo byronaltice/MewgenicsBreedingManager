@@ -1,5 +1,5 @@
 Direction 30 - Decode post-stat gap and d100 fixed header
-Save: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\investigation\steamcampaign01_20260424_191107.sav
+Save: %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-saves\investigation\steamcampaign01_20260424_191107.sav
 
 === Focus Cats ===
 

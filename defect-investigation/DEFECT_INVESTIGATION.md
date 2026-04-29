@@ -259,7 +259,7 @@ This re-opens a paradox: Direction 48's spec-compliant SWF accumulation gives fr
 Use the fixed investigation save snapshot unless deliberately testing the live save:
 
 ```powershell
-$env:INVESTIGATION_SAVE = "C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\investigation\steamcampaign01_20260424_191107.sav"
+$env:INVESTIGATION_SAVE = "$env:USERPROFILE\gitprojects\MewgenicsBreedingManager\test-saves\investigation\steamcampaign01_20260424_191107.sav"
 ```
 
 **Ghidra is accessed via the `mcp__mewgenics-ghidra` MCP server** — do not attempt to run Ghidra headlessly from this project directory. The Ghidra project and binary live in WSL; use MCP tools for all decompilation and symbol work:

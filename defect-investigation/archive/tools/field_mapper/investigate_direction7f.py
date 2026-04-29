@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 _TS = ROOT / "test-saves"
 if not _TS.exists():
-    _TS = Path(r"C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves")
+    _TS = Path(os.path.expandvars(r"%USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-saves"))
 SAVE = _TS / "steamcampaign01.sav"
 GPAK = _TS / "resources.gpak"
 OUT  = Path(__file__).parent / "direction7f_results.txt"

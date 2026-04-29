@@ -1,7 +1,7 @@
 ======================================================================
 Direction #15a -- Family-line check for runtime/genetics hypothesis
 ======================================================================
-Save: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\steamcampaign01.sav
+Save: %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-saves\steamcampaign01.sav
 
 ======================================================================
 Whommie line: Kami + Petronij

@@ -1,7 +1,7 @@
 ======================================================================
 Direction #16 -- properties table dump
 ======================================================================
-Save: C:\Users\Byron\gitprojects\MewgenicsBreedingManager\test-saves\steamcampaign01.sav
+Save: %USERPROFILE%\gitprojects\MewgenicsBreedingManager\test-saves\steamcampaign01.sav
 
 Total rows: 262
 
