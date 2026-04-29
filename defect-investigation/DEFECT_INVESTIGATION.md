@@ -62,6 +62,11 @@ Current working model: missing effects are derived from saved visual/head IDs th
 
 **Direction 51 update (2026-04-28):** Cross-reference scan results. (a) **Placement-reconstruction model is closed.** `CatPart+0xC` is written by `FUN_140734760` and read by no one — there is no `+0xC` → `+0x18` bridge. (b) **No zero-writer to `CatPart+0x18` found** across 19 decompiled functions covering all callers of `FUN_14005dfd0`, the load chain, `FUN_140734760`, and the breed path (Low confidence — absence claim, scope-bounded). **Incidental discovery:** `FUN_1400a5390` reads the *parent* cat's +0x18 at breed time and writes `0xFFFFFFFE` to the *child*'s `+0x04` if the parent has the missing-part flag set — but where the child's `+0x04` lands in the on-disk corridor has never been traced. See `audit/direction/direction51_results.txt`.
 
+**Direction 52 update (2026-04-28):** Corridor trace + gate polarity verification. Three locked-in findings:
+- **CatPart array starts at CatData+0x8c, not +0x60.** CatData+0x60 is a container header; the stride-0x54 CatPart records begin 0x2c bytes into that container. (Past references to "CatPart records at CatData+0x60" were imprecise but the sub-offsets +0x04/+0x0C/+0x18 were correct.)
+- **Display gate polarity (independently verified).** `FUN_1400c9810`: `CatPart[k]+0x18 == 0` ⇒ emit `0xFFFFFFFE` (defect placeholder); `CatPart[k]+0x18 != 0` ⇒ emit `CatPart[k]+0x04` (normal ID). Confirmed both by decompile shape and raw instruction encoding (CMP BYTE PTR [RBX+0xa4], 0). For Whommie/Bud's defect slots, +0x18 is **nonzero when it should be zero** — that is the bug in one sentence.
+- **CatPart+0x18 is NOT serialized.** `FUN_14022cd00` writes only +0x04, +0x08, +0x0C, +0x10, +0x14 from the stream. The load chain `FUN_14022dfb0 → FUN_14022d360 → FUN_14022ce10 → FUN_14022cd00` never touches +0x18. Therefore +0x18 must be runtime-derived post-load — which **partially reopens Direction 51's closure**: the only function that touches the +0x18 region is still `FUN_140734760`, which writes +0x0C. We may have been right that +0x0C and +0x18 are different fields, but wrong that nothing else writes +0x18 — or there is an init/clear of +0x18 we have not yet found. See `audit/direction/direction52_corridor_and_offset_results.txt` and `direction52_gate_polarity_verification_results.txt`.
+
 ---
 
 ## Direction History
@@ -143,6 +148,25 @@ Outer-clip hypothesis is contradicted. Refined hypothesis: `FUN_140734760` walks
 
 Full decode: `audit/direction/direction48_results.txt`. Reusable parser: `scripts/investigate-direction/investigate_direction48.py`.
 
+### Direction 52 — Display gate polarity locked; CatPart+0x18 is not serialized
+
+Two-task dispatch (corridor trace + targeted offset verification), with the polarity claim independently verified by a second `defect-ghidra` agent.
+
+**Corridor trace.** Load chain confirmed: `FUN_14022dfb0` (MewSaveFile::Load) calls `FUN_1400b5260` (randomize), then `FUN_14022d360` (deserialize), then `FUN_140734760` (anchor walker). Inside deserialize: `FUN_14022d360 → FUN_14022ce10(catdata+0x60, stream)`, which iterates 14 CatPart records calling `FUN_14022cd00(part_base, stream)` per record. Each `FUN_14022cd00` invocation reads +0x04, +0x08, +0x0C, +0x10, +0x14 from the stream via `FUN_1409ab3a0` — **no read of +0x18**.
+
+**Structural correction.** First CatPart record begins at `CatData+0x60+0x2c = CatData+0x8c`, not at +0x60 directly. CatData+0x60 is a container header. Stride 0x54 from there: CatPart[0] @ +0x8c, CatPart[1] @ +0xe0, CatPart[2] @ +0x134, etc. All prior references to per-CatPart sub-offsets (+0x04, +0x0C, +0x18) remain correct relative to the part-record base.
+
+**Display gate polarity (independently verified by fresh `defect-ghidra` agent).** `FUN_1400c9810` for each CatPart[k]:
+```
+if (*(char *)(catpart_k + 0x18) == 0) emit 0xFFFFFFFE;
+else                                  emit *(uint*)(catpart_k + 0x04);
+```
+Raw instruction at `0x1400c9810` decodes as `CMP BYTE PTR [RBX+0xa4], 0` with displacement literally `0x000000a4` — not a Ghidra reconstruction artifact. So the missing-defect bug reduces to: for Whommie/Bud's defect-bearing CatParts, `+0x18 == 1` when it should be `0`.
+
+**Reopened question.** Since +0x18 is not serialized and the renderer reads it, *something* must write it post-load. Direction 51's "no zero-writer found" claim was Low confidence and scope-bounded; the search must now expand to writers of any value to +0x18 (not just zero), and to callees not yet decompiled — particularly anything `FUN_14022dfb0` invokes between deserialize and the final anchor walk, and any init/zero-fill of CatData itself.
+
+See `audit/direction/direction52_corridor_and_offset_results.txt` and `direction52_gate_polarity_verification_results.txt`.
+
 ### Direction 51 — Cross-reference scan: +0xC is a dead-end, no zero-writer to +0x18 found
 
 (a) `CatPart+0xC` ("anchor populated", written by `FUN_140734760`) is read by **no function** in the binary's analyzed scope. `FUN_1400c9810` reads only the `+0x18` offsets to route to `0xFFFFFFFE`; no other readers found. **The placement-reconstruction model (Direction 47) is closed** — there is no one-step indirection from `+0xC` to the missing-part flag.
@@ -179,23 +203,20 @@ This re-opens a paradox: Direction 48's spec-compliant SWF accumulation gives fr
 
 ## Open Questions
 
-1. **Where in the on-disk corridor does each CatPart's `+0x04` (effective part ID) land?** `FUN_14022cd00` (per-part serializer) writes +0x04, +0x08, +0x0C, +0x10, +0x14. `FUN_1400a5390` writes `0xFFFFFFFE` into the child's `+0x04` at breed time when a parent's `+0x18` is zero. If `+0x04` survives serialize/load, Whommie/Bud's CatPart+0x04 should hold `0xFFFFFFFE` on disk. Direction 41's exhaustive scan only checked the T array for `0xFFFFFFFE` — the per-CatPart `+0x04` slot within the CatParts container at `CatData+0x60` was never explicitly checked at that sub-offset.
+1. **What writes CatPart+0x18 post-load?** Direction 52 established that +0x18 is not serialized, yet `FUN_1400c9810` reads it as the defect gate. For Whommie/Bud, +0x18 ends up nonzero (showing normal part) when it should be zero (showing defect placeholder). Candidates: (i) `FUN_14022dfb0`'s post-deserialize logic between `FUN_14022d360` and `FUN_140734760`; (ii) some init/zero-fill of CatData on construction that defaults +0x18 to 0, with a later setter overriding it; (iii) `FUN_140734760` itself writing +0x18 via a code path Direction 51's xref scan missed (e.g. through indirect access patterns the decompiler displays differently); (iv) blob-walker check: does Whommie/Bud's CatPart+0x04 on disk hold `0xFFFFFFFE` (the breed-time defect signal from `FUN_1400a5390`)? If yes, the parser-side fix is: emit a defect when +0x04 is the placeholder, regardless of +0x18.
 
-2. **Is `FUN_1400c9810`'s "+0x18" read actually a Ghidra offset misread?** Direction 46 corrected one offset mistake before. If the real check is on `+0x04` (which holds `0xFFFFFFFE` directly when set by breeding), the `+0x18` flag chain is a red herring.
+2. **Where in the on-disk corridor does each CatPart's `+0x04` land?** Now urgent. `FUN_14022cd00` reads +0x04 from the stream via `FUN_1409ab3a0(stream, base+0x04, 4)`. The CatParts container starts at CatData+0x60 with records at +0x8c, +0xe0, +0x134, ... — but the on-disk byte order at the start of `FUN_14022cd00`'s stream cursor is what we need for a blob-walker scan. Need to map CatPart[k] → save offset and check Whommie/Bud's bytes for `0xFFFFFFFE`.
 
-3. **Who actually clears `CatPart+0x18` to zero?** Direction 51's cross-reference scan found no zero-writer across 19 functions (Low confidence absence claim). Either it lives in an unanalyzed callee or the defect mechanism doesn't go through `+0x18` at all (see Q2).
-
-4. **RNG paradox (Direction 45):** Every cat enters `FUN_1400b5260` with the same TLS state. How do cats get different body parts? One of: (i) undiscovered 4th arg carrying cat-specific state, (ii) a non-restoring branch in the wrapper, (iii) the cache check bypasses the RNG-restoring path for some callers.
+3. **RNG paradox (Direction 45):** Every cat enters `FUN_1400b5260` with the same TLS state. How do cats get different body parts? One of: (i) undiscovered 4th arg carrying cat-specific state, (ii) a non-restoring branch in the wrapper, (iii) the cache check bypasses the RNG-restoring path for some callers.
 
 ---
 
 ## Best Path Forward (priority order)
 
-1. **Direction 52 — Trace CatPart+0x04 to its on-disk corridor.** Two complementary tasks. (a) Ghidra: re-read `FUN_14022cd00` (per-part serializer) and identify exactly which save corridor / SQLite column receives each CatPart's `+0x04` field. (b) Blob-walker: once the corridor is mapped, scan Whommie's and Bud's on-disk record at the `+0x04` offset of every CatPart and check for `0xFFFFFFFE`. If found, we've located the defect signal and the parser fix is straightforward.
-2. **Verify `FUN_1400c9810`'s `+0x18` access.** Cheap Ghidra task: read the raw assembly at the relevant lines to confirm the byte offset is `0x18` not something Ghidra mis-decoded. Direction 46 caught one offset error; worth confirming this one isn't another.
-3. **If +0x04 corridor scan comes up empty** — expand the zero-writer search to all callees of `FUN_14022dfb0`, `FUN_1400c9810`, and `FUN_1400b5260` not yet decompiled.
-4. **Prototype parser-side reconstruction.** Once the defect signal source is confirmed, synthesize `0xFFFFFFFE` visual defect entries from saved data.
-5. **Resolve the RNG paradox** (lower priority — doesn't block parser fix).
+1. **Direction 53 — Blob-walker: scan CatPart+0x04 on disk for `0xFFFFFFFE` in Whommie/Bud.** Cheapest, highest-information next step. `FUN_14022cd00` reads the per-part stream slice and stores +0x04 first. If `FUN_1400a5390`'s breed-time `0xFFFFFFFE` writes survive serialization, Whommie's and Bud's defect-bearing CatPart records on disk should contain that sentinel at the part-record's +0x04 sub-offset. Compare against clean controls (Kami, Petronij, Murisha). If found: the parser fix becomes trivial — emit a defect when +0x04 == `0xFFFFFFFE`, regardless of +0x18.
+2. **Direction 54 — Find the post-load +0x18 writer.** Ghidra task. Decompile every callee of `FUN_14022dfb0` between `FUN_14022d360` return and `FUN_140734760` invocation. Also check CatData constructor / zero-fill paths and any cat-cache / cat-spawn helpers. The +0x18 byte is read by the renderer but never serialized, so something writes it at runtime. Search for any store (not just zero) to offsets `0xa4`, `0xf8`, `0x14c`, ... within a CatData* parameter.
+3. **Prototype parser-side reconstruction.** Once Direction 53 or 54 yields a stable defect signal in saved data, synthesize `0xFFFFFFFE` visual defect entries from the appropriate field.
+4. **Resolve the RNG paradox** (lower priority — doesn't block parser fix).
 
 ---
 

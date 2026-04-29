@@ -1,0 +1,40 @@
+Direction 52 — Gate Polarity Verification
+Function: FUN_1400c9810
+Date: 2026-04-28
+
+CLAIM BEING VERIFIED:
+"The gate logic in FUN_1400c9810: if CatPart[k]+0x18 == 0 → emits 0xFFFFFFFE (the birth_defect
+placeholder ID); if CatPart[k]+0x18 != 0 → emits CatPart[k]+0x04 (normal ID). The first CatPart
+record begins at CatData+0x8c (so param_1+0xa4 is CatPart[0]+0x18, and param_1+0x90 is
+CatPart[0]+0x04)."
+
+SUB-CLAIM 1 (Polarity): CONFIRM
+SUB-CLAIM 2 (Structural offsets): CONFIRM
+
+EVIDENCE — CatPart[0] block (param_1+0x8c):
+  Category:  uVar13 = *(undefined4 *)(param_1 + 0x8c);   // CatPart[0]+0x00
+  Flag test: if (*(char *)(param_1 + 0xa4) == '\0') {    // CatPart[0]+0x18 (0x8c+0x18=0xa4)
+  Zero:        uStackX_c = 0xfffffffe;                   // defect placeholder
+  Nonzero:   } else { uStackX_c = *(undefined4 *)(param_1 + 0x90); }  // CatPart[0]+0x04 (0x8c+0x04=0x90)
+
+EVIDENCE — CatPart[1] block (param_1+0xe0, stride=0x54):
+  Category:  uVar13 = *(undefined4 *)(param_1 + 0xe0);   // CatPart[1]+0x00 (0x8c+0x54=0xe0)
+  Flag test: if (*(char *)(param_1 + 0xf8) == '\0') {    // CatPart[1]+0x18 (0xe0+0x18=0xf8)
+  Zero:        uStackX_c = 0xfffffffe;
+  Nonzero:   } else { uStackX_c = *(undefined4 *)(param_1 + 0xe4); }  // CatPart[1]+0x04 (0xe0+0x04=0xe4)
+
+STRIDE CHECK:
+  CatPart[1] base - CatPart[0] base = 0xe0 - 0x8c = 0x54. Matches claim of stride 0x54.
+
+OFFSET ARITHMETIC:
+  CatPart[0]+0x00 = param_1+0x8c  (matches "CatPart[0] base at param_1+0x8c")
+  CatPart[0]+0x18 = param_1+0xa4  (matches "param_1+0xa4 is CatPart[0]+0x18")
+  CatPart[0]+0x04 = param_1+0x90  (matches "param_1+0x90 is CatPart[0]+0x04")
+  CatPart[1]+0x18 = param_1+0xf8  (expected per stride: 0xe0+0x18=0xf8 — confirmed)
+  CatPart[1]+0x04 = param_1+0xe4  (expected per stride: 0xe0+0x04=0xe4 — confirmed)
+
+CONCLUSION:
+Both sub-claims confirmed. The gate is: flag byte at +0x18 read as char; '\0' (zero) → 0xFFFFFFFE
+(defect placeholder); nonzero → load dword from +0x04 (normal part ID). This is consistent across
+every slot independently unrolled in the function. CatPart[0] base is at param_1+0x8c, not
+param_1+0x60. Stride 0x54 verified independently by CatPart[1] offsets.

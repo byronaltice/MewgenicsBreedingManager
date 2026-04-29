@@ -1,0 +1,209 @@
+Direction 52 — Corridor Trace (CatPart+0x04 writer) + Offset Verification (FUN_1400c9810 +0x18 read)
+Date: 2026-04-28
+
+================================================================================
+QUESTION
+================================================================================
+Task A: Identify which function(s) write CatPart+0x04 during cat load from disk,
+        trace immediate callers, and note whether +0x18 is written by the same
+        path.
+Task B: Verify whether FUN_1400c9810 genuinely reads CatPart+0x18, or whether
+        the Ghidra offset is a misread.
+
+================================================================================
+METHOD
+================================================================================
+- Read investigation_rules.md, return_contract.md, verification_mode.md,
+  ghidra/briefing.md, ruled_out_leads.md, binary_function_map.md
+- Decompiled: FUN_14022cd00, FUN_1400c9810, FUN_14022ce10, FUN_1400a5390,
+  FUN_14022dfb0, FUN_140732750, FUN_14022d360
+- list_cross_references: FUN_1400c9810, FUN_1400a5390, FUN_1400b5260
+- read_bytes at FUN_1400c9810 start (0x1400c9810, 128 bytes) to verify machine
+  instruction displacement
+
+================================================================================
+TASK A — CORRIDOR TRACE: CatPart+0x04 writer at load time
+================================================================================
+
+FINDING A1 — Load sequence in FUN_14022dfb0 (MewSaveFile::Load)
+----------------------------------------------------------------
+Address: FUN_14022dfb0
+
+The exact load sequence (from decompile):
+  1. FUN_1400b5260(param_3)              -- cat default initializer (randomize)
+  2. FUN_1409fcc80(param_1+0x470, ...)   -- SQLite query "cats" table
+  3. FUN_14022d360(param_3, local_168, 0) -- SerializeCatData, read mode
+  4. FUN_140734760(param_3 + 0x60)       -- SWF anchor walker
+
+Step 3 is where CatPart+0x04 is written from the save blob.
+
+Key lines (FUN_14022dfb0 decompile):
+  FUN_1400b5260(param_3);
+  ...
+  FUN_14022d360(param_3,local_168,0);
+  FUN_140734760(param_3 + 0x60);
+
+FINDING A2 — SerializeCatData delegates to body-part container serializer
+--------------------------------------------------------------------------
+Address: FUN_14022d360
+
+Contains the call:
+  FUN_14022ce10(param_1 + 0x60, param_2);
+
+This passes the container base at CatData+0x60.
+
+FINDING A3 — FUN_14022ce10 (body-part container serializer) calls per-part serializer
+--------------------------------------------------------------------------------------
+Address: FUN_14022ce10
+
+Calls FUN_14022cd00 for 14 CatPart records at strides of 0x54 from container+0x2c:
+  FUN_14022cd00(param_1 + 0x2c, param_2);   // CatPart[0]
+  FUN_14022cd00(param_1 + 0x80, param_2);   // CatPart[1]
+  FUN_14022cd00(param_1 + 0xd4, param_2);   // CatPart[2]
+  ... (14 total, stride 0x54)
+
+Container first record at container+0x2c = CatData+0x60+0x2c = CatData+0x8c = CatPart[0].
+
+FINDING A4 — FUN_14022cd00 (per-part serializer): the actual CatPart+0x04 writer
+----------------------------------------------------------------------------------
+Address: FUN_14022cd00
+
+In read mode (param_2[0] != 0 and param_2[0]-1 < 2):
+  FUN_1409ab3a0(param_2, param_1 + 4,  4);  // reads 4 bytes into CatPart+0x04
+  FUN_1409ab3a0(param_2, param_1 + 8,  4);  // CatPart+0x08
+  FUN_1409ab3a0(param_2, param_1 + 0xc, 4); // CatPart+0x0C
+  FUN_1409ab3a0(param_2, param_1 + 0x10, 4);// CatPart+0x10
+  FUN_1409ab3a0(param_2, param_1 + 0x14, 4);// CatPart+0x14
+
+The value at CatPart+0x04 comes DIRECTLY from the save blob stream (no transformation,
+no GON lookup, no RNG). FUN_1409ab3a0 is the ByteStream read primitive.
+
+Does NOT serialize CatPart+0x18.
+
+FINDING A5 — FUN_1400a5390 (body-part inheritance helper) is NOT called at load time
+--------------------------------------------------------------------------------------
+Address: FUN_1400a5390
+
+Cross-references: all 14 call sites are within FUN_1400a6790 (breed function) only.
+No callers from MewSaveFile::Load, SerializeCatData, or the default-initializer chain.
+
+FUN_1400a5390 writes CatPart+0x04 from parent selection during breeding, not during load.
+
+FINDING A6 — CatPart+0x18 is NOT written during deserialization
+----------------------------------------------------------------
+The serialization path FUN_14022cd00 serializes fields +0x04, +0x08, +0x0C, +0x10, +0x14.
+Field +0x18 is absent from this list.
+
+CatPart+0x18 life cycle during load:
+  1. FUN_14005dfd0 (CatData constructor) sets +0x18 = 1 for all 19 CatParts
+  2. FUN_14022d360 (SerializeCatData) does NOT touch +0x18
+  3. FUN_140734760 (SWF anchor walker) conditionally clears/sets +0x18
+     based on whether a matching anchor name is found in the CatHeadPlacements clip
+
+FINDING A7 — CatData layout refined (confirmed by FUN_1400c9810 access pattern)
+---------------------------------------------------------------------------------
+Body-part container at CatData+0x60.
+Container header: 0x2c bytes (3 u32 top-level fields at +0x18, +0x1c, +0x20 from
+container start = CatData+0x78, +0x7c, +0x80).
+First CatPart base: CatData+0x60+0x2c = CatData+0x8c.
+Stride: 0x54.
+
+CatPart[0]: CatData+0x8c  (+0x00 = category, +0x04 = eff ID, +0x18 = present flag)
+CatPart[1]: CatData+0xe0  (+0x04 = CatData+0xe4, +0x18 = CatData+0xf8)
+CatPart[2]: CatData+0x134 (+0x04 = CatData+0x138, +0x18 = CatData+0x14c)
+...
+
+This corrects the earlier "CatPart records start at CatData+0x60" shorthand: the records
+start at CatData+0x8c; the container itself starts at CatData+0x60.
+
+================================================================================
+TASK B — OFFSET VERIFICATION: FUN_1400c9810 reads CatPart+0x18
+================================================================================
+
+FINDING B1 — Decompile confirms char read at param_1 + 0xa4
+-------------------------------------------------------------
+FUN_1400c9810 decompile (first part record block):
+  uVar13 = *(undefined4 *)(param_1 + 0x8c);          // CatPart[0]+0x00 (category)
+  if (*(char *)(param_1 + 0xa4) == '\0') {           // CatPart[0]+0x18 flag
+    uStackX_c = 0xfffffffe;                           // missing → use placeholder ID
+  } else {
+    uStackX_c = *(undefined4 *)(param_1 + 0x90);     // CatPart[0]+0x04 (eff ID)
+  }
+
+0xa4 - 0x8c = 0x18. Matches CatPart[0]+0x18.
+
+FINDING B2 — Machine code confirms displacement 0xa4 (raw bytes)
+-----------------------------------------------------------------
+read_bytes at 0x1400c9810, 128 bytes:
+  ...488bd9...  80 bb a4 00 00 00 00  ...
+
+Decoded: CMP BYTE PTR [RBX + 0xa4], 0x00
+  - RBX = param_1 (confirmed by MOV RBX, RCX at function entry: 48 8b d9)
+  - Displacement = 0x000000a4 (little-endian: a4 00 00 00)
+  - Opcode 80 /7 = CMP r/m8, imm8
+
+The displacement is encoded as 0xa4 in the instruction itself. No padding artifact,
+no Ghidra misread.
+
+FINDING B3 — Pattern repeats for all CatPart records in FUN_1400c9810
+-----------------------------------------------------------------------
+Same pattern for CatPart[1]:
+  param_1 + 0xe0  (+0x00 category)
+  param_1 + 0xf8  (0xe0 + 0x18 = flag)
+  param_1 + 0xe4  (0xe0 + 0x04 = eff ID)
+
+For CatPart[2]:
+  param_1 + 0x134 (+0x00)
+  param_1 + 0x14c (0x134 + 0x18 = flag)
+  param_1 + 0x138 (0x134 + 0x04 = eff ID)
+
+All consistent with CatPart stride 0x54, first record at param_1+0x8c, +0x18 field.
+
+[PIVOTAL] FINDING B4 — The exact gate logic in FUN_1400c9810
+-------------------------------------------------------------
+For each CatPart slot:
+  if (CatPart[k]+0x18 == 0):   // flag cleared = part is missing
+      effective_display_id = 0xFFFFFFFE   // birth_defect placeholder
+  else:
+      effective_display_id = CatPart[k]+0x04   // normal part ID
+
+This is the runtime display gate. If +0x18 is 0 for Whommie's eye CatPart,
+FUN_1400c9810 will output 0xFFFFFFFE for that slot, which FUN_1407b1190 maps to
+the "birth_defect" GON block (tag birth_defect), triggering the defect display path.
+
+The question of why Whommie/Bud's defects are NOT showing therefore reduces to:
+CatPart+0x18 is 1 (present) when it should be 0 (missing) for the defect slots.
+
+================================================================================
+CONFIDENCE
+================================================================================
+High. Two independent lines of evidence for every structural claim:
+  - Decompile shape + raw machine instruction for the +0x18 displacement
+  - Cross-reference scan + decompile for FUN_1400a5390 load-time absence
+  - Full call chain FUN_14022dfb0 → FUN_14022d360 → FUN_14022ce10 → FUN_14022cd00
+    confirmed by decompiling each link
+
+================================================================================
+OPEN FOLLOW-UPS (questions only)
+================================================================================
+1. CatPart+0x18 is set to 1 by FUN_14005dfd0 (constructor), not serialized by
+   FUN_14022cd00, and then conditionally modified by FUN_140734760 (anchor walker).
+   Does FUN_140734760 ever CLEAR CatPart+0x18 to 0, or only set it to 1?
+   If it only sets, then the only way +0x18 becomes 0 (missing) is if the
+   anchor name is simply absent from the display list — which is the anchor-walker
+   mechanism already tracked.
+
+2. Does FUN_14022cd00 serializing CatPart+0x0C (anchor-populated flag) mean that
+   +0x0C from the blob could influence the anchor-walker behavior at reload?
+
+3. FUN_140732750 (body-part container randomizer) writes several values at offsets
+   that appear to be category codes (0x2c=0, 0x10=1, ...). These are written BEFORE
+   SerializeCatData overwrites them. Do any of these pre-load writes touch +0x18?
+
+4. Is there any code path between SerializeCatData and FUN_140734760 (in MewSaveFile::Load)
+   that could write CatPart+0x18 based on the newly-deserialized +0x04 value?
+
+================================================================================
+ARTIFACTS WRITTEN
+================================================================================
+defect-investigation/audit/direction/direction52_corridor_and_offset_results.txt
