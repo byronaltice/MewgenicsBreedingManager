@@ -1,0 +1,133 @@
+Direction 54 — CatPart+0x18 Writer Hunt Results
+================================================
+Date: 2026-04-28
+Binary: Mewgenics.exe-ee4d13
+
+SCOPE
+-----
+Audit every function in the post-deserialize cat-load corridor for writes to
+CatPart+0x18. The 14 CatPart+0x18 bytes sit at CatData absolute offsets:
+  0xa4, 0xf8, 0x14c, 0x1a0, 0x1f4, 0x248, 0x29c, 0x2f0, 0x344, 0x398,
+  0x3ec, 0x440, 0x494, 0x4e8
+(k=0..13, CatPart[k] base = CatData+0x8c, stride 0x54, +0x18 within each record)
+
+
+FUNCTIONS DECOMPILED
+--------------------
+1. FUN_14022dfb0  (MewSaveFile::Load)
+2. FUN_1400b5260  (Cat default initializer)
+3. FUN_140734760  (Bone placement / anchor walker)
+4. FUN_14005dfd0  (Body-part container constructor)  [already in map]
+5. FUN_14005dd60  (CatData constructor)              [already in map]
+6. FUN_1409ab1e0  (ByteStream::Decompress_LZ4)
+   — called between SQLite fetch and SerializeCatData; no CatData writes.
+
+
+LOAD SEQUENCE (FUN_14022dfb0 call order)
+-----------------------------------------
+1. TLS RNG save (xoshiro256** state saved to locals)
+2. FUN_1400b5260(param_3)          — cat default initializer
+3. *(param_3+0xc48) = param_2      — store db_key
+4. FUN_1409fcc80(...)               — SQLite query for "cats" table row
+5. FUN_1409ab1e0(local_168)        — LZ4 decompress ByteStream
+6. FUN_14022d360(param_3, local_168, 0)  — SerializeCatData (deserialize)
+7. FUN_140734760(param_3 + 0x60)   — anchor walker / bone placement
+8. TLS RNG restore
+No inline writes to CatPart+0x18 in FUN_14022dfb0 itself.
+
+
+WRITER 1: FUN_14005dfd0  (body-part container constructor)
+----------------------------------------------------------
+Called by: FUN_14005dd60 (CatData constructor) → called before MewSaveFile::Load.
+
+Writes byte=1 at ALL CatPart+0x18 offsets for records k=0..18 (19 records total,
+stride 0x54, from container+0x2c). The writes use alternating pointer conventions:
+  *(undefined1 *)((longlong)param_1 + 0x44) = 1   → container+0x44 = CatPart[0]+0x18
+  *(undefined1 *)(param_1 + 0x13) = 1             → container+0x98 = CatPart[1]+0x18
+  *(undefined1 *)((longlong)param_1 + 0xec) = 1   → CatPart[2]+0x18
+  *(undefined1 *)(param_1 + 0x28) = 1             → container+0x140 = CatPart[3]+0x18
+  ... (pattern continues for all 19 records)
+  *(undefined1 *)(param_1 + 0xa6) = 1             → CatPart[13]+0x18 region
+  *(undefined1 *)((longlong)param_1 + 0x584) = 1  → beyond 14-record range
+
+Effect: SETS all present-flags to 1 ("all parts present by default").
+Condition: unconditional; fires during construction, before any load.
+Caller chain: FUN_14005dd60 → (CatData ctor) → called by FUN_1400d5600 (get_cat_by_db_key)
+              before MewSaveFile::Load is invoked.
+
+
+WRITER 2: FUN_140734760  [PIVOTAL — CONTRADICTS binary_function_map.md]
+------------------------------------------------------------------------
+Called by: FUN_14022dfb0 (MewSaveFile::Load) as step 7, AFTER SerializeCatData.
+Receives: param_1 = CatData+0x60 (the body-part container base pointer, typed double*)
+
+PHASE A — Unconditional zero-clear at function entry (7 of the 14 records, plus 2 extra):
+  *(undefined1 *)(param_1 + 0x52) = 0   → param_1_base+0x290 → CatData+0x2f0 → CatPart[7]+0x18
+  *(undefined1 *)((longlong)param_1 + 0x2e4) = 0  → CatData+0x344 → CatPart[8]+0x18
+  *(undefined1 *)(param_1 + 0x67) = 0   → param_1_base+0x338 → CatData+0x398 → CatPart[9]+0x18
+  *(undefined1 *)((longlong)param_1 + 0x38c) = 0  → CatData+0x3ec → CatPart[10]+0x18
+  *(undefined1 *)(param_1 + 0x7c) = 0   → param_1_base+0x3e0 → CatData+0x440 → CatPart[11]+0x18
+  *(undefined1 *)((longlong)param_1 + 0x434) = 0  → CatData+0x494 → CatPart[12]+0x18
+  *(undefined1 *)(param_1 + 0x91) = 0   → param_1_base+0x488 → CatData+0x4e8 → CatPart[13]+0x18
+  *(undefined1 *)(param_1 + 0xa6) = 0   → CatData+0x590  (beyond 14-record range)
+  *(undefined1 *)((longlong)param_1 + 0x584) = 0  → CatData+0x5e4  (beyond 14-record range)
+
+Records k=0..6 (CatData+0xa4..+0x29c) are NOT zeroed here; they keep value 1 from constructor.
+
+PHASE B — Conditional set-to-1 inside the CatHeadPlacements display-list loop:
+  Anchor "leye"  (DAT_1411044b4) → if found: *(undefined1 *)(param_1 + 0x52) = 1 → CatPart[7]+0x18
+  Anchor "reye"  (DAT_1411044bc) → if found: *(undefined1 *)((longlong)param_1 + 0x2e4) = 1 → CatPart[8]+0x18
+  Anchor "lear"  (DAT_141104478) → if found: *(undefined1 *)(param_1 + 0x7c) = 1 → CatPart[11]+0x18
+  Anchor "rear"  (DAT_141104480) → if found: *(undefined1 *)((longlong)param_1 + 0x434) = 1 → CatPart[12]+0x18
+  Anchor "mouth"               → if found: *(undefined1 *)(param_1 + 0x91) = 1 → CatPart[13]+0x18
+  Anchor "ahead"               → if found: *(undefined1 *)((longlong)param_1 + 0x4dc) = 1 → CatData+0x53c
+  Anchor "aneck"               → if found: *(undefined1 *)(param_1 + 0xa6) = 1 → CatData+0x590
+  Anchor "aface"               → if found: *(undefined1 *)((longlong)param_1 + 0x584) = 1 → CatData+0x5e4
+
+PHASE C — End-of-loop eyebrow copy (unconditional, when display list fully consumed):
+  *(undefined1 *)(param_1 + 0x67) = *(undefined1 *)(param_1 + 0x52)
+    → CatPart[9]+0x18 := CatPart[7]+0x18  (left-eyebrow flag := leye flag)
+  *(undefined1 *)((longlong)param_1 + 0x38c) = *(undefined1 *)((longlong)param_1 + 0x2e4)
+    → CatPart[10]+0x18 := CatPart[8]+0x18  (right-eyebrow flag := reye flag)
+
+MAP DISCREPANCY: binary_function_map.md states FUN_140734760 "writes CatPart+0xC"
+at offsets 0x290, 0x2e4... However the actual byte writes are to CatPart+0x18 at
+offsets 0x2f0, 0x344... (param_1 is double*, so param_1+0x52 = +0x290 from param_1_base =
+CatData+0x60+0x290 = CatData+0x2f0 = CatPart[7]+0x18, NOT +0x0C).
+CatPart[7]+0x0C = CatData+0x2e4, which would require param_1+0x50.5 — not aligned.
+Conclusion: the map entry has the sub-offset wrong; it's +0x18 throughout, consistent
+with FUN_1400c9810 (renderer) and FUN_1400a5390 both reading +0x18.
+
+
+DEFECT MECHANISM (complete picture)
+-------------------------------------
+1. CatData constructor (FUN_14005dd60 → FUN_14005dfd0): sets ALL CatPart+0x18 = 1.
+2. SerializeCatData (FUN_14022d360 → FUN_14022ce10 → FUN_14022cd00): does NOT touch +0x18.
+3. FUN_140734760: CLEARS k=7..13 to 0, then sets back to 1 ONLY if the anchor name
+   exists in headShape's CatHeadPlacements display list.
+   k=9 (lbrow) and k=10 (rbrow) are set by copy from k=7 (leye) and k=8 (reye).
+
+For Whommie (headShape = frame 304 of CatHeadPlacements):
+   If frame 304 lacks "leye" → k=7 stays 0 → k=9 stays 0.
+   Renderer emits 0xFFFFFFFE for those slots. The Eye Birth Defect and Eyebrow Birth Defect
+   are a direct consequence.
+
+For Bud (Ear Birth Defect):
+   If frame lacks "lear" or "rear" → k=11 or k=12 stays 0 → renderer emits missing-part.
+
+Records k=0..6 (body, tail, legs, etc.) keep +0x18=1 unconditionally — no head-anchor
+check applies to them.
+
+
+WRITER INVENTORY SUMMARY
+-------------------------
+Writers to CatPart+0x18:
+  FUN_14005dfd0  — sets ALL to 1 (before load)                          [already in map]
+  FUN_140734760  — clears k=7..13 to 0, then conditionally sets to 1   [MAP WRONG re: +0xC]
+
+Non-writers confirmed:
+  FUN_14022dfb0  — no inline writes to +0x18
+  FUN_1400b5260  — no inline writes to +0x18
+  FUN_14022d360  — per Direction 52, does not serialize +0x18
+  FUN_1409ab1e0  — ByteStream::Decompress_LZ4; no CatData writes
+  FUN_14005dd60  — zero-inits CatData fields, then calls FUN_14005dfd0

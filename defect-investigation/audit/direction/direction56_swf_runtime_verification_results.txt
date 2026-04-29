@@ -1,0 +1,108 @@
+DIRECTION 56 — SWF Runtime Verification
+Claim under test: FUN_140996b80's SWF runtime builds spec-compliant cumulative per-frame
+snapshots at +0xd0[+0xb0] via FUN_140997590 — frames 99 (Kami) and 304 (Whommie) produce
+IDENTICAL anchor child lists. The runtime does NOT diverge from spec.
+Date: 2026-04-28
+Independent re-derivation; did not read direction50_results.txt or direction48_results.txt.
+
+========================================================
+SUB-CLAIM (a): FUN_140996b80 is spec-compliant cumulative frame-walker
+========================================================
+VERDICT: CONFIRM
+
+Evidence from decompile of FUN_140996b80:
+
+1. Frame clamping: `iVar9 = param_2 (if >= 0); iVar4 = **(int **)(param_1 + 0xd0) + -1; if (iVar9 <= iVar4) iVar4 = iVar9;`
+   Clamps frame to [0, count-1], no divergence by frame value.
+
+2. Snapshot read offset: `lVar3 = (longlong)iVar4 * 0x10 + *(longlong *)(*(longlong *)(param_1 + 0xd0) + 0xb0);`
+   Snapshots live at clip+0xd0[+0xb0], confirming the claim.
+
+3. Raw tag data offset: `lVar5 = (longlong)*(int *)(param_1 + 0xd8) * 0x10 + *(longlong *)(*(longlong *)(param_1 + 0xd0) + 8);`
+   Per-frame raw tags at clip+0xd0[+8], confirming the claim.
+
+4. Lazy build call: `FUN_140997590()` called unconditionally on frame change before reading snapshot.
+
+5. No cat-specific state read anywhere in FUN_140996b80 — param_1 is clip pointer, param_2 is frame index only.
+
+Additional: The `*(int *)(param_1 + 0xd8) == iVar4` branch (same frame, no change) takes a shortcut
+path. On frame change, it always calls FUN_140997590 then replays from snapshot. No per-frame-index
+special cases observed.
+
+========================================================
+SUB-CLAIM (b): FUN_140997590 merges per spec (strictly cumulative)
+========================================================
+VERDICT: CONFIRM
+
+Evidence from decompile of FUN_140997590:
+
+1. Lazy-init guard at clip+0xd0[+0xc8] (offset 200 decimal = 0xc8):
+   `if (*(char *)(*(longlong *)(param_1 + 0xd0) + 200) == '\0') {`
+   Exactly matches the claimed flag location.
+
+2. Temp array allocation: `lVar7 = _realloc_base(0, (ulonglong)uVar16 * 0x50);`
+   Sized depthMax * 0x50. Zero-initialized via FUN_140d9b7f0. Per-depth slots, not per-frame.
+
+3. Cumulative loop over all frames 0..N-1:
+   `do { [process frame tags into lVar7] ... push_back current state ... iVar6++; } while (iVar6 < *piVar10);`
+   Never resets between frames — temp array state is carried forward each iteration.
+
+4. Per-tag dispatch: `if ((1 < (byte)(*pcVar11 - 5U)) && (*(ushort *)(pcVar11 + 4) < uVar16)) { FUN_140996020(...) }`
+   Tag types 5 (5-5=0) and 6 (6-5=1) are skipped (not > 1). Types 1,2,3,4 all process (byte results 252,253,254,255).
+
+5. After each frame's tags are processed, current depth-array state is push_back'd into
+   clip+0xd0[+0xb0] as the snapshot entry for that frame. This is strictly accumulative —
+   snapshot[N] = state after applying all tags from frame 0 through frame N.
+
+Tag-merge behavior in FUN_140996020:
+- Types 1/4 (PlaceObject full): full 0x50-byte copy into depth slot
+- Type 2 (PlaceObject2 update): bitfield-driven partial update of flagged fields only
+- Type 3 (RemoveObject): full copy into depth slot (slot preserved for replay-time removal by FUN_140997210 case '\x03')
+
+No reset of temp array between frames — confirmed strictly cumulative, no per-frame override semantics.
+
+========================================================
+SUB-CLAIM (c): No branch in either function depends on cat-specific state
+========================================================
+VERDICT: CONFIRM
+
+FUN_140996b80 parameters: (longlong param_1 = clip pointer, int param_2 = frame index). No
+additional reads of external cat state found anywhere in the function body.
+
+FUN_140997590 parameter: (longlong param_1 = clip pointer). The function reads only:
+- clip+0xd0 (frame table / resource block)
+- clip+0xd0[+0xb0] (snapshot vector)
+- clip+0xd0[+0xc8] (lazy-init flag)
+- clip+0xd0[+0x2c .. +frame_count*0x10] (frame tag data)
+
+No reads of headShape, stat_seed, db_key, CatData, or any cat-specific structure.
+
+FUN_140996020 parameters: (char *param_1 = dest depth slot, byte *param_2 = src tag record).
+Pure data merger, no external state reads.
+
+========================================================
+DIVERGENCE ANALYSIS — Could frame 99 and frame 304 differ?
+========================================================
+The only mechanism that could produce different anchor child lists at frame 99 vs 304 would be:
+- A RemoveObject (type 3) tag at some frame between 0 and 303 targeting an anchor depth, OR
+- A PlaceObject at frame > 99 adding a new anchor absent from frame 99.
+
+The runtime faithfully accumulates ALL such events. If the SWF file's CatHeadPlacements clip
+contains a RemoveObject or late PlaceObject for any anchor depth between frames 100-304, the
+runtime WOULD produce divergent lists. This is data-dependent, not code-dependent.
+
+The code itself is spec-compliant and produces identical results for identical frame-tag data.
+Whether the actual SWF CatHeadPlacements byte stream differs between frames 99 and 304 for
+anchor children is a data question (not verifiable from binary alone — needs SWF file analysis).
+
+IMPORTANT: The claim that frames 99 and 304 produce "IDENTICAL anchor child lists" is a
+DATA claim (about the SWF file contents), not a CODE claim (about runtime behavior). This
+verification confirms the RUNTIME/CODE is spec-compliant, but cannot independently confirm
+the data-level claim without the SWF file.
+
+========================================================
+OVERALL ASSESSMENT
+========================================================
+All three code sub-claims CONFIRM. The runtime implementation is spec-compliant and strictly
+cumulative. The data-level claim (frames 99 and 304 produce identical lists) is consistent with
+the code behavior but requires SWF file data to fully confirm.
