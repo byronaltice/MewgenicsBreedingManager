@@ -1,0 +1,160 @@
+Direction 53 — CatPart+0x04 on-disk scan for 0xFFFFFFFE sentinel
+Save : /home/claude/gitprojects/MewgenicsBreedingManager/defect-investigation/notes/in-game-observations/steamcampaign01_20260424_191107.sav
+Out  : /home/claude/gitprojects/MewgenicsBreedingManager/defect-investigation/audit/direction/direction53_part04_disk_scan_results.txt
+
+========================================================================
+TASK A+B — Focus cats: T-array blob offset and CatPart[k]+0x04 values
+========================================================================
+
+Whommie (db_key=853) [DEFECT+]
+  Decompressed blob size : 938 bytes
+  T-array blob offset    : 0x008e (142)
+
+    k  Part Name         T-idx    blob_off   value (hex)  flagged
+  ---  ----------------  -----  ----------  ------------  ----------
+    0  Body                  3  0x0000009a  0x0000005f  
+    1  Head                  8  0x000000ae  0x00000130  
+    2  Tail                 13  0x000000c2  0x000002ef  
+    3  Rear Leg (L)         18  0x000000d6  0x00000035  
+    4  Rear Leg (R)         23  0x000000ea  0x00000035  
+    5  Front Leg (L)        28  0x000000fe  0x000000cb  
+    6  Front Leg (R)        33  0x00000112  0x000000cb  
+    7  Eye (L)              38  0x00000126  0x0000008b  
+    8  Eye (R)              43  0x0000013a  0x0000008b  
+    9  Eyebrow (L)          48  0x0000014e  0x00000017  
+   10  Eyebrow (R)          53  0x00000162  0x00000017  
+   11  Ear (L)              58  0x00000176  0x0000001e  
+   12  Ear (R)              63  0x0000018a  0x0000001e  
+   13  Mouth                68  0x0000019e  0x000000d7  
+
+  No sentinel found for Whommie
+
+Bud (db_key=887) [DEFECT+]
+  Decompressed blob size : 926 bytes
+  T-array blob offset    : 0x0086 (134)
+
+    k  Part Name         T-idx    blob_off   value (hex)  flagged
+  ---  ----------------  -----  ----------  ------------  ----------
+    0  Body                  3  0x00000092  0x00000191  
+    1  Head                  8  0x000000a6  0x0000013f  
+    2  Tail                 13  0x000000ba  0x000002ef  
+    3  Rear Leg (L)         18  0x000000ce  0x000002c3  
+    4  Rear Leg (R)         23  0x000000e2  0x000002c3  
+    5  Front Leg (L)        28  0x000000f6  0x000000cb  
+    6  Front Leg (R)        33  0x0000010a  0x000000cb  
+    7  Eye (L)              38  0x0000011e  0x0000008b  
+    8  Eye (R)              43  0x00000132  0x0000008b  
+    9  Eyebrow (L)          48  0x00000146  0x000001a8  
+   10  Eyebrow (R)          53  0x0000015a  0x000001a8  
+   11  Ear (L)              58  0x0000016e  0x00000084  
+   12  Ear (R)              63  0x00000182  0x00000084  
+   13  Mouth                68  0x00000196  0x0000019a  
+
+  No sentinel found for Bud
+
+Kami (db_key=840) [CONTROL]
+  Decompressed blob size : 957 bytes
+  T-array blob offset    : 0x0089 (137)
+
+    k  Part Name         T-idx    blob_off   value (hex)  flagged
+  ---  ----------------  -----  ----------  ------------  ----------
+    0  Body                  3  0x00000095  0x0000012c  
+    1  Head                  8  0x000000a9  0x00000063  
+    2  Tail                 13  0x000000bd  0x000002ef  
+    3  Rear Leg (L)         18  0x000000d1  0x00000035  
+    4  Rear Leg (R)         23  0x000000e5  0x00000035  
+    5  Front Leg (L)        28  0x000000f9  0x000000cb  
+    6  Front Leg (R)        33  0x0000010d  0x000000cb  
+    7  Eye (L)              38  0x00000121  0x0000008b  
+    8  Eye (R)              43  0x00000135  0x0000008b  
+    9  Eyebrow (L)          48  0x00000149  0x00000017  
+   10  Eyebrow (R)          53  0x0000015d  0x00000017  
+   11  Ear (L)              58  0x00000171  0x0000001e  
+   12  Ear (R)              63  0x00000185  0x0000001e  
+   13  Mouth                68  0x00000199  0x000000d7  
+
+  No sentinel found for Kami
+
+Petronij (db_key=841) [CONTROL]
+  Decompressed blob size : 943 bytes
+  T-array blob offset    : 0x008c (140)
+
+    k  Part Name         T-idx    blob_off   value (hex)  flagged
+  ---  ----------------  -----  ----------  ------------  ----------
+    0  Body                  3  0x00000098  0x0000005f  
+    1  Head                  8  0x000000ac  0x00000063  
+    2  Tail                 13  0x000000c0  0x000002ef  
+    3  Rear Leg (L)         18  0x000000d4  0x00000035  
+    4  Rear Leg (R)         23  0x000000e8  0x00000035  
+    5  Front Leg (L)        28  0x000000fc  0x000000cb  
+    6  Front Leg (R)        33  0x00000110  0x000000cb  
+    7  Eye (L)              38  0x00000124  0x0000008b  
+    8  Eye (R)              43  0x00000138  0x0000008b  
+    9  Eyebrow (L)          48  0x0000014c  0x00000017  
+   10  Eyebrow (R)          53  0x00000160  0x00000017  
+   11  Ear (L)              58  0x00000174  0x00000065  
+   12  Ear (R)              63  0x00000188  0x00000065  
+   13  Mouth                68  0x0000019c  0x000000d7  
+
+  No sentinel found for Petronij
+
+Murisha (db_key=852) [CONTROL]
+  Decompressed blob size : 960 bytes
+  T-array blob offset    : 0x008e (142)
+
+    k  Part Name         T-idx    blob_off   value (hex)  flagged
+  ---  ----------------  -----  ----------  ------------  ----------
+    0  Body                  3  0x0000009a  0x00000191  
+    1  Head                  8  0x000000ae  0x0000013f  
+    2  Tail                 13  0x000000c2  0x000002ef  
+    3  Rear Leg (L)         18  0x000000d6  0x00000134  
+    4  Rear Leg (R)         23  0x000000ea  0x00000134  
+    5  Front Leg (L)        28  0x000000fe  0x000001b9  
+    6  Front Leg (R)        33  0x00000112  0x000001b9  
+    7  Eye (L)              38  0x00000126  0x0000012d  
+    8  Eye (R)              43  0x0000013a  0x0000012d  
+    9  Eyebrow (L)          48  0x0000014e  0x000001ac  
+   10  Eyebrow (R)          53  0x00000162  0x000001ac  
+   11  Ear (L)              58  0x00000176  0x00000084  
+   12  Ear (R)              63  0x0000018a  0x00000084  
+   13  Mouth                68  0x0000019e  0x0000019a  
+
+  No sentinel found for Murisha
+
+========================================================================
+TASK C — Full roster: count cats with any CatPart[k]+0x04 == 0xFFFFFFFE
+========================================================================
+
+Total cats scanned : 947
+Parse errors       : 0
+Cats with sentinel : 17
+
+  db_key          name  slots with 0xFFFFFFFE
+--------  ------------  --------------------------------------------------
+      68                k=9 (Eyebrow (L)), k=10 (Eyebrow (R))
+     255                k=13 (Mouth)
+     345                k=9 (Eyebrow (L)), k=10 (Eyebrow (R))
+     492                k=2 (Tail)
+     617                k=7 (Eye (L)), k=8 (Eye (R))
+     624                k=2 (Tail)
+     693                k=11 (Ear (L)), k=12 (Ear (R))
+     711                k=13 (Mouth)
+     789                k=9 (Eyebrow (L)), k=10 (Eyebrow (R))
+     832                k=2 (Tail)
+     858                k=2 (Tail)
+     861                k=11 (Ear (L)), k=12 (Ear (R))
+     867                k=2 (Tail)
+     878                k=2 (Tail)
+     879                k=2 (Tail)
+     885                k=2 (Tail)
+     895                k=11 (Ear (L)), k=12 (Ear (R))
+
+========================================================================
+SUMMARY
+========================================================================
+Defect-positive cats with sentinel : []
+Control cats with sentinel         : []
+Other cats with sentinel           : 17
+
+HYPOTHESIS WEAKENED:
+  0 defect cats + 0 controls + 17 other cats have the sentinel.
