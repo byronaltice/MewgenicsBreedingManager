@@ -40,9 +40,8 @@ _SEP_MIN_WIDTH    = _COL_MIN_WIDTH
 # This is a computed constant so it auto-updates if the static layout grows.
 COL_CW_SECTION_START = len(_ALL_HEADERS)   # = COL_SCORE + 1
 _CW_DEFAULT_WIDTH    = 58
-_CW_HEADER_PREFIX    = "✦"
-_CW_HEADER_NAME_MAX  = 9
-_CW_HEADER_COLOR     = "#7ec8ff"  # accent tint for CW header text
+_CW_HEADER_NAME_MAX  = 10
+_CW_HEADER_COLOR     = "#ffb347"  # vivid amber to set CW headers apart
 
 
 def _score_col_idx(header: str) -> int:

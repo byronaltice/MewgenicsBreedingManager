@@ -72,7 +72,7 @@ from .columns import (
     COL_NAME, COL_LOC, COL_INJ, _STAT_COL_NAMES, _COL_STAT_START,
     _NUM_STAT_COLS, _SCORE_COLS, _COL_SCORE_START, COL_SCORE,
     COL_CW_SECTION_START, _CW_DEFAULT_WIDTH,
-    _CW_HEADER_PREFIX, _CW_HEADER_NAME_MAX, _CW_HEADER_COLOR,
+    _CW_HEADER_NAME_MAX, _CW_HEADER_COLOR,
     _ALL_HEADERS, _SEP_COLS, _SEP_WIDTH, _COL_MIN_WIDTH, _SEP_MIN_WIDTH,
     _CHIP_ROLE, _SCORE_SECONDARY_ROLE, _HEATMAP_ROLE,
     _ROOM_STYLE, INJURY_STAT_NAMES, _EMOJI_SCOPE, _EMOJI_ROOM,
@@ -2856,7 +2856,7 @@ class BreedPriorityView(QWidget):
         _name_max_len = _CW_HEADER_NAME_MAX
         for i, cw in enumerate(enabled_cws):
             cw_col = COL_CW_SECTION_START + i
-            item = QTableWidgetItem(_CW_HEADER_PREFIX + cw.name[:_name_max_len])
+            item = QTableWidgetItem(cw.name[:_name_max_len])
             item.setForeground(QBrush(QColor(_CW_HEADER_COLOR)))
             self._score_table.setHorizontalHeaderItem(cw_col, item)
             self._score_table.setColumnWidth(
