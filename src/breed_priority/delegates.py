@@ -19,6 +19,7 @@ from .columns import (
     _CHIP_ROLE, _SCORE_SECONDARY_ROLE, _HEATMAP_ROLE,
     _TRAIT_NAME_ROLE, _TRAIT_SUMMARY_ROLE,
     _LOVE_SCORE_COLS, _HATE_SCORE_COLS,
+    COL_CW_SECTION_START, _CW_HEADER_FG, _CW_HEADER_BG,
 )
 from .theme import (
     _CHIP_H, _CHIP_PAD_X, _CHIP_GAP, _CHIP_RADIUS,
@@ -798,6 +799,8 @@ class _SortHighlightHeader(QHeaderView):
     _SORTED_BG   = QColor("#1a3060")
     _NORMAL_FG   = QColor(CLR_TEXT_LABEL_UI)
     _SORTED_FG   = QColor("#ccd8f0")
+    _CW_BG       = QColor(_CW_HEADER_BG)
+    _CW_FG       = QColor(_CW_HEADER_FG)
     _BORDER_R    = QColor(CLR_SURFACE_HEADER)
     _BORDER_B    = QColor(CLR_SURFACE_HEADER_BORDER)
 
@@ -825,15 +828,21 @@ class _SortHighlightHeader(QHeaderView):
         super().mousePressEvent(event)
 
     def paintSection(self, painter, rect, logical_idx):
-        if logical_idx != self._sort_col:
+        is_sorted = logical_idx == self._sort_col
+        is_cw = logical_idx >= COL_CW_SECTION_START
+        if not is_sorted and not is_cw:
             super().paintSection(painter, rect, logical_idx)
             return
 
         painter.save()
         painter.setClipRect(rect)
 
-        # Highlighted background
-        painter.fillRect(rect, self._SORTED_BG)
+        # Sorted column wins over CW band when both apply.
+        if is_sorted:
+            bg, fg = self._SORTED_BG, self._SORTED_FG
+        else:
+            bg, fg = self._CW_BG, self._CW_FG
+        painter.fillRect(rect, bg)
 
         # Right + bottom borders to match other sections
         painter.setPen(self._BORDER_R)
@@ -841,18 +850,20 @@ class _SortHighlightHeader(QHeaderView):
         painter.setPen(self._BORDER_B)
         painter.drawLine(rect.left(), rect.bottom(), rect.right(), rect.bottom())
 
-        # Label + arrow
+        # Label (+ arrow when sorted)
         label = self.model().headerData(logical_idx, Qt.Horizontal, Qt.DisplayRole) or ""
-        arrow = " ▼" if self._sort_order == Qt.DescendingOrder else " ▲"
+        suffix = ""
+        if is_sorted:
+            suffix = " ▼" if self._sort_order == Qt.DescendingOrder else " ▲"
         font = painter.font()
         font.setBold(True)
         font.setPointSize(font.pointSize() - 1)   # match the 11px style
         painter.setFont(font)
-        painter.setPen(self._SORTED_FG)
+        painter.setPen(fg)
         painter.drawText(
             rect.adjusted(4, 0, -4, 0),
             Qt.AlignCenter,
-            str(label) + arrow,
+            str(label) + suffix,
         )
 
         painter.restore()

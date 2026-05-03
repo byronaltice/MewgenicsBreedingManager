@@ -41,7 +41,8 @@ _SEP_MIN_WIDTH    = _COL_MIN_WIDTH
 COL_CW_SECTION_START = len(_ALL_HEADERS)   # = COL_SCORE + 1
 _CW_DEFAULT_WIDTH    = 58
 _CW_HEADER_NAME_MAX  = 10
-_CW_HEADER_COLOR     = "#ffb347"  # vivid amber to set CW headers apart
+_CW_HEADER_FG        = "#ffb347"  # vivid amber label
+_CW_HEADER_BG        = "#3a2a18"  # warm dark background distinguishes CW header band
 
 
 def _score_col_idx(header: str) -> int:
