@@ -71,7 +71,8 @@ from .styles import (
 from .columns import (
     COL_NAME, COL_LOC, COL_INJ, _STAT_COL_NAMES, _COL_STAT_START,
     _NUM_STAT_COLS, _SCORE_COLS, _COL_SCORE_START, COL_SCORE,
-    COL_CW_SECTION_START,
+    COL_CW_SECTION_START, _CW_DEFAULT_WIDTH,
+    _CW_HEADER_PREFIX, _CW_HEADER_NAME_MAX, _CW_HEADER_COLOR,
     _ALL_HEADERS, _SEP_COLS, _SEP_WIDTH, _COL_MIN_WIDTH, _SEP_MIN_WIDTH,
     _CHIP_ROLE, _SCORE_SECONDARY_ROLE, _HEATMAP_ROLE,
     _ROOM_STYLE, INJURY_STAT_NAMES, _EMOJI_SCOPE, _EMOJI_ROOM,
@@ -1726,13 +1727,18 @@ class BreedPriorityView(QWidget):
     def _snapshot_col_widths(self, mode: str):
         """Capture static column widths into the per-mode dict.
 
-        CW columns (>= COL_CW_SECTION_START) are excluded — they reset to
-        their default width each time _rebuild_cw_columns() runs.
+        CW column widths are preserved from the prior snapshot (resize handler
+        writes them as the user drags); we only refresh static columns here.
         """
-        widths = {}
+        widths = dict(self._col_widths.get(mode, {}))
         for ci in range(COL_CW_SECTION_START):  # static columns only
             if ci in _SEP_COLS:
                 continue
+            w = self._score_table.columnWidth(ci)
+            if w > 0:
+                widths[ci] = w
+        # Refresh CW widths from current table state so live drags persist.
+        for ci in range(COL_CW_SECTION_START, self._score_table.columnCount()):
             w = self._score_table.columnWidth(ci)
             if w > 0:
                 widths[ci] = w
@@ -2846,11 +2852,16 @@ class BreedPriorityView(QWidget):
         shh.blockSignals(True)
         self._score_table.setColumnCount(total_cols)
         _cw_delegate = _CWDelegate(self._score_table)
+        _mode_widths = self._col_widths.get(self._display_mode, {})
+        _name_max_len = _CW_HEADER_NAME_MAX
         for i, cw in enumerate(enabled_cws):
             cw_col = COL_CW_SECTION_START + i
-            item = QTableWidgetItem(cw.name[:10])
+            item = QTableWidgetItem(_CW_HEADER_PREFIX + cw.name[:_name_max_len])
+            item.setForeground(QBrush(QColor(_CW_HEADER_COLOR)))
             self._score_table.setHorizontalHeaderItem(cw_col, item)
-            self._score_table.setColumnWidth(cw_col, 58)
+            self._score_table.setColumnWidth(
+                cw_col, _mode_widths.get(cw_col, _CW_DEFAULT_WIDTH)
+            )
             self._score_table.setItemDelegateForColumn(cw_col, _cw_delegate)
         shh.blockSignals(False)
 
