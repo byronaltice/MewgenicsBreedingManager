@@ -614,6 +614,7 @@ class BreedPriorityView(QWidget):
         _hdr.blockSignals(False)
 
         # Trait tables + recompute
+        self._rebuild_cw_columns()
         if self._cats:
             for defect in getattr(self, "_defect_names", set()):
                 if defect not in self._ma_ratings:
