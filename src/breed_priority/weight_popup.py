@@ -82,7 +82,6 @@ def show_weights_popup(parent, weights: dict) -> None:
         ("  Penalty scale (higher = faster)", f"{int(round(w.get('gene_risk_penalty_scale', 10.0)))}"),
         ("Mate penalty (scales above threshold)", f"-{abs(w['mate_weight']):.1f} × (disparity / threshold)"),
         ("  Trigger at majority share", f"{mate_high}%/{mate_low}% (disparity {mate_threshold}% above 50/50)"),
-        ("  Disparity adjustment", "minus half of unknown-gender share of scope"),
         ("Love interest in scope", f"+{w['love_interest']:.1f}"),
         ("Rival in scope", f"{w['rivalry']:.1f}"),
         ("-- Age penalty: multiplies per 3 years above threshold --", ""),

@@ -214,11 +214,10 @@ def _mate_penalty(cat, scope_cats: list, weights: dict) -> tuple[float, int, int
     """Return Mate penalty and contextual values.
 
     Tuple: (penalty_points, male_count, female_count, unknown_count,
-            majority_percent, adjusted_disparity).
+            majority_percent, disparity).
 
-    Disparity is the majority-gender share above 50% (among known-gender cats),
-    reduced by half the unknown-gender share of the full scope. The penalty is
-    zero below the configured threshold; at and above the threshold the weight
+    Disparity is majority_percent - 50 (among known-gender cats only). The
+    penalty is zero below the configured threshold; at and above it the weight
     scales linearly with disparity / threshold.
     """
     male_count, female_count, unknown_count = _gender_counts(scope_cats)
@@ -234,22 +233,19 @@ def _mate_penalty(cat, scope_cats: list, weights: dict) -> tuple[float, int, int
         majority_count = female_count
 
     majority_percent = 100.0 * majority_count / known_total
-    raw_disparity = majority_percent - MATE_IMBALANCE_BASE_PERCENT
-    scope_total = known_total + unknown_count
-    unknown_percent = 100.0 * unknown_count / scope_total if scope_total else 0.0
-    adjusted_disparity = raw_disparity - 0.5 * unknown_percent
+    disparity = majority_percent - MATE_IMBALANCE_BASE_PERCENT
 
     threshold_percent = float(weights.get("mate_imbalance_threshold", 10.0))
     cat_gender = _normalized_gender_token(cat)
     if (threshold_percent <= 0.0
-            or adjusted_disparity < threshold_percent
+            or disparity < threshold_percent
             or cat_gender != majority_gender):
-        return 0.0, male_count, female_count, unknown_count, majority_percent, adjusted_disparity
+        return 0.0, male_count, female_count, unknown_count, majority_percent, disparity
 
     mate_weight = abs(float(weights.get("mate_weight", 0.0)))
-    scale = adjusted_disparity / threshold_percent
+    scale = disparity / threshold_percent
     return (-mate_weight * scale, male_count, female_count, unknown_count,
-            majority_percent, adjusted_disparity)
+            majority_percent, disparity)
 
 
 def compute_breed_priority_score(cat, scope_cats: list, ma_ratings: dict,
@@ -478,15 +474,15 @@ def compute_breed_priority_score(cat, scope_cats: list, ma_ratings: dict,
                 subtotals["zero_risk_bonus"] = safe_pts
 
     (mate_points, male_count, female_count, unknown_count,
-     majority_percent, adjusted_disparity) = _mate_penalty(cat, scope_cats, _w)
+     majority_percent, disparity) = _mate_penalty(cat, scope_cats, _w)
     if mate_points != 0.0:
         threshold_percent = float(_w.get("mate_imbalance_threshold", 10.0))
         dominant_label = "M" if male_count > female_count else "F"
-        scale = adjusted_disparity / threshold_percent if threshold_percent > 0 else 0.0
+        scale = disparity / threshold_percent if threshold_percent > 0 else 0.0
         breakdown.append((
             f"Mate imbalance ({dominant_label}-heavy {majority_percent:.0f}% "
             f"at M{male_count}/F{female_count}/?{unknown_count}, "
-            f"disparity {adjusted_disparity:.0f}% / threshold {threshold_percent:.0f}% "
+            f"disparity {disparity:.0f}% / threshold {threshold_percent:.0f}% "
             f"× {scale:.2f})",
             mate_points,
         ))
