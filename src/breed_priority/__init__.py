@@ -339,7 +339,11 @@ class BreedPriorityView(QWidget):
         try:
             _bps = data.get("bottom_pane_sizes", [])
             if isinstance(_bps, list) and len(_bps) == 4 and all(isinstance(x, int) for x in _bps):
-                self._bottom_pane_sizes = _bps
+                # Guard against a pane being dragged to (near) zero width and
+                # becoming unrecoverable — restore any collapsed pane to a
+                # usable minimum so every panel stays visible on next launch.
+                _MIN_PANE_PX = 60
+                self._bottom_pane_sizes = [max(_MIN_PANE_PX, x) for x in _bps]
         except Exception:
             pass
 
