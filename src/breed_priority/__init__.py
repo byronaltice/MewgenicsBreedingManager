@@ -181,6 +181,7 @@ class BreedPriorityView(QWidget):
         self._sort_order = Qt.DescendingOrder
         self._filters = FilterState()
         self._col_widths: dict[str, dict[int, int]] = {}  # {mode_name: {col_idx: width}}
+        self._col_order: list[str] = []                  # visual order of header texts
         self._bottom_pane_sizes: list[int] = []          # ABILITIES|MUTATIONS|CHILDREN|RISKS widths
         self._trait_col_widths: dict[int, int] = {}      # {col_idx: width} shared by both trait tables
         self._active_profile: int = 1   # currently selected profile slot
@@ -335,6 +336,14 @@ class BreedPriorityView(QWidget):
         except Exception:
             pass
 
+        # ── Column visual order ──
+        try:
+            _raw_order = data.get("col_order", [])
+            if isinstance(_raw_order, list):
+                self._col_order = [str(name) for name in _raw_order if isinstance(name, str)]
+        except Exception:
+            pass
+
         # ── Bottom pane sizes ──
         try:
             _bps = data.get("bottom_pane_sizes", [])
@@ -407,6 +416,7 @@ class BreedPriorityView(QWidget):
                 for mode, widths in self._col_widths.items()
             },
             "col_count": len(_ALL_HEADERS),
+            "col_order": list(self._col_order),
             "bottom_pane_sizes": (
                 list(self._bottom_hs.sizes()) if hasattr(self, "_bottom_hs") else []
             ),
@@ -1159,9 +1169,15 @@ class BreedPriorityView(QWidget):
     def _build_score_table_section(self) -> QWidget:
         """Build the score table with profile bar, banners, and delegates."""
         self._score_table = QTableWidget()
+        # Opt out of global Qt header saveState/restoreState — the dynamic
+        # CW column count makes that machinery scramble visual order across
+        # sessions. BP persists column order itself via _col_order.
+        self._score_table.setProperty("_skip_global_table_state", True)
         self._score_table.setColumnCount(len(_ALL_HEADERS))
         shh = _SortHighlightHeader(self._score_table)
         shh.setSectionsClickable(True)
+        shh.setSectionsMovable(True)
+        shh.setStretchLastSection(False)
         self._score_table.setHorizontalHeader(shh)
         self._score_table.setHorizontalHeaderLabels(_ALL_HEADERS)
         # Column header tooltips
@@ -1253,6 +1269,7 @@ class BreedPriorityView(QWidget):
         self._apply_stat_column_visibility()
         shh.sortIndicatorChanged.connect(self._on_sort_indicator_changed)
         shh.sectionResized.connect(self._on_col_resized)
+        shh.sectionMoved.connect(self._on_col_moved)
 
         # Wrap table + profile bar + banners in a container
         score_container = QWidget()
@@ -1827,6 +1844,49 @@ class BreedPriorityView(QWidget):
         if col_idx in _SINGLE_VALUE_CENTER_SCORE_COLS:
             return Qt.AlignCenter
         return Qt.AlignCenter
+
+    def _capture_col_order(self) -> list[str]:
+        """Read the current visual header-text order from the score table."""
+        shh = self._score_table.horizontalHeader()
+        order: list[str] = []
+        for visual_idx in range(self._score_table.columnCount()):
+            logical_idx = shh.logicalIndex(visual_idx)
+            item = self._score_table.horizontalHeaderItem(logical_idx)
+            order.append(item.text() if item is not None else "")
+        return order
+
+    def _apply_col_order(self):
+        """Reorder visible columns to match self._col_order by header text.
+
+        Header names not present in the saved order keep their relative
+        position after the matched ones; saved names not present in the
+        current table are skipped. Robust to CW columns being added,
+        removed, or renamed between sessions.
+        """
+        if not self._col_order:
+            return
+        shh = self._score_table.horizontalHeader()
+        col_count = self._score_table.columnCount()
+        name_to_logical: dict[str, int] = {}
+        for logical_idx in range(col_count):
+            item = self._score_table.horizontalHeaderItem(logical_idx)
+            text = item.text() if item is not None else ""
+            name_to_logical.setdefault(text, logical_idx)
+        shh.blockSignals(True)
+        target_visual = 0
+        for name in self._col_order:
+            logical_idx = name_to_logical.get(name)
+            if logical_idx is None:
+                continue
+            current_visual = shh.visualIndex(logical_idx)
+            if current_visual != target_visual:
+                shh.moveSection(current_visual, target_visual)
+            target_visual += 1
+        shh.blockSignals(False)
+
+    def _on_col_moved(self, *_):
+        self._col_order = self._capture_col_order()
+        self._col_save_timer.start()
 
     def _on_col_resized(self, logical_idx: int, _old: int, new_size: int):
         if new_size == 0:
@@ -2867,6 +2927,10 @@ class BreedPriorityView(QWidget):
             )
             self._score_table.setItemDelegateForColumn(cw_col, _cw_delegate)
         shh.blockSignals(False)
+        # Re-apply saved visual order: setColumnCount appends new sections at
+        # the rightmost visual position, so saved order must be reapplied any
+        # time the column set changes.
+        self._apply_col_order()
 
     # ── Weights popup ─────────────────────────────────────────────────────────
 

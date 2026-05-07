@@ -152,6 +152,12 @@ def _configure_table_view_behavior(widget: QWidget):
         return
     if widget.property("_global_table_behavior_ready"):
         return
+    # Tables with dynamic column counts (e.g. breed priority's CW columns)
+    # manage their own header state — Qt's saveState/restoreState assumes a
+    # stable column layout and scrambles visual order when columns are added
+    # or removed between sessions.
+    if widget.property("_skip_global_table_state"):
+        return
     widget.setProperty("_global_table_behavior_ready", True)
 
     widget.setAlternatingRowColors(True)
