@@ -86,6 +86,9 @@ from .scoring import (
 )
 from .tooltips import build_cat_tooltip, build_child_tooltip
 from .column_values import raw_col_value
+from .column_visibility import (
+    ColumnVisibilityDialog, apply_col_visibility, col_identity_for_static,
+)
 from .weight_popup import show_weights_popup
 from .party_builder import PartyBuilderWidget  # noqa: F401
 from .stats_overview import show_stats_overview, get_cat_stats
@@ -176,7 +179,7 @@ class BreedPriorityView(QWidget):
         self._display_mode = "score"   # "score" | "values" | "both"
         self._heatmap_on = False       # separate toggle for heatmap overlay
         self._heat_algo = "column"     # "column" | "row"
-        self._show_stats = False
+        self._hidden_cols: set[str] = set()  # column identities hidden via Columns dialog
         self._sort_col: int = COL_SCORE
         self._sort_order = Qt.DescendingOrder
         self._filters = FilterState()
@@ -193,6 +196,7 @@ class BreedPriorityView(QWidget):
         self._deck_save_puller = None
         self._complex_weights: list = []   # List[ComplexWeight]
         self._cw_dialog: ComplexWeightsDialog | None = None
+        self._col_visibility_dlg: ColumnVisibilityDialog | None = None
         self._load_ratings()
         self._build_ui()
         self.setStyleSheet(
@@ -229,11 +233,40 @@ class BreedPriorityView(QWidget):
             pass
 
         # ── Trait ratings ──
+        # Top-level abilities/mutations is the working-state truth, but it
+        # is filtered on save to traits present in current cats - so it
+        # loses ratings for traits not on any cat. After loading top-level
+        # we fill any *missing* keys from the profile snapshot (which keeps
+        # the full set), so a rating dropped only by the filter doesn't
+        # vanish from working state and re-appear as spurious "Modified".
+        # We only fill missing keys, so genuine working-state edits to
+        # existing ratings are preserved.
         try:
             for section in ("abilities", "mutations"):
                 for trait, val in data.get(section, {}).items():
                     if val in (-1, 0, 1, 2):
                         self._ma_ratings[trait] = val
+            snapshot_ratings = self._profile_snapshot.get("ma_ratings", {})
+            if isinstance(snapshot_ratings, dict):
+                for trait, val in snapshot_ratings.items():
+                    if val in (-1, 0, 1, 2):
+                        self._ma_ratings.setdefault(trait, val)
+        except Exception:
+            pass
+
+        # ── Migrate legacy show_stats → hidden_cols on every profile slot ──
+        # Without this, profile snapshots loaded from older saves diverge
+        # from _serialize_current() (which emits hidden_cols), making the
+        # profile look "Modified" the moment the app opens.
+        try:
+            for _slot_data in self._profiles.values():
+                if not isinstance(_slot_data, dict):
+                    continue
+                if "hidden_cols" not in _slot_data:
+                    _slot_data["hidden_cols"] = sorted(
+                        self._load_hidden_cols(_slot_data)
+                    )
+                _slot_data.pop("show_stats", None)
         except Exception:
             pass
 
@@ -290,7 +323,7 @@ class BreedPriorityView(QWidget):
             self._heat_algo = data.get("heat_algo", "column")
             if self._heat_algo not in ("column", "row"):
                 self._heat_algo = "column"
-            self._show_stats = bool(data.get("show_stats", False))
+            self._hidden_cols = self._load_hidden_cols(data)
             _saved_sort = int(data.get("sort_col", COL_SCORE))
             # Allow sort on CW columns; reset to Score if separator, layout changed, or out of range.
             _col_layout_changed = data.get("col_count", 0) != len(_ALL_HEADERS)
@@ -364,6 +397,24 @@ class BreedPriorityView(QWidget):
         except Exception:
             pass
 
+    def _load_hidden_cols(self, data: dict) -> set[str]:
+        """Read hidden_cols from a profile/sidecar dict, migrating show_stats.
+
+        Pre-existing sidecars stored a single ``show_stats`` bool that
+        toggled all stat columns. When the new ``hidden_cols`` key isn't
+        present, fall back to that legacy flag so users don't lose state.
+        """
+        raw_hidden = data.get("hidden_cols")
+        if isinstance(raw_hidden, list):
+            return {str(item) for item in raw_hidden if isinstance(item, str)}
+        if data.get("show_stats", False):
+            return set()
+        # Legacy default: stats hidden.
+        return {
+            col_identity_for_static(idx)
+            for idx in range(_COL_STAT_START, _COL_STAT_START + _NUM_STAT_COLS)
+        }
+
     def _profiles_safe(self) -> dict:
         """Return self._profiles, but if it's empty and the on-disk file already
         has profiles, return those instead.
@@ -406,7 +457,7 @@ class BreedPriorityView(QWidget):
             "display_mode": self._display_mode,
             "heatmap_on": self._heatmap_on,
             "heat_algo": self._heat_algo,
-            "show_stats": self._show_stats,
+            "hidden_cols": sorted(self._hidden_cols),
             "sort_col": self._sort_col,
             "sort_desc": self._sort_order == Qt.DescendingOrder,
             "filters": self._filters.to_dict(),
@@ -466,7 +517,7 @@ class BreedPriorityView(QWidget):
             "display_mode": self._display_mode,
             "heatmap_on": self._heatmap_on,
             "heat_algo": self._heat_algo,
-            "show_stats": self._show_stats,
+            "hidden_cols": sorted(self._hidden_cols),
             "sort_col": self._sort_col,
             "sort_desc": self._sort_order == Qt.DescendingOrder,
             "filters": self._filters.to_dict(),
@@ -535,7 +586,7 @@ class BreedPriorityView(QWidget):
             self._heatmap_on = bool(data.get("heatmap_on", False))
         _ha = data.get("heat_algo", "column")
         self._heat_algo         = _ha if _ha in ("column", "row") else "column"
-        self._show_stats        = bool(data.get("show_stats", False))
+        self._hidden_cols       = self._load_hidden_cols(data)
         # Complex Weights
         _raw_cws = data.get("complex_weights", [])
         self._complex_weights = []
@@ -579,7 +630,6 @@ class BreedPriorityView(QWidget):
             (self._chk_hide_out_of_scope,   self._hide_out_of_scope),
             (self._chk_use_current_stats,   self._use_current_stats),
             (self._chk_add_mutation_stats,  self._add_mutation_stats),
-            (self._chk_show_stats,          self._show_stats),
         ]:
             chk.blockSignals(True)
             chk.setChecked(val)
@@ -608,7 +658,7 @@ class BreedPriorityView(QWidget):
             for _hb in _ha_map.values():
                 _hb.blockSignals(False)
             self._apply_mode_col_widths()
-        self._apply_stat_column_visibility()
+        self._apply_col_visibility()
 
         # Scope UI
         all_cats_on  = self._saved_scope.get("all_cats", True)
@@ -848,6 +898,16 @@ class BreedPriorityView(QWidget):
         )
         self._btn_complex_weights.clicked.connect(self._open_complex_weights)
         hb.addWidget(self._btn_complex_weights)
+
+        self._btn_columns = QPushButton("Columns…")
+        self._btn_columns.setStyleSheet(ACTION_BUTTON_SECONDARY_STYLE)
+        self._btn_columns.setFixedHeight(22)
+        self._btn_columns.setToolTip(
+            "Show or hide individual score-table columns.\n"
+            "Name and Complex Weight columns aren't toggleable here."
+        )
+        self._btn_columns.clicked.connect(self._open_column_visibility)
+        hb.addWidget(self._btn_columns)
         hb.addStretch()
 
         _chk_style = checkbox_style(
@@ -924,14 +984,6 @@ class BreedPriorityView(QWidget):
         self._update_heat_options_enabled()
         hb.addWidget(self._heat_algo_w)
 
-        self._chk_show_stats = QCheckBox("Show Stats")
-        self._chk_show_stats.setStyleSheet(_chk_style)
-        self._chk_show_stats.setToolTip(
-            "Show individual STR/DEX/CON/INT/SPD/CHA/LCK stat columns."
-        )
-        self._chk_show_stats.setChecked(self._show_stats)
-        self._chk_show_stats.stateChanged.connect(self._on_show_stats_changed)
-        hb.addWidget(self._chk_show_stats)
         return top_bar
 
     def _build_scope_panel(self, layout):
@@ -1212,6 +1264,7 @@ class BreedPriorityView(QWidget):
         _col_tips = {ci: _HEADER_TIPS_TEXT[hdr]
                      for ci, hdr in enumerate(_ALL_HEADERS) if hdr in _HEADER_TIPS_TEXT}
         _HeaderTooltipFilter(shh, _col_tips)
+        self._header_descriptions = dict(_HEADER_TIPS_TEXT)
         self._score_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self._score_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self._score_table.setSelectionMode(QAbstractItemView.SingleSelection)
@@ -1266,7 +1319,7 @@ class BreedPriorityView(QWidget):
         _mode_widths = self._col_widths.get(self._display_mode, {})
         for ci, w in _mode_widths.items():
             self._score_table.setColumnWidth(ci, w)
-        self._apply_stat_column_visibility()
+        self._apply_col_visibility()
         shh.sortIndicatorChanged.connect(self._on_sort_indicator_changed)
         shh.sectionResized.connect(self._on_col_resized)
         shh.sectionMoved.connect(self._on_col_moved)
@@ -1818,24 +1871,57 @@ class BreedPriorityView(QWidget):
         self._save_ratings()
         self.recompute()
 
-    def _on_show_stats_changed(self, *_):
-        self._show_stats = self._chk_show_stats.isChecked()
-        self._save_ratings()
-        self._apply_stat_column_visibility()
+    def _default_static_col_width(self, logical_idx: int) -> int:
+        """Default pixel width for a static column when shown after a hide."""
+        if logical_idx == COL_NAME:
+            return 120
+        if logical_idx == COL_LOC:
+            return 112
+        if logical_idx == COL_INJ:
+            return 100
+        if _COL_STAT_START <= logical_idx < _COL_STAT_START + _NUM_STAT_COLS:
+            return 36
+        if logical_idx in _SEP_COLS:
+            return _SEP_WIDTH
+        if logical_idx == COL_SCORE:
+            return 55
+        if _COL_SCORE_START <= logical_idx < COL_SCORE:
+            score_header = _SCORE_COLS[logical_idx - _COL_SCORE_START]
+            return {
+                "Sex": 72, "Age": 46, "Mate": 58,
+                "💗": 52, "💥": 52, "7sub": 52,
+            }.get(score_header, 52)
+        return 52
 
-    def _apply_stat_column_visibility(self):
-        _STAT_DEFAULT_W = 36
-        for ci in range(_COL_STAT_START, _COL_STAT_START + _NUM_STAT_COLS):
-            if self._show_stats:
-                self._score_table.showColumn(ci)
-                # showColumn() may restore Qt's internal pre-hide width which
-                # can be wrong; explicitly apply the saved or default width.
-                _mode_w = self._col_widths.get(self._display_mode, {})
-                self._score_table.setColumnWidth(
-                    ci, _mode_w.get(ci, _STAT_DEFAULT_W)
-                )
-            else:
-                self._score_table.hideColumn(ci)
+    def _width_for_static(self, logical_idx: int) -> int:
+        """Width to apply when un-hiding a static column."""
+        mode_widths = self._col_widths.get(self._display_mode, {})
+        return mode_widths.get(logical_idx, self._default_static_col_width(logical_idx))
+
+    def _apply_col_visibility(self):
+        apply_col_visibility(
+            self._score_table, self._hidden_cols, self._width_for_static,
+        )
+
+    def _open_column_visibility(self):
+        if (
+            getattr(self, "_col_visibility_dlg", None) is not None
+            and self._col_visibility_dlg.isVisible()
+        ):
+            self._col_visibility_dlg.raise_()
+            self._col_visibility_dlg.activateWindow()
+            return
+        descriptions = getattr(self, "_header_descriptions", {})
+        self._col_visibility_dlg = ColumnVisibilityDialog(
+            self, self._score_table, self._hidden_cols, descriptions,
+        )
+        self._col_visibility_dlg.visibility_changed.connect(self._on_col_visibility_changed)
+        self._col_visibility_dlg.show()
+
+    def _on_col_visibility_changed(self, hidden_set: set):
+        self._hidden_cols = set(hidden_set)
+        self._apply_col_visibility()
+        self._save_ratings()
 
     @staticmethod
     def _score_col_alignment(col_idx: int):
@@ -1845,37 +1931,47 @@ class BreedPriorityView(QWidget):
             return Qt.AlignCenter
         return Qt.AlignCenter
 
+    def _col_identity(self, logical_idx: int) -> str:
+        """Stable identity for a column, unique across the table.
+
+        Static columns (logical < COL_CW_SECTION_START) use their logical
+        index, which never changes. CW columns use their header text, so
+        the order survives CWs being added, removed, or reordered between
+        sessions. Header text alone isn't sufficient because some labels
+        (e.g. "CHA") appear as both a stat column and a score column.
+        """
+        if logical_idx < COL_CW_SECTION_START:
+            return f"#{logical_idx}"
+        item = self._score_table.horizontalHeaderItem(logical_idx)
+        return f"@{item.text() if item is not None else ''}"
+
     def _capture_col_order(self) -> list[str]:
-        """Read the current visual header-text order from the score table."""
+        """Read the current visual order as a list of column identities."""
         shh = self._score_table.horizontalHeader()
         order: list[str] = []
         for visual_idx in range(self._score_table.columnCount()):
             logical_idx = shh.logicalIndex(visual_idx)
-            item = self._score_table.horizontalHeaderItem(logical_idx)
-            order.append(item.text() if item is not None else "")
+            order.append(self._col_identity(logical_idx))
         return order
 
     def _apply_col_order(self):
-        """Reorder visible columns to match self._col_order by header text.
+        """Reorder visible columns to match self._col_order by identity.
 
-        Header names not present in the saved order keep their relative
-        position after the matched ones; saved names not present in the
-        current table are skipped. Robust to CW columns being added,
-        removed, or renamed between sessions.
+        Identities not present in the current table are skipped; columns
+        whose identities aren't in the saved order keep their relative
+        position after the matched ones.
         """
         if not self._col_order:
             return
         shh = self._score_table.horizontalHeader()
         col_count = self._score_table.columnCount()
-        name_to_logical: dict[str, int] = {}
+        identity_to_logical: dict[str, int] = {}
         for logical_idx in range(col_count):
-            item = self._score_table.horizontalHeaderItem(logical_idx)
-            text = item.text() if item is not None else ""
-            name_to_logical.setdefault(text, logical_idx)
+            identity_to_logical[self._col_identity(logical_idx)] = logical_idx
         shh.blockSignals(True)
         target_visual = 0
-        for name in self._col_order:
-            logical_idx = name_to_logical.get(name)
+        for identity in self._col_order:
+            logical_idx = identity_to_logical.get(identity)
             if logical_idx is None:
                 continue
             current_visual = shh.visualIndex(logical_idx)
