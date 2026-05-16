@@ -13,18 +13,22 @@ from .scoring import SCORE_COLUMNS, SCORE_HEADER_7_COUNT
 # ── Column indices ────────────────────────────────────────────────────────────
 
 _SEP_HEADER      = "│"
+_RETIRED_GLYPH   = "👑"
+_RETIRED_HEADER  = "👑"
+_COL_RETIRED_WIDTH = 32
 COL_NAME          = 0
 COL_LOC           = 1
 COL_INJ           = 2
+COL_RETIRED       = 3
 _STAT_COL_NAMES   = ["STR", "DEX", "CON", "INT", "SPD", "CHA", "LCK"]
-_COL_STAT_START   = 3
+_COL_STAT_START   = COL_RETIRED + 1
 _NUM_STAT_COLS    = len(_STAT_COL_NAMES)
 _SCORE_COLS       = [h for h, _ in SCORE_COLUMNS]
 COL_SEP1          = _COL_STAT_START + _NUM_STAT_COLS
 _COL_SCORE_START  = COL_SEP1 + 1
 COL_SCORE         = _COL_SCORE_START + len(SCORE_COLUMNS)
 _ALL_HEADERS      = (
-    ["Name", "Loc", "Inj"]
+    ["Name", "Loc", "Inj", _RETIRED_HEADER]
     + _STAT_COL_NAMES
     + [_SEP_HEADER]
     + _SCORE_COLS
@@ -82,6 +86,7 @@ _SCORE_SECONDARY_ROLE  = Qt.UserRole + 3
 _HEATMAP_ROLE          = Qt.UserRole + 4
 _TRAIT_NAME_ROLE       = Qt.UserRole + 10
 _TRAIT_SUMMARY_ROLE    = Qt.UserRole + 11
+_RETIRED_ROLE          = Qt.UserRole + 12
 
 
 # ── Room display name → text color ───────────────────────────────────────────

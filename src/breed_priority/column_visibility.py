@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Signal
 
 from .columns import (
-    COL_NAME, COL_LOC, COL_INJ, COL_SCORE,
+    COL_NAME, COL_LOC, COL_INJ, COL_RETIRED, COL_SCORE,
     COL_CW_SECTION_START, _SEP_COLS,
     _COL_STAT_START, _NUM_STAT_COLS,
     _STAT_COL_NAMES, _SCORE_COLS, _COL_SCORE_START,
@@ -134,6 +134,7 @@ _COLUMN_LABELS = {
     "LCK":   "LCK - Luck",
     "Loc":   "Loc - Current Room",
     "Inj":   "Inj - Active Injuries",
+    "Retired": "👑 - Retired Cat",
     "Age":   "Age",
     "Trait": "Trait - Trait Score",
     "Sum":   "Sum - Stat Sum",
@@ -172,6 +173,7 @@ def _build_section_specs() -> list[tuple[str, list[tuple[int, str]]]]:
         for i in range(_NUM_STAT_COLS)
     ]
     other_rows = [
+        (COL_RETIRED, _COLUMN_LABELS["Retired"]),
         (COL_LOC, _COLUMN_LABELS["Loc"]),
         (COL_INJ, _COLUMN_LABELS["Inj"]),
         (_score_col_logical("Age"),   _COLUMN_LABELS["Age"]),

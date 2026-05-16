@@ -69,12 +69,13 @@ from .styles import (
     checkbox_style,
 )
 from .columns import (
-    COL_NAME, COL_LOC, COL_INJ, _STAT_COL_NAMES, _COL_STAT_START,
+    COL_NAME, COL_LOC, COL_INJ, COL_RETIRED, _STAT_COL_NAMES, _COL_STAT_START,
     _NUM_STAT_COLS, _SCORE_COLS, _COL_SCORE_START, COL_SCORE,
     COL_CW_SECTION_START, _CW_DEFAULT_WIDTH,
     _CW_HEADER_NAME_MAX,
     _ALL_HEADERS, _SEP_COLS, _SEP_WIDTH, _COL_MIN_WIDTH, _SEP_MIN_WIDTH,
-    _CHIP_ROLE, _SCORE_SECONDARY_ROLE, _HEATMAP_ROLE,
+    _CHIP_ROLE, _SCORE_SECONDARY_ROLE, _HEATMAP_ROLE, _RETIRED_ROLE,
+    _RETIRED_GLYPH, _COL_RETIRED_WIDTH,
     _ROOM_STYLE, INJURY_STAT_NAMES, _EMOJI_SCOPE, _EMOJI_ROOM,
     _SINGLE_VALUE_CENTER_SCORE_COLS, _MULTI_VALUE_LEFT_SCORE_COLS,
 )
@@ -331,6 +332,10 @@ class BreedPriorityView(QWidget):
             _max_valid_col = COL_CW_SECTION_START + _enabled_cw_count - 1
             if _saved_sort in _SEP_COLS or _saved_sort > _max_valid_col or _col_layout_changed:
                 _saved_sort = COL_SCORE
+            if _col_layout_changed:
+                # Old hidden-col indices refer to a previous column layout
+                # and would hide the wrong columns under the new layout.
+                self._hidden_cols.clear()
             self._sort_col = _saved_sort
             self._sort_order = (
                 Qt.DescendingOrder if data.get("sort_desc", True)
@@ -1278,6 +1283,7 @@ class BreedPriorityView(QWidget):
         self._score_table.setColumnWidth(COL_NAME, 120)
         self._score_table.setColumnWidth(COL_LOC, 112)
         self._score_table.setColumnWidth(COL_INJ, 100)
+        self._score_table.setColumnWidth(COL_RETIRED, _COL_RETIRED_WIDTH)
         for ci in range(_COL_STAT_START, _COL_STAT_START + _NUM_STAT_COLS):
             self._score_table.setColumnWidth(ci, 36)
         for ci in range(_COL_SCORE_START, _COL_SCORE_START + len(_SCORE_COLS)):
@@ -1879,6 +1885,8 @@ class BreedPriorityView(QWidget):
             return 112
         if logical_idx == COL_INJ:
             return 100
+        if logical_idx == COL_RETIRED:
+            return _COL_RETIRED_WIDTH
         if _COL_STAT_START <= logical_idx < _COL_STAT_START + _NUM_STAT_COLS:
             return 36
         if logical_idx in _SEP_COLS:
@@ -2505,6 +2513,17 @@ class BreedPriorityView(QWidget):
             inj_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
             self._score_table.setItem(row, COL_INJ, inj_item)
 
+            # ── Retired (cat_class non-empty) ──
+            is_retired = bool(getattr(cat, "cat_class", ""))
+            ret_item = QTableWidgetItem(_RETIRED_GLYPH if is_retired else "")
+            ret_item.setTextAlignment(Qt.AlignCenter)
+            ret_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+            ret_item.setData(Qt.UserRole, 1.0 if is_retired else 0.0)
+            ret_item.setData(_RETIRED_ROLE, is_retired)
+            if is_retired:
+                ret_item.setToolTip(f"Retired: {cat.cat_class}")
+            self._score_table.setItem(row, COL_RETIRED, ret_item)
+
             # ── Stat columns ──
             _cat_stats = get_cat_stats(cat, self._use_current_stats, self._add_mutation_stats)
             for si, stat in enumerate(_STAT_COL_NAMES):
@@ -2957,6 +2976,7 @@ class BreedPriorityView(QWidget):
                     cat, results[id(cat)], children_in_scope_fn(cat),
                     self._filters, TRAIT_LOW_THRESHOLD, TRAIT_HIGH_THRESHOLD,
                     self._room_display,
+                    is_retired=bool(getattr(cat, "cat_class", "")),
                 )
                 for cat in alive
             }

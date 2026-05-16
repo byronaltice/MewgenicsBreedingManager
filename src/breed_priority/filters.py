@@ -85,6 +85,10 @@ class FilterState:
         self.score_active = False; self.score_value = 0.0; self.score_op = "Greater Than"
         # Injuries
         self.injuries_active = False
+        # Retired (cat_class non-empty)
+        self.retired_active = False
+        self.retired_show_retired = True
+        self.retired_show_active = True
         # Location
         self.location_active = False
         self.location_rooms: set = set()  # set of display name strings to include
@@ -98,6 +102,7 @@ class FilterState:
             self.gene_active, self.gene_unique_active,
             self.children_active, self.score_active,
             self.injuries_active, self.location_active,
+            self.retired_active,
         ])
 
     def to_dict(self) -> dict:
@@ -123,6 +128,9 @@ class FilterState:
             "injuries_active": self.injuries_active,
             "location_active": self.location_active,
             "location_rooms": sorted(self.location_rooms),
+            "retired_active": self.retired_active,
+            "retired_show_retired": self.retired_show_retired,
+            "retired_show_active": self.retired_show_active,
         }
 
     @classmethod
@@ -140,6 +148,7 @@ class FilterState:
             "children_active", "children_value", "children_op",
             "score_active", "score_value", "score_op",
             "injuries_active", "location_active",
+            "retired_active", "retired_show_retired", "retired_show_active",
         ]:
             if k in d:
                 setattr(state, k, d[k])
@@ -162,7 +171,8 @@ def _compare(val: float, threshold: float, op: str) -> bool:
 def cat_passes_filter(cat, score_result, ch_in_scope: int, state: FilterState,
                       trait_low: float = FILTER_TRAIT_LOW,
                       trait_high: float = FILTER_TRAIT_HIGH,
-                      room_display: dict | None = None) -> bool:
+                      room_display: dict | None = None,
+                      is_retired: bool = False) -> bool:
     """Return True if cat should be visible given the active filters."""
     if not state.is_any_active():
         return True
@@ -252,6 +262,12 @@ def cat_passes_filter(cat, score_result, ch_in_scope: int, state: FilterState,
             for sn in _base
         )
         if not _has_inj:
+            return False
+
+    if f.retired_active:
+        ok = (is_retired and f.retired_show_retired) or \
+             ((not is_retired) and f.retired_show_active)
+        if not ok:
             return False
 
     if f.location_active and f.location_rooms:
@@ -726,6 +742,15 @@ class FilterDialog(QDialog):
         self._injuries_row = _BoolFilterRow("Has Injuries", f.injuries_active)
         cv.addWidget(self._injuries_row)
 
+        # ── Retired ───────────────────────────────────────────────────────────
+        # Uses _CheckFilterRow; the "Not" control is unused here and ignored
+        # when reading state, since the two option checkboxes already cover
+        # all desired combinations (Retired/Active/both).
+        self._retired_row = _CheckFilterRow(
+            "Retired", f.retired_active, False,
+            [("Retired", f.retired_show_retired), ("Active", f.retired_show_active)])
+        cv.addWidget(self._retired_row)
+
         # ── Location ──────────────────────────────────────────────────────────
         if self._available_rooms:
             _sep()
@@ -786,6 +811,8 @@ class FilterDialog(QDialog):
         self._children_row.set_state(d.children_active, d.children_value, d.children_op)
         self._score_row.set_state(d.score_active, d.score_value, d.score_op)
         self._injuries_row.set_state(d.injuries_active)
+        self._retired_row.set_state(d.retired_active, False,
+                                    [d.retired_show_retired, d.retired_show_active])
         if self._loc_row is not None:
             self._loc_row.set_state(d.location_active, set())
 
@@ -808,6 +835,9 @@ class FilterDialog(QDialog):
         f.children_active, f.children_value, f.children_op = self._children_row.get_state()
         f.score_active, f.score_value, f.score_op    = self._score_row.get_state()
         f.injuries_active                             = self._injuries_row.get_state()
+        # Retired: ignore the unused "Not" value from _CheckFilterRow.
+        f.retired_active, _retired_not_unused, rvals  = self._retired_row.get_state()
+        f.retired_show_retired, f.retired_show_active = rvals
         if self._loc_row is not None:
             f.location_active, f.location_rooms = self._loc_row.get_state()
         self._applied = f
