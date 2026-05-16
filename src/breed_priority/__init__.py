@@ -85,7 +85,7 @@ from .complex_weights import (
 from .scoring import (
     ScoreResult, ability_base, is_basic_trait,
 )
-from .tooltips import build_cat_tooltip, build_child_tooltip
+from .tooltips import build_cat_tooltip, build_child_tooltip, build_cw_header_tooltip
 from .column_values import raw_col_value
 from .column_visibility import (
     ColumnVisibilityDialog, apply_col_visibility, col_identity_for_static,
@@ -1267,9 +1267,9 @@ class BreedPriorityView(QWidget):
             "Score":   "Total weighted score — sum of all column scores.",
             "7sub":   "7-Subset: cats in scope whose stat-7 set strictly contains this cat's (▲N = dominated by N cats). Score = (count above threshold) × weight.",
         }
-        _col_tips = {ci: _HEADER_TIPS_TEXT[hdr]
-                     for ci, hdr in enumerate(_ALL_HEADERS) if hdr in _HEADER_TIPS_TEXT}
-        _HeaderTooltipFilter(shh, _col_tips)
+        self._col_tips = {ci: _HEADER_TIPS_TEXT[hdr]
+                          for ci, hdr in enumerate(_ALL_HEADERS) if hdr in _HEADER_TIPS_TEXT}
+        _HeaderTooltipFilter(shh, self._col_tips)
         self._header_descriptions = dict(_HEADER_TIPS_TEXT)
         self._score_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self._score_table.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -3025,7 +3025,7 @@ class BreedPriorityView(QWidget):
         self.recompute()
 
     def _rebuild_cw_columns(self):
-        """Sync table column count, headers, and delegates for enabled CWs."""
+        """Sync table column count, headers, delegates, and tooltips for enabled CWs."""
         enabled_cws = [cw for cw in self._complex_weights if cw.enabled]
         total_cols = COL_CW_SECTION_START + len(enabled_cws)
 
@@ -3035,6 +3035,9 @@ class BreedPriorityView(QWidget):
         _cw_delegate = _CWDelegate(self._score_table)
         _mode_widths = self._col_widths.get(self._display_mode, {})
         _name_max_len = _CW_HEADER_NAME_MAX
+        # Remove stale CW tooltip entries before repopulating
+        for key in [k for k in self._col_tips if k >= COL_CW_SECTION_START]:
+            del self._col_tips[key]
         for i, cw in enumerate(enabled_cws):
             cw_col = COL_CW_SECTION_START + i
             item = QTableWidgetItem(cw.name[:_name_max_len])
@@ -3043,6 +3046,7 @@ class BreedPriorityView(QWidget):
                 cw_col, _mode_widths.get(cw_col, _CW_DEFAULT_WIDTH)
             )
             self._score_table.setItemDelegateForColumn(cw_col, _cw_delegate)
+            self._col_tips[cw_col] = build_cw_header_tooltip(cw)
         shh.blockSignals(False)
         # Re-apply saved visual order: setColumnCount appends new sections at
         # the rightmost visual position, so saved order must be reapplied any

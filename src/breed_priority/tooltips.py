@@ -13,6 +13,10 @@ from .theme import (
     CLR_VALUE_POS, CLR_VALUE_NEG, CLR_VALUE_NEUTRAL,
     _SEX_EMOJI_GAY, _SEX_EMOJI_BI,
 )
+from .complex_weights.model import (
+    BASE_FIELD_OPTIONS, FIELD_STAT_PREFIX, FIELD_TRAIT,
+    LOGIC_AND, OP_DISPLAY,
+)
 
 
 def build_child_tooltip(cat, display_name_fn) -> str:
@@ -319,3 +323,44 @@ def build_cat_tooltip(
     )
     html_parts.append('</body></html>')
     return "".join(html_parts)
+
+
+# ── Field display helpers ─────────────────────────────────────────────────────
+
+_FIELD_LABELS: dict[str, str] = {key: label for label, key in BASE_FIELD_OPTIONS}
+
+
+def _condition_line(cond) -> str:
+    """Format a single Condition as a readable plain-text line."""
+    field = cond.field
+    if field.startswith(FIELD_STAT_PREFIX):
+        field_label = field[len(FIELD_STAT_PREFIX):]
+    else:
+        field_label = _FIELD_LABELS.get(field, field)
+
+    op_label = OP_DISPLAY.get(cond.operator, cond.operator)
+
+    value = cond.value
+    if field == FIELD_TRAIT and isinstance(value, list):
+        value_label = ", ".join(str(v) for v in value) if value else "(none)"
+    elif isinstance(value, str):
+        value_label = value.capitalize()
+    else:
+        value_label = str(value)
+
+    return f"• {field_label} {op_label} {value_label}"
+
+
+def build_cw_header_tooltip(cw) -> str:
+    """Plain-text header tooltip summarising a ComplexWeight's rule.
+
+    Shows name, delta, logic mode, and each condition.
+    """
+    sign = "+" if cw.delta >= 0 else ""
+    logic_label = "AND" if cw.logic == LOGIC_AND else "OR"
+    lines = [f'"{cw.name}" — {sign}{cw.delta:g} pts ({logic_label})']
+    if cw.conditions:
+        lines.extend(_condition_line(c) for c in cw.conditions)
+    else:
+        lines.append("(no conditions — always applies)")
+    return "\n".join(lines)
