@@ -75,7 +75,7 @@ from .columns import (
     _CW_HEADER_NAME_MAX,
     _ALL_HEADERS, _SEP_COLS, _SEP_WIDTH, _COL_MIN_WIDTH, _SEP_MIN_WIDTH,
     _CHIP_ROLE, _SCORE_SECONDARY_ROLE, _HEATMAP_ROLE, _RETIRED_ROLE,
-    _RETIRED_GLYPH, _COL_RETIRED_WIDTH,
+    _RETIRED_GLYPH, _RETIRED_HEADER, _COL_RETIRED_WIDTH,
     _ROOM_STYLE, INJURY_STAT_NAMES, _EMOJI_SCOPE, _EMOJI_ROOM,
     _SINGLE_VALUE_CENTER_SCORE_COLS, _MULTI_VALUE_LEFT_SCORE_COLS,
 )
@@ -1243,6 +1243,7 @@ class BreedPriorityView(QWidget):
             "Age":     "Age in days",
             "Loc":     "Current room",
             "Inj":     "Active injuries",
+            _RETIRED_HEADER: "Retired — cat has completed an adventure and earned a class. Retired cats cannot adventure again.",
             "STR":     "Strength",
             "DEX":     "Dexterity",
             "CON":     "Constitution",
