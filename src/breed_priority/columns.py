@@ -16,19 +16,23 @@ _SEP_HEADER      = "│"
 _RETIRED_GLYPH   = "👑"
 _RETIRED_HEADER  = "👑"
 _COL_RETIRED_WIDTH = 32
+_OLD_GLYPH       = "🧓"
+_OLD_HEADER      = "🧓"
+_COL_OLD_WIDTH   = 32
 COL_NAME          = 0
 COL_LOC           = 1
 COL_INJ           = 2
 COL_RETIRED       = 3
+COL_OLD           = 4
 _STAT_COL_NAMES   = ["STR", "DEX", "CON", "INT", "SPD", "CHA", "LCK"]
-_COL_STAT_START   = COL_RETIRED + 1
+_COL_STAT_START   = COL_OLD + 1
 _NUM_STAT_COLS    = len(_STAT_COL_NAMES)
 _SCORE_COLS       = [h for h, _ in SCORE_COLUMNS]
 COL_SEP1          = _COL_STAT_START + _NUM_STAT_COLS
 _COL_SCORE_START  = COL_SEP1 + 1
 COL_SCORE         = _COL_SCORE_START + len(SCORE_COLUMNS)
 _ALL_HEADERS      = (
-    ["Name", "Loc", "Inj", _RETIRED_HEADER]
+    ["Name", "Loc", "Inj", _RETIRED_HEADER, _OLD_HEADER]
     + _STAT_COL_NAMES
     + [_SEP_HEADER]
     + _SCORE_COLS

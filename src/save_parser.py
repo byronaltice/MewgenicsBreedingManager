@@ -66,6 +66,8 @@ _SEXUALITY_BI_THRESHOLD  = 0.1   # raw value >= this → at least bi (below = st
 _SEXUALITY_GAY_THRESHOLD = 0.9   # raw value >= this → gay
 
 _CLASS_STRING_TAIL_OFFSET = 115  # class string ends this many bytes before blob end
+_AGE_MILESTONE_TAIL_OFFSET = 79  # age milestone byte offset from blob end
+_AGE_MILESTONE_OLD = 2           # value 2 = Old (0=young, 1=adult)
 
 
 def _valid_str(s) -> bool:
@@ -1575,6 +1577,16 @@ class Cat:
                     break
         except Exception:
             logger.debug("Cat %s: class extraction failed", cat_key, exc_info=True)
+
+        # Age milestone byte: 0=young, 1=adult, 2=old.
+        # Located at a fixed offset from the blob end, just after the class-string region.
+        self.is_old: bool = False
+        try:
+            _age_pos = len(raw) - _AGE_MILESTONE_TAIL_OFFSET
+            if _age_pos >= 0:
+                self.is_old = raw[_age_pos] == _AGE_MILESTONE_OLD
+        except Exception:
+            logger.debug("Cat %s: age milestone read failed", cat_key, exc_info=True)
 
         # Derive sexuality string from the raw float at personality_anchor+40.
         if _sexuality_raw is None or _sexuality_raw < _SEXUALITY_BI_THRESHOLD:

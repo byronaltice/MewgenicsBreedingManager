@@ -69,13 +69,14 @@ from .styles import (
     checkbox_style,
 )
 from .columns import (
-    COL_NAME, COL_LOC, COL_INJ, COL_RETIRED, _STAT_COL_NAMES, _COL_STAT_START,
+    COL_NAME, COL_LOC, COL_INJ, COL_RETIRED, COL_OLD, _STAT_COL_NAMES, _COL_STAT_START,
     _NUM_STAT_COLS, _SCORE_COLS, _COL_SCORE_START, COL_SCORE,
     COL_CW_SECTION_START, _CW_DEFAULT_WIDTH,
     _CW_HEADER_NAME_MAX,
     _ALL_HEADERS, _SEP_COLS, _SEP_WIDTH, _COL_MIN_WIDTH, _SEP_MIN_WIDTH,
     _CHIP_ROLE, _SCORE_SECONDARY_ROLE, _HEATMAP_ROLE, _RETIRED_ROLE,
     _RETIRED_GLYPH, _RETIRED_HEADER, _COL_RETIRED_WIDTH,
+    _OLD_GLYPH, _OLD_HEADER, _COL_OLD_WIDTH,
     _ROOM_STYLE, INJURY_STAT_NAMES, _EMOJI_SCOPE, _EMOJI_ROOM,
     _SINGLE_VALUE_CENTER_SCORE_COLS, _MULTI_VALUE_LEFT_SCORE_COLS,
 )
@@ -1285,6 +1286,7 @@ class BreedPriorityView(QWidget):
         self._score_table.setColumnWidth(COL_LOC, 112)
         self._score_table.setColumnWidth(COL_INJ, 100)
         self._score_table.setColumnWidth(COL_RETIRED, _COL_RETIRED_WIDTH)
+        self._score_table.setColumnWidth(COL_OLD, _COL_OLD_WIDTH)
         for ci in range(_COL_STAT_START, _COL_STAT_START + _NUM_STAT_COLS):
             self._score_table.setColumnWidth(ci, 36)
         for ci in range(_COL_SCORE_START, _COL_SCORE_START + len(_SCORE_COLS)):
@@ -1888,6 +1890,8 @@ class BreedPriorityView(QWidget):
             return 100
         if logical_idx == COL_RETIRED:
             return _COL_RETIRED_WIDTH
+        if logical_idx == COL_OLD:
+            return _COL_OLD_WIDTH
         if _COL_STAT_START <= logical_idx < _COL_STAT_START + _NUM_STAT_COLS:
             return 36
         if logical_idx in _SEP_COLS:
@@ -2524,6 +2528,16 @@ class BreedPriorityView(QWidget):
             if is_retired:
                 ret_item.setToolTip(f"Retired: {cat.cat_class}")
             self._score_table.setItem(row, COL_RETIRED, ret_item)
+
+            # ── Old ──
+            is_old = getattr(cat, "is_old", False)
+            old_item = QTableWidgetItem(_OLD_GLYPH if is_old else "")
+            old_item.setTextAlignment(Qt.AlignCenter)
+            old_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+            old_item.setData(Qt.UserRole, 1.0 if is_old else 0.0)
+            if is_old:
+                old_item.setToolTip("Old")
+            self._score_table.setItem(row, COL_OLD, old_item)
 
             # ── Stat columns ──
             _cat_stats = get_cat_stats(cat, self._use_current_stats, self._add_mutation_stats)
