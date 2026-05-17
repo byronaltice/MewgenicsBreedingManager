@@ -9,7 +9,6 @@ import html as _html
 import os
 import json
 import tempfile
-import uuid
 from typing import Optional, Callable
 
 from save_parser import risk_percent, can_breed
@@ -273,58 +272,16 @@ class BreedPriorityView(QWidget):
         except Exception:
             pass
 
-        # ── Complex Weights — load global catalog, migrate legacy per-profile lists ──
-        # New model: the CW definitions are a global catalog stored at top-level
-        # under `complex_weights_catalog`. Each profile stores only the list of
-        # IDs that are enabled under that profile (`complex_weights_enabled_ids`).
-        # Old saves stored a full CW list per profile (with per-CW enabled flag);
-        # those are migrated here. To avoid silent data loss, every CW pulled
-        # from a profile slot is renamed with a "Profile N - " prefix and given
-        # a fresh ID so it remains distinct in the consolidated catalog.
+        # ── Complex Weights — load global catalog + per-profile enabled-ID set ──
         try:
-            _catalog: list = []
-            _catalog_raw = data.get("complex_weights_catalog")
-            if isinstance(_catalog_raw, list):
-                for _cw_d in _catalog_raw:
-                    try:
-                        _cw = ComplexWeight.from_dict(_cw_d)
-                        _cw.enabled = False
-                        _catalog.append(_cw)
-                    except Exception:
-                        pass
-            else:
-                # First-time migration: also pull any legacy top-level "global" list.
-                for _cw_d in data.get("complex_weights", []) or []:
-                    try:
-                        _cw = ComplexWeight.from_dict(_cw_d)
-                        _cw.enabled = False
-                        _catalog.append(_cw)
-                    except Exception:
-                        pass
-
-            for _slot_n, _slot_data in self._profiles.items():
-                if not isinstance(_slot_data, dict):
-                    continue
-                _old_cws = _slot_data.pop("complex_weights", None)
-                if _old_cws is None:
-                    continue
-                _enabled_ids = list(_slot_data.get("complex_weights_enabled_ids", []))
-                if isinstance(_old_cws, list):
-                    for _cw_d in _old_cws:
-                        try:
-                            _cw = ComplexWeight.from_dict(_cw_d)
-                        except Exception:
-                            continue
-                        _was_enabled = bool(_cw.enabled)
-                        _cw.name = f"Profile {_slot_n} - {_cw.name}"
-                        _cw.id = uuid.uuid4().hex
-                        _cw.enabled = False
-                        _catalog.append(_cw)
-                        if _was_enabled:
-                            _enabled_ids.append(_cw.id)
-                _slot_data["complex_weights_enabled_ids"] = _enabled_ids
-
-            self._complex_weights = _catalog
+            self._complex_weights = []
+            for _cw_d in data.get("complex_weights_catalog", []) or []:
+                try:
+                    _cw = ComplexWeight.from_dict(_cw_d)
+                    _cw.enabled = False
+                    self._complex_weights.append(_cw)
+                except Exception:
+                    pass
             _enabled_ids = self._profile_snapshot.get("complex_weights_enabled_ids", [])
             if isinstance(_enabled_ids, list):
                 _enabled_set = {str(x) for x in _enabled_ids}
