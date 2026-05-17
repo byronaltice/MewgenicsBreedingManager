@@ -9,6 +9,7 @@ import html as _html
 import os
 import json
 import tempfile
+import uuid
 from typing import Optional, Callable
 
 from save_parser import risk_percent, can_breed
@@ -272,17 +273,63 @@ class BreedPriorityView(QWidget):
         except Exception:
             pass
 
-        # ── Complex Weights — migrate global → per-profile, then load from profile ──
+        # ── Complex Weights — load global catalog, migrate legacy per-profile lists ──
+        # New model: the CW definitions are a global catalog stored at top-level
+        # under `complex_weights_catalog`. Each profile stores only the list of
+        # IDs that are enabled under that profile (`complex_weights_enabled_ids`).
+        # Old saves stored a full CW list per profile (with per-CW enabled flag);
+        # those are migrated here. To avoid silent data loss, every CW pulled
+        # from a profile slot is renamed with a "Profile N - " prefix and given
+        # a fresh ID so it remains distinct in the consolidated catalog.
         try:
-            _global_cws = data.get("complex_weights", [])
-            if _global_cws and isinstance(_global_cws, list):
-                # One-time migration: seed any profile slot that has no CW key yet.
-                for _slot_data in self._profiles.values():
-                    if "complex_weights" not in _slot_data:
-                        _slot_data["complex_weights"] = list(_global_cws)
-            _profile_cws = self._profile_snapshot.get("complex_weights", [])
-            if isinstance(_profile_cws, list):
-                self._complex_weights = [ComplexWeight.from_dict(d) for d in _profile_cws]
+            _catalog: list = []
+            _catalog_raw = data.get("complex_weights_catalog")
+            if isinstance(_catalog_raw, list):
+                for _cw_d in _catalog_raw:
+                    try:
+                        _cw = ComplexWeight.from_dict(_cw_d)
+                        _cw.enabled = False
+                        _catalog.append(_cw)
+                    except Exception:
+                        pass
+            else:
+                # First-time migration: also pull any legacy top-level "global" list.
+                for _cw_d in data.get("complex_weights", []) or []:
+                    try:
+                        _cw = ComplexWeight.from_dict(_cw_d)
+                        _cw.enabled = False
+                        _catalog.append(_cw)
+                    except Exception:
+                        pass
+
+            for _slot_n, _slot_data in self._profiles.items():
+                if not isinstance(_slot_data, dict):
+                    continue
+                _old_cws = _slot_data.pop("complex_weights", None)
+                if _old_cws is None:
+                    continue
+                _enabled_ids = list(_slot_data.get("complex_weights_enabled_ids", []))
+                if isinstance(_old_cws, list):
+                    for _cw_d in _old_cws:
+                        try:
+                            _cw = ComplexWeight.from_dict(_cw_d)
+                        except Exception:
+                            continue
+                        _was_enabled = bool(_cw.enabled)
+                        _cw.name = f"Profile {_slot_n} - {_cw.name}"
+                        _cw.id = uuid.uuid4().hex
+                        _cw.enabled = False
+                        _catalog.append(_cw)
+                        if _was_enabled:
+                            _enabled_ids.append(_cw.id)
+                _slot_data["complex_weights_enabled_ids"] = _enabled_ids
+
+            self._complex_weights = _catalog
+            _enabled_ids = self._profile_snapshot.get("complex_weights_enabled_ids", [])
+            if isinstance(_enabled_ids, list):
+                _enabled_set = {str(x) for x in _enabled_ids}
+                for _cw in self._complex_weights:
+                    _cw.enabled = _cw.id in _enabled_set
         except Exception:
             pass
 
@@ -478,6 +525,9 @@ class BreedPriorityView(QWidget):
                 list(self._bottom_hs.sizes()) if hasattr(self, "_bottom_hs") else []
             ),
             "trait_col_widths": {str(k): v for k, v in self._trait_col_widths.items()},
+            # Global Complex Weight catalog — definitions live outside profiles;
+            # per-profile snapshots only record which IDs are enabled.
+            "complex_weights_catalog": [cw.to_dict() for cw in self._complex_weights],
             # Profile slots (separate from working state)
             "active_profile": self._active_profile,
             "loaded_profile": self._loaded_profile,
@@ -528,7 +578,9 @@ class BreedPriorityView(QWidget):
             "sort_desc": self._sort_order == Qt.DescendingOrder,
             "filters": self._filters.to_dict(),
             "filters_enabled": self._filters_enabled,
-            "complex_weights": [cw.to_dict() for cw in self._complex_weights],
+            "complex_weights_enabled_ids": [
+                cw.id for cw in self._complex_weights if cw.enabled
+            ],
         }
 
     def _is_dirty(self) -> bool:
@@ -593,15 +645,11 @@ class BreedPriorityView(QWidget):
         _ha = data.get("heat_algo", "column")
         self._heat_algo         = _ha if _ha in ("column", "row") else "column"
         self._hidden_cols       = self._load_hidden_cols(data)
-        # Complex Weights
-        _raw_cws = data.get("complex_weights", [])
-        self._complex_weights = []
-        if isinstance(_raw_cws, list):
-            for _cw_d in _raw_cws:
-                try:
-                    self._complex_weights.append(ComplexWeight.from_dict(_cw_d))
-                except Exception:
-                    pass
+        # Complex Weights — catalog is global; only enabled-set is per-profile.
+        _enabled_ids = data.get("complex_weights_enabled_ids", [])
+        _enabled_set = {str(x) for x in _enabled_ids} if isinstance(_enabled_ids, list) else set()
+        for _cw in self._complex_weights:
+            _cw.enabled = _cw.id in _enabled_set
         if self._cw_dialog is not None:
             self._cw_dialog._cws = self._complex_weights
             self._cw_dialog._rebuild()

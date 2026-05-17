@@ -5,6 +5,7 @@ No Qt dependencies. No imports from mewgenics_manager.
 
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -120,15 +121,22 @@ class Condition:
 
 @dataclass
 class ComplexWeight:
-    """User-defined scoring rule: if conditions are met, add *delta* points."""
+    """User-defined scoring rule: if conditions are met, add *delta* points.
+
+    `id` is a stable identifier used by profiles to record per-profile enabled
+    state. `enabled` reflects the *currently active profile's* selection at
+    runtime — it is not part of the global catalog's persistent state.
+    """
     name: str
     delta: float                              # score points when matched
     logic: str = LOGIC_AND                    # LOGIC_AND or LOGIC_OR
     conditions: list = field(default_factory=list)  # List[Condition]
     enabled: bool = True
+    id: str = field(default_factory=lambda: uuid.uuid4().hex)
 
     def to_dict(self) -> dict:
         return {
+            "id":         self.id,
             "name":       self.name,
             "delta":      self.delta,
             "logic":      self.logic,
@@ -139,6 +147,7 @@ class ComplexWeight:
     @classmethod
     def from_dict(cls, d: dict) -> "ComplexWeight":
         return cls(
+            id=str(d.get("id") or uuid.uuid4().hex),
             name=d.get("name", ""),
             delta=float(d.get("delta", 0.0)),
             logic=d.get("logic", LOGIC_AND),
