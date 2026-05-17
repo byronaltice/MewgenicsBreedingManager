@@ -601,6 +601,7 @@ class ComplexWeightsDialog(QDialog):
             updated = dlg.result_cw()
             if updated:
                 updated.enabled = self._cws[idx].enabled
+                updated.id = self._cws[idx].id
                 self._cws[idx] = updated
                 self._rebuild()
                 self.cw_changed.emit()
