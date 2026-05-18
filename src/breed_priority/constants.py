@@ -87,9 +87,22 @@ from .columns import (
     _LOVE_SCORE_COLS, _HATE_SCORE_COLS, _RELATIONSHIP_SCORE_COLS,
     _SINGLE_VALUE_CENTER_SCORE_COLS, _MULTI_VALUE_LEFT_SCORE_COLS,
     _CHIP_ROLE, _SCORE_SECONDARY_ROLE, _HEATMAP_ROLE,
+    _CAT_DB_KEY_ROLE, _CURRENT_ROOM_KEY_ROLE,
     _TRAIT_NAME_ROLE, _TRAIT_SUMMARY_ROLE, _RETIRED_ROLE,
     _ROOM_STYLE, INJURY_STAT_NAMES, _INJ_SHORT,
     _EMOJI_SCOPE, _EMOJI_ROOM,
 )
 
 _NUM_PROFILES = 5
+
+# ── Draft (batch) location-edit mode ─────────────────────────────────────────
+
+# Visual cue applied to Location cells with a pending (uncommitted) room change.
+_DRAFT_PENDING_FG            = "#ffcc66"   # amber accent matching CLR_VALUE_POS family
+_DRAFT_PENDING_FONT_ITALIC   = True
+
+# Toolbar button labels for draft-mode controls.
+_BTN_LABEL_EDIT_LOCATIONS    = "Edit Locations"
+_BTN_LABEL_COMMIT            = "Commit"
+_BTN_LABEL_REVERT            = "Revert"
+_BTN_LABEL_COMMIT_FMT        = "Commit ({n})"

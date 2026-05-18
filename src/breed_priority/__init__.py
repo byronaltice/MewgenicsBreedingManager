@@ -79,6 +79,7 @@ from .columns import (
     _OLD_GLYPH, _OLD_HEADER, _COL_OLD_WIDTH,
     _ROOM_STYLE, INJURY_STAT_NAMES, _EMOJI_SCOPE, _EMOJI_ROOM,
     _SINGLE_VALUE_CENTER_SCORE_COLS, _MULTI_VALUE_LEFT_SCORE_COLS,
+    _CURRENT_ROOM_KEY_ROLE,
 )
 from .complex_weights import (
     ComplexWeight, compute_cw_matches, build_cat_trait_set, ComplexWeightsDialog,
@@ -2533,6 +2534,7 @@ class BreedPriorityView(QWidget):
             loc_item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
             loc_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable | Qt.ItemIsEditable)
             loc_item.setData(_CAT_DB_KEY_ROLE, cat.db_key)
+            loc_item.setData(_CURRENT_ROOM_KEY_ROLE, cat.room or "")
             if id(cat) in scope_set:
                 _lf = loc_item.font()
                 _lf.setBold(True)

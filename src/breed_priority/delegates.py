@@ -18,7 +18,8 @@ from save_parser import ROOM_KEYS, ROOM_DISPLAY
 
 from .columns import (
     COL_NAME, _SEP_COLS, _SEP_WIDTH,
-    _CHIP_ROLE, _SCORE_SECONDARY_ROLE, _HEATMAP_ROLE, _CAT_DB_KEY_ROLE,
+    _CHIP_ROLE, _SCORE_SECONDARY_ROLE, _HEATMAP_ROLE,
+    _CAT_DB_KEY_ROLE, _CURRENT_ROOM_KEY_ROLE,
     _TRAIT_NAME_ROLE, _TRAIT_SUMMARY_ROLE,
     _LOVE_SCORE_COLS, _HATE_SCORE_COLS,
     COL_CW_SECTION_START, _CW_HEADER_FG, _CW_HEADER_BG,
@@ -670,8 +671,13 @@ class LocationDelegate(QStyledItemDelegate):
     def setModelData(self, editor: QComboBox, model, index):
         selected_idx = editor.currentIndex()
         if selected_idx < 0 or selected_idx >= len(ROOM_KEYS):
+            # User dismissed without selecting — no-op.
             return
         new_room_key = ROOM_KEYS[selected_idx]
+        current_room_key = index.data(_CURRENT_ROOM_KEY_ROLE)
+        if new_room_key == current_room_key:
+            # Re-selected the same room — no-op, avoids spurious reload.
+            return
         cat_db_key = index.data(_CAT_DB_KEY_ROLE)
         if cat_db_key is not None and self._on_change is not None:
             self._on_change(int(cat_db_key), new_room_key)
