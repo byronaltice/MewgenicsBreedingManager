@@ -161,7 +161,7 @@ class BreedPriorityView(QWidget):
 
     # Emitted when the user commits all pending draft-mode room changes.
     # Argument: dict[int, str] — {cat_db_key: new_room_key} for each pending edit.
-    requestRoomChangesCommit = Signal(dict)
+    requestRoomChangesCommit = Signal(object)
 
     def __init__(self, ratings_path: str, stat_names: list, room_display: dict,
                  mutation_display_name, ability_tip):
