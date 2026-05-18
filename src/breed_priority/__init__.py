@@ -1339,6 +1339,7 @@ class BreedPriorityView(QWidget):
             self._score_table, on_change=self._on_location_changed
         )
         self._score_table.setItemDelegateForColumn(COL_LOC, self._location_delegate)
+        self._score_table.cellClicked.connect(self._on_score_cell_clicked)
         # Apply saved column widths
         _mode_widths = self._col_widths.get(self._display_mode, {})
         for ci, w in _mode_widths.items():
@@ -1789,6 +1790,19 @@ class BreedPriorityView(QWidget):
         }
         self._save_ratings()
         self.recompute()
+
+    def _on_score_cell_clicked(self, row: int, col: int) -> None:
+        """Open the Location combo editor on a single click of the Loc cell.
+
+        Why: the table runs with NoEditTriggers globally so unrelated columns
+        stay read-only; we explicitly open the editor here for COL_LOC.
+        """
+        if col != COL_LOC:
+            return
+        item = self._score_table.item(row, col)
+        if item is None:
+            return
+        self._score_table.editItem(item)
 
     def _on_location_changed(self, cat_db_key: int, new_room_key: str) -> None:
         """Called by LocationDelegate when the user commits a room selection.
