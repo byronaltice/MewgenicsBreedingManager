@@ -88,6 +88,7 @@ _MULTI_VALUE_LEFT_SCORE_COLS = frozenset(_score_col_idx(h) for h in _MULTI_VALUE
 _CHIP_ROLE             = Qt.UserRole + 2
 _SCORE_SECONDARY_ROLE  = Qt.UserRole + 3
 _HEATMAP_ROLE          = Qt.UserRole + 4
+_CAT_DB_KEY_ROLE       = Qt.UserRole + 5   # cat.db_key stored on LOC item for room edits
 _TRAIT_NAME_ROLE       = Qt.UserRole + 10
 _TRAIT_SUMMARY_ROLE    = Qt.UserRole + 11
 _RETIRED_ROLE          = Qt.UserRole + 12

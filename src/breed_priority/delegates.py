@@ -14,9 +14,11 @@ from PySide6.QtCore import Qt, Signal, QTimer, QObject, QEvent, QRect, QSize
 from PySide6.QtGui import QColor, QBrush, QPainter, QPen, QFont, QFontMetrics
 from PySide6.QtWidgets import QToolTip
 
+from save_parser import ROOM_KEYS, ROOM_DISPLAY
+
 from .columns import (
     COL_NAME, _SEP_COLS, _SEP_WIDTH,
-    _CHIP_ROLE, _SCORE_SECONDARY_ROLE, _HEATMAP_ROLE,
+    _CHIP_ROLE, _SCORE_SECONDARY_ROLE, _HEATMAP_ROLE, _CAT_DB_KEY_ROLE,
     _TRAIT_NAME_ROLE, _TRAIT_SUMMARY_ROLE,
     _LOVE_SCORE_COLS, _HATE_SCORE_COLS,
     COL_CW_SECTION_START, _CW_HEADER_FG, _CW_HEADER_BG,
@@ -625,6 +627,57 @@ class _CWDelegate(QStyledItemDelegate):
     def sizeHint(self, option, index):
         sh = super().sizeHint(option, index)
         return QSize(sh.width(), max(sh.height(), _CHIP_H + 8))
+
+
+# ── Location (room) delegate ──────────────────────────────────────────────────
+
+# Ordered display labels and matching room keys for the combo items.
+_LOCATION_DISPLAY_LABELS = [ROOM_DISPLAY[key] for key in ROOM_KEYS]
+
+
+class LocationDelegate(QStyledItemDelegate):
+    """QComboBox-based delegate for the Location (room) column.
+
+    Options are always the 5 standard rooms (ROOM_KEYS / ROOM_DISPLAY).
+    If the current cat.room is one of those, it is preselected; otherwise
+    the combo opens with no preselection so the user can assign a room.
+
+    The callback ``on_change(cat_db_key: int, new_room_key: str)`` is called
+    when the user commits a selection.  The cat's db_key is read from
+    ``_CAT_DB_KEY_ROLE`` on the item.
+    """
+
+    def __init__(self, parent=None, *, on_change=None):
+        super().__init__(parent)
+        self._on_change = on_change
+
+    def createEditor(self, parent, option, index):
+        combo = QComboBox(parent)
+        combo.wheelEvent = lambda e: e.ignore()
+        for label in _LOCATION_DISPLAY_LABELS:
+            combo.addItem(label)
+        return combo
+
+    def setEditorData(self, editor: QComboBox, index):
+        # The item's display text is already the human-readable room label.
+        current_label = index.data(Qt.DisplayRole) or ""
+        if current_label in _LOCATION_DISPLAY_LABELS:
+            editor.setCurrentIndex(_LOCATION_DISPLAY_LABELS.index(current_label))
+        else:
+            # Cat is outside the 5 standard rooms; no preselection.
+            editor.setCurrentIndex(-1)
+
+    def setModelData(self, editor: QComboBox, model, index):
+        selected_idx = editor.currentIndex()
+        if selected_idx < 0 or selected_idx >= len(ROOM_KEYS):
+            return
+        new_room_key = ROOM_KEYS[selected_idx]
+        cat_db_key = index.data(_CAT_DB_KEY_ROLE)
+        if cat_db_key is not None and self._on_change is not None:
+            self._on_change(int(cat_db_key), new_room_key)
+
+    def updateEditorGeometry(self, editor, option, index):
+        editor.setGeometry(option.rect)
 
 
 # ── Hate-row overlay ──────────────────────────────────────────────────────────
