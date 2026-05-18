@@ -2937,25 +2937,23 @@ class MainWindow(QMainWindow):
         """
         if not self._current_save or not changes:
             return
-        failures: list[str] = []
-        for cat_db_key, new_room_key in changes.items():
-            try:
-                save_writer.set_cat_room(self._current_save, cat_db_key, new_room_key)
-            except Exception:
-                import logging as _logging
-                _logging.getLogger(__name__).error(
-                    "Failed to write room change for cat %d -> %r",
-                    cat_db_key, new_room_key, exc_info=True,
-                )
-                failures.append(f"cat {cat_db_key} → {new_room_key!r}")
+        write_failed = False
+        try:
+            save_writer.set_cat_rooms(self._current_save, dict(changes))
+        except Exception:
+            write_failed = True
+            import logging as _logging
+            _logging.getLogger(__name__).error(
+                "Failed to write room changes batch (%d entries)",
+                len(changes), exc_info=True,
+            )
         self.load_save(self._current_save)
         self._breed_priority_view.on_save_reloaded()
-        if failures:
+        if write_failed:
             QMessageBox.warning(
                 self,
-                "Some Room Changes Failed",
-                "The following changes could not be written (successful ones were saved):\n"
-                + "\n".join(failures),
+                "Room Changes Failed",
+                "The location changes could not be written. The save file is unchanged.",
             )
 
     def _on_file_changed(self, path: str):

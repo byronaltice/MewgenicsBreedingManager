@@ -155,27 +155,40 @@ def _serialize_house_state(header_prefix: bytes, records: dict) -> bytes:
 def set_cat_room(save_path: str, cat_key: int, room_name: str) -> None:
     """Write *room_name* for *cat_key* into the house_state blob of *save_path*.
 
-    Raises ``ValueError`` if *room_name* is not in ``ROOM_KEYS``, or if the
-    blob is malformed.  On any error the save file is left untouched (the
-    SQLite write is only committed on success).
+    Convenience single-cat wrapper around :func:`set_cat_rooms`.
     """
-    if room_name not in ROOM_KEYS:
-        raise ValueError(
-            f"Invalid room name {room_name!r}. Must be one of: {ROOM_KEYS}"
-        )
+    set_cat_rooms(save_path, {cat_key: room_name})
+
+
+def set_cat_rooms(save_path: str, changes: dict) -> None:
+    """Apply many cat→room updates atomically in one SQLite transaction.
+
+    *changes* maps ``cat_key (int) -> room_name (str)``.  All room names must
+    be in ``ROOM_KEYS``; otherwise ``ValueError`` is raised before any write.
+    One connection, one blob read, one blob write, one commit — so N changes
+    cost roughly the same as a single change instead of N fsyncs.
+    """
+    if not changes:
+        return
+
+    for room_name in changes.values():
+        if room_name not in ROOM_KEYS:
+            raise ValueError(
+                f"Invalid room name {room_name!r}. Must be one of: {ROOM_KEYS}"
+            )
 
     conn = sqlite3.connect(save_path)
     try:
         header_prefix, records = read_house_state(conn)
 
-        if cat_key in records:
-            records[cat_key]["room"] = room_name
-        else:
-            # Cat not yet in house_state — append with zero tail
-            records[cat_key] = {
-                "room": room_name,
-                "tail": b"\x00" * _RECORD_TAIL_BYTES,
-            }
+        for cat_key, room_name in changes.items():
+            if cat_key in records:
+                records[cat_key]["room"] = room_name
+            else:
+                records[cat_key] = {
+                    "room": room_name,
+                    "tail": b"\x00" * _RECORD_TAIL_BYTES,
+                }
 
         new_blob = _serialize_house_state(header_prefix, records)
         conn.execute(
@@ -183,6 +196,9 @@ def set_cat_room(save_path: str, cat_key: int, room_name: str) -> None:
             (new_blob,),
         )
         conn.commit()
-        logger.info("Set cat %d room to %r in %s", cat_key, room_name, save_path)
+        logger.info(
+            "Updated %d cat room%s in %s",
+            len(changes), "s" if len(changes) != 1 else "", save_path,
+        )
     finally:
         conn.close()
