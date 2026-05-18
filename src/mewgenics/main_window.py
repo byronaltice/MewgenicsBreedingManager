@@ -1204,6 +1204,7 @@ class MainWindow(QMainWindow):
             on_status_message=lambda msg: self.statusBar().showMessage(msg),
         )
         self._breed_priority_view.requestRoomChange.connect(self._on_room_change_requested)
+        self._breed_priority_view.requestRoomChangesCommit.connect(self._on_room_changes_committed)
         self._breed_priority_view.hide()
         vb.addWidget(self._breed_priority_view, 1)
         self._party_builder_view = PartyBuilderWidget(self)
@@ -2919,6 +2920,40 @@ class MainWindow(QMainWindow):
             return
         self.load_save(self._current_save)
 
+    def _on_room_changes_committed(self, changes: dict) -> None:
+        """Write a batch of draft-mode location changes to the save, then reload once.
+
+        Called via the requestRoomChangesCommit signal from BreedPriorityView when
+        the user confirms a Commit in draft mode.  Each entry in ``changes`` is
+        written individually; failures are collected and shown after the reload so
+        successful writes are still persisted.
+
+        After the reload, ``on_save_reloaded`` is called on the view to clear
+        its pending-edit state and return the toolbar to normal.
+        """
+        if not self._current_save or not changes:
+            return
+        failures: list[str] = []
+        for cat_db_key, new_room_key in changes.items():
+            try:
+                save_writer.set_cat_room(self._current_save, cat_db_key, new_room_key)
+            except Exception:
+                import logging as _logging
+                _logging.getLogger(__name__).error(
+                    "Failed to write room change for cat %d -> %r",
+                    cat_db_key, new_room_key, exc_info=True,
+                )
+                failures.append(f"cat {cat_db_key} → {new_room_key!r}")
+        self.load_save(self._current_save)
+        self._breed_priority_view.on_save_reloaded()
+        if failures:
+            QMessageBox.warning(
+                self,
+                "Some Room Changes Failed",
+                "The following changes could not be written (successful ones were saved):\n"
+                + "\n".join(failures),
+            )
+
     def _on_file_changed(self, path: str):
         if path != self._current_save:
             return
@@ -2960,6 +2995,16 @@ class MainWindow(QMainWindow):
         # Re-add the file path if it was dropped after an atomic replacement.
         if self._current_save not in self._watcher.files():
             self._watcher.addPath(self._current_save)
+        # Suppress automatic reload when the user has unsaved draft location edits.
+        if (hasattr(self, "_breed_priority_view")
+                and self._breed_priority_view.has_pending_room_edits()):
+            QMessageBox.warning(
+                self,
+                "Save Changed on Disk",
+                "The save file changed on disk while you have pending location edits.\n"
+                "Commit or discard your pending changes before reloading.",
+            )
+            return
         self._reload()
 
     def _start_quick_room_refresh(self):

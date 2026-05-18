@@ -11,7 +11,7 @@ import json
 import tempfile
 from typing import Optional, Callable
 
-from save_parser import risk_percent, can_breed
+from save_parser import risk_percent, can_breed, ROOM_KEYS
 
 from .filters import FilterState, FilterDialog, cat_passes_filter
 from .stat_text_formatter import StatTextFormatter
@@ -107,7 +107,7 @@ from .profiles import (
     handle_profile_delete as _handle_profile_delete_impl,
 )
 from .delegates import (
-    _BothModeDelegate, _CWDelegate,
+    _BothModeDelegate, _ConfirmDialog, _CWDelegate,
     _FastTooltipFilter, _HateRowOverlay, _HeaderTooltipFilter,
     _IntParamSpin, _ListTooltipFilter, _NumericSortItem,
     _RatingCombo, _SeparatorDelegate,
@@ -115,6 +115,10 @@ from .delegates import (
     _WeightSpin, LocationDelegate,
 )
 from .columns import _CAT_DB_KEY_ROLE
+from .constants import (
+    _BTN_LABEL_EDIT_LOCATIONS, _BTN_LABEL_COMMIT, _BTN_LABEL_REVERT, _BTN_LABEL_COMMIT_FMT,
+    _DRAFT_PENDING_FG, _DRAFT_PENDING_FONT_ITALIC,
+)
 
 _NUM_PROFILES = 5
 
@@ -152,6 +156,10 @@ class BreedPriorityView(QWidget):
     # Emitted when the user requests a cat room change via the Location dropdown.
     # Arguments: (cat_db_key: int, new_room_key: str)
     requestRoomChange = Signal(int, str)
+
+    # Emitted when the user commits all pending draft-mode room changes.
+    # Argument: dict[int, str] — {cat_db_key: new_room_key} for each pending edit.
+    requestRoomChangesCommit = Signal(dict)
 
     def __init__(self, ratings_path: str, stat_names: list, room_display: dict,
                  mutation_display_name, ability_tip):
@@ -205,6 +213,9 @@ class BreedPriorityView(QWidget):
         self._complex_weights: list = []   # List[ComplexWeight]
         self._cw_dialog: ComplexWeightsDialog | None = None
         self._col_visibility_dlg: ColumnVisibilityDialog | None = None
+        # ── Draft (batch) location-edit state ──
+        self._draft_mode: bool = False
+        self._pending_room_edits: dict[int, str] = {}  # {cat_db_key: new_room_key}
         self._load_ratings()
         self._build_ui()
         self.setStyleSheet(
@@ -1000,6 +1011,44 @@ class BreedPriorityView(QWidget):
         _hal.addWidget(self._btn_heat_row)
         self._update_heat_options_enabled()
         hb.addWidget(self._heat_algo_w)
+
+        # ── Draft location-edit controls ──────────────────────────────────────
+        _vsep = QFrame()
+        _vsep.setFrameShape(QFrame.VLine)
+        _vsep.setStyleSheet(f"color:{CLR_SURFACE_SEPARATOR};")
+        _vsep.setFixedWidth(1)
+        _vsep.setFixedHeight(28)
+        hb.addWidget(_vsep)
+
+        self._btn_edit_locations = QPushButton(_BTN_LABEL_EDIT_LOCATIONS)
+        self._btn_edit_locations.setCheckable(True)
+        self._btn_edit_locations.setChecked(False)
+        self._btn_edit_locations.setStyleSheet(SEGMENTED_CONTROL_BUTTON_STYLE)
+        self._btn_edit_locations.setFixedHeight(20)
+        self._btn_edit_locations.setToolTip(
+            "Toggle draft mode for batch location changes.\n"
+            "Edits accumulate without saving; use Commit to write all at once."
+        )
+        self._btn_edit_locations.toggled.connect(self._set_draft_mode)
+        hb.addWidget(self._btn_edit_locations)
+
+        self._btn_commit_locations = QPushButton(_BTN_LABEL_COMMIT)
+        self._btn_commit_locations.setStyleSheet(ACTION_BUTTON_PRIMARY_STYLE)
+        self._btn_commit_locations.setFixedHeight(20)
+        self._btn_commit_locations.setEnabled(False)
+        self._btn_commit_locations.setToolTip("Write all pending location changes to the save file.")
+        self._btn_commit_locations.clicked.connect(self._commit_pending_room_edits)
+        self._btn_commit_locations.hide()
+        hb.addWidget(self._btn_commit_locations)
+
+        self._btn_revert_locations = QPushButton(_BTN_LABEL_REVERT)
+        self._btn_revert_locations.setStyleSheet(ACTION_BUTTON_SECONDARY_STYLE)
+        self._btn_revert_locations.setFixedHeight(20)
+        self._btn_revert_locations.setEnabled(False)
+        self._btn_revert_locations.setToolTip("Discard all pending location changes.")
+        self._btn_revert_locations.clicked.connect(self._revert_pending_room_edits)
+        self._btn_revert_locations.hide()
+        hb.addWidget(self._btn_revert_locations)
 
         return top_bar
 
@@ -1808,10 +1857,212 @@ class BreedPriorityView(QWidget):
     def _on_location_changed(self, cat_db_key: int, new_room_key: str) -> None:
         """Called by LocationDelegate when the user commits a room selection.
 
-        Emits requestRoomChange so the main window can write the save and
-        trigger a full reload.  No local state is mutated here.
+        In draft mode: stores the change in the pending dict and refreshes the
+        cell's visual cue without writing the save.
+
+        In non-draft mode: emits requestRoomChange so the main window writes
+        the save and triggers a full reload.
         """
-        self.requestRoomChange.emit(cat_db_key, new_room_key)
+        if self._draft_mode:
+            self._pending_room_edits[cat_db_key] = new_room_key
+            self._refresh_location_cell(cat_db_key)
+            self._update_commit_revert_buttons()
+        else:
+            self.requestRoomChange.emit(cat_db_key, new_room_key)
+
+    # ── Draft mode ────────────────────────────────────────────────────────────
+
+    def has_pending_room_edits(self) -> bool:
+        """Return True when there are uncommitted draft location changes."""
+        return bool(self._pending_room_edits)
+
+    def _set_draft_mode(self, enabled: bool) -> None:
+        """Enter or exit draft (batch) location-edit mode.
+
+        Exiting with pending edits prompts the user to Commit, Discard, or
+        Cancel (which re-engages draft mode).
+        """
+        if enabled == self._draft_mode:
+            return
+        if not enabled and self._pending_room_edits:
+            self._handle_exit_with_pending()
+            return
+        self._draft_mode = enabled
+        self._btn_edit_locations.blockSignals(True)
+        self._btn_edit_locations.setChecked(enabled)
+        self._btn_edit_locations.blockSignals(False)
+        if enabled:
+            self._btn_commit_locations.show()
+            self._btn_revert_locations.show()
+        else:
+            self._btn_commit_locations.hide()
+            self._btn_revert_locations.hide()
+        self._update_commit_revert_buttons()
+
+    def _handle_exit_with_pending(self) -> None:
+        """Show a three-button dialog when toggling draft off with pending edits."""
+        from PySide6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QVBoxLayout, QHBoxLayout, QPushButton as _QPB
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Pending Location Changes")
+        dlg.setModal(True)
+        dlg.setStyleSheet(
+            f"QDialog {{ background:{CLR_BG_PANEL}; }}"
+            f"QLabel  {{ color:{CLR_TEXT_SECONDARY}; font-size:12px; background:transparent; border:none; }}"
+            "QPushButton { background:#14142e; color:#8899bb; border:1px solid #2a2a55;"
+            "  border-radius:4px; padding:5px 18px; font-size:12px; }"
+            "QPushButton:hover { background:#1c1c3a; color:#ccd; border-color:#4444aa; }"
+            "QPushButton#commit { background:#0e2030; color:#88aadd; border-color:#2244aa; }"
+            "QPushButton#commit:hover { background:#122840; color:#aaccff; border-color:#3366cc; }"
+        )
+        vb = QVBoxLayout(dlg)
+        vb.setContentsMargins(24, 20, 24, 16)
+        vb.setSpacing(16)
+        n = len(self._pending_room_edits)
+        msg = QLabel(f"You have {n} unsaved location change{'s' if n != 1 else ''}.\nWhat would you like to do?")
+        msg.setWordWrap(True)
+        vb.addWidget(msg)
+        hb = QHBoxLayout()
+        hb.addStretch()
+        btn_cancel  = _QPB("Cancel")
+        btn_discard = _QPB("Discard")
+        btn_commit  = _QPB(_BTN_LABEL_COMMIT)
+        btn_commit.setObjectName("commit")
+        btn_commit.setDefault(True)
+        for _b in (btn_cancel, btn_discard, btn_commit):
+            hb.addWidget(_b)
+            hb.addSpacing(4)
+        vb.addLayout(hb)
+        dlg.setMinimumWidth(360)
+
+        _choice = [None]
+        btn_cancel.clicked.connect(lambda: _choice.__setitem__(0, "cancel") or dlg.accept())
+        btn_discard.clicked.connect(lambda: _choice.__setitem__(0, "discard") or dlg.accept())
+        btn_commit.clicked.connect(lambda: _choice.__setitem__(0, "commit") or dlg.accept())
+        dlg.exec()
+
+        choice = _choice[0]
+        if choice == "commit":
+            # Engage commit then exit draft mode (post-reload cleanup handles it).
+            self._commit_pending_room_edits()
+        elif choice == "discard":
+            pending_keys = list(self._pending_room_edits)
+            self._pending_room_edits.clear()
+            for db_key in pending_keys:
+                self._refresh_location_cell(db_key)
+            self._draft_mode = False
+            self._btn_edit_locations.blockSignals(True)
+            self._btn_edit_locations.setChecked(False)
+            self._btn_edit_locations.blockSignals(False)
+            self._btn_commit_locations.hide()
+            self._btn_revert_locations.hide()
+        else:
+            # Cancel: stay in draft mode — re-check the toggle.
+            self._btn_edit_locations.blockSignals(True)
+            self._btn_edit_locations.setChecked(True)
+            self._btn_edit_locations.blockSignals(False)
+
+    def _update_commit_revert_buttons(self) -> None:
+        """Sync enabled state and label of Commit/Revert with current pending count."""
+        n = len(self._pending_room_edits)
+        has_pending = n > 0
+        if has_pending:
+            self._btn_commit_locations.setText(_BTN_LABEL_COMMIT_FMT.format(n=n))
+        else:
+            self._btn_commit_locations.setText(_BTN_LABEL_COMMIT)
+        self._btn_commit_locations.setEnabled(has_pending)
+        self._btn_revert_locations.setEnabled(has_pending)
+
+    def _refresh_location_cell(self, cat_db_key: int) -> None:
+        """Update the Location cell for the given cat to reflect pending or saved state.
+
+        Applies an italic/accent visual cue when the cat has a pending edit, and
+        clears it when the edit is reverted or the save is reloaded.
+        """
+        table = self._score_table
+        for row in range(table.rowCount()):
+            item = table.item(row, COL_LOC)
+            if item is None:
+                continue
+            if item.data(_CAT_DB_KEY_ROLE) != cat_db_key:
+                continue
+            if cat_db_key in self._pending_room_edits:
+                pending_key = self._pending_room_edits[cat_db_key]
+                display_text = self._room_display.get(pending_key, pending_key)
+                item.setText(display_text)
+                item.setData(_CURRENT_ROOM_KEY_ROLE, pending_key)
+                pending_color = _ROOM_STYLE.get(display_text, _DRAFT_PENDING_FG)
+                item.setForeground(QColor(pending_color))
+                font = item.font()
+                font.setItalic(_DRAFT_PENDING_FONT_ITALIC)
+                item.setFont(font)
+            else:
+                # Revert to saved state from the cat object.
+                cat = next((c for c in self._cats if c.db_key == cat_db_key), None)
+                if cat is None:
+                    break
+                saved_key = cat.room or ""
+                display_text = self._room_display.get(saved_key, saved_key)
+                item.setText(display_text)
+                item.setData(_CURRENT_ROOM_KEY_ROLE, saved_key)
+                saved_color = _ROOM_STYLE.get(display_text)
+                item.setForeground(QColor(saved_color or CLR_VALUE_NEUTRAL))
+                font = item.font()
+                font.setItalic(False)
+                item.setFont(font)
+            break
+
+    def _commit_pending_room_edits(self) -> None:
+        """Confirm and emit the pending room-edit batch for writing to the save file."""
+        if not self._pending_room_edits:
+            return
+        n = len(self._pending_room_edits)
+        dlg = _ConfirmDialog(
+            "Commit Location Changes",
+            f"Write {n} location change{'s' if n != 1 else ''} to the save file?",
+            ok_label=_BTN_LABEL_COMMIT,
+            parent=self,
+        )
+        if dlg.exec() != dlg.Accepted:
+            return
+        # Disable draft controls while the write + reload is in progress.
+        self._btn_edit_locations.setEnabled(False)
+        self._btn_commit_locations.setEnabled(False)
+        self._btn_revert_locations.setEnabled(False)
+        self.requestRoomChangesCommit.emit(dict(self._pending_room_edits))
+
+    def _revert_pending_room_edits(self) -> None:
+        """Confirm and discard all pending location changes, restoring saved state."""
+        if not self._pending_room_edits:
+            return
+        n = len(self._pending_room_edits)
+        dlg = _ConfirmDialog(
+            "Revert Location Changes",
+            f"Discard {n} pending location change{'s' if n != 1 else ''}?",
+            ok_label="Discard",
+            parent=self,
+        )
+        if dlg.exec() != dlg.Accepted:
+            return
+        pending_keys = list(self._pending_room_edits)
+        self._pending_room_edits.clear()
+        for db_key in pending_keys:
+            self._refresh_location_cell(db_key)
+        self._update_commit_revert_buttons()
+
+    def on_save_reloaded(self) -> None:
+        """Called by the main window after a post-commit reload completes.
+
+        Clears the pending dict, exits draft mode, and resets the draft toolbar.
+        """
+        self._pending_room_edits.clear()
+        self._draft_mode = False
+        self._btn_edit_locations.blockSignals(True)
+        self._btn_edit_locations.setChecked(False)
+        self._btn_edit_locations.setEnabled(True)
+        self._btn_edit_locations.blockSignals(False)
+        self._btn_commit_locations.hide()
+        self._btn_revert_locations.hide()
+        self._update_commit_revert_buttons()
 
     def _on_hide_kittens_changed(self, *_):
         self._hide_kittens = self._chk_hide_kittens.isChecked()
