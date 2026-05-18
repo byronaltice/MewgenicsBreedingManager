@@ -657,6 +657,10 @@ class LocationDelegate(QStyledItemDelegate):
         combo.wheelEvent = lambda e: e.ignore()
         for label in _LOCATION_DISPLAY_LABELS:
             combo.addItem(label)
+        # Open the dropdown immediately so the user doesn't need a second click.
+        # Deferred to the next event-loop tick so Qt finishes installing the
+        # editor before the popup grab activates.
+        QTimer.singleShot(0, combo.showPopup)
         return combo
 
     def setEditorData(self, editor: QComboBox, index):
