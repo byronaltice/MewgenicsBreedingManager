@@ -2032,7 +2032,7 @@ class BreedPriorityView(QWidget):
             ok_label=_BTN_LABEL_COMMIT,
             parent=self,
         )
-        if dlg.exec() != dlg.Accepted:
+        if dlg.exec() != QDialog.Accepted:
             return
         # Disable draft controls while the write + reload is in progress.
         self._btn_edit_locations.setEnabled(False)
@@ -2051,7 +2051,7 @@ class BreedPriorityView(QWidget):
             ok_label="Discard",
             parent=self,
         )
-        if dlg.exec() != dlg.Accepted:
+        if dlg.exec() != QDialog.Accepted:
             return
         pending_keys = list(self._pending_room_edits)
         self._pending_room_edits.clear()

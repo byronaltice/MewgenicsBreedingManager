@@ -2524,14 +2524,18 @@ class MainWindow(QMainWindow):
             self._prev_parent_keys = {}
         self._current_save = path
         _set_last_save(path)
-        try:
-            save_writer.backup_save(path)
-            save_writer.prune_backups(path)
-        except Exception:
-            import logging as _logging
-            _logging.getLogger(__name__).warning(
-                "Backup failed for %s — load continues", path, exc_info=True
-            )
+        # Backup once per app session, on the first load only — subsequent
+        # reloads (e.g. after a save-file edit) must not create new backups.
+        if not getattr(self, "_session_backup_done", False):
+            try:
+                save_writer.backup_save(path)
+                save_writer.prune_backups(path)
+            except Exception:
+                import logging as _logging
+                _logging.getLogger(__name__).warning(
+                    "Backup failed for %s — load continues", path, exc_info=True
+                )
+            self._session_backup_done = True
         if self._room_optimizer_view is not None:
             self._room_optimizer_view.set_save_path(path, refresh_existing=False)
         if self._perfect_planner_view is not None:
