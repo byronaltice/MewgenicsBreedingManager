@@ -26,7 +26,7 @@ from PySide6.QtWidgets import (
     QListWidget, QListWidgetItem, QButtonGroup,
     QCheckBox, QComboBox, QLineEdit, QPushButton, QGridLayout, QTabWidget,
 )
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QBrush
 
 # ── Re-exports for external consumers ────────────────────────────────────────
@@ -111,8 +111,9 @@ from .delegates import (
     _IntParamSpin, _ListTooltipFilter, _NumericSortItem,
     _RatingCombo, _SeparatorDelegate,
     _SortHighlightHeader, _TraitChipDelegate, _TraitNameDelegate,
-    _WeightSpin,
+    _WeightSpin, LocationDelegate,
 )
+from .columns import _CAT_DB_KEY_ROLE
 
 _NUM_PROFILES = 5
 
@@ -146,6 +147,10 @@ class BreedPriorityView(QWidget):
         mutation_display_name: Callable(str) -> str; converts trait IDs to labels.
         ability_tip: Callable(str) -> str; returns tooltip text for a trait.
     """
+
+    # Emitted when the user requests a cat room change via the Location dropdown.
+    # Arguments: (cat_db_key: int, new_room_key: str)
+    requestRoomChange = Signal(int, str)
 
     def __init__(self, ratings_path: str, stat_names: list, room_display: dict,
                  mutation_display_name, ability_tip):
@@ -1329,6 +1334,11 @@ class BreedPriorityView(QWidget):
         # Default delegate for "both" mode
         self._both_delegate = _BothModeDelegate(self._score_table)
         self._score_table.setItemDelegate(self._both_delegate)
+        # Location (room) delegate — editable combo on COL_LOC
+        self._location_delegate = LocationDelegate(
+            self._score_table, on_change=self._on_location_changed
+        )
+        self._score_table.setItemDelegateForColumn(COL_LOC, self._location_delegate)
         # Apply saved column widths
         _mode_widths = self._col_widths.get(self._display_mode, {})
         for ci, w in _mode_widths.items():
@@ -1779,6 +1789,14 @@ class BreedPriorityView(QWidget):
         }
         self._save_ratings()
         self.recompute()
+
+    def _on_location_changed(self, cat_db_key: int, new_room_key: str) -> None:
+        """Called by LocationDelegate when the user commits a room selection.
+
+        Emits requestRoomChange so the main window can write the save and
+        trigger a full reload.  No local state is mutated here.
+        """
+        self.requestRoomChange.emit(cat_db_key, new_room_key)
 
     def _on_hide_kittens_changed(self, *_):
         self._hide_kittens = self._chk_hide_kittens.isChecked()
@@ -2499,7 +2517,8 @@ class BreedPriorityView(QWidget):
             loc_item = QTableWidgetItem(loc_text)
             loc_item.setForeground(QColor(_loc_color or CLR_VALUE_NEUTRAL))
             loc_item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-            loc_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+            loc_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable | Qt.ItemIsEditable)
+            loc_item.setData(_CAT_DB_KEY_ROLE, cat.db_key)
             if id(cat) in scope_set:
                 _lf = loc_item.font()
                 _lf.setBold(True)
