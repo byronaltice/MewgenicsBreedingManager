@@ -113,6 +113,8 @@ from mewgenics.views.calibration import CalibrationView
 from mewgenics.views.mutation_planner import MutationDisorderPlannerView
 from mewgenics.views.furniture import FurnitureView
 
+import save_writer
+
 from breed_priority import BreedPriorityView, PartyBuilderWidget
 
 
@@ -1201,6 +1203,7 @@ class MainWindow(QMainWindow):
             on_reload_requested=self._reload,
             on_status_message=lambda msg: self.statusBar().showMessage(msg),
         )
+        self._breed_priority_view.requestRoomChange.connect(self._on_room_change_requested)
         self._breed_priority_view.hide()
         vb.addWidget(self._breed_priority_view, 1)
         self._party_builder_view = PartyBuilderWidget(self)
@@ -2520,6 +2523,14 @@ class MainWindow(QMainWindow):
             self._prev_parent_keys = {}
         self._current_save = path
         _set_last_save(path)
+        try:
+            save_writer.backup_save(path)
+            save_writer.prune_backups(path)
+        except Exception:
+            import logging as _logging
+            _logging.getLogger(__name__).warning(
+                "Backup failed for %s — load continues", path, exc_info=True
+            )
         if self._room_optimizer_view is not None:
             self._room_optimizer_view.set_save_path(path, refresh_existing=False)
         if self._perfect_planner_view is not None:
@@ -2881,6 +2892,32 @@ class MainWindow(QMainWindow):
     def _reload(self):
         if self._current_save:
             self.load_save(self._current_save)
+
+    def _on_room_change_requested(self, cat_db_key: int, new_room_key: str) -> None:
+        """Write the requested room change to the save file, then fully reload.
+
+        Called via the requestRoomChange signal from BreedPriorityView when the
+        user commits a selection in the Location dropdown.  On failure, logs the
+        error and shows a non-modal warning — the save file is left untouched.
+        """
+        if not self._current_save:
+            return
+        try:
+            save_writer.set_cat_room(self._current_save, cat_db_key, new_room_key)
+        except Exception:
+            import logging as _logging
+            _logging.getLogger(__name__).error(
+                "Failed to write room change for cat %d -> %r",
+                cat_db_key, new_room_key, exc_info=True,
+            )
+            QMessageBox.warning(
+                self,
+                "Room Change Failed",
+                f"Could not update cat room to '{new_room_key}'.\n"
+                "The save file was not modified.",
+            )
+            return
+        self.load_save(self._current_save)
 
     def _on_file_changed(self, path: str):
         if path != self._current_save:
