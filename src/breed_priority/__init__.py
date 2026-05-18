@@ -11,7 +11,7 @@ import json
 import tempfile
 from typing import Optional, Callable
 
-from save_parser import risk_percent, can_breed, ROOM_KEYS
+from save_parser import risk_percent, can_breed, ROOM_KEYS, ROOM_DISPLAY
 
 from .filters import FilterState, FilterDialog, cat_passes_filter
 from .stat_text_formatter import StatTextFormatter
@@ -20,7 +20,7 @@ from .chip_colors import ChipColors
 from .deck_pull_button import create_pull_deck_save_button
 
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSplitter,
+    QDialog, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSplitter,
     QSizePolicy, QFrame, QScrollArea,
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
     QListWidget, QListWidgetItem, QButtonGroup,
@@ -118,7 +118,9 @@ from .columns import _CAT_DB_KEY_ROLE
 from .constants import (
     _BTN_LABEL_EDIT_LOCATIONS, _BTN_LABEL_COMMIT, _BTN_LABEL_REVERT, _BTN_LABEL_COMMIT_FMT,
     _DRAFT_PENDING_FG, _DRAFT_PENDING_FONT_ITALIC,
+    _BTN_LABEL_MOVE_KITTENS, _BTN_TIP_MOVE_KITTENS,
 )
+from .move_kittens_popup import MoveKittensPopup
 
 _NUM_PROFILES = 5
 
@@ -936,6 +938,14 @@ class BreedPriorityView(QWidget):
         )
         self._btn_columns.clicked.connect(self._open_column_visibility)
         hb.addWidget(self._btn_columns)
+
+        self._btn_move_kittens = QPushButton(_BTN_LABEL_MOVE_KITTENS)
+        self._btn_move_kittens.setStyleSheet(ACTION_BUTTON_SECONDARY_STYLE)
+        self._btn_move_kittens.setFixedHeight(22)
+        self._btn_move_kittens.setToolTip(_BTN_TIP_MOVE_KITTENS)
+        self._btn_move_kittens.clicked.connect(self._open_move_kittens_popup)
+        hb.addWidget(self._btn_move_kittens)
+
         hb.addStretch()
 
         _chk_style = checkbox_style(
@@ -2224,6 +2234,41 @@ class BreedPriorityView(QWidget):
         self._hidden_cols = set(hidden_set)
         self._apply_col_visibility()
         self._save_ratings()
+
+    # ── Move Kittens bulk action ──────────────────────────────────────────────
+
+    def _open_move_kittens_popup(self) -> None:
+        """Open the Move Kittens popup; dispatch confirmed moves based on draft mode."""
+        kittens = [c for c in self._cats if self._is_kitten(c)]
+        if not kittens:
+            return
+        dlg = MoveKittensPopup(self, kittens, ROOM_KEYS, ROOM_DISPLAY)
+        if dlg.exec() != QDialog.Accepted:
+            return
+        target_room = dlg.selected_room_key
+        changes = {
+            c.db_key: target_room
+            for c in kittens
+            if c.room != target_room
+        }
+        if not changes:
+            return
+        self._apply_room_changes_batch(changes)
+
+    def _apply_room_changes_batch(self, changes: dict) -> None:
+        """Apply a batch of room changes, respecting draft mode.
+
+        In draft mode: merges into pending edits and refreshes cells without
+        writing the save. In non-draft mode: emits requestRoomChangesCommit so
+        the main window batches all writes and triggers a single save reload.
+        """
+        if self._draft_mode:
+            self._pending_room_edits.update(changes)
+            for cat_db_key in changes:
+                self._refresh_location_cell(cat_db_key)
+            self._update_commit_revert_buttons()
+        else:
+            self.requestRoomChangesCommit.emit(dict(changes))
 
     @staticmethod
     def _score_col_alignment(col_idx: int):

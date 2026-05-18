@@ -106,3 +106,13 @@ _BTN_LABEL_EDIT_LOCATIONS    = "Edit Locations"
 _BTN_LABEL_COMMIT            = "Commit"
 _BTN_LABEL_REVERT            = "Revert"
 _BTN_LABEL_COMMIT_FMT        = "Commit ({n})"
+
+# ── Move Kittens bulk action ──────────────────────────────────────────────────
+
+_BTN_LABEL_MOVE_KITTENS      = "Move Kittens…"
+_BTN_TIP_MOVE_KITTENS        = "Bulk-move every kitten (age ≤ 1) into a chosen room."
+_MOVE_KITTENS_TITLE          = "Move All Kittens"
+_MOVE_KITTENS_PROMPT         = "Choose a room. All kittens will be moved there."
+_MOVE_KITTENS_PREVIEW_FMT    = "{moves} kittens will be moved.  ({already} already in this room.)"
+_MOVE_KITTENS_CONFIRM        = "Move Kittens"
+_MOVE_KITTENS_NO_KITTENS     = "No kittens (age ≤ 1) to move."
