@@ -11,7 +11,7 @@ import logging
 import shutil
 import sqlite3
 import struct
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from save_parser import ROOM_KEYS
@@ -20,9 +20,11 @@ logger = logging.getLogger(__name__)
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
-_BACKUP_DIRNAME        = "backups"
-_BACKUP_RETENTION      = 20
-_BACKUP_TIMESTAMP_FMT  = "%Y%m%d-%H%M%S"
+_BACKUP_DIRNAME               = "backups"
+_BACKUP_TIMESTAMP_FMT         = "%Y%m%d-%H%M%S"
+_BACKUP_RECENT_KEEP           = 50
+_BACKUP_RECENT_WINDOW         = timedelta(hours=24)
+_BACKUP_DAILY_RETENTION_DAYS  = 21
 
 # house_state blob layout constants (per record)
 _HOUSE_STATE_KEY       = "house_state"
@@ -52,24 +54,73 @@ def backup_save(save_path: str) -> Path:
     return dest
 
 
-def prune_backups(save_path: str, keep: int = _BACKUP_RETENTION) -> None:
-    """Delete the oldest backups for *save_path* so at most *keep* remain.
+def prune_backups(save_path: str) -> None:
+    """Delete backups for *save_path* that fall outside the retention policy.
 
-    Backups are matched by the original file's stem and sorted by mtime
-    descending — the *keep* newest are preserved.
+    A backup is kept iff at least one of the following is true:
+
+    1. **Recent window:** its mtime is within ``_BACKUP_RECENT_WINDOW`` (24 h)
+       before the newest backup's mtime.
+    2. **Top-N newest:** it is among the ``_BACKUP_RECENT_KEEP`` (50) newest
+       backups by mtime.
+    3. **Daily-earliest:** its local-time date is among the
+       ``_BACKUP_DAILY_RETENTION_DAYS`` (21) most-recent distinct dates that
+       have any backups, AND it is the earliest backup on that date.
+
+    Anything that satisfies none of the three rules is deleted.
     """
     src = Path(save_path)
     backup_dir = src.parent / _BACKUP_DIRNAME
     if not backup_dir.is_dir():
         return
+
     pattern = f"{src.stem}.*{src.suffix}"
-    candidates = sorted(backup_dir.glob(pattern), key=lambda p: p.stat().st_mtime, reverse=True)
-    for old in candidates[keep:]:
+    candidates = list(backup_dir.glob(pattern))
+    if not candidates:
+        return
+
+    # Pair each path with its mtime once to avoid repeated stat calls.
+    entries: list[tuple[Path, float]] = [
+        (p, p.stat().st_mtime) for p in candidates
+    ]
+    entries.sort(key=lambda pm: pm[1], reverse=True)  # newest first
+
+    anchor = entries[0][1]
+    recent_cutoff = anchor - _BACKUP_RECENT_WINDOW.total_seconds()
+
+    keep: set[Path] = set()
+
+    # Rule 1: anything within 24 h before the anchor.
+    for path, mtime in entries:
+        if mtime >= recent_cutoff:
+            keep.add(path)
+
+    # Rule 2: the top-N newest.
+    for path, _mtime in entries[:_BACKUP_RECENT_KEEP]:
+        keep.add(path)
+
+    # Rule 3: earliest backup per local date, for the most-recent 21 distinct dates.
+    earliest_by_date: dict[date, tuple[Path, float]] = {}
+    seen_dates_in_order: list[date] = []
+    for path, mtime in entries:  # newest first, so later iterations are older
+        local_date = datetime.fromtimestamp(mtime).date()
+        if local_date not in earliest_by_date:
+            seen_dates_in_order.append(local_date)
+        prev = earliest_by_date.get(local_date)
+        if prev is None or mtime < prev[1]:
+            earliest_by_date[local_date] = (path, mtime)
+    protected_dates = set(seen_dates_in_order[:_BACKUP_DAILY_RETENTION_DAYS])
+    for protected_date in protected_dates:
+        keep.add(earliest_by_date[protected_date][0])
+
+    for path, _mtime in entries:
+        if path in keep:
+            continue
         try:
-            old.unlink()
-            logger.debug("Pruned old backup: %s", old)
+            path.unlink()
+            logger.debug("Pruned old backup: %s", path)
         except OSError:
-            logger.warning("Could not delete old backup: %s", old, exc_info=True)
+            logger.warning("Could not delete old backup: %s", path, exc_info=True)
 
 
 # ── house_state reader / writer ───────────────────────────────────────────────
