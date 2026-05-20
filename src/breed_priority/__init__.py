@@ -121,6 +121,7 @@ from .constants import (
     _BTN_LABEL_MOVE_KITTENS, _BTN_TIP_MOVE_KITTENS,
 )
 from .move_kittens_popup import MoveKittensPopup
+from .symbols import format_name_with_symbol, symbol_friendly
 
 _NUM_PROFILES = 5
 
@@ -1554,9 +1555,9 @@ class BreedPriorityView(QWidget):
             self._selected_cat = None
         else:
             name_item = self._score_table.item(row, 0)
-            cat_name = name_item.text() if name_item else None
+            _cat_id = name_item.data(Qt.UserRole + 1) if name_item else None
             alive = [c for c in self._cats if c.status == "In House"]
-            self._selected_cat = next((c for c in alive if c.name == cat_name), None)
+            self._selected_cat = next((c for c in alive if id(c) == _cat_id), None)
         # Update hate-row overlay: highlight rivals in both directions
         hate_ids = set()
         if self._selected_cat:
@@ -2746,7 +2747,7 @@ class BreedPriorityView(QWidget):
     def recompute(self, *_):
         if self._populating:
             return
-        _restore_name = self._selected_cat.name if self._selected_cat else None
+        _restore_cat_id = id(self._selected_cat) if self._selected_cat else None
 
         scope_cats = self._get_scope_cats()
         _no_scope = len(scope_cats) == 0
@@ -2835,10 +2836,15 @@ class BreedPriorityView(QWidget):
             _has_sevens = bool(_seven_sets.get(id(cat), frozenset()))
 
             # ── Name ──
-            name_item = QTableWidgetItem(cat.name)
+            _cat_name_tag = getattr(cat, "name_tag", "") or ""
+            _name_display = format_name_with_symbol(cat.name, _cat_name_tag)
+            name_item = QTableWidgetItem(_name_display)
             name_item.setData(Qt.UserRole + 1, id(cat))  # used to restore row order on recompute
             name_item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
             name_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+            _symbol_tip = symbol_friendly(_cat_name_tag)
+            if _symbol_tip:
+                name_item.setToolTip(_symbol_tip)
             self._score_table.setItem(row, COL_NAME, name_item)
 
             # ── Location ──
@@ -3328,9 +3334,9 @@ class BreedPriorityView(QWidget):
                     item.setToolTip(tooltip)
             self._score_table.setRowHeight(row, 36 if self._display_mode == "both" else 22)
 
-        self._finalize_recompute(alive, results, _children_in_scope, _restore_name)
+        self._finalize_recompute(alive, results, _children_in_scope, _restore_cat_id)
 
-    def _finalize_recompute(self, alive, results, children_in_scope_fn, restore_name):
+    def _finalize_recompute(self, alive, results, children_in_scope_fn, restore_cat_id):
         """Sort, filter, restore selection, and sync overlays after table population."""
         self._score_table.setSortingEnabled(True)
         shh = self._score_table.horizontalHeader()
@@ -3340,7 +3346,7 @@ class BreedPriorityView(QWidget):
 
         # Apply row filters
         if self._filters_enabled and self._filters.is_any_active():
-            _alive_by_name = {c.name: c for c in alive}
+            _alive_by_id = {id(c): c for c in alive}
             _passes = {
                 id(cat): cat_passes_filter(
                     cat, results[id(cat)], children_in_scope_fn(cat),
@@ -3353,16 +3359,17 @@ class BreedPriorityView(QWidget):
             for _r in range(self._score_table.rowCount()):
                 _ni = self._score_table.item(_r, COL_NAME)
                 if _ni:
-                    _cat = _alive_by_name.get(_ni.text())
+                    _cid = _ni.data(Qt.UserRole + 1)
+                    _cat = _alive_by_id.get(_cid)
                     self._score_table.setRowHidden(_r, not (_cat and _passes.get(id(_cat), True)))
         else:
             for _r in range(self._score_table.rowCount()):
                 self._score_table.setRowHidden(_r, False)
 
-        if restore_name:
+        if restore_cat_id is not None:
             for r in range(self._score_table.rowCount()):
                 item = self._score_table.item(r, 0)
-                if item and item.text() == restore_name:
+                if item and item.data(Qt.UserRole + 1) == restore_cat_id:
                     self._score_table.blockSignals(True)
                     self._score_table.selectRow(r)
                     self._score_table.blockSignals(False)
