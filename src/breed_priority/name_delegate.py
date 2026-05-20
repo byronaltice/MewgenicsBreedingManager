@@ -26,8 +26,15 @@ class NameWithSymbolDelegate(QStyledItemDelegate):
     Intended for installation on COL_NAME of the score table only.
     """
 
+    def initStyleOption(self, option: QStyleOptionViewItem, index) -> None:
+        # Strip text before the base style paints — we render the text ourselves.
+        # Without this, the base paint draws the name and our paint draws it again,
+        # producing a doubled / blurred appearance from sub-pixel offset.
+        super().initStyleOption(option, index)
+        option.text = ""
+
     def paint(self, painter: QPainter, option: QStyleOptionViewItem, index) -> None:
-        # Let Qt draw the selection / hover background via the base implementation.
+        # Base paint now draws only the selection / hover background (text was blanked).
         super().paint(painter, option, index)
 
         name_tag: str = index.data(_NAME_TAG_ROLE) or ""
