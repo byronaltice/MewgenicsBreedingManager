@@ -13,7 +13,7 @@ Possible name_tag values (20 known):
 
 Asset layout:
   src/breed_priority/assets/symbols/<name_tag>.png
-  Exception: "con" tag maps to "con_.png" (Windows reserved name).
+  Exception: "con" tag maps to "heart.png" (Windows reserves the name CON).
 """
 
 import pathlib
@@ -25,9 +25,9 @@ import pathlib
 
 _ASSETS_DIR = pathlib.Path(__file__).parent / "assets" / "symbols"
 
-# Windows reserves the filename CON; the asset is stored as con_.png.
+# Windows reserves the filename CON; the asset is stored as heart.png.
 _CON_TAG      = "con"
-_CON_FILENAME = "con_.png"
+_CON_FILENAME = "heart.png"
 
 _SYMBOL_TOOLTIP_PREFIX = "Symbol: "
 

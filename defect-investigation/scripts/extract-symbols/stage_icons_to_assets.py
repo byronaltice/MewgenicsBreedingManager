@@ -9,7 +9,7 @@ Rules:
 - 7 stat icons (str, dex, con, int, spd, cha, lck) are BLACK on transparent.
   Recolor: set R=G=B=255 wherever A>0, leave A untouched.
 - The other 11 are WHITE on transparent — copy as-is.
-- con.png is a Windows reserved name; it is copied as con_.png.
+- con.png is a Windows reserved name; it is copied as heart.png.
 
 Run from the repo root:
     python defect-investigation/scripts/extract-symbols/stage_icons_to_assets.py
@@ -29,7 +29,7 @@ _BLACK_ICONS = {"str", "dex", "con", "int", "spd", "cha", "lck"}
 
 # Windows reserved name that must be renamed on copy.
 _CON_SRC_NAME = "con.png"
-_CON_DST_NAME = "con_.png"
+_CON_DST_NAME = "heart.png"
 
 
 def _recolor_to_white(src_path: pathlib.Path, dst_path: pathlib.Path) -> None:
