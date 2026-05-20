@@ -2624,6 +2624,12 @@ class MainWindow(QMainWindow):
                 )
                 if summary.room in self._available_house_rooms or not summary.room
             }
+            room_comfort = {
+                room: int(summary.effective_effects.get("Comfort", 0))
+                for room, summary in self._room_summaries.items()
+            }
+            if self._breed_priority_view is not None:
+                self._breed_priority_view.set_room_comfort(room_comfort)
             self._source_model.set_breeding_cache(None)
             if self._safe_breeding_view is not None:
                 self._safe_breeding_view.set_cache(None)

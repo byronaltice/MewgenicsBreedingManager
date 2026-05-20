@@ -215,6 +215,7 @@ class BreedPriorityView(QWidget):
         self._complex_weights: list = []   # List[ComplexWeight]
         self._cw_dialog: ComplexWeightsDialog | None = None
         self._col_visibility_dlg: ColumnVisibilityDialog | None = None
+        self._room_comfort: dict[str, int] = {}  # {room_key: Comfort value}
         # ── Draft (batch) location-edit state ──
         self._draft_mode: bool = False
         self._pending_room_edits: dict[int, str] = {}  # {cat_db_key: new_room_key}
@@ -2426,6 +2427,16 @@ class BreedPriorityView(QWidget):
         self._btn_pull_deck_save.set_callback(puller.pull_and_reload)
         self._deck_save_puller = puller
 
+    def set_room_comfort(self, comfort: dict[str, int]) -> None:
+        """Set per-room Comfort values to display next to room names.
+
+        Callers should pass {room_key: int}. Missing rooms simply omit the
+        value. Triggers a refresh of the room-checks panel if cats are loaded.
+        """
+        self._room_comfort = dict(comfort)
+        if self._cats:
+            self.set_cats(self._cats)
+
     def set_cats(self, cats: list):
         self._cats = cats
         alive = [c for c in cats if c.status == "In House"]
@@ -2484,7 +2495,15 @@ class BreedPriorityView(QWidget):
             row_h.setContentsMargins(0, 0, 0, 0)
             row_h.setSpacing(3)
 
-            chk = QCheckBox(self._room_display.get(room, room))
+            room_label = self._room_display.get(room, room)
+            room_comfort_value = self._room_comfort.get(room)
+            if room_comfort_value is not None:
+                room_label = f"{room_label}  C:{room_comfort_value:+d}"
+            chk = QCheckBox(room_label)
+            if room_comfort_value is not None:
+                chk.setToolTip(
+                    f"Comfort: {room_comfort_value} — furniture sum minus crowd penalty."
+                )
             chk.setStyleSheet(f"color:{CLR_TEXT_UI_LABEL}; font-size:11px;")
             # If All Cats is on, all room boxes start checked; otherwise restore saved state
             chk.setChecked(_all_cats_on or saved_rooms.get(room, False))
