@@ -44,6 +44,18 @@ ROOM_DISPLAY = {
 
 ROOM_KEYS = tuple(ROOM_DISPLAY.keys())
 
+# Per-room cat capacity above which Comfort takes a -1 per cat crowd penalty.
+# Derived from save data; verified against four operator-confirmed Comfort values.
+# Large rooms hold 4, Small rooms hold 3, Attic holds 6.
+ROOM_CROWD_CAPACITY: dict[str, int] = {
+    "Floor1_Large": 4,
+    "Floor2_Large": 4,
+    "Floor1_Small": 3,
+    "Floor2_Small": 3,
+    "Attic":        6,
+}
+_DEFAULT_ROOM_CROWD_CAPACITY = 4  # safety net for unknown room keys
+
 FURNITURE_ROOM_STAT_KEYS = ("Appeal", "Comfort", "Stimulation", "Health", "Evolution")
 FURNITURE_ROOM_STAT_LABELS = {
     "Appeal": "Appeal",
@@ -787,7 +799,8 @@ def summarize_furniture_room(
             if key in raw_effects:
                 raw_effects[key] += float(value)
 
-    crowd_penalty = max(0, int(cat_count) - 4)
+    capacity = ROOM_CROWD_CAPACITY.get(room or "", _DEFAULT_ROOM_CROWD_CAPACITY)
+    crowd_penalty = max(0, int(cat_count) - capacity)
     effective_effects = dict(raw_effects)
     effective_effects["Comfort"] -= crowd_penalty
     if dead_bodies:
