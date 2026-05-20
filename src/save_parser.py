@@ -52,7 +52,7 @@ ROOM_CROWD_CAPACITY: dict[str, int] = {
     "Floor2_Large": 4,
     "Floor1_Small": 3,
     "Floor2_Small": 3,
-    "Attic":        6,
+    "Attic":        7,
 }
 _DEFAULT_ROOM_CROWD_CAPACITY = 4  # safety net for unknown room keys
 
