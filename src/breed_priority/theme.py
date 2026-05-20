@@ -111,6 +111,13 @@ _CHIP_PAD_X = 5
 _CHIP_GAP = 4
 _CHIP_RADIUS = 5
 
+# ── Name-column symbol icon ───────────────────────────────────────────────────
+
+# Height (and width, since icons are roughly square) to render the in-game
+# name-tag symbol icon next to each cat's name.  Sized to sit comfortably
+# inside a standard table row alongside the name text.
+_SYMBOL_ICON_PX = 14
+
 # ── Chip color pairs (bg, fg) ─────────────────────────────────────────────────
 
 _CHIP_TOP_PRIORITY = ("#004040", "#60e8d8")

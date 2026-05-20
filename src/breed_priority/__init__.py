@@ -79,7 +79,7 @@ from .columns import (
     _OLD_GLYPH, _OLD_HEADER, _COL_OLD_WIDTH,
     _ROOM_STYLE, INJURY_STAT_NAMES, _EMOJI_SCOPE, _EMOJI_ROOM,
     _SINGLE_VALUE_CENTER_SCORE_COLS, _MULTI_VALUE_LEFT_SCORE_COLS,
-    _CURRENT_ROOM_KEY_ROLE,
+    _CURRENT_ROOM_KEY_ROLE, _NAME_TAG_ROLE,
 )
 from .complex_weights import (
     ComplexWeight, compute_cw_matches, build_cat_trait_set, ComplexWeightsDialog,
@@ -121,7 +121,8 @@ from .constants import (
     _BTN_LABEL_MOVE_KITTENS, _BTN_TIP_MOVE_KITTENS,
 )
 from .move_kittens_popup import MoveKittensPopup
-from .symbols import format_name_with_symbol, symbol_friendly
+from .symbols import symbol_friendly
+from .name_delegate import NameWithSymbolDelegate
 
 _NUM_PROFILES = 5
 
@@ -1396,6 +1397,9 @@ class BreedPriorityView(QWidget):
         # Default delegate for "both" mode
         self._both_delegate = _BothModeDelegate(self._score_table)
         self._score_table.setItemDelegate(self._both_delegate)
+        # Name delegate — draws plain cat name + in-game symbol icon on COL_NAME
+        self._name_delegate = NameWithSymbolDelegate(self._score_table)
+        self._score_table.setItemDelegateForColumn(COL_NAME, self._name_delegate)
         # Location (room) delegate — editable combo on COL_LOC
         self._location_delegate = LocationDelegate(
             self._score_table, on_change=self._on_location_changed
@@ -2837,9 +2841,9 @@ class BreedPriorityView(QWidget):
 
             # ── Name ──
             _cat_name_tag = getattr(cat, "name_tag", "") or ""
-            _name_display = format_name_with_symbol(cat.name, _cat_name_tag)
-            name_item = QTableWidgetItem(_name_display)
+            name_item = QTableWidgetItem(cat.name)
             name_item.setData(Qt.UserRole + 1, id(cat))  # used to restore row order on recompute
+            name_item.setData(_NAME_TAG_ROLE, _cat_name_tag)
             name_item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
             name_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
             _symbol_tip = symbol_friendly(_cat_name_tag)

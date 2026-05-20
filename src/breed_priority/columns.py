@@ -93,6 +93,7 @@ _CURRENT_ROOM_KEY_ROLE = Qt.UserRole + 6   # current room key on LOC item (pendi
 _TRAIT_NAME_ROLE       = Qt.UserRole + 10
 _TRAIT_SUMMARY_ROLE    = Qt.UserRole + 11
 _RETIRED_ROLE          = Qt.UserRole + 12
+_NAME_TAG_ROLE         = Qt.UserRole + 13  # cat.name_tag stored on COL_NAME item for icon rendering
 
 
 # ── Room display name → text color ───────────────────────────────────────────
