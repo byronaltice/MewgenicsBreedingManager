@@ -1,9 +1,13 @@
 """File system paths and directory resolution."""
+import logging
+import shutil
 import sys
 import os
 import re
 import platform
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 def _bundle_dir() -> str:
@@ -103,39 +107,128 @@ def _steam_library_paths() -> list[str]:
 
 # ── Sidecar file paths ───────────────────────────────────────────────────────
 
+# Save-specific sidecar suffixes, in canonical order for backup/migration.
+_SIDECAR_SUFFIXES = (
+    ".blacklist",
+    ".mustbreed",
+    ".pinned",
+    ".tags.json",
+    ".gender_overrides.csv",
+    ".calibration.json",
+    ".planner_state.json",
+    ".breeding_cache.json",
+)
+
+
+def _bp_sidecar_path() -> str:
+    """Return the path for the breed-priority sidecar (app-global)."""
+    return os.path.join(APPDATA_CONFIG_DIR, "breed_priority.json")
+
+
 def _blacklist_path(save_path: str) -> str:
     """Return path for blacklist file associated with save."""
-    return save_path + ".blacklist"
+    return os.path.join(APPDATA_CONFIG_DIR, Path(save_path).stem + ".blacklist")
 
 
 def _must_breed_path(save_path: str) -> str:
     """Return path for must-breed file associated with save."""
-    return save_path + ".mustbreed"
+    return os.path.join(APPDATA_CONFIG_DIR, Path(save_path).stem + ".mustbreed")
 
 
 def _pinned_path(save_path: str) -> str:
     """Return path for pinned-cats file associated with save."""
-    return save_path + ".pinned"
+    return os.path.join(APPDATA_CONFIG_DIR, Path(save_path).stem + ".pinned")
 
 
 def _tags_path(save_path: str) -> str:
     """Return JSON path for cat tag assignments associated with save."""
-    return save_path + ".tags.json"
+    return os.path.join(APPDATA_CONFIG_DIR, Path(save_path).stem + ".tags.json")
 
 
 def _gender_overrides_path(save_path: str) -> str:
     """Return CSV path for manual gender overrides associated with save."""
-    return save_path + ".gender_overrides.csv"
+    return os.path.join(APPDATA_CONFIG_DIR, Path(save_path).stem + ".gender_overrides.csv")
 
 
 def _calibration_path(save_path: str) -> str:
     """Return JSON path for manual calibration data associated with save."""
-    return save_path + ".calibration.json"
+    return os.path.join(APPDATA_CONFIG_DIR, Path(save_path).stem + ".calibration.json")
 
 
 def _planner_state_path(save_path: str) -> str:
-    return save_path + ".planner_state.json"
+    """Return JSON path for planner state associated with save."""
+    return os.path.join(APPDATA_CONFIG_DIR, Path(save_path).stem + ".planner_state.json")
 
 
 def _breeding_cache_path(save_path: str) -> str:
+    """Return JSON path for breeding cache associated with save."""
+    return os.path.join(APPDATA_CONFIG_DIR, Path(save_path).stem + ".breeding_cache.json")
+
+
+# ── Legacy sidecar paths (original alongside-.sav location) ──────────────────
+
+def _legacy_blacklist_path(save_path: str) -> str:
+    return save_path + ".blacklist"
+
+
+def _legacy_must_breed_path(save_path: str) -> str:
+    return save_path + ".mustbreed"
+
+
+def _legacy_pinned_path(save_path: str) -> str:
+    return save_path + ".pinned"
+
+
+def _legacy_tags_path(save_path: str) -> str:
+    return save_path + ".tags.json"
+
+
+def _legacy_gender_overrides_path(save_path: str) -> str:
+    return save_path + ".gender_overrides.csv"
+
+
+def _legacy_calibration_path(save_path: str) -> str:
+    return save_path + ".calibration.json"
+
+
+def _legacy_planner_state_path(save_path: str) -> str:
+    return save_path + ".planner_state.json"
+
+
+def _legacy_breeding_cache_path(save_path: str) -> str:
     return save_path + ".breeding_cache.json"
+
+
+def _save_specific_sidecar_pairs(save_path: str) -> list[tuple[str, str]]:
+    """Return [(new_path, legacy_path), ...] for every save-specific sidecar."""
+    stem = Path(save_path).stem
+    return [
+        (
+            os.path.join(APPDATA_CONFIG_DIR, stem + suffix),
+            save_path + suffix,
+        )
+        for suffix in _SIDECAR_SUFFIXES
+    ]
+
+
+def migrate_sidecars_to_config_dir(save_path: str) -> None:
+    """One-shot back-compat copy of save-specific sidecars into APPDATA_CONFIG_DIR.
+
+    For each sidecar: if the new path is missing AND the legacy path exists,
+    copies legacy -> new using shutil.copy2 (preserves mtimes). Never deletes
+    the legacy file. BP sidecar (breed_priority.json) is not part of this
+    migration — it was already in the config dir.
+    """
+    for new_path, legacy_path in _save_specific_sidecar_pairs(save_path):
+        if os.path.exists(new_path):
+            continue
+        if not os.path.exists(legacy_path):
+            continue
+        try:
+            shutil.copy2(legacy_path, new_path)
+            logger.info("Migrated sidecar %s -> %s", legacy_path, new_path)
+        except Exception:
+            logger.warning(
+                "Could not migrate sidecar %s -> %s",
+                legacy_path, new_path, exc_info=True,
+            )

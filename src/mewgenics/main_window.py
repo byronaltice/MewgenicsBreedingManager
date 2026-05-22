@@ -37,6 +37,7 @@ from mewgenics.constants import (
 )
 from mewgenics.utils.paths import (
     APPDATA_SAVE_DIR, APPDATA_CONFIG_DIR, APP_VERSION, _breeding_cache_path,
+    _bp_sidecar_path, migrate_sidecars_to_config_dir,
 )
 from mewgenics.utils.config import (
     _save_root_dir, _saved_default_save, _set_default_save,
@@ -1190,7 +1191,7 @@ class MainWindow(QMainWindow):
         self._mutation_planner_view = MutationDisorderPlannerView(self)
         self._mutation_planner_view.hide()
         vb.addWidget(self._mutation_planner_view, 1)
-        _ratings_path = os.path.join(APPDATA_CONFIG_DIR, "breed_priority.json")
+        _ratings_path = _bp_sidecar_path()
         self._breed_priority_view = BreedPriorityView(
             _ratings_path,
             STAT_NAMES,
@@ -2527,13 +2528,26 @@ class MainWindow(QMainWindow):
         # Backup once per app session, on the first load only — subsequent
         # reloads (e.g. after a save-file edit) must not create new backups.
         if not getattr(self, "_session_backup_done", False):
+            import logging as _logging
+            try:
+                migrate_sidecars_to_config_dir(path)
+            except Exception:
+                _logging.getLogger(__name__).warning(
+                    "Sidecar migration failed for %s — load continues", path, exc_info=True
+                )
             try:
                 save_writer.backup_save(path)
                 save_writer.prune_backups(path)
             except Exception:
-                import logging as _logging
                 _logging.getLogger(__name__).warning(
-                    "Backup failed for %s — load continues", path, exc_info=True
+                    "Save backup failed for %s — load continues", path, exc_info=True
+                )
+            try:
+                save_writer.backup_sidecars(path)
+                save_writer.prune_sidecar_backups()
+            except Exception:
+                _logging.getLogger(__name__).warning(
+                    "Sidecar backup failed for %s — load continues", path, exc_info=True
                 )
             self._session_backup_done = True
         if self._room_optimizer_view is not None:

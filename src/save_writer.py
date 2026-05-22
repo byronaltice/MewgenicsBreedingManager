@@ -13,8 +13,12 @@ import sqlite3
 import struct
 from datetime import date, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 from save_parser import ROOM_KEYS
+from mewgenics.utils.paths import (
+    APPDATA_CONFIG_DIR, _bp_sidecar_path, _save_specific_sidecar_pairs,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +29,7 @@ _BACKUP_TIMESTAMP_FMT         = "%Y%m%d-%H%M%S"
 _BACKUP_RECENT_KEEP           = 50
 _BACKUP_RECENT_WINDOW         = timedelta(hours=24)
 _BACKUP_DAILY_RETENTION_DAYS  = 21
+_SIDECAR_BACKUP_DIRNAME       = "sidecar_backups"
 
 # house_state blob layout constants (per record)
 _HOUSE_STATE_KEY       = "house_state"
@@ -52,6 +57,55 @@ def backup_save(save_path: str) -> Path:
     shutil.copy2(src, dest)
     logger.info("Backed up save to %s", dest)
     return dest
+
+
+def _select_backups_to_keep(
+    entries: list[tuple[Any, float]],
+) -> set[Any]:
+    """Apply the 3-rule retention policy and return the handles to keep.
+
+    *entries* must be a list of (handle, mtime) pairs, sorted newest-first.
+    Returns the set of handles that satisfy at least one retention rule:
+
+    1. **Recent window:** mtime within ``_BACKUP_RECENT_WINDOW`` (24 h) before
+       the newest entry's mtime.
+    2. **Top-N newest:** among the ``_BACKUP_RECENT_KEEP`` (50) newest entries.
+    3. **Daily-earliest:** the entry is the earliest one on its local date, and
+       that date is among the ``_BACKUP_DAILY_RETENTION_DAYS`` (21) most-recent
+       distinct dates represented in *entries*.
+    """
+    if not entries:
+        return set()
+
+    anchor = entries[0][1]
+    recent_cutoff = anchor - _BACKUP_RECENT_WINDOW.total_seconds()
+
+    keep: set[Any] = set()
+
+    # Rule 1: anything within 24 h before the anchor.
+    for handle, mtime in entries:
+        if mtime >= recent_cutoff:
+            keep.add(handle)
+
+    # Rule 2: the top-N newest.
+    for handle, _mtime in entries[:_BACKUP_RECENT_KEEP]:
+        keep.add(handle)
+
+    # Rule 3: earliest entry per local date, for the most-recent 21 distinct dates.
+    earliest_by_date: dict[date, tuple[Any, float]] = {}
+    seen_dates_in_order: list[date] = []
+    for handle, mtime in entries:  # newest first, so later iterations are older
+        local_date = datetime.fromtimestamp(mtime).date()
+        if local_date not in earliest_by_date:
+            seen_dates_in_order.append(local_date)
+        prev = earliest_by_date.get(local_date)
+        if prev is None or mtime < prev[1]:
+            earliest_by_date[local_date] = (handle, mtime)
+    protected_dates = set(seen_dates_in_order[:_BACKUP_DAILY_RETENTION_DAYS])
+    for protected_date in protected_dates:
+        keep.add(earliest_by_date[protected_date][0])
+
+    return keep
 
 
 def prune_backups(save_path: str) -> None:
@@ -85,33 +139,7 @@ def prune_backups(save_path: str) -> None:
     ]
     entries.sort(key=lambda pm: pm[1], reverse=True)  # newest first
 
-    anchor = entries[0][1]
-    recent_cutoff = anchor - _BACKUP_RECENT_WINDOW.total_seconds()
-
-    keep: set[Path] = set()
-
-    # Rule 1: anything within 24 h before the anchor.
-    for path, mtime in entries:
-        if mtime >= recent_cutoff:
-            keep.add(path)
-
-    # Rule 2: the top-N newest.
-    for path, _mtime in entries[:_BACKUP_RECENT_KEEP]:
-        keep.add(path)
-
-    # Rule 3: earliest backup per local date, for the most-recent 21 distinct dates.
-    earliest_by_date: dict[date, tuple[Path, float]] = {}
-    seen_dates_in_order: list[date] = []
-    for path, mtime in entries:  # newest first, so later iterations are older
-        local_date = datetime.fromtimestamp(mtime).date()
-        if local_date not in earliest_by_date:
-            seen_dates_in_order.append(local_date)
-        prev = earliest_by_date.get(local_date)
-        if prev is None or mtime < prev[1]:
-            earliest_by_date[local_date] = (path, mtime)
-    protected_dates = set(seen_dates_in_order[:_BACKUP_DAILY_RETENTION_DAYS])
-    for protected_date in protected_dates:
-        keep.add(earliest_by_date[protected_date][0])
+    keep = _select_backups_to_keep(entries)
 
     for path, _mtime in entries:
         if path in keep:
@@ -121,6 +149,82 @@ def prune_backups(save_path: str) -> None:
             logger.debug("Pruned old backup: %s", path)
         except OSError:
             logger.warning("Could not delete old backup: %s", path, exc_info=True)
+
+
+def backup_sidecars(save_path: str) -> Path:
+    """Copy every present sidecar file into a timestamped backup folder.
+
+    Copies sidecar files from their new APPDATA_CONFIG_DIR locations into
+    ``APPDATA_CONFIG_DIR/sidecar_backups/<timestamp>/``, preserving filenames.
+    Always includes breed_priority.json (if present) plus any of the 8
+    save-specific sidecars that exist on disk.
+    Skips silently if no sidecars are found (no empty folder created).
+    Returns the timestamped backup folder Path.
+    """
+    sidecar_backup_root = Path(APPDATA_CONFIG_DIR) / _SIDECAR_BACKUP_DIRNAME
+
+    # Collect all present sidecar files.
+    sources: list[Path] = []
+    bp_path = Path(_bp_sidecar_path())
+    if bp_path.exists():
+        sources.append(bp_path)
+    for new_path, _legacy_path in _save_specific_sidecar_pairs(save_path):
+        p = Path(new_path)
+        if p.exists():
+            sources.append(p)
+
+    if not sources:
+        return sidecar_backup_root  # nothing to back up
+
+    timestamp = datetime.now().strftime(_BACKUP_TIMESTAMP_FMT)
+    dest_dir = sidecar_backup_root / timestamp
+    dest_dir.mkdir(parents=True, exist_ok=True)
+
+    for src_file in sources:
+        try:
+            shutil.copy2(src_file, dest_dir / src_file.name)
+            logger.debug("Backed up sidecar %s -> %s", src_file, dest_dir)
+        except OSError:
+            logger.warning(
+                "Could not back up sidecar %s", src_file, exc_info=True
+            )
+
+    logger.info("Sidecar backup written to %s", dest_dir)
+    return dest_dir
+
+
+def prune_sidecar_backups() -> None:
+    """Delete sidecar backup folders that fall outside the retention policy.
+
+    Applies the same 3-rule retention policy as ``prune_backups`` but operates
+    on subfolders of ``APPDATA_CONFIG_DIR/sidecar_backups/`` rather than files.
+    Pruned folders are removed with ``shutil.rmtree``.
+    """
+    sidecar_backup_root = Path(APPDATA_CONFIG_DIR) / _SIDECAR_BACKUP_DIRNAME
+    if not sidecar_backup_root.is_dir():
+        return
+
+    candidates = [p for p in sidecar_backup_root.iterdir() if p.is_dir()]
+    if not candidates:
+        return
+
+    entries: list[tuple[Path, float]] = [
+        (p, p.stat().st_mtime) for p in candidates
+    ]
+    entries.sort(key=lambda pm: pm[1], reverse=True)  # newest first
+
+    keep = _select_backups_to_keep(entries)
+
+    for folder, _mtime in entries:
+        if folder in keep:
+            continue
+        try:
+            shutil.rmtree(folder)
+            logger.debug("Pruned old sidecar backup folder: %s", folder)
+        except Exception:
+            logger.warning(
+                "Could not delete sidecar backup folder: %s", folder, exc_info=True,
+            )
 
 
 # ── house_state reader / writer ───────────────────────────────────────────────
