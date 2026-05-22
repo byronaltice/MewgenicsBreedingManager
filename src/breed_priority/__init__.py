@@ -312,6 +312,25 @@ class BreedPriorityView(QWidget):
         except Exception:
             pass
 
+        # ── Normalize complex_weights_enabled_ids: drop IDs not in catalog ──
+        # Profiles can reference CW IDs that were later deleted from the catalog.
+        # Those orphaned IDs cause _serialize_current() to differ from the stored
+        # snapshot permanently, making the profile appear "Modified" on every load.
+        # _profile_snapshot shares the same dict object as _profiles[loaded], so
+        # mutating here fixes the snapshot too.
+        try:
+            _catalog_ids = {_cw.id for _cw in self._complex_weights}
+            for _slot_data in self._profiles.values():
+                if not isinstance(_slot_data, dict):
+                    continue
+                _raw_ids = _slot_data.get("complex_weights_enabled_ids", [])
+                if isinstance(_raw_ids, list):
+                    _slot_data["complex_weights_enabled_ids"] = [
+                        _cw_id for _cw_id in _raw_ids if _cw_id in _catalog_ids
+                    ]
+        except Exception:
+            pass
+
         # ── Scope, weights, display settings ──
         try:
             self._saved_scope = data.get("scope", {})
