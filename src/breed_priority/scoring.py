@@ -21,9 +21,10 @@ BREED_PRIORITY_WEIGHTS = {
     "stat_7_threshold": 7.0,   # cats with 7 in a stat before score scales down
     "stat_7_count":          2.0,   # flat bonus per stat at or above stat_count_threshold (additive)
     "stat_count_threshold":  7.0,   # minimum stat value counted by stat_7_count
-    "trait_top_priority": 2.0,
-    "trait_desirable":   2.0,
-    "trait_undesirable": -2.0,
+    "trait_top_priority":   2.0,
+    "trait_desirable":      2.0,
+    "trait_undesirable":   -2.0,
+    "trait_flat_scoring":   0.0,   # 1.0 = flat weight regardless of sharing; 0.0 = divide by n
     "low_aggression":  1.0,
     "unknown_gender":  1.0,
     "high_libido":     0.5,
@@ -370,10 +371,24 @@ def compute_breed_priority_score(cat, scope_cats: list, ma_ratings: dict,
         ability_base(m) for m in list(cat.abilities) + list(cat.passive_abilities) + list(getattr(cat, 'disorders', []))
         if not is_basic_trait(m)
     })
+    _trait_flat = _w.get("trait_flat_scoring", 0.0) >= 0.5
+
     def _score_trait(label: str, rating, n: int):
         if rating in (None, 0):
             return
-        if n == 1:
+        if _trait_flat:
+            if rating == 2:
+                pts = _w_top
+                tag = "Top Priority (flat)"
+            elif rating == 1:
+                pts = _w_des
+                tag = "Desirable (flat)"
+            elif rating == -1:
+                pts = _w_und
+                tag = "Undesirable"
+            else:
+                return
+        elif n == 1:
             if rating == 2:
                 pts = 2 * _w_top
                 tag = "Sole owner (top priority)"

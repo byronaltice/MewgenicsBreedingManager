@@ -620,6 +620,12 @@ class BreedPriorityView(QWidget):
                 spin.setValue(self._weights.get(key, BREED_PRIORITY_WEIGHTS[key]))
                 spin.blockSignals(False)
             self._populating = False
+        if hasattr(self, "_chk_trait_flat_scoring"):
+            self._chk_trait_flat_scoring.blockSignals(True)
+            self._chk_trait_flat_scoring.setChecked(
+                self._weights.get("trait_flat_scoring", 0.0) >= 0.5
+            )
+            self._chk_trait_flat_scoring.blockSignals(False)
 
         # Trait ratings
         self._ma_ratings = {k: v for k, v in data.get("ma_ratings", {}).items()
@@ -1299,6 +1305,27 @@ class BreedPriorityView(QWidget):
             self._weight_spins[key] = spin
             r += 1
 
+        _flat_sep = QFrame()
+        _flat_sep.setFrameShape(QFrame.HLine)
+        _flat_sep.setStyleSheet(f"color:{CLR_SURFACE_SEPARATOR}; margin:1px 0;")
+        wg.addWidget(_flat_sep, r, 0, 1, 2)
+        r += 1
+
+        self._chk_trait_flat_scoring = QCheckBox("Flat trait scoring")
+        self._chk_trait_flat_scoring.setChecked(
+            self._weights.get("trait_flat_scoring", 0.0) >= 0.5
+        )
+        self._chk_trait_flat_scoring.setToolTip(
+            "Off (default): traits score lower when more cats in scope share them\n"
+            "  Top Priority ÷ n  |  Desirable ÷ n  |  sole owner gets 2× bonus\n\n"
+            "On: flat weight regardless of how many cats share the trait\n"
+            "  every rated cat scores the full base weight"
+        )
+        self._chk_trait_flat_scoring.setStyleSheet(checkbox_style(font_size=10))
+        self._chk_trait_flat_scoring.stateChanged.connect(self._on_trait_flat_scoring_changed)
+        wg.addWidget(self._chk_trait_flat_scoring, r, 0, 1, 2)
+        r += 1
+
         _small_btn_style = ACTION_BUTTON_SECONDARY_STYLE
         reset_btn = QPushButton("Reset")
         reset_btn.setStyleSheet(_small_btn_style)
@@ -1842,6 +1869,11 @@ class BreedPriorityView(QWidget):
         self._save_ratings()
         self.recompute()
 
+    def _on_trait_flat_scoring_changed(self, state: int):
+        self._weights["trait_flat_scoring"] = 1.0 if state == Qt.Checked else 0.0
+        self._save_ratings()
+        self.recompute()
+
     def _reset_weights(self):
         for key, val in BREED_PRIORITY_WEIGHTS.items():
             self._weights[key] = val
@@ -1849,6 +1881,10 @@ class BreedPriorityView(QWidget):
                 self._weight_spins[key].blockSignals(True)
                 self._weight_spins[key].setValue(val)
                 self._weight_spins[key].blockSignals(False)
+        if hasattr(self, "_chk_trait_flat_scoring"):
+            self._chk_trait_flat_scoring.blockSignals(True)
+            self._chk_trait_flat_scoring.setChecked(False)
+            self._chk_trait_flat_scoring.blockSignals(False)
         self._save_ratings()
         self.recompute()
 
