@@ -1869,8 +1869,8 @@ class BreedPriorityView(QWidget):
         self._save_ratings()
         self.recompute()
 
-    def _on_trait_flat_scoring_changed(self, state: int):
-        self._weights["trait_flat_scoring"] = 1.0 if state == Qt.Checked else 0.0
+    def _on_trait_flat_scoring_changed(self, *_):
+        self._weights["trait_flat_scoring"] = 1.0 if self._chk_trait_flat_scoring.isChecked() else 0.0
         self._save_ratings()
         self.recompute()
 
@@ -3138,10 +3138,16 @@ class BreedPriorityView(QWidget):
                             _cw.get(_k, 0.0) != 0.0
                             for _k in ("trait_top_priority", "trait_desirable", "trait_undesirable")
                         ):
+                            _TRAIT_TOP_PREFIXES = (
+                                "Sole owner (top priority)", "Top Priority (÷", "Top Priority (flat)",
+                            )
+                            _TRAIT_ANY_PREFIXES = (
+                                "Sole owner", "Top Priority", "Desirable", "Undesirable:",
+                            )
                             for _desc, _pts in result.breakdown:
-                                if _desc.startswith(("Sole owner", "Top Priority (÷", "Desirable (÷", "Undesirable:")):
+                                if _desc.startswith(_TRAIT_ANY_PREFIXES):
                                     _tname = _desc.split(": ", 1)[1]
-                                    if _desc.startswith(("Sole owner (top priority)", "Top Priority (÷")):
+                                    if _desc.startswith(_TRAIT_TOP_PREFIXES):
                                         _bg, _fg = _CHIP_TOP_PRIORITY
                                     elif _pts > 0:
                                         _bg, _fg = _CHIP_DESIRABLE
