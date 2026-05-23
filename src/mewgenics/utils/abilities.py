@@ -1,4 +1,5 @@
 """Ability/mutation descriptions, tooltips, display names, and effect lines."""
+from dataclasses import dataclass
 import re
 import struct
 from typing import Sequence
@@ -6,7 +7,54 @@ from typing import Sequence
 from save_parser import (
     Cat, _load_gpak_text_strings, _resolve_game_string,
     _stimulation_inheritance_weight, _extract_primary_language_text,
+    _STAT_LABELS,
 )
+
+
+@dataclass(frozen=True)
+class AbilityInfo:
+    key: str           # normalized lowercase ID
+    display_name: str  # human-readable name resolved from GON name field
+    description: str
+    ability_class: str  # "Collarless", "Fighter", "Disorder", etc.; "" for cross-class
+    ability_type: str   # "active", "passive", "disorder", "basic"
+
+
+# Maps GPAK file stem → (ability_class, ability_type) for player-relevant files.
+# Files not listed here are skipped for meta purposes (enemy-only, internal, etc.).
+_PLAYER_ABILITY_FILES: dict[str, tuple[str, str]] = {
+    "colorless_passives":    ("Collarless",   "passive"),
+    "fighter_passives":      ("Fighter",      "passive"),
+    "tank_passives":         ("Tank",         "passive"),
+    "thief_passives":        ("Thief",        "passive"),
+    "hunter_passives":       ("Hunter",       "passive"),
+    "mage_passives":         ("Mage",         "passive"),
+    "monk_passives":         ("Monk",         "passive"),
+    "psychic_passives":      ("Psychic",      "passive"),
+    "necromancer_passives":  ("Necromancer",  "passive"),
+    "druid_passives":        ("Druid",        "passive"),
+    "jester_passives":       ("Jester",       "passive"),
+    "tinkerer_passives":     ("Tinkerer",     "passive"),
+    "butcher_passives":      ("Butcher",      "passive"),
+    "medic_passives":        ("Medic",        "passive"),
+    "disorders":             ("Disorder",     "disorder"),
+    "colorless_abilities":   ("Collarless",   "active"),
+    "fighter_abilities":     ("Fighter",      "active"),
+    "tank_abilities":        ("Tank",         "active"),
+    "thief_abilities":       ("Thief",        "active"),
+    "hunter_abilities":      ("Hunter",       "active"),
+    "mage_abilities":        ("Mage",         "active"),
+    "monk_abilities":        ("Monk",         "active"),
+    "psychic_abilities":     ("Psychic",      "active"),
+    "necromancer_abilities": ("Necromancer",  "active"),
+    "druid_abilities":       ("Druid",        "active"),
+    "jester_abilities":      ("Jester",       "active"),
+    "tinkerer_abilities":    ("Tinkerer",     "active"),
+    "butcher_abilities":     ("Butcher",      "active"),
+    "medic_abilities":       ("Medic",        "active"),
+    "basic_attacks":         ("",             "basic"),
+    "disorder_abilities":    ("Disorder",     "disorder"),
+}
 
 
 # ── Ability tooltip lookup ───────────────────────────────────────────────────
@@ -328,6 +376,7 @@ _ABILITY_KEY_ALIASES: dict[str, str] = {
 
 # Populated at runtime by _load_ability_descriptions()
 _ABILITY_DESC: dict[str, str] = {}
+_ABILITY_META: dict[str, AbilityInfo] = {}
 
 
 def _strip_tier(name: str) -> tuple[str, int]:
@@ -674,13 +723,20 @@ def _trait_inheritance_probabilities(
     return results
 
 
-def _load_ability_descriptions(gpak_path: str | None) -> dict[str, str]:
+def _load_ability_descriptions(
+    gpak_path: str | None,
+) -> tuple[dict[str, str], dict[str, AbilityInfo]]:
     """
-    Build {normalized_ability_id: english_desc} by reading ability/passive GON files
-    and combined.csv from the game's gpak. Returns {} if gpak is unavailable.
+    Build ability description and metadata dicts by reading ability/passive GON files
+    from the game's gpak. Returns ({}, {}) if gpak is unavailable.
+
+    Returns:
+        desc_dict:  {normalized_id: english_desc} — all ability/passive files
+        meta_dict:  {normalized_id: AbilityInfo}  — player-relevant files only
+                    (see _PLAYER_ABILITY_FILES for coverage)
     """
     if not gpak_path:
-        return {}
+        return {}, {}
     try:
         with open(gpak_path, "rb") as f:
             count = struct.unpack("<I", f.read(4))[0]
@@ -701,7 +757,8 @@ def _load_ability_descriptions(gpak_path: str | None) -> dict[str, str]:
             game_strings = _load_gpak_text_strings(f, file_offsets)
 
             block_re = re.compile(r'^([A-Za-z]\w*)\s*\{', re.MULTILINE)
-            desc_re = re.compile(r'^\s*desc\s+"([^"]*)"', re.MULTILINE)
+            desc_re = re.compile(r'\bdesc\s+"([^"]*)"')
+            name_re = re.compile(r'\bname\s+"([^"]*)"')
             tier2_block_re = re.compile(r'^\s*2\s*\{', re.MULTILINE)
 
             _STAT_IMG_EMOJI = {
@@ -718,13 +775,66 @@ def _load_ability_descriptions(gpak_path: str | None) -> dict[str, str]:
                 text = re.sub(r'\[c:[^\]]*\]|\[/c\]', '', text)
                 return re.sub(r'\s+', ' ', text).strip()
 
+            def _resolve_name(raw: str) -> str:
+                resolved = game_strings.get(raw, raw)
+                resolved = _resolve_game_string(resolved, game_strings)
+                return _clean(resolved) if resolved else ""
+
+            def _stats_from_text(text: str) -> str:
+                """Derive a stat-summary string from a GON text fragment.
+
+                Scans for shield/divine_shield at any level, plus key-value pairs
+                inside a stats{} sub-block.
+                """
+                seen_labels: set[str] = set()
+                parts: list[str] = []
+                stats_block_m = re.search(r'\bstats\s*\{([^}]*)\}', text, re.DOTALL)
+                stats_text = stats_block_m.group(1) if stats_block_m else ""
+                outer_text = re.sub(r'\bstats\s*\{[^}]*\}', '', text, flags=re.DOTALL)
+                combined = outer_text + "\n" + stats_text
+                for key, label in _STAT_LABELS.items():
+                    if label in seen_labels:
+                        continue
+                    m = re.search(rf'(?<!\w){re.escape(key)}\s+(-?\d+)', combined)
+                    if m:
+                        value = int(m.group(1))
+                        parts.append(f"{'+' if value > 0 else ''}{value} {label}")
+                        seen_labels.add(label)
+                return ", ".join(parts)
+
+            def _derive_desc_from_block(block: str, ability_type: str) -> str:
+                """Return a stat-summary fallback description when the CSV desc is missing.
+
+                Passives store stats inside their tier-1 sub-block; disorders store
+                them at the top level. Active abilities have no derivable stat summary.
+                """
+                if ability_type == "passive":
+                    m = re.search(r'(?<!\w)1\s*\{', block)
+                    if not m:
+                        return ""
+                    depth, idx = 1, m.end()
+                    while idx < len(block) and depth > 0:
+                        if block[idx] == '{':
+                            depth += 1
+                        elif block[idx] == '}':
+                            depth -= 1
+                        idx += 1
+                    return _stats_from_text(block[m.end():idx - 1])
+                if ability_type == "disorder":
+                    return _stats_from_text(block)
+                return ""
+
             result: dict[str, str] = {}
+            meta: dict[str, AbilityInfo] = {}
             for fname, (foff, fsz) in file_offsets.items():
                 if not (
                     (fname.startswith("data/abilities/") or fname.startswith("data/passives/"))
                     and fname.endswith(".gon")
                 ):
                     continue
+                file_stem = fname.rsplit("/", 1)[-1][:-len(".gon")]
+                file_category = _PLAYER_ABILITY_FILES.get(file_stem)
+
                 f.seek(foff)
                 content = f.read(fsz).decode("utf-8", errors="replace")
                 for bm in block_re.finditer(content):
@@ -741,12 +851,34 @@ def _load_ability_descriptions(gpak_path: str | None) -> dict[str, str]:
                     base_key = ability_id.lower()
 
                     dm = desc_re.search(block)
+                    desc_text = ""
                     if dm:
                         desc_val = dm.group(1)
                         desc_val = game_strings.get(desc_val, desc_val)
                         desc_val = _resolve_game_string(desc_val, game_strings)
                         if desc_val and desc_val != "nothing":
-                            result[base_key] = _clean(desc_val)
+                            desc_text = _clean(desc_val)
+                            result[base_key] = desc_text
+
+                    if file_category is not None:
+                        nm = name_re.search(block)
+                        display_name = _resolve_name(nm.group(1)) if nm else ability_id
+                        if not display_name:
+                            display_name = _mutation_display_name(ability_id)
+                        ability_class, ability_type = file_category
+                        desc_unresolved = bool(re.fullmatch(r'[A-Z][A-Z0-9_]+', desc_text))
+                        if not desc_text or desc_unresolved:
+                            derived = _derive_desc_from_block(block, ability_type)
+                            if derived:
+                                desc_text = derived
+                                result[base_key] = desc_text
+                        meta[base_key] = AbilityInfo(
+                            key=base_key,
+                            display_name=display_name,
+                            description=desc_text,
+                            ability_class=ability_class,
+                            ability_type=ability_type,
+                        )
 
                     # Passive GON files use nested tier blocks: 2 { desc "..." }
                     # Active ability tier-2 variants are separate top-level blocks and
@@ -771,9 +903,9 @@ def _load_ability_descriptions(gpak_path: str | None) -> dict[str, str]:
                                 t2_desc = _resolve_game_string(t2_desc, game_strings)
                                 if t2_desc and t2_desc != "nothing":
                                     result[tier2_key] = _clean(t2_desc)
-        return result
+        return result, meta
     except Exception:
-        return {}
+        return {}, {}
 
 
 def _cat_has_trait(cat: 'Cat', category: str, trait_key: str) -> bool:
@@ -803,3 +935,23 @@ def _planner_trait_display_name(display: str) -> str:
     if "] " in text:
         return text.split("] ", 1)[1]
     return text
+
+
+# ── Ability metadata queries ─────────────────────────────────────────────────
+
+def get_ability_info(name: str) -> AbilityInfo | None:
+    """Return AbilityInfo for a single ability by name (case-insensitive, punctuation-tolerant)."""
+    key = re.sub(r'[^a-z0-9]', '', name.lower())
+    return _ABILITY_META.get(key)
+
+
+def get_abilities_by_class(ability_class: str) -> list[AbilityInfo]:
+    """Return all AbilityInfo entries for the given class (e.g. 'Fighter', 'Collarless')."""
+    target = ability_class.lower()
+    return [info for info in _ABILITY_META.values() if info.ability_class.lower() == target]
+
+
+def get_abilities_by_type(ability_type: str) -> list[AbilityInfo]:
+    """Return all AbilityInfo entries for the given type ('active', 'passive', 'disorder', 'basic')."""
+    target = ability_type.lower()
+    return [info for info in _ABILITY_META.values() if info.ability_type.lower() == target]

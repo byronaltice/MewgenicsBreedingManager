@@ -10,7 +10,7 @@ from save_parser import (
 )
 
 from mewgenics.utils.config import _load_app_config, _save_app_config, _candidate_gpak_paths
-from mewgenics.utils.abilities import _load_ability_descriptions, _ABILITY_DESC
+from mewgenics.utils.abilities import _load_ability_descriptions, _ABILITY_DESC, _ABILITY_META
 
 
 # ── Mutable module state ─────────────────────────────────────────────────────
@@ -25,8 +25,11 @@ def _reload_game_data():
     global _GPAK_SEARCH_PATHS, _GPAK_PATH, _VISUAL_MUT_DATA, _FURNITURE_DATA
     _GPAK_SEARCH_PATHS = _candidate_gpak_paths()
     _GPAK_PATH = next((p for p in _GPAK_SEARCH_PATHS if os.path.exists(p)), None)
+    desc, meta = _load_ability_descriptions(_GPAK_PATH)
     _ABILITY_DESC.clear()
-    _ABILITY_DESC.update(_load_ability_descriptions(_GPAK_PATH))
+    _ABILITY_DESC.update(desc)
+    _ABILITY_META.clear()
+    _ABILITY_META.update(meta)
     game_data = GameData.from_gpak(_GPAK_PATH)
     _VISUAL_MUT_DATA = game_data.visual_mutation_data
     _FURNITURE_DATA = game_data.furniture_data
