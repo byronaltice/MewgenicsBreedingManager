@@ -65,7 +65,7 @@ from .styles import (
     ACTION_BUTTON_PRIMARY_EMPHASIS_STYLE, ACTION_BUTTON_PRIMARY_STYLE,
     ACTION_BUTTON_SECONDARY_STYLE, ACTION_BUTTON_SECONDARY_LARGE_STYLE, TOGGLE_BUTTON_INACTIVE_STYLE,
     PRIORITY_TABLE_STYLE, PRIORITY_COMBO_STYLE,
-    TRAIT_TAB_ABILITIES_STYLE, TRAIT_TAB_MUTATIONS_STYLE,
+    TRAIT_TAB_ABILITIES_STYLE, TRAIT_TAB_MUTATIONS_STYLE, TRAIT_TAB_CHILDREN_RISKS_STYLE,
     checkbox_style,
 )
 from .columns import (
@@ -433,12 +433,14 @@ class BreedPriorityView(QWidget):
         # ── Bottom pane sizes ──
         try:
             _bps = data.get("bottom_pane_sizes", [])
-            if isinstance(_bps, list) and len(_bps) == 4 and all(isinstance(x, int) for x in _bps):
+            _BOTTOM_PANE_COUNT = 3
+            if isinstance(_bps, list) and len(_bps) == _BOTTOM_PANE_COUNT and all(isinstance(x, int) for x in _bps):
                 # Guard against a pane being dragged to (near) zero width and
                 # becoming unrecoverable — restore any collapsed pane to a
                 # usable minimum so every panel stays visible on next launch.
                 _MIN_PANE_PX = 60
                 self._bottom_pane_sizes = [max(_MIN_PANE_PX, x) for x in _bps]
+            # else: mismatch (e.g. old 4-entry state) — fall back to default in _build_trait_section
         except Exception:
             pass
 
@@ -1546,16 +1548,63 @@ class BreedPriorityView(QWidget):
             self._trait_col_widths[logical_idx] = new_size
             self._col_save_timer.start()
 
+    def _make_children_risk_tab_widget(self) -> QTabWidget:
+        """Three-tab widget: Children | Top Risks | Traits, sharing the right panel."""
+        tw = QTabWidget()
+        tw.setStyleSheet(TRAIT_TAB_CHILDREN_RISKS_STYLE)
+        tw.addTab(self._make_children_panel(), "Children")
+        tw.addTab(self._make_risk_panel(), "Top Risks")
+        tw.addTab(self._make_all_traits_panel(), "Traits")
+        return tw
+
+    def _make_all_traits_panel(self) -> QWidget:
+        """Scrollable read-only view of all five trait categories for the selected cat."""
+        outer = QWidget()
+        outer.setStyleSheet(f"background:{CLR_BG_MAIN};")
+        outer_vb = QVBoxLayout(outer)
+        outer_vb.setContentsMargins(0, 0, 0, 0)
+        outer_vb.setSpacing(0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        scroll.setStyleSheet(
+            "QScrollArea { border: none; background: transparent; }"
+            f"QScrollBar:vertical {{ width: 5px; background: {CLR_BG_DEEP}; }}"
+            "QScrollBar::handle:vertical { background: #2a2a4a; border-radius: 2px; }"
+        )
+        self._all_traits_scroll = scroll
+
+        container = QWidget()
+        container.setStyleSheet(f"background:{CLR_BG_MAIN};")
+        container_vb = QVBoxLayout(container)
+        container_vb.setContentsMargins(8, 6, 8, 6)
+        container_vb.setSpacing(6)
+        self._all_traits_container = container
+        self._all_traits_layout = container_vb
+
+        self._all_traits_no_cat_lbl = QLabel("No traits")
+        self._all_traits_no_cat_lbl.setStyleSheet(
+            f"color:{CLR_TEXT_MUTED}; font-size:11px; font-style:italic;"
+        )
+        self._all_traits_no_cat_lbl.setAlignment(Qt.AlignCenter)
+        container_vb.addWidget(self._all_traits_no_cat_lbl)
+        container_vb.addStretch()
+
+        scroll.setWidget(container)
+        outer_vb.addWidget(scroll)
+        return outer
+
     def _build_trait_section(self) -> QWidget:
-        """Four equal panes: ABILITIES | MUTATIONS | CHILDREN | TOP BREEDING RISKS."""
+        """Three equal panes: ABILITIES | MUTATIONS | CHILDREN/RISKS+TRAITS."""
         self._bottom_hs = QSplitter(Qt.Horizontal)
         self._bottom_hs.setHandleWidth(6)
         self._bottom_hs.setStyleSheet(SPLITTER_H_STYLE)
         self._bottom_hs.addWidget(self._make_abilities_tab_widget())
         self._bottom_hs.addWidget(self._make_mutations_tab_widget())
-        self._bottom_hs.addWidget(self._make_children_panel())
-        self._bottom_hs.addWidget(self._make_risk_panel())
-        self._bottom_hs.setSizes(self._bottom_pane_sizes or [210, 210, 220, 220])
+        self._bottom_hs.addWidget(self._make_children_risk_tab_widget())
+        self._bottom_hs.setSizes(self._bottom_pane_sizes or [230, 230, 290])
         self._bottom_hs.splitterMoved.connect(lambda *_: self._col_save_timer.start())
 
         _all_trait_tables = (
@@ -1647,6 +1696,7 @@ class BreedPriorityView(QWidget):
         self._refresh_trait_table_order()
         self._refresh_children_panel()
         self._refresh_risk_panel()
+        self._refresh_all_traits_panel()
 
     def _refresh_trait_table_order(self):
         cat = self._selected_cat
@@ -1874,6 +1924,94 @@ class BreedPriorityView(QWidget):
             item = QListWidgetItem(f"{other.name}  {risk_pct:.1f}%  ({room})")
             item.setToolTip(f"{cat.name} x {other.name}: {risk_pct:.1f}% risk")
             self._risk_list.addItem(item)
+
+    # ── All Traits panel ──────────────────────────────────────────────────────
+
+    def _refresh_all_traits_panel(self):
+        """Rebuild the Traits tab contents for the currently selected cat."""
+        layout = self._all_traits_layout
+        # Clear all dynamically added widgets (keep the stretch at the end)
+        while layout.count() > 0:
+            item = layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        cat = self._selected_cat
+        if cat is None:
+            self._all_traits_no_cat_lbl = QLabel("No traits")
+            self._all_traits_no_cat_lbl.setStyleSheet(
+                f"color:{CLR_TEXT_MUTED}; font-size:11px; font-style:italic;"
+            )
+            self._all_traits_no_cat_lbl.setAlignment(Qt.AlignCenter)
+            layout.addWidget(self._all_traits_no_cat_lbl)
+            layout.addStretch()
+            return
+
+        cat_active    = {ability_base(a) for a in cat.abilities if not is_basic_trait(a)}
+        cat_passive   = {ability_base(a) for a in cat.passive_abilities if not is_basic_trait(a)}
+        cat_disorders = {ability_base(a) for a in getattr(cat, 'disorders', []) if not is_basic_trait(a)}
+        cat_mutations = set(cat.mutations)
+        cat_defects   = set(getattr(cat, 'defects', []))
+
+        _sections = [
+            ("Active",    cat_active),
+            ("Passive",   cat_passive),
+            ("Disorder",  cat_disorders),
+            ("Mutations", cat_mutations),
+            ("Defects",   cat_defects),
+        ]
+
+        any_traits = False
+        for section_title, trait_set in _sections:
+            if not trait_set:
+                continue
+            any_traits = True
+            header = QLabel(section_title.upper())
+            header.setStyleSheet(GROUP_LABEL_TEXT_STYLE)
+            layout.addWidget(header)
+
+            for trait in sorted(trait_set):
+                raw_display = self._display_name(trait)
+                display = StatTextFormatter.emojify(raw_display)
+
+                # Get description: prefer mutation tip, fall back to ability tip
+                mut_tip = self._mutation_tips.get(trait, "")
+                # Per _populate_trait_table: for defects, prefer selected cat's own tip
+                if mut_tip and trait in self._defect_names:
+                    for _defect_text, _defect_tip in getattr(cat, 'defect_chip_items', []):
+                        if _defect_text == trait and _defect_tip:
+                            mut_tip = _defect_tip
+                            break
+                abl_tip = self._ability_tip(trait) if not mut_tip else ""
+                description = mut_tip or abl_tip
+
+                esc_display = _html.escape(display)
+                if description:
+                    esc_desc = _html.escape(description).replace("\n", "<br>")
+                    html = (
+                        f"<b style='color:#cccccc;'>{esc_display}</b>"
+                        f"<br><span style='color:{CLR_TEXT_SECONDARY}; font-size:10px;'>{esc_desc}</span>"
+                    )
+                else:
+                    html = f"<b style='color:#cccccc;'>{esc_display}</b>"
+
+                entry_lbl = QLabel()
+                entry_lbl.setTextFormat(Qt.RichText)
+                entry_lbl.setText(html)
+                entry_lbl.setWordWrap(True)
+                entry_lbl.setStyleSheet(f"padding:2px 4px; background:{CLR_BG_DEEP};")
+                entry_lbl.setContentsMargins(0, 0, 0, 2)
+                layout.addWidget(entry_lbl)
+
+        if not any_traits:
+            no_traits_lbl = QLabel("No traits")
+            no_traits_lbl.setStyleSheet(
+                f"color:{CLR_TEXT_MUTED}; font-size:11px; font-style:italic;"
+            )
+            no_traits_lbl.setAlignment(Qt.AlignCenter)
+            layout.addWidget(no_traits_lbl)
+
+        layout.addStretch()
 
     # ── Scope helpers ─────────────────────────────────────────────────────────
 
@@ -3483,6 +3621,7 @@ class BreedPriorityView(QWidget):
         self._hate_overlay.update()
         self._refresh_children_panel()
         self._refresh_risk_panel()
+        self._refresh_all_traits_panel()
 
     # ── Complex Weights ───────────────────────────────────────────────────────
 

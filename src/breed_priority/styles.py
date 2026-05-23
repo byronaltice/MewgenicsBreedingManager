@@ -200,6 +200,8 @@ TRAIT_TAB_MUTATIONS_STYLE = (
     + f"QTabBar::tab:selected:last {{ color: {_CLR_DEFECTS_TAB_SEL}; }}"
 )
 
+TRAIT_TAB_CHILDREN_RISKS_STYLE = _TRAIT_TAB_BASE
+
 # ── Backward-compatible aliases ───────────────────────────────────────────────
 
 _SEG_BTN_STYLE = SEGMENTED_CONTROL_BUTTON_STYLE
