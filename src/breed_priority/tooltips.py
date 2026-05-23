@@ -6,6 +6,24 @@ All required context is passed in explicitly.
 
 from .columns import _STAT_COL_NAMES
 from .scoring import ScoreResult, ability_base, is_basic_trait, is_upgraded
+from .icon_provider import get_ability_icon_file_url
+
+# Size (px) at which ability icons are rendered inline in HTML tooltips.
+_TOOLTIP_ICON_SIZE = 16
+
+
+def _ability_icon_html(ability_key: str) -> str:
+    """Return an ``<img>`` tag for an ability's extracted icon, or '' if none.
+
+    ``ability_key`` is the underlying trait id (e.g. 'BlowKiss', 'Block2').
+    """
+    url = get_ability_icon_file_url(ability_key)
+    if not url:
+        return ""
+    return (
+        f'<img src="{url}" width="{_TOOLTIP_ICON_SIZE}" '
+        f'height="{_TOOLTIP_ICON_SIZE}" style="vertical-align:middle"> '
+    )
 from .theme import (
     CLR_HIGHLIGHT, CLR_TEXT_UI_LABEL,
     CLR_TOP_PRIORITY, CLR_DESIRABLE, CLR_UNDESIRABLE,
@@ -43,14 +61,16 @@ def build_child_tooltip(cat, display_name_fn) -> str:
     # Trait sections
     passive_tiers = getattr(cat, 'passive_tiers', {})
     active_abs  = [
-        display_name_fn(ability_base(a)) + ("+" if is_upgraded(a) else "")
+        _ability_icon_html(ability_base(a))
+        + display_name_fn(ability_base(a)) + ("+" if is_upgraded(a) else "")
         for a in cat.abilities if not is_basic_trait(a)
     ]
     passive_abs = [
-        display_name_fn(ability_base(a)) + ("+" if passive_tiers.get(a, 1) > 1 else "")
+        _ability_icon_html(ability_base(a))
+        + display_name_fn(ability_base(a)) + ("+" if passive_tiers.get(a, 1) > 1 else "")
         for a in cat.passive_abilities if not is_basic_trait(a)
     ]
-    disorders   = [display_name_fn(ability_base(d))
+    disorders   = [_ability_icon_html(ability_base(d)) + display_name_fn(ability_base(d))
                    for d in getattr(cat, 'disorders', []) if not is_basic_trait(d)]
     mutations   = [m for m in cat.mutations if not is_basic_trait(m)]
     defects     = [d for d in getattr(cat, 'defects', []) if not is_basic_trait(d)]
@@ -157,7 +177,7 @@ def build_cat_tooltip(
         rows = []
         for trait in traits:
             suffix = "+" if trait in upgraded_set else ""
-            display = display_name_fn(trait) + suffix
+            display = _ability_icon_html(trait) + display_name_fn(trait) + suffix
             rating = ma_ratings.get(trait)
             sharing = [c for c in scope_cats
                        if c is not cat and trait in _scope_base[id(c)]]

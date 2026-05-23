@@ -1004,6 +1004,16 @@ class BreedPriorityView(QWidget):
         self._btn_move_kittens.clicked.connect(self._open_move_kittens_popup)
         hb.addWidget(self._btn_move_kittens)
 
+        self._btn_reextract_icons = QPushButton("Re-extract icons…")
+        self._btn_reextract_icons.setStyleSheet(ACTION_BUTTON_SECONDARY_STYLE)
+        self._btn_reextract_icons.setFixedHeight(22)
+        self._btn_reextract_icons.setToolTip(
+            "Re-run the ability-icon extractor against your Mewgenics install.\n"
+            "Use this if icons are missing or the game has been updated."
+        )
+        self._btn_reextract_icons.clicked.connect(self._reextract_icons)
+        hb.addWidget(self._btn_reextract_icons)
+
         hb.addStretch()
 
         _chk_style = checkbox_style(
@@ -2463,6 +2473,11 @@ class BreedPriorityView(QWidget):
         self._save_ratings()
 
     # ── Move Kittens bulk action ──────────────────────────────────────────────
+
+    def _reextract_icons(self) -> None:
+        """Wipe the icon manifest and re-run the ability-icon extractor."""
+        from .icon_provider import reextract_icons
+        reextract_icons(self)
 
     def _open_move_kittens_popup(self) -> None:
         """Open the Move Kittens popup; dispatch confirmed moves based on draft mode."""

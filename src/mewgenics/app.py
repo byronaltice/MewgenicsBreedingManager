@@ -55,6 +55,21 @@ def main():
         )
         _ensure_gpak_path_interactive()
 
+    # Seed the breed_priority install-path setting from the gpak file (if we
+    # have one) so the icon extractor doesn't have to re-prompt. Then run a
+    # one-shot extraction on first launch (or when assets are stale).
+    try:
+        from breed_priority import app_settings as _bp_settings
+        from breed_priority.icon_provider import ensure_assets_ready as _bp_ensure_assets
+        from mewgenics.utils.game_data import _GPAK_PATH as _gpak_after_prompt
+        if _gpak_after_prompt and not _bp_settings.get_game_install_path():
+            derived = _bp_settings.derive_install_path_from_gpak(_gpak_after_prompt)
+            if derived:
+                _bp_settings.set_game_install_path(derived)
+        _bp_ensure_assets(None)
+    except Exception:
+        logger.exception("Ability-icon asset bootstrap failed (continuing without icons)")
+
     # Prefer explicit default save, then most recently loaded save, then show selector.
     initial_save: Optional[str] = _saved_default_save() or _saved_last_save()
 
