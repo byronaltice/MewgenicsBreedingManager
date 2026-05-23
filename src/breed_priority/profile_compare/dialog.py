@@ -17,10 +17,11 @@ from ..theme import (
     CLR_TEXT_CONTENT_SECONDARY,
 )
 from .constants import (
-    COL_LABEL_WIDTH, COL_SLOT_WIDTH, NUM_PROFILES, GROUP_TITLES,
+    COL_LABEL_WIDTH, NUM_PROFILES, GROUP_TITLES,
 )
 from .rows import (
-    RowTracker, add_section_header,
+    RowTracker, RowDescriptor,
+    add_section_header,
     add_name_row, add_weight_rows, add_complex_weight_rows, add_trait_rows,
 )
 
@@ -40,12 +41,16 @@ _INCLUDE_CHK_STYLE = (
     "QCheckBox::indicator { width:14px; height:14px; }"
 )
 _DIFF_CHK_STYLE = (
-    "QCheckBox { color:#88aacc; font-size:10px; padding:2px 6px; }"
+    "QCheckBox { color:#88aacc; font-size:11px; padding:2px 6px; }"
     "QCheckBox::indicator { width:13px; height:13px; }"
 )
 
 # Sentinel for empty-slot value comparisons
 _EMPTY = object()
+
+# Fallback dialog size when no parent window geometry is available
+_FALLBACK_DIALOG_W = 1400
+_FALLBACK_DIALOG_H = 900
 
 
 def _empty_blob() -> dict:
@@ -68,7 +73,9 @@ def _hashable(value) -> object:
 
 
 class ProfileCompareDialog(QDialog):
-    """Full-screen modal dialog for side-by-side profile comparison and editing.
+    """Sized modal dialog for side-by-side profile comparison and editing.
+
+    Matches the main window's geometry on open. Does not maximize.
 
     Args:
         parent: Parent widget.
@@ -95,14 +102,22 @@ class ProfileCompareDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Compare Profiles")
         self.setModal(True)
-        self.showMaximized()
 
+        # Dark background from frame one — must be set before any show()
+        self.setAttribute(Qt.WA_StyledBackground, True)
         self.setStyleSheet(
             f"QDialog {{ background:{CLR_SURFACE_APP_MAIN}; }}"
             f"QWidget {{ background:{CLR_SURFACE_APP_MAIN}; }}"
             f"QScrollArea {{ background:{CLR_SURFACE_APP_MAIN}; border:none; }}"
             f"QLabel {{ color:{CLR_TEXT_CONTENT_SECONDARY}; background:transparent; border:none; }}"
         )
+
+        # Match main-window geometry instead of maximizing
+        mw = parent.window() if parent is not None else None
+        if mw is not None:
+            self.setGeometry(mw.geometry())
+        else:
+            self.resize(_FALLBACK_DIALOG_W, _FALLBACK_DIALOG_H)
 
         self._profiles_input = profiles
         self._active_abilities = active_abilities
@@ -125,6 +140,10 @@ class ProfileCompareDialog(QDialog):
 
         # Track row visibility
         self._tracker = RowTracker()
+
+        # Slot → grid column mapping (excludes hidden slots)
+        # Column 0 = label; columns 1..N = visible slots in slot order
+        self._slot_to_col: dict[int, int] = {}
 
         self._build_ui()
 
@@ -150,10 +169,12 @@ class ProfileCompareDialog(QDialog):
         self._grid.setHorizontalSpacing(6)
         self._grid.setVerticalSpacing(3)
 
-        # Set column widths
+        # Label column has fixed width; data columns size to content
         self._grid.setColumnMinimumWidth(0, COL_LABEL_WIDTH)
-        for col in range(1, NUM_PROFILES + 1):
-            self._grid.setColumnMinimumWidth(col, COL_SLOT_WIDTH)
+        # Trailing stretch column absorbs leftover horizontal space so data
+        # columns hug left rather than distributing evenly.
+        _trailing_col = NUM_PROFILES + 1
+        self._grid.setColumnStretch(_trailing_col, 1)
 
         self._build_grid_content()
         scroll.setWidget(body_widget)
@@ -179,12 +200,12 @@ class ProfileCompareDialog(QDialog):
         self._include_checks: dict[int, QCheckBox] = {}
         for n in range(1, NUM_PROFILES + 1):
             name = self._staged[n].get("name", "") if n not in self._was_empty else ""
-            label = name if name else str(n)
-            chk = QCheckBox(label)
+            label_text = name if name else str(n)
+            if n in self._was_empty:
+                label_text = f"{label_text} (empty)"
+            chk = QCheckBox(label_text)
             chk.setChecked(True)
             chk.setStyleSheet(_INCLUDE_CHK_STYLE)
-            if n in self._was_empty:
-                pass  # Still enabled — editing empty slot creates new profile
             chk.stateChanged.connect(lambda _state, slot=n: self._on_include_toggled(slot))
             self._include_checks[n] = chk
             hb.addWidget(chk)
@@ -219,8 +240,11 @@ class ProfileCompareDialog(QDialog):
         grid = self._grid
         tracker = self._tracker
 
-        # Determine which slots have data (all slots are "present" for editors)
-        present_slots = set(range(1, NUM_PROFILES + 1))
+        # Only slots with real saved data get editor widgets; empty slots show placeholders
+        present_slots = {n for n in range(1, NUM_PROFILES + 1) if n not in self._was_empty}
+
+        # All slots start visible → initial column mapping is 1:1
+        self._slot_to_col = {n: n for n in range(1, NUM_PROFILES + 1)}
         num_cols = NUM_PROFILES
 
         # ── Name ──────────────────────────────────────────────────────────────
@@ -299,63 +323,73 @@ class ProfileCompareDialog(QDialog):
         self._refresh_diff_visibility()
 
     def _on_include_toggled(self, slot: int) -> None:
-        """Show or hide a slot's column when include checkbox is toggled."""
-        visible = self._include_checks[slot].isChecked()
-        for _lbl, editors in self._tracker.data_rows:
-            editor = editors.get(slot)
-            if editor is not None:
-                editor.setVisible(visible)
+        """Show or hide a slot's column when the include checkbox is toggled.
+
+        Remaps all editor widgets to consecutive grid columns so no gap is left
+        by a hidden slot.
+        """
+        # Recompute slot→column mapping based on currently checked slots
+        visible_slots = [
+            n for n in range(1, NUM_PROFILES + 1) if self._include_checks[n].isChecked()
+        ]
+        new_slot_to_col: dict[int, int] = {n: i + 1 for i, n in enumerate(visible_slots)}
+
+        grid = self._grid
+
+        for desc in self._tracker.data_rows:
+            for n, w in desc.editors.items():
+                slot_visible = n in new_slot_to_col
+                w.setVisible(slot_visible)
+                if slot_visible:
+                    new_col = new_slot_to_col[n]
+                    old_col = self._slot_to_col.get(n)
+                    if old_col != new_col:
+                        grid.removeWidget(w)
+                        grid.addWidget(w, desc.grid_row, new_col,
+                                       Qt.AlignLeft | Qt.AlignVCenter)
+
+        self._slot_to_col = new_slot_to_col
         self._refresh_diff_visibility()
 
     def _on_diff_toggled(self, _state: int) -> None:
-        """Recompute row visibility based on the diff-only toggle."""
+        """Recompute row dim state based on the diff-only toggle."""
         self._refresh_diff_visibility()
 
     def _update_include_label(self, slot: int) -> None:
         """Update include checkbox label if name changed."""
         name = self._staged[slot].get("name", "")
-        label = name if name else str(slot)
-        self._include_checks[slot].setText(label)
+        label_text = name if name else str(slot)
+        if slot in self._was_empty:
+            label_text = f"{label_text} (empty)"
+        self._include_checks[slot].setText(label_text)
 
     # ── Diff visibility ───────────────────────────────────────────────────────
 
     def _refresh_diff_visibility(self) -> None:
-        """Recompute which data rows should be visible based on diff toggle and include state."""
-        if not self._diff_chk.isChecked():
-            for lbl, editors in self._tracker.data_rows:
-                lbl.setVisible(True)
-                for _slot, w in editors.items():
-                    # Keep slot column visibility in sync with include checkbox
-                    if not self._include_checks[_slot].isChecked():
-                        w.setVisible(False)
-                    else:
-                        w.setVisible(True)
-            return
+        """Grey out matching rows when diff mode is on; restore all when off.
 
+        Rows are never hidden — matching rows are dimmed with setEnabled(False)
+        so the user can still see them. Only differing rows are fully enabled.
+        """
+        diff_on = self._diff_chk.isChecked()
         included_slots = [n for n in range(1, NUM_PROFILES + 1) if self._include_checks[n].isChecked()]
 
-        for lbl, editors in self._tracker.data_rows:
-            values = [
-                self._get_editor_value(editors[n], n) if n in editors else _EMPTY
-                for n in included_slots
-            ]
-            all_equal = len({_hashable(v) for v in values}) <= 1
-            row_visible = not all_equal
+        for desc in self._tracker.data_rows:
+            if diff_on and len(included_slots) > 0:
+                values = [
+                    desc.value_getter(self._staged[n]) if n not in self._was_empty else _EMPTY
+                    for n in included_slots
+                ]
+                same = len({_hashable(v) for v in values}) <= 1
+            else:
+                same = False  # diff off → treat all as differing (fully enabled)
 
-            lbl.setVisible(row_visible)
-            for n, w in editors.items():
-                if not self._include_checks[n].isChecked():
-                    w.setVisible(False)
-                else:
-                    w.setVisible(row_visible)
-
-    def _get_editor_value(self, widget, slot: int):
-        """Extract a comparable value from an editor widget for diff computation."""
-        if slot in self._was_empty and slot not in self._dirty_slots:
-            return _EMPTY
-        # Use staged data as the source of truth
-        # (we can't reliably read current value from all widget types uniformly)
-        return _EMPTY  # fallback — caller uses staged dict directly when possible
+            # Always show; grey when same under diff mode
+            desc.label.setEnabled(not same)
+            for n, w in desc.editors.items():
+                w.setEnabled(not same)
+                # Slot column visibility still controlled by include toggle
+                w.setVisible(n in self._slot_to_col)
 
     # ── Apply / Cancel ────────────────────────────────────────────────────────
 

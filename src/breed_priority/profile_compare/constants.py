@@ -1,14 +1,21 @@
 """Profile Compare dialog — layout and label constants."""
 
 # Column widths for the grid layout
-COL_LABEL_WIDTH = 240
-COL_SLOT_WIDTH  = 180
+COL_LABEL_WIDTH     = 200
+COL_LABEL_MIN_WIDTH = 140   # minimum so labels don't collapse when window is narrow
 
 # Number of profile slots
 NUM_PROFILES = 5
 
 # Button label
 COMPARE_BTN_LABEL = "…"
+
+# Row label font size (px)
+LABEL_FONT_SIZE_PX = 11
+
+# Alternating row stripe background colours
+ROW_BG_EVEN = "#0c1424"
+ROW_BG_ODD  = "#101a2e"
 
 # Int parameter ranges for weight spin editors
 # (matches the mapping in breed_priority/__init__.py)
