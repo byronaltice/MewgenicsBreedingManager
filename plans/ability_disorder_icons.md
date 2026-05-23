@@ -63,4 +63,4 @@ Display each ability's and disorder's in-game icon in the Breed Priority UI (too
 - **Pre-composite vs. Qt layer**: plan currently picks Qt-layer; revisit if compositing perf is bad in tooltips.
 - **Disorder icon scope for v1**: defer (Phase 3) — ship Phase 1+2 first.
 - **Canonical extract size**: extract at native SWF resolution, scale in Qt — avoids re-extraction if UI scale changes.
-- **Settings storage location for game install path**: confirm whether existing app uses `QSettings`, a JSON file in `%LOCALAPPDATA%`, or something else, and match it.
+- **Settings storage**: game-install path persisted to `%LOCALAPPDATA%\MewgenicsBreedingManager\settings.json` (plain JSON, same parent dir as the per-user `assets/`). Confirm during implementation whether the app already has a settings-loader module to extend; if not, add a small one alongside `icon_provider.py`.
