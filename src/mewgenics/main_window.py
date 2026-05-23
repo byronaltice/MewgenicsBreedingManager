@@ -2643,6 +2643,7 @@ class MainWindow(QMainWindow):
                 for room, summary in self._room_summaries.items()
             }
             if self._breed_priority_view is not None:
+                self._breed_priority_view.set_available_rooms(self._available_house_rooms)
                 self._breed_priority_view.set_room_comfort(room_comfort)
             self._source_model.set_breeding_cache(None)
             if self._safe_breeding_view is not None:

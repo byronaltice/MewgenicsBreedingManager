@@ -217,7 +217,8 @@ class BreedPriorityView(QWidget):
         self._complex_weights: list = []   # List[ComplexWeight]
         self._cw_dialog: ComplexWeightsDialog | None = None
         self._col_visibility_dlg: ColumnVisibilityDialog | None = None
-        self._room_comfort: dict[str, int] = {}  # {room_key: Comfort value}
+        self._room_comfort: dict[str, int] = {}   # {room_key: Comfort value}
+        self._available_rooms: list[str] = []     # unlocked rooms from the save
         # ── Draft (batch) location-edit state ──
         self._draft_mode: bool = False
         self._pending_room_edits: dict[int, str] = {}  # {cat_db_key: new_room_key}
@@ -2487,6 +2488,16 @@ class BreedPriorityView(QWidget):
         self._btn_pull_deck_save.set_callback(puller.pull_and_reload)
         self._deck_save_puller = puller
 
+    def set_available_rooms(self, rooms: list[str]) -> None:
+        """Set the full list of unlocked room keys from the current save.
+
+        Ensures all unlocked rooms appear in the panel even when empty.
+        Triggers a panel refresh if cats are already loaded.
+        """
+        self._available_rooms = list(rooms)
+        if self._cats:
+            self.set_cats(self._cats)
+
     def set_room_comfort(self, comfort: dict[str, int]) -> None:
         """Set per-room Comfort values to display next to room names.
 
@@ -2517,8 +2528,10 @@ class BreedPriorityView(QWidget):
             "Floor2_Large": 1, "Floor2_Small": 2,
             "Floor1_Large": 3, "Floor1_Small": 4,
         }
+        occupied_rooms = {c.room for c in alive if c.room}
+        base_rooms = set(self._available_rooms) if self._available_rooms else occupied_rooms
         rooms = sorted(
-            {c.room for c in alive if c.room},
+            base_rooms | occupied_rooms,
             key=lambda r: _ROOM_ORDER.get(r, 99),
         )
         _all_cats_on = self._chk_all_cats.isChecked()
