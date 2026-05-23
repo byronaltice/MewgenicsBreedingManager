@@ -123,6 +123,7 @@ from .constants import (
 from .move_kittens_popup import MoveKittensPopup
 from .symbols import symbol_friendly
 from .name_delegate import NameWithSymbolDelegate
+from .profile_compare import ProfileCompareDialog
 
 _NUM_PROFILES = 5
 
@@ -776,6 +777,7 @@ class BreedPriorityView(QWidget):
             on_load=self._on_profile_load,
             on_save=self._on_profile_save,
             on_delete=self._on_profile_delete,
+            on_compare_clicked=self._open_profile_compare,
         )
         self._profile_widget_refs = refs
         self._profile_name_edit = refs["name_edit"]
@@ -864,6 +866,31 @@ class BreedPriorityView(QWidget):
         self._active_profile = next_n
         self._profile_snapshot = dict(self._profiles[next_n])
         self._save_ratings()
+
+    def _open_profile_compare(self):
+        """Open the Profile Compare dialog and apply any changes on Accept."""
+        dlg = ProfileCompareDialog(
+            parent=self,
+            profiles=self._profiles,
+            active_abilities=self._all_active_abilities,
+            passive_abilities=self._all_passive_abilities,
+            disorders=self._all_disorders,
+            good_mutations=self._all_good_mutations,
+            defects=self._all_defects,
+            complex_weights=self._complex_weights,
+        )
+        if dlg.exec() != QDialog.Accepted or dlg.result_profiles is None:
+            return
+
+        self._profiles = dlg.result_profiles
+        self._save_ratings()
+
+        # If the currently-loaded slot was edited, refresh the live view.
+        if self._loaded_profile in self._profiles:
+            loaded_data = self._profiles[self._loaded_profile]
+            self._apply_profile_data(loaded_data)
+            self._profile_snapshot = dict(loaded_data)
+        self._update_profile_bar()
 
     # ── UI build ──────────────────────────────────────────────────────────────
 

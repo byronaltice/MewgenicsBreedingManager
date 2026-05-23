@@ -33,6 +33,7 @@ def build_profile_bar(
     on_load,
     on_save,
     on_delete,
+    on_compare_clicked=None,
 ) -> tuple:
     """Build the profile selector bar UI.
 
@@ -44,12 +45,13 @@ def build_profile_bar(
         on_traits_only_changed: Callback for traits-only checkbox.
         on_btn_clicked: Callback(n) for profile slot button clicks.
         on_load/on_save/on_delete: Callbacks for action buttons.
+        on_compare_clicked: Optional callback for the "…" compare button.
 
     Returns:
         (bar_widget, widget_refs) — widget_refs is a dict with keys:
             name_edit, sel_arrow_lbl, sel_name_lbl, profile_btns,
             load_btn, save_btn, delete_btn, loaded_lbl, dirty_lbl,
-            chk_traits_only
+            chk_traits_only, compare_btn
     """
     bar = QWidget()
     bar.setStyleSheet(f"background:{CLR_SURFACE_APP_MAIN}; border-bottom:1px solid {CLR_SURFACE_HEADER_BORDER};")
@@ -135,6 +137,23 @@ def build_profile_bar(
         if n < _NUM_PROFILES:
             hb.addSpacing(4)
 
+    hb.addSpacing(6)
+
+    _compare_style = (
+        "QPushButton { background:#0a1520; color:#5577aa; border:1px solid #1a2a44;"
+        "  border-radius:4px; padding:2px 10px; font-size:16px; }"
+        "QPushButton:hover { background:#0e1f30; color:#88aadd; border-color:#2a4a6a; }"
+    )
+    compare_btn = QPushButton("…")
+    compare_btn.setFixedSize(44, 36)
+    compare_btn.setToolTip("Compare and edit all profiles side by side")
+    compare_btn.setStyleSheet(_compare_style)
+    if on_compare_clicked is not None:
+        compare_btn.clicked.connect(on_compare_clicked)
+    else:
+        compare_btn.setEnabled(False)
+    hb.addWidget(compare_btn)
+
     hb.addSpacing(20)
 
     _act_style = (
@@ -194,6 +213,7 @@ def build_profile_bar(
         "loaded_lbl": loaded_lbl,
         "dirty_lbl": dirty_lbl,
         "chk_traits_only": chk_traits_only,
+        "compare_btn": compare_btn,
     }
     return bar, widget_refs
 
