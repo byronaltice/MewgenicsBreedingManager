@@ -16,6 +16,8 @@
 - module/submodule - Used interchangably. Typically refers to directories within src/ or src/breed_priority. Terms may be used in a non-standard-to-python way, but generally mean "this set of functionality here, defined by this directory or group of files".
 - Inform the user - Anytime you come across this instruction, it means to display information to the user/operator in the final line(s) if your output, as the last thing you output, so that the user can easily view it in the chat window.
 - STOP - Anytime you come across this instruction, cease all operations, modifications, thinking, etc. Only perform the instruction specified around STOP. Inform the user ENTHUSIASTICALLY, IMMEDIATELY, and UNAMBIGUOUSLY about why STOP occurred.
+- Shield - Temporary damage absorption (like armor): each point of Shield absorbs one point of incoming damage before health is affected. Distinct from Holy Shield.
+- Holy Shield (`divine_shield`) - A buff that completely negates the next source of damage, regardless of amount. Not related to Shield.
 
 ## Project Overview
 
@@ -65,7 +67,7 @@ src/
   mewgenics_manager.py              # Backwards-compatible entry point (thin wrapper)
   save_parser.py                    # Binary parser, Cat model, genetics/kinship logic
   breeding.py                       # Breeding compatibility, scoring, offspring tracking
-  visual_mutation_catalog.py        # Lookup tables: (slot, mutation_id) -> display name
+  visual_mutation_catalog.py        # Lookup tables: (slot, mutation_id) -> display name (fallback only; authoritative names and effect descriptions come from GPAK via _parse_mutation_gon() in save_parser.py — visual mutations can have stat effects, e.g. +1 CON)
   breed_priority/
     __init__.py                     # BreedPriorityView widget and orchestration
     chip_colors.py                  # Chip color mapping for score table cells
