@@ -18,7 +18,6 @@ from .stat_text_formatter import StatTextFormatter
 from .color_utils import ColorUtils
 from .chip_colors import ChipColors
 from .deck_pull_button import create_pull_deck_save_button
-from ._poc_icon_loader import add_poc_buttons as _poc_add_buttons  # POC: temporary
 
 from PySide6.QtWidgets import (
     QDialog, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSplitter,
@@ -997,9 +996,6 @@ class BreedPriorityView(QWidget):
         )
         self._btn_columns.clicked.connect(self._open_column_visibility)
         hb.addWidget(self._btn_columns)
-
-        # POC: temporary icon-load benchmark buttons — remove with _poc_icon_loader.py
-        _poc_add_buttons(hb, self)
 
         self._btn_move_kittens = QPushButton(_BTN_LABEL_MOVE_KITTENS)
         self._btn_move_kittens.setStyleSheet(ACTION_BUTTON_SECONDARY_STYLE)

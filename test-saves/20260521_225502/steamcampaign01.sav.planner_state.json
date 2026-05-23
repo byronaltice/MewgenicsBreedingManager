@@ -1,0 +1,65 @@
+{
+  "mutation_planner_state": {
+    "last_mode": "none",
+    "room": "",
+    "search": "",
+    "selected_pair_uids": [],
+    "selected_traits": [],
+    "stim": 10,
+    "trait_data": null
+  },
+  "perfect_planner_state": {
+    "actions_table_header_state": "AAAA/wAAAAAAAAABAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAioAAAADAQEBAAAAAAAAAAAAAAAAAGT/////AAAAhAAAAAAAAAADAAABwgAAAAEAAAAAAAAANAAAAAEAAAAAAAAANAAAAAEAAAAAAAAD6AAAAAAAAAAAAAAAAAAAAAAAAAAAAQ==",
+    "avoid_lovers": false,
+    "bottom_splitter_sizes": [
+      318,
+      318
+    ],
+    "has_run": true,
+    "max_risk": "",
+    "min_stats": "",
+    "prefer_high_libido": true,
+    "prefer_low_aggression": true,
+    "splitter_sizes": [
+      132,
+      344
+    ],
+    "starter_pairs": 4,
+    "stimulation": 10,
+    "use_sa": false
+  },
+  "room_optimizer_state": {
+    "avoid_lovers": true,
+    "bottom_tab_index": 2,
+    "has_run": true,
+    "max_risk": "",
+    "maximize_throughput": false,
+    "min_stats": "",
+    "minimize_variance": true,
+    "mode_family": false,
+    "prefer_high_libido": true,
+    "prefer_low_aggression": true,
+    "use_sa": false
+  },
+  "room_priority_config": [
+    {
+      "base_stim": 0.0,
+      "max_cats": 10,
+      "room": "Floor1_Large",
+      "type": "breeding"
+    },
+    {
+      "base_stim": 0.0,
+      "max_cats": 10,
+      "room": "Floor1_Small",
+      "type": "breeding"
+    },
+    {
+      "base_stim": 10.0,
+      "max_cats": 10,
+      "room": "Floor2_Large",
+      "type": "breeding"
+    }
+  ],
+  "room_priority_config_version": 2
+}

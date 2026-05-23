@@ -41,4 +41,7 @@ tmp/
 # Archived - large files
 *.sqlite
 
+# One-Offs
 
+/defect-investigation/
+scripts/restore_profile5.py
