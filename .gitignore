@@ -44,4 +44,5 @@ tmp/
 # One-Offs
 
 /defect-investigation/
-scripts/restore_profile5.py.claude/worktrees/
+scripts/restore_profile5.py
+.claude/worktrees/

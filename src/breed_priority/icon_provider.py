@@ -54,6 +54,9 @@ _MUTATION_CACHE_KEY_PREFIX = "bp_mutation_icon::"
 _MUTATION_SUBDIR = "mutations"  # under .../assets/symbols/
 _PNG_EXT = ".png"
 _QPIXMAP_CACHE_LIMIT_KB = 8 * 1024  # 8 MB — plenty for a few hundred small PNGs.
+_PROGRESS_DIALOG_MIN_WIDTH = 420
+_CONSOLE_PROGRESS_START_MSG = "[icon-extract] starting…"
+_CONSOLE_PROGRESS_INTERVAL = 100  # print to console every N frames
 
 # Composition layering — badges are rendered small in a corner; shells span
 # the whole canvas. Sized relative to the base icon's bounding box.
@@ -488,14 +491,23 @@ def _run_extraction(parent: Optional[QWidget], install_path: str, icons_dir: str
     os.makedirs(icons_dir, exist_ok=True)
 
     progress = QProgressDialog(
-        _tr("Extracting ability icons..."),
+        _tr("Extracting ability icons from your Mewgenics install..."),
         _tr("Cancel"),
         0, 0, parent,
     )
-    progress.setWindowTitle(_tr("Mewgenics Breeding Manager"))
+    progress.setWindowTitle(_tr("Extracting icons"))
     progress.setMinimumDuration(0)
     progress.setAutoClose(True)
+    progress.setAutoReset(False)
     progress.setWindowModality(Qt.WindowModal)
+    progress.setMinimumWidth(_PROGRESS_DIALOG_MIN_WIDTH)
+    # Force the dialog visible immediately — with minimumDuration=0 Qt still
+    # waits for an event-loop tick, and on Windows that can swallow the
+    # window if extraction finishes its first batch quickly.
+    progress.setValue(0)
+    progress.show()
+    QCoreApplication.processEvents()
+    print(_CONSOLE_PROGRESS_START_MSG, flush=True)
 
     thread = QThread()
     worker = _ExtractionWorker(install_path, icons_dir)
@@ -511,6 +523,8 @@ def _run_extraction(parent: Optional[QWidget], install_path: str, icons_dir: str
         if total > 0 and progress.maximum() != total:
             progress.setMaximum(total)
         progress.setValue(done)
+        if total > 0 and (done % _CONSOLE_PROGRESS_INTERVAL == 0 or done == total):
+            print(f"[icon-extract] {done}/{total}", flush=True)
 
     def on_failed(message: str) -> None:
         error_box["error"] = message
@@ -562,5 +576,10 @@ def _run_extraction(parent: Optional[QWidget], install_path: str, icons_dir: str
         "Icon extraction complete: %d written, %d skipped, %d badges, %d shells",
         summary.get("written", 0), summary.get("skipped", 0),
         summary.get("badges_written", 0), summary.get("shells_written", 0),
+    )
+    print(
+        f"[icon-extract] done — {summary.get('written', 0)} written, "
+        f"{summary.get('skipped', 0)} skipped",
+        flush=True,
     )
     return True
