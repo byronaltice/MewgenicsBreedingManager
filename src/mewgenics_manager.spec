@@ -10,6 +10,11 @@ a = Analysis(
         ('mewgenics/utils/locales/zh_CN.json', '.'),
         ('mewgenics/utils/locales/pl.json', '.'),
         ('../VERSION', '.'),
+        # Placeholder/symbol PNGs shipped with the app. Game-derived icons
+        # (abilities/, badges/, shells/, composed/) are extracted per-user at
+        # runtime into %LOCALAPPDATA% and must NOT be bundled here.
+        ('breed_priority/assets/symbols/*.png', 'breed_priority/assets/symbols'),
+        ('breed_priority/assets/symbols/mutations/*.png', 'breed_priority/assets/symbols/mutations'),
     ],
     hiddenimports=[
         'lz4.frame',

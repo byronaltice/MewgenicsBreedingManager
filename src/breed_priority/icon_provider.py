@@ -12,12 +12,14 @@ Handles two responsibilities:
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
+import threading
 from typing import Optional
 
-from PySide6.QtCore import Qt, QCoreApplication
-from PySide6.QtGui import QPixmap, QPixmapCache
+from PySide6.QtCore import Qt, QCoreApplication, QEventLoop, QObject, QThread, Signal
+from PySide6.QtGui import QPainter, QPixmap, QPixmapCache
 from PySide6.QtWidgets import QFileDialog, QMessageBox, QProgressDialog, QWidget
 
 from . import app_settings
@@ -42,6 +44,9 @@ logger = logging.getLogger(__name__)
 # ── Constants ─────────────────────────────────────────────────────────────────
 
 _ABILITIES_SUBDIR = "abilities"
+_BADGES_SUBDIR = "badges"
+_SHELLS_SUBDIR = "shells"
+_COMPOSED_SUBDIR = "composed"
 _PLACEHOLDER_FILENAME = "circle.png"  # Already-shipped neutral fallback symbol.
 _PLACEHOLDER_DIR_REL = os.path.join("breed_priority", "assets", "symbols")
 _CACHE_KEY_PREFIX = "bp_ability_icon::"
@@ -49,6 +54,11 @@ _MUTATION_CACHE_KEY_PREFIX = "bp_mutation_icon::"
 _MUTATION_SUBDIR = "mutations"  # under .../assets/symbols/
 _PNG_EXT = ".png"
 _QPIXMAP_CACHE_LIMIT_KB = 8 * 1024  # 8 MB — plenty for a few hundred small PNGs.
+
+# Composition layering — badges are rendered small in a corner; shells span
+# the whole canvas. Sized relative to the base icon's bounding box.
+_BADGE_SCALE = 0.45            # badge edge length as fraction of base icon edge
+_COMPOSED_HASH_LEN = 16
 
 # Common Mewgenics install paths to probe automatically before prompting the
 # operator. Ordered by likelihood; first one that validates wins.
@@ -153,12 +163,12 @@ def get_ability_icon(ability_name: str) -> QPixmap:
     if QPixmapCache.find(cache_key, cached):
         return cached
 
-    frame = _resolve_frame_label(ability_name)
+    base_path, badge_path, shell_path = _resolve_layer_paths(ability_name)
     pixmap = QPixmap()
-    if frame:
-        path = os.path.join(app_settings.icons_dir(), _ABILITIES_SUBDIR, frame + ".png")
-        if os.path.exists(path):
-            pixmap.load(path)
+    if base_path:
+        pixmap.load(base_path)
+    if not pixmap.isNull() and (badge_path or shell_path):
+        pixmap = _compose_layers(pixmap, badge_path, shell_path)
 
     if pixmap.isNull():
         pixmap = _get_placeholder_pixmap()
@@ -170,16 +180,19 @@ def get_ability_icon(ability_name: str) -> QPixmap:
 def get_ability_icon_file_url(ability_name: str) -> Optional[str]:
     """Return a ``file:///...`` URL for use in HTML tooltips.
 
-    Returns None when no extracted icon exists for the ability — callers
-    can decide whether to emit a placeholder or skip the ``<img>`` tag.
+    When an ability has a badge and/or shell layer, the layers are
+    composited once to ``<icons_dir>/composed/<hash>.png`` and that URL is
+    returned. Returns None when no extracted base icon exists for the
+    ability — callers can decide whether to emit a placeholder or skip the
+    ``<img>`` tag.
     """
-    frame = _resolve_frame_label(ability_name)
-    if not frame:
+    base_path, badge_path, shell_path = _resolve_layer_paths(ability_name)
+    if not base_path:
         return None
-    path = os.path.join(app_settings.icons_dir(), _ABILITIES_SUBDIR, frame + ".png")
-    if not os.path.exists(path):
-        return None
-    return "file:///" + path.replace(os.sep, "/")
+    if not (badge_path or shell_path):
+        return _file_url(base_path)
+    composed = _ensure_composed_file(base_path, badge_path, shell_path)
+    return _file_url(composed)
 
 
 def _mutation_icon_path(slot: str) -> Optional[str]:
@@ -226,6 +239,129 @@ def get_mutation_icon_file_url(slot: str) -> Optional[str]:
 
 
 # ── Internals ────────────────────────────────────────────────────────────────
+
+def _file_url(path: str) -> str:
+    return "file:///" + path.replace(os.sep, "/")
+
+
+def _resolve_layer_paths(ability_name: str) -> tuple[Optional[str], Optional[str], Optional[str]]:
+    """Return ``(base_png, badge_png, shell_png)`` for an ability.
+
+    Each element is an absolute path to an existing PNG, or None when the
+    layer is unavailable. ``base_png`` is the only one required for the
+    icon to render; the other two are optional overlays.
+    """
+    icons_dir = app_settings.icons_dir()
+    frame = _resolve_frame_label(ability_name)
+    base_path = None
+    if frame:
+        candidate = os.path.join(icons_dir, _ABILITIES_SUBDIR, frame + _PNG_EXT)
+        if os.path.exists(candidate):
+            base_path = candidate
+
+    badge_name, shell_name = _resolve_badge_and_shell_names(ability_name)
+    badge_path = _existing_layer_path(icons_dir, _BADGES_SUBDIR, badge_name)
+    shell_path = _existing_layer_path(icons_dir, _SHELLS_SUBDIR, shell_name)
+    return base_path, badge_path, shell_path
+
+
+def _existing_layer_path(icons_dir: str, subdir: str, name: Optional[str]) -> Optional[str]:
+    if not name:
+        return None
+    path = os.path.join(icons_dir, subdir, name + _PNG_EXT)
+    return path if os.path.exists(path) else None
+
+
+def _resolve_badge_and_shell_names(ability_name: str) -> tuple[Optional[str], Optional[str]]:
+    icon_map = _load_ability_map_if_needed()
+    if not icon_map:
+        return None, None
+    for key in _candidate_lookup_keys(ability_name):
+        entry = icon_map.get(key)
+        if isinstance(entry, dict):
+            badge = entry.get("type_icon")
+            shell = entry.get("icon_shell_frame")
+            return (
+                badge if isinstance(badge, str) and badge else None,
+                shell if isinstance(shell, str) and shell else None,
+            )
+    return None, None
+
+
+def _compose_layers(
+    base: QPixmap,
+    badge_path: Optional[str],
+    shell_path: Optional[str],
+) -> QPixmap:
+    """Layer shell (bottom) → base → badge (top-right) onto a copy of ``base``.
+
+    The composed canvas inherits the base icon's dimensions; layers are
+    scaled to fit. Returns the composed pixmap or the original on failure.
+    """
+    canvas = QPixmap(base.size())
+    canvas.fill(Qt.transparent)
+    painter = QPainter(canvas)
+    try:
+        if shell_path:
+            shell = QPixmap(shell_path)
+            if not shell.isNull():
+                scaled = shell.scaled(
+                    base.size(),
+                    Qt.KeepAspectRatio,
+                    Qt.SmoothTransformation,
+                )
+                offset_x = (base.width() - scaled.width()) // 2
+                offset_y = (base.height() - scaled.height()) // 2
+                painter.drawPixmap(offset_x, offset_y, scaled)
+        painter.drawPixmap(0, 0, base)
+        if badge_path:
+            badge = QPixmap(badge_path)
+            if not badge.isNull():
+                badge_edge = max(1, int(round(base.width() * _BADGE_SCALE)))
+                scaled_badge = badge.scaled(
+                    badge_edge, badge_edge,
+                    Qt.KeepAspectRatio,
+                    Qt.SmoothTransformation,
+                )
+                bx = base.width() - scaled_badge.width()
+                by = base.height() - scaled_badge.height()
+                painter.drawPixmap(bx, by, scaled_badge)
+    finally:
+        painter.end()
+    return canvas
+
+
+def _composed_filename(base_path: str, badge_path: Optional[str], shell_path: Optional[str]) -> str:
+    key = "|".join([
+        base_path,
+        badge_path or "",
+        shell_path or "",
+    ])
+    digest = hashlib.sha1(key.encode("utf-8")).hexdigest()[:_COMPOSED_HASH_LEN]
+    base_stem = os.path.splitext(os.path.basename(base_path))[0]
+    return f"{base_stem}_{digest}{_PNG_EXT}"
+
+
+def _ensure_composed_file(
+    base_path: str,
+    badge_path: Optional[str],
+    shell_path: Optional[str],
+) -> str:
+    """Write a composed PNG to ``<icons_dir>/composed/`` if missing; return path."""
+    icons_dir = app_settings.icons_dir()
+    composed_dir = os.path.join(icons_dir, _COMPOSED_SUBDIR)
+    os.makedirs(composed_dir, exist_ok=True)
+    out_path = os.path.join(composed_dir, _composed_filename(base_path, badge_path, shell_path))
+    if os.path.exists(out_path):
+        return out_path
+    base = QPixmap(base_path)
+    if base.isNull():
+        return base_path
+    composed = _compose_layers(base, badge_path, shell_path)
+    if not composed.save(out_path, "PNG"):
+        return base_path
+    return out_path
+
 
 def _resolve_frame_label(ability_name: str) -> Optional[str]:
     """Look up the SWF frame label for an ability name.
@@ -302,43 +438,115 @@ def _resolve_install_path(parent: Optional[QWidget]) -> Optional[str]:
         )
 
 
+class _ExtractionWorker(QObject):
+    """Runs ability-icon extraction off the GUI thread.
+
+    Owns a thread-safe cancel flag set by the GUI when the operator clicks
+    the progress dialog's Cancel button. The extractor's existing
+    ``progress_cb`` cancellation path is reused — we route the flag check
+    through the callback's return value.
+    """
+
+    progress = Signal(int, int, str)   # done, total, label
+    failed = Signal(str)               # error text for QMessageBox
+    finished = Signal(object)          # summary dict, or None on failure
+
+    def __init__(self, install_path: str, icons_dir: str) -> None:
+        super().__init__()
+        self._install_path = install_path
+        self._icons_dir = icons_dir
+        self._cancel_event = threading.Event()
+
+    def request_cancel(self) -> None:
+        self._cancel_event.set()
+
+    def run(self) -> None:
+        def on_progress(done: int, total: int, label: str) -> bool:
+            self.progress.emit(done, total, label)
+            return not self._cancel_event.is_set()
+
+        try:
+            build_ability_icon_map(self._install_path, self._icons_dir)
+            summary = extract_ability_icons(
+                self._install_path, self._icons_dir, progress_cb=on_progress,
+            )
+        except Exception as exc:
+            logger.exception("Icon extraction failed")
+            self.failed.emit(str(exc))
+            self.finished.emit(None)
+            return
+        self.finished.emit(summary)
+
+
 def _run_extraction(parent: Optional[QWidget], install_path: str, icons_dir: str) -> bool:
-    """Run extraction with a cancellable progress dialog."""
+    """Run extraction on a worker thread with a cancellable progress dialog.
+
+    Keeps a synchronous return-bool contract by spinning a local QEventLoop
+    until the worker finishes. Returns True on successful extraction, False
+    if cancelled or failed.
+    """
     os.makedirs(icons_dir, exist_ok=True)
+
     progress = QProgressDialog(
         _tr("Extracting ability icons..."),
         _tr("Cancel"),
-        0, 100, parent,
+        0, 0, parent,
     )
     progress.setWindowTitle(_tr("Mewgenics Breeding Manager"))
     progress.setMinimumDuration(0)
     progress.setAutoClose(True)
     progress.setWindowModality(Qt.WindowModal)
-    progress.setValue(0)
 
-    def on_progress(done: int, total: int, _label: str) -> bool:
-        if total > 0:
+    thread = QThread()
+    worker = _ExtractionWorker(install_path, icons_dir)
+    worker.moveToThread(thread)
+    thread.started.connect(worker.run)
+
+    # Mutable result holders — closed-over by the inner handlers below.
+    summary_box: dict[str, object] = {"summary": None}
+    error_box: dict[str, Optional[str]] = {"error": None}
+    loop = QEventLoop()
+
+    def on_progress(done: int, total: int, _label: str) -> None:
+        if total > 0 and progress.maximum() != total:
             progress.setMaximum(total)
-            progress.setValue(done)
-        QCoreApplication.processEvents()
-        return not progress.wasCanceled()
+        progress.setValue(done)
 
-    try:
-        build_ability_icon_map(install_path, icons_dir)
-        summary = extract_ability_icons(
-            install_path, icons_dir, progress_cb=on_progress,
-        )
-    except Exception as exc:
-        logger.exception("Icon extraction failed")
-        progress.close()
+    def on_failed(message: str) -> None:
+        error_box["error"] = message
+
+    def on_finished(summary) -> None:
+        summary_box["summary"] = summary
+        thread.quit()
+
+    def on_cancel_clicked() -> None:
+        worker.request_cancel()
+
+    worker.progress.connect(on_progress)
+    worker.failed.connect(on_failed)
+    worker.finished.connect(on_finished)
+    progress.canceled.connect(on_cancel_clicked)
+    thread.finished.connect(loop.quit)
+
+    thread.start()
+    loop.exec()
+    # Ensure the thread is fully torn down before we proceed.
+    thread.wait()
+    worker.deleteLater()
+    thread.deleteLater()
+    progress.close()
+
+    if error_box["error"] is not None:
         QMessageBox.critical(
             parent,
             _tr("Extraction failed"),
-            _tr("Icon extraction failed:") + f"\n\n{exc}",
+            _tr("Icon extraction failed:") + f"\n\n{error_box['error']}",
         )
         return False
 
-    progress.close()
+    summary = summary_box["summary"]
+    if not isinstance(summary, dict):
+        return False
 
     if summary.get("cancelled"):
         QMessageBox.information(
