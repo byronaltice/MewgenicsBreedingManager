@@ -46,6 +46,12 @@ _PLACEHOLDER_DIR_REL = os.path.join("breed_priority", "assets", "symbols")
 _CACHE_KEY_PREFIX = "bp_ability_icon::"
 _QPIXMAP_CACHE_LIMIT_KB = 8 * 1024  # 8 MB — plenty for a few hundred small PNGs.
 
+# Common Mewgenics install paths to probe automatically before prompting the
+# operator. Ordered by likelihood; first one that validates wins.
+_DEFAULT_INSTALL_PATHS = (
+    r"C:\Program Files (x86)\Steam\steamapps\common\Mewgenics",
+)
+
 
 def _tr(text: str) -> str:
     """Local translation helper — keeps user-facing strings discoverable.
@@ -215,6 +221,12 @@ def _resolve_install_path(parent: Optional[QWidget]) -> Optional[str]:
         ok, _ = validate_install_path(saved)
         if ok:
             return saved
+
+    for candidate in _DEFAULT_INSTALL_PATHS:
+        ok, _ = validate_install_path(candidate)
+        if ok:
+            app_settings.set_game_install_path(candidate)
+            return candidate
 
     QMessageBox.information(
         parent,

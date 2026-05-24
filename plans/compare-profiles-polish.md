@@ -86,15 +86,21 @@ A `QGridLayout` cannot reflow — hiding column N leaves a gap. Two viable appro
 
 Go with the preferred approach. Implementation note: also re-layout the section-header `setColumnSpan` (currently `1, num_cols + 1` spanning all columns) so it spans `1 + visible_count`. Track header rows with their span via `RowTracker.header_rows` (already tracked).
 
-### 8 (empty-slot rendering)
+### 8 (empty-slot rendering) — HIGH PRIORITY, CONFIRMED FROM SCREENSHOT
 
-Root cause: `_build_grid_content` passes `present_slots = set(range(1, NUM_PROFILES + 1))`. Fix:
+**Observed in current build:** when only slots 1 and 5 are saved, slots 2/3/4 still render full editor widgets populated with what *looks* like real values (e.g. `+4.0`, `-2.0`, `+5.0`). Those values are **not** real saved profile data — they are `BREED_PRIORITY_WEIGHTS` defaults written into the staged dict by `_empty_blob()` at `dialog.py:51-58`. The defaults are visually indistinguishable from a saved profile, which is the bug.
+
+**Root cause:** `dialog.py::_build_grid_content` builds `present_slots = set(range(1, NUM_PROFILES + 1))` (line 223), so every slot is "present" and every row helper takes the editor-widget branch. The `if n not in present_slots: w = _empty_label()` path in `rows.py` is dead code.
+
+**Fix:**
 
 ```python
 present_slots = {n for n in range(1, NUM_PROFILES + 1) if n not in self._was_empty}
 ```
 
-This makes every row helper render `_empty_label()` for empty slots — already implemented in `rows.py`, just dead.
+That's it — `_empty_label()` is already implemented in `rows.py`. Verify by re-running with the screenshot's save state: slots 2/3/4 should render `— empty —` placeholders in every row, not editor widgets.
+
+**Header label for empty slots:** the include-checkbox in the toolbar currently labels empty slots with their slot number (`"2"`, `"3"`, `"4"`) since they have no name. Keep that — it's correct. Optionally append `" (empty)"` to make it explicit.
 
 For empty slots, the include checkbox should still work but the slot column shows the placeholder. The plan section 7 (column packing) still applies — empty slots hidden via include toggle pack left the same way.
 
