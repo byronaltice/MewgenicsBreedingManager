@@ -34,6 +34,7 @@ from .icon_extraction.gon_ability_map import (
     load_ability_icon_map,
 )
 from .icon_extraction.manifest import delete_manifest
+from .icon_extraction.mutation_slots import normalize_slot
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,9 @@ _ABILITIES_SUBDIR = "abilities"
 _PLACEHOLDER_FILENAME = "circle.png"  # Already-shipped neutral fallback symbol.
 _PLACEHOLDER_DIR_REL = os.path.join("breed_priority", "assets", "symbols")
 _CACHE_KEY_PREFIX = "bp_ability_icon::"
+_MUTATION_CACHE_KEY_PREFIX = "bp_mutation_icon::"
+_MUTATION_SUBDIR = "mutations"  # under .../assets/symbols/
+_PNG_EXT = ".png"
 _QPIXMAP_CACHE_LIMIT_KB = 8 * 1024  # 8 MB — plenty for a few hundred small PNGs.
 
 # Common Mewgenics install paths to probe automatically before prompting the
@@ -174,6 +178,49 @@ def get_ability_icon_file_url(ability_name: str) -> Optional[str]:
         return None
     path = os.path.join(app_settings.icons_dir(), _ABILITIES_SUBDIR, frame + ".png")
     if not os.path.exists(path):
+        return None
+    return "file:///" + path.replace(os.sep, "/")
+
+
+def _mutation_icon_path(slot: str) -> Optional[str]:
+    """Resolve a shipped mutation placeholder PNG path, or None if unknown slot."""
+    canonical = normalize_slot(slot)
+    if canonical is None:
+        return None
+    here = os.path.dirname(os.path.abspath(__file__))
+    path = os.path.join(here, "assets", "symbols", _MUTATION_SUBDIR, canonical + _PNG_EXT)
+    return path if os.path.exists(path) else None
+
+
+def get_mutation_icon(slot: str) -> QPixmap:
+    """Return a QPixmap for the given mutation slot.
+
+    ``slot`` matches the ``group_key`` on ``Cat.visual_mutation_entries``
+    (e.g. ``"body"``, ``"eyebrows"``). Falls back to the generic circle
+    placeholder when the slot is unknown or its PNG is missing.
+    """
+    _init_pixmap_cache()
+    canonical = normalize_slot(slot) or ""
+    cache_key = _MUTATION_CACHE_KEY_PREFIX + canonical
+    cached = QPixmap()
+    if canonical and QPixmapCache.find(cache_key, cached):
+        return cached
+
+    path = _mutation_icon_path(slot)
+    pixmap = QPixmap()
+    if path:
+        pixmap.load(path)
+    if pixmap.isNull():
+        pixmap = _get_placeholder_pixmap()
+    if canonical:
+        QPixmapCache.insert(cache_key, pixmap)
+    return pixmap
+
+
+def get_mutation_icon_file_url(slot: str) -> Optional[str]:
+    """Return a ``file:///...`` URL for embedding the slot icon in HTML tooltips."""
+    path = _mutation_icon_path(slot)
+    if not path:
         return None
     return "file:///" + path.replace(os.sep, "/")
 

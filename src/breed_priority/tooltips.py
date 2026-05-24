@@ -6,7 +6,7 @@ All required context is passed in explicitly.
 
 from .columns import _STAT_COL_NAMES
 from .scoring import ScoreResult, ability_base, is_basic_trait, is_upgraded
-from .icon_provider import get_ability_icon_file_url
+from .icon_provider import get_ability_icon_file_url, get_mutation_icon_file_url
 
 # Size (px) at which ability icons are rendered inline in HTML tooltips.
 _TOOLTIP_ICON_SIZE = 16
@@ -24,6 +24,32 @@ def _ability_icon_html(ability_key: str) -> str:
         f'<img src="{url}" width="{_TOOLTIP_ICON_SIZE}" '
         f'height="{_TOOLTIP_ICON_SIZE}" style="vertical-align:middle"> '
     )
+
+
+def _mutation_icon_html(slot: str) -> str:
+    """Return an ``<img>`` tag for a mutation slot's placeholder icon, or ''."""
+    url = get_mutation_icon_file_url(slot)
+    if not url:
+        return ""
+    return (
+        f'<img src="{url}" width="{_TOOLTIP_ICON_SIZE}" '
+        f'height="{_TOOLTIP_ICON_SIZE}" style="vertical-align:middle"> '
+    )
+
+
+def _mutation_slot_lookup(cat) -> dict:
+    """Build {display_name: slot_group_key} from cat.visual_mutation_entries.
+
+    Multiple slots can share a name (e.g. left+right eye); first wins — the
+    placeholder icon is the same per group_key anyway.
+    """
+    lookup: dict[str, str] = {}
+    for entry in getattr(cat, "visual_mutation_entries", []) or []:
+        name = str(entry.get("name", "")).strip()
+        group_key = str(entry.get("group_key", "")).strip()
+        if name and group_key and name not in lookup:
+            lookup[name] = group_key
+    return lookup
 from .theme import (
     CLR_HIGHLIGHT, CLR_TEXT_UI_LABEL,
     CLR_TOP_PRIORITY, CLR_DESIRABLE, CLR_UNDESIRABLE,
@@ -72,7 +98,9 @@ def build_child_tooltip(cat, display_name_fn) -> str:
     ]
     disorders   = [_ability_icon_html(ability_base(d)) + display_name_fn(ability_base(d))
                    for d in getattr(cat, 'disorders', []) if not is_basic_trait(d)]
-    mutations   = [m for m in cat.mutations if not is_basic_trait(m)]
+    _mut_slots = _mutation_slot_lookup(cat)
+    mutations   = [_mutation_icon_html(_mut_slots.get(m, "")) + m
+                   for m in cat.mutations if not is_basic_trait(m)]
     defects     = [d for d in getattr(cat, 'defects', []) if not is_basic_trait(d)]
 
     for title, items, color in (
@@ -173,11 +201,12 @@ def build_cat_tooltip(
         if _passive_tiers.get(p, 1) > 1
     }
 
-    def _trait_rows_for(traits: list, upgraded_set: set = frozenset()) -> list:
+    def _trait_rows_for(traits: list, upgraded_set: set = frozenset(),
+                        icon_html_fn=_ability_icon_html) -> list:
         rows = []
         for trait in traits:
             suffix = "+" if trait in upgraded_set else ""
-            display = _ability_icon_html(trait) + display_name_fn(trait) + suffix
+            display = icon_html_fn(trait) + display_name_fn(trait) + suffix
             rating = ma_ratings.get(trait)
             sharing = [c for c in scope_cats
                        if c is not cat and trait in _scope_base[id(c)]]
@@ -217,10 +246,13 @@ def build_cat_tooltip(
                 rows.append(row(CLR_HIGHLIGHT, f"&nbsp;&nbsp;↳ {names_text}", ""))
         return rows
 
+    _mut_slots = _mutation_slot_lookup(cat)
+    _mutation_icon_fn = lambda t: _mutation_icon_html(_mut_slots.get(t, ""))
+
     active_rows   = _trait_rows_for(active_traits,  _upgraded_active)
     passive_rows  = _trait_rows_for(passive_traits, _upgraded_passive)
     disorder_rows = _trait_rows_for(disorder_traits)
-    mutation_rows = _trait_rows_for(mutation_traits)
+    mutation_rows = _trait_rows_for(mutation_traits, icon_html_fn=_mutation_icon_fn)
     defect_rows   = _trait_rows_for(defect_traits)
 
     # Build injury rows
