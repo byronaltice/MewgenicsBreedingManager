@@ -18,6 +18,11 @@ from .stat_text_formatter import StatTextFormatter
 from .color_utils import ColorUtils
 from .chip_colors import ChipColors
 from .deck_pull_button import create_pull_deck_save_button
+from .icon_provider import get_ability_icon_file_url, get_mutation_icon_file_url
+
+# Icon size (px) for the Traits tab. Larger than tooltip icons (16) since the
+# panel has more room and the icons are the main visual anchor per row.
+_TRAITS_TAB_ICON_SIZE = 32
 
 from PySide6.QtWidgets import (
     QDialog, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSplitter,
@@ -27,7 +32,7 @@ from PySide6.QtWidgets import (
     QCheckBox, QComboBox, QLineEdit, QPushButton, QGridLayout, QTabWidget,
 )
 from PySide6.QtCore import Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QBrush
+from PySide6.QtGui import QColor, QBrush, QPixmap
 
 # ── Re-exports for external consumers ────────────────────────────────────────
 from .styles import SPLITTER_V_STYLE, SPLITTER_H_STYLE  # noqa: F401
@@ -1971,6 +1976,14 @@ class BreedPriorityView(QWidget):
             ("Defects",   cat_defects),
         ]
 
+        # Slot lookup so we can show per-slot icons for mutation rows.
+        mutation_slot_by_name: dict[str, str] = {}
+        for entry in getattr(cat, "visual_mutation_entries", []) or []:
+            name = str(entry.get("name", "")).strip()
+            group_key = str(entry.get("group_key", "")).strip()
+            if name and group_key and name not in mutation_slot_by_name:
+                mutation_slot_by_name[name] = group_key
+
         any_traits = False
         for section_title, trait_set in _sections:
             if not trait_set:
@@ -2005,13 +2018,41 @@ class BreedPriorityView(QWidget):
                 else:
                     html = f"<b style='color:#cccccc;'>{esc_display}</b>"
 
+                # Resolve the icon URL for this trait. Mutations use a per-slot
+                # placeholder; everything else looks up the ability frame icon.
+                if section_title == "Mutations":
+                    icon_url = get_mutation_icon_file_url(
+                        mutation_slot_by_name.get(trait, "")
+                    )
+                else:
+                    icon_url = get_ability_icon_file_url(trait)
+
+                row = QWidget()
+                row.setStyleSheet(f"background:{CLR_BG_DEEP};")
+                row_h = QHBoxLayout(row)
+                row_h.setContentsMargins(4, 2, 4, 2)
+                row_h.setSpacing(6)
+
+                icon_lbl = QLabel()
+                icon_lbl.setFixedSize(_TRAITS_TAB_ICON_SIZE, _TRAITS_TAB_ICON_SIZE)
+                icon_lbl.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
+                if icon_url:
+                    pm_path = icon_url[len("file:///"):] if icon_url.startswith("file:///") else icon_url
+                    pixmap = QPixmap(pm_path)
+                    if not pixmap.isNull():
+                        icon_lbl.setPixmap(pixmap.scaled(
+                            _TRAITS_TAB_ICON_SIZE, _TRAITS_TAB_ICON_SIZE,
+                            Qt.KeepAspectRatio, Qt.SmoothTransformation,
+                        ))
+                row_h.addWidget(icon_lbl, 0, Qt.AlignTop)
+
                 entry_lbl = QLabel()
                 entry_lbl.setTextFormat(Qt.RichText)
                 entry_lbl.setText(html)
                 entry_lbl.setWordWrap(True)
-                entry_lbl.setStyleSheet(f"padding:2px 4px; background:{CLR_BG_DEEP};")
-                entry_lbl.setContentsMargins(0, 0, 0, 2)
-                layout.addWidget(entry_lbl)
+                row_h.addWidget(entry_lbl, 1)
+
+                layout.addWidget(row)
 
         if not any_traits:
             no_traits_lbl = QLabel("No traits")
