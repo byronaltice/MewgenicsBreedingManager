@@ -13,7 +13,7 @@ from typing import Optional
 
 
 MANIFEST_FILENAME = ".manifest.json"
-MANIFEST_SCHEMA_VERSION = 1
+MANIFEST_SCHEMA_VERSION = 2  # v2: DefineShape4 LINESTYLE2 decode fix — strokes now render
 
 
 def manifest_path(icons_dir: str) -> str:

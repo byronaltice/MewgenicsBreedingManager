@@ -209,15 +209,21 @@ def _read_fill_style(bs, version, has_alpha):
 
 def _read_line_style(bs, version, has_alpha):
     width = bs.read_u16()
-    if version >= 4:  # DefineShape4
-        bs.read_u16()  # start/end cap, join style bits
+    if version >= 4:  # DefineShape4 / LINESTYLE2 — fixed 16-bit flag word
+        bs.align()
+        _start_cap = bs.read_bits(2)
+        join_style = bs.read_bits(2)
         has_fill = bs.read_bits(1)
-        bs.read_bits(3)  # no_hscale, no_vscale, pixel_hinting, no_close
+        _no_hscale = bs.read_bits(1)
+        _no_vscale = bs.read_bits(1)
+        _pixel_hinting = bs.read_bits(1)
+        _reserved = bs.read_bits(5)
+        _no_close = bs.read_bits(1)
+        _end_cap = bs.read_bits(2)
+        if join_style == 2:
+            bs.read_u16()  # MiterLimitFactor
         if not has_fill:
-            if has_alpha:
-                color = bs.read_rgba()
-            else:
-                color = bs.read_rgb()
+            color = bs.read_rgba()  # LINESTYLE2 is always RGBA
             return {"width": width, "color": color, "fill": None}
         else:
             fill = _read_fill_style(bs, version, has_alpha)
