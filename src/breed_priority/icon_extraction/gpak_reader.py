@@ -1,22 +1,27 @@
 """Reader for Mewgenics ``resources.gpak`` archives.
 
-The gpak wrapper is a flat, uncompressed archive. Layout::
+The shipping gpak (Mewgenics retail build) is a flat, uncompressed archive
+with a count-prefixed directory at the head of the file. Layout::
 
-    magic           : 2 bytes, ASCII "NH"
-    reserved        : 2 bytes, little-endian u16 (observed value 0)
-    directory       : sequence of entries, terminated by EOF of directory:
-        name_len    : little-endian u16 (length in bytes of the utf-8 name)
-        name        : utf-8 bytes, e.g. "swfs/ability_icons.swf"
-        size        : little-endian u32 (size of the entry's body in bytes)
-    body            : raw concatenation of entry bodies, in directory order.
+    entry_count     : u32 little-endian — number of directory entries
+    directory       : ``entry_count`` records, each:
+        name_len    : u16 little-endian (length in bytes of the utf-8 name)
+        name        : utf-8 bytes, e.g. ``"swfs/ability_icons.swf"``
+        size        : u32 little-endian (size of the entry's body in bytes)
+    bodies          : raw concatenation of entry bodies, in directory order,
+                      starting immediately after the directory.
 
-Bodies are stored uncompressed at the wrapper level. Individual SWF entries
-may use SWF-internal compression — that is the SWF parser's concern.
+There is no leading magic. Bodies are uncompressed at the wrapper level
+(individual SWF entries may use SWF-internal compression — that is the SWF
+parser's concern). For the shipping ~5 GB / ~19,900-entry archive the
+directory is under a megabyte; we parse it eagerly and seek into the body
+region on demand for ``read``/``extract``. The body region is never loaded
+into memory.
 
-The reader walks the directory once (the directory itself is small — under a
-megabyte for the ~18k-entry shipped archive) and seeks into the body region
-on demand for ``read``/``extract``. The 4.9 GB body is never loaded into
-memory.
+Reverse-engineered against the retail ``resources.gpak`` by hashing
+extracted oracles (``audio/combat_sfx.gon``, ``swfs/ability_icons.swf``)
+and confirming byte-exact round-trip and that ``dir_end + sum(sizes)``
+equals the file size exactly.
 """
 
 from __future__ import annotations
@@ -28,11 +33,11 @@ from typing import Iterable, Optional
 
 # ── Format constants ──────────────────────────────────────────────────────────
 
-_MAGIC = b"NH"
-_HEADER_LEN = 4              # magic(2) + reserved(2)
-_NAME_LEN_BYTES = 2          # u16
-_ENTRY_SIZE_BYTES = 4        # u32
-_MAX_REASONABLE_NAME_LEN = 1024  # any larger value indicates corruption / EOD
+_COUNT_BYTES = 4             # u32 entry count at file head
+_NAME_LEN_BYTES = 2          # u16 per-entry name length
+_ENTRY_SIZE_BYTES = 4        # u32 per-entry body size
+_MAX_REASONABLE_NAME_LEN = 1024
+_MAX_REASONABLE_ENTRY_COUNT = 10_000_000  # sanity bound against junk files
 
 
 class GpakError(Exception):
@@ -122,44 +127,51 @@ class GpakReader:
     def _parse_directory(self) -> None:
         fh = self._fh
         fh.seek(0)
-        header = fh.read(_HEADER_LEN)
-        if len(header) < _HEADER_LEN or header[:2] != _MAGIC:
+        count_buf = fh.read(_COUNT_BYTES)
+        if len(count_buf) < _COUNT_BYTES:
+            raise GpakError(f"{self._path}: file too small for header")
+        (entry_count,) = struct.unpack("<I", count_buf)
+        if entry_count == 0 or entry_count > _MAX_REASONABLE_ENTRY_COUNT:
             raise GpakError(
-                f"{self._path}: missing 'NH' magic (got {header[:2]!r})"
+                f"{self._path}: implausible entry count {entry_count}"
             )
 
-        # Walk the directory by reading [u16 name_len][name][u32 size] until a
-        # name_len of zero (or implausibly large) signals the start of the
-        # body region. We compute body offsets as a running cursor that starts
-        # at end-of-directory and advances by each entry's size.
-        directory_entries: list[tuple[str, int]] = []
-        while True:
+        directory: list[tuple[str, int]] = []
+        for i in range(entry_count):
             len_buf = fh.read(_NAME_LEN_BYTES)
             if len(len_buf) < _NAME_LEN_BYTES:
-                break
+                raise GpakError(
+                    f"{self._path}: truncated name length at entry {i}"
+                )
             (name_len,) = struct.unpack("<H", len_buf)
             if name_len == 0 or name_len > _MAX_REASONABLE_NAME_LEN:
-                # Step back; this position is the start of the body region.
-                fh.seek(-_NAME_LEN_BYTES, os.SEEK_CUR)
-                break
+                raise GpakError(
+                    f"{self._path}: implausible name length {name_len} "
+                    f"at entry {i}"
+                )
             name_bytes = fh.read(name_len)
             if len(name_bytes) < name_len:
-                raise GpakError(f"{self._path}: truncated entry name")
+                raise GpakError(
+                    f"{self._path}: truncated entry name at entry {i}"
+                )
             size_buf = fh.read(_ENTRY_SIZE_BYTES)
             if len(size_buf) < _ENTRY_SIZE_BYTES:
-                raise GpakError(f"{self._path}: truncated entry size")
+                raise GpakError(
+                    f"{self._path}: truncated entry size at entry {i}"
+                )
             (entry_size,) = struct.unpack("<I", size_buf)
             try:
                 name = name_bytes.decode("utf-8")
             except UnicodeDecodeError as exc:
                 raise GpakError(
-                    f"{self._path}: non-utf8 entry name {name_bytes!r}"
+                    f"{self._path}: non-utf8 entry name {name_bytes!r} "
+                    f"at entry {i}"
                 ) from exc
-            directory_entries.append((name, entry_size))
+            directory.append((name, entry_size))
 
         body_start = fh.tell()
         cursor = body_start
-        for name, size in directory_entries:
+        for name, size in directory:
             self._entries[name] = (cursor, size)
             self._order.append(name)
             cursor += size
