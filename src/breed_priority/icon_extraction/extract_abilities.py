@@ -20,6 +20,7 @@ from typing import Callable, Iterable, Optional
 import skia
 from PIL import Image
 
+from .gpak_reader import GpakReader, find_gpak_in
 from .swf_shape_renderer import parse_shape, TWIPS_PER_PIXEL
 from .swf_sprite_walker import (
     parse_all_tags, collect_shapes_in_sprite, get_combined_bounds,
@@ -28,11 +29,11 @@ from .swf_sprite_walker import (
     TAG_REMOVE_OBJECT2, TAG_SHOW_FRAME,
 )
 
-# ── Paths within a Mewgenics install ──────────────────────────────────────────
+# ── Internal paths inside resources.gpak ──────────────────────────────────────
 
-_SWF_RELDIR = os.path.join("resources", "gpak-video", "swfs")
-_ABILITY_ICONS_SWF = "ability_icons.swf"
-_UI_SWF = "ui.swf"
+_GPAK_FILENAME = "resources.gpak"
+_ABILITY_ICONS_INTERNAL = "swfs/ability_icons.swf"
+_UI_SWF_INTERNAL = "swfs/ui.swf"
 
 # ── Output directory layout ───────────────────────────────────────────────────
 
@@ -64,19 +65,28 @@ _REMOVE_OBJECT2_LEN = 2
 _ABILITY_TIMELINE_SYMBOLS = ("AbilityIcon", "PassiveIcon")
 
 
-def install_swfs_dir(install_path: str) -> str:
-    return os.path.join(install_path, _SWF_RELDIR)
+def gpak_path_for(install_path: str) -> Optional[str]:
+    """Return the absolute path to ``resources.gpak`` for an install dir."""
+    return find_gpak_in(install_path)
 
 
 def validate_install_path(install_path: str) -> tuple[bool, str]:
-    """Return (ok, reason). Checks resources.gpak + ability_icons.swf exist."""
+    """Return (ok, reason). Checks ``resources.gpak`` exists and contains the
+    ability icons SWF entry.
+    """
     if not install_path or not os.path.isdir(install_path):
         return False, "Path is not a directory."
-    if not os.path.isfile(os.path.join(install_path, "resources.gpak")):
-        return False, "resources.gpak not found in selected folder."
-    swf_path = os.path.join(install_swfs_dir(install_path), _ABILITY_ICONS_SWF)
-    if not os.path.isfile(swf_path):
-        return False, f"{_ABILITY_ICONS_SWF} not found under resources/gpak-video/swfs."
+    gpak = gpak_path_for(install_path)
+    if not gpak:
+        return False, f"{_GPAK_FILENAME} not found in selected folder."
+    try:
+        with GpakReader(gpak) as reader:
+            if not reader.has(_ABILITY_ICONS_INTERNAL):
+                return False, (
+                    f"{_GPAK_FILENAME} does not contain {_ABILITY_ICONS_INTERNAL}."
+                )
+    except Exception as exc:
+        return False, f"Could not read {_GPAK_FILENAME}: {exc}"
     return True, ""
 
 
@@ -203,12 +213,22 @@ def extract_ability_icons(
     if not ok:
         raise FileNotFoundError(reason)
 
-    abilities_swf = os.path.join(install_swfs_dir(install_path), _ABILITY_ICONS_SWF)
+    gpak = gpak_path_for(install_path)
     out_dir = os.path.join(icons_dir, _ABILITIES_SUBDIR)
     os.makedirs(out_dir, exist_ok=True)
     log_path = os.path.join(icons_dir, _LOG_FILENAME)
 
-    swf_data = parse_all_tags(abilities_swf)
+    reader = GpakReader(gpak)
+    try:
+        abilities_swf_bytes = reader.read(_ABILITY_ICONS_INTERNAL)
+        ui_swf_bytes = (
+            reader.read(_UI_SWF_INTERNAL)
+            if reader.has(_UI_SWF_INTERNAL) else None
+        )
+    finally:
+        reader.close()
+
+    swf_data = parse_all_tags(abilities_swf_bytes)
     names = swf_data["names"]
     sprites = swf_data["sprites"]
     shapes = swf_data["shapes"]
@@ -271,14 +291,13 @@ def extract_ability_icons(
                 break
 
         # Best-effort badges / shells from ui.swf.
-        ui_swf_path = os.path.join(install_swfs_dir(install_path), _UI_SWF)
-        if os.path.isfile(ui_swf_path):
+        if ui_swf_bytes is not None:
             badges_written, shells_written = _extract_ui_badges_and_shells(
-                ui_swf_path, icons_dir, log,
+                ui_swf_bytes, icons_dir, log,
             )
         else:
             badges_written = shells_written = 0
-            log.write(f"# {_UI_SWF} not present; badges/shells skipped\n")
+            log.write(f"# {_UI_SWF_INTERNAL} not present; badges/shells skipped\n")
 
     return {
         "written": written,
@@ -297,8 +316,8 @@ _BADGE_SYMBOL_PREFIX = "type_icon"
 _SHELL_SYMBOL_PREFIX = "icon_shell"
 
 
-def _extract_ui_badges_and_shells(ui_swf_path: str, icons_dir: str, log) -> tuple[int, int]:
-    swf_data = parse_all_tags(ui_swf_path)
+def _extract_ui_badges_and_shells(ui_swf_bytes: bytes, icons_dir: str, log) -> tuple[int, int]:
+    swf_data = parse_all_tags(ui_swf_bytes)
     names = swf_data["names"]
     sprites = swf_data["sprites"]
     shapes = swf_data["shapes"]

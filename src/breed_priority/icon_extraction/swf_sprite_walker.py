@@ -63,8 +63,12 @@ def _read_tags_from(data_slice: bytes):
             break
 
 
-def parse_all_tags(swf_path: str) -> dict:
+def parse_all_tags(swf_source) -> dict:
     """Parse a SWF and return structured data.
+
+    ``swf_source`` may be either a filesystem path (``str`` / ``PathLike``)
+    pointing at a ``.swf`` file, or an in-memory ``bytes`` blob containing
+    the raw SWF.
 
     Returns dict with keys:
         names: {char_id: symbol_name}
@@ -72,8 +76,11 @@ def parse_all_tags(swf_path: str) -> dict:
         sprites: {char_id: [(child_tag_type, child_tag_data), ...]}
         bitmaps: {char_id: info_dict}
     """
-    with open(swf_path, "rb") as f:
-        raw = f.read()
+    if isinstance(swf_source, (bytes, bytearray, memoryview)):
+        raw = bytes(swf_source)
+    else:
+        with open(swf_source, "rb") as f:
+            raw = f.read()
 
     body, _version = _parse_header(raw)
     _SWF_RATE_PLUS_COUNT_BYTES = 4

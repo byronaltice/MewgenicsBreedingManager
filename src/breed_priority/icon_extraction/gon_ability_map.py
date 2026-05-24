@@ -18,7 +18,10 @@ import os
 import re
 from typing import Optional
 
-_ABILITIES_DIRNAME = os.path.join("resources", "gpak-text", "data", "abilities")
+from .gpak_reader import GpakReader, find_gpak_in
+
+_ABILITIES_INTERNAL_PREFIX = "data/abilities/"
+_GON_SUFFIX = ".gon"
 _ICON_MAP_FILENAME = "ability_icon_map.json"
 
 # Tokenize identifiers, braces, quoted strings, and bare values.
@@ -207,26 +210,30 @@ def build_ability_icon_map(install_path: str, icons_dir: str) -> dict[str, dict]
     B, A's resolved ``animation`` is B's ``animation``. Returns the in-memory
     map for callers that want it.
     """
-    abilities_dir = os.path.join(install_path, _ABILITIES_DIRNAME)
-    if not os.path.isdir(abilities_dir):
-        raise FileNotFoundError(f"Abilities GON dir not found: {abilities_dir}")
+    gpak = find_gpak_in(install_path)
+    if not gpak:
+        raise FileNotFoundError(
+            f"resources.gpak not found under install path: {install_path}"
+        )
 
     raw_abilities: dict[str, dict] = {}
-    for filename in sorted(os.listdir(abilities_dir)):
-        if not filename.endswith(".gon"):
-            continue
-        path = os.path.join(abilities_dir, filename)
-        try:
-            with open(path, "r", encoding="utf-8", errors="replace") as f:
-                text = f.read()
-        except OSError:
-            continue
-        parsed = _parse_gon_text(text)
-        # Later files don't override earlier (ability names are globally unique
-        # in this game's data); fall back to update().
-        for name, block in parsed.items():
-            if name not in raw_abilities:
-                raw_abilities[name] = block
+    with GpakReader(gpak) as reader:
+        gon_names = sorted(
+            name for name in reader.iter_prefix(_ABILITIES_INTERNAL_PREFIX)
+            if name.endswith(_GON_SUFFIX)
+        )
+        for internal_name in gon_names:
+            try:
+                blob = reader.read(internal_name)
+            except KeyError:
+                continue
+            text = blob.decode("utf-8", errors="replace")
+            parsed = _parse_gon_text(text)
+            # Later files don't override earlier (ability names are globally
+            # unique in this game's data); fall back to update().
+            for name, block in parsed.items():
+                if name not in raw_abilities:
+                    raw_abilities[name] = block
 
     # First pass: extract raw icon info per ability.
     raw_info: dict[str, dict] = {

@@ -1,8 +1,9 @@
 """Icon extraction package for Breed Priority.
 
-Extracts ability icons from the user's Mewgenics install (SWF files under
-``resources/gpak-video/swfs/``) and the GON metadata under
-``resources/gpak-text/data/abilities/``. Outputs PNGs to a per-user assets
+Extracts ability icons from the user's Mewgenics install — specifically the
+single packed ``resources.gpak`` archive at the install root. Internally
+reads the ``swfs/ability_icons.swf`` and ``swfs/ui.swf`` entries plus the
+``data/abilities/*.gon`` GON files. Outputs PNGs to a per-user assets
 directory; no game-derived assets are committed to the repo.
 
 Public entry points:
