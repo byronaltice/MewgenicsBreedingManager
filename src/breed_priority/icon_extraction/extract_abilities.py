@@ -1,69 +1,62 @@
-"""Extract ability icons (and badge / shell sprites) from a Mewgenics install.
+"""Extract ability icons from a Mewgenics install using JPEXS FFDEC.
 
-Given an install path, walks the AbilityIcon and PassiveIcon MovieClip
-timelines inside ``ability_icons.swf``, renders each labeled frame's shapes
-to a cropped PNG, and writes the results under
-``<icons_dir>/abilities/<frameLabel>.png``.
+We shell out to ``java -jar ffdec.jar -format sprite:png -export sprite ...``
+to rasterize every frame of every sprite in ``ability_icons.swf``. FFDEC's
+output is far cleaner than our previous in-tree skia renderer (which clipped
+paths in some shapes). After FFDEC finishes, we walk its dump tree, map each
+ability's frame label to a frame number, and copy the matching PNG to
+``<icons_dir>/abilities/<frame_label>.png``.
 
-Also dumps any ``type_icon`` badges and ``icon_shell_frame`` shells we can
-discover in ``ui.swf`` (best-effort — symbols not present are silently
-skipped; missing icons are logged to ``extraction.log``).
+The FFDEC dump (thousands of PNGs we don't keep) is deleted after copying.
 """
 
 from __future__ import annotations
 
 import os
-import struct
-from io import BytesIO
-from typing import Callable, Iterable, Optional
+import re
+import shutil
+import subprocess
+import tempfile
+from typing import Callable, Optional
 
-import skia
-from PIL import Image
-
+from .ffdec_tool import find_ffdec, find_java, validate as validate_ffdec
+from .gon_ability_map import load_ability_icon_map
 from .gpak_reader import GpakReader, find_gpak_in
-from .swf_shape_renderer import parse_shape, TWIPS_PER_PIXEL
-from .swf_sprite_walker import (
-    parse_all_tags, collect_shapes_in_sprite, get_combined_bounds,
-    render_parsed_shape_to_canvas,
-    TAG_FRAME_LABEL, TAG_PLACE_OBJECT2, TAG_PLACE_OBJECT3,
-    TAG_REMOVE_OBJECT2, TAG_SHOW_FRAME,
-)
+from .swf_sprite_walker import build_frame_label_index, parse_all_tags
+
 
 # ── Internal paths inside resources.gpak ──────────────────────────────────────
 
 _GPAK_FILENAME = "resources.gpak"
 _ABILITY_ICONS_INTERNAL = "swfs/ability_icons.swf"
-_UI_SWF_INTERNAL = "swfs/ui.swf"
 
 # ── Output directory layout ───────────────────────────────────────────────────
 
 _ABILITIES_SUBDIR = "abilities"
-_BADGES_SUBDIR = "badges"
-_SHELLS_SUBDIR = "shells"
 _LOG_FILENAME = "extraction.log"
 
-# ── Render parameters ─────────────────────────────────────────────────────────
+# ── FFDEC invocation ──────────────────────────────────────────────────────────
 
-_RENDER_SCALE = 4.0           # pixels per twip * 20 → final PNG resolution factor
-_RENDER_PADDING = 4           # px padding around bounding box
-_MAX_CANVAS_DIM = 4096
+# FFDEC's sprite dump emits one PNG per frame, per DefineSprite tag. Directory
+# names follow ``DefineSprite_<cid>_<className>`` (className omitted when the
+# sprite isn't exported by class). PNG filenames are ``<frame_no>.png``.
+_FFDEC_FORMAT_ARG = "sprite:png"
+_FFDEC_EXPORT_TYPE = "sprite"
+_FFDEC_TIMEOUT_SECS = 120
+_DEFINE_SPRITE_DIR_RE = re.compile(r"^DefineSprite_(\d+)(?:_(.+))?$")
+_FRAME_PNG_RE = re.compile(r"^(\d+)\.png$", re.IGNORECASE)
 
-# ── Sprite timeline tag flag bits ─────────────────────────────────────────────
+# Sprite class names FFDEC uses for the two timelines we care about.
+_ABILITY_SPRITE_CLASS = "AbilityIcon"
+_PASSIVE_SPRITE_CLASS = "PassiveIcon"
 
-_PLACE2_FLAG_HAS_CHARACTER = 1 << 1
-_PLACE_OBJECT2_DEPTH_OFFSET = 1
-_PLACE_OBJECT2_CHARID_OFFSET = 3
-_PLACE_OBJECT3_DEPTH_OFFSET = 2
-_PLACE_OBJECT3_CHARID_OFFSET = 4
-_PLACE_OBJECT2_MIN_LEN = 3
-_PLACE_OBJECT2_WITH_CHARID_LEN = 5
-_PLACE_OBJECT3_MIN_LEN = 4
-_PLACE_OBJECT3_WITH_CHARID_LEN = 6
-_REMOVE_OBJECT2_LEN = 2
+# Lookup priority — frame labels in AbilityIcon win over PassiveIcon when both
+# define the same label. Empirically the active-ability timeline is the more
+# common case.
+_SPRITE_CLASS_PRIORITY = (_ABILITY_SPRITE_CLASS, _PASSIVE_SPRITE_CLASS)
 
-# Top-level MovieClip names inside ability_icons.swf.
-_ABILITY_TIMELINE_SYMBOLS = ("AbilityIcon", "PassiveIcon")
 
+# ── Public helpers ────────────────────────────────────────────────────────────
 
 def gpak_path_for(install_path: str) -> Optional[str]:
     """Return the absolute path to ``resources.gpak`` for an install dir."""
@@ -71,9 +64,7 @@ def gpak_path_for(install_path: str) -> Optional[str]:
 
 
 def validate_install_path(install_path: str) -> tuple[bool, str]:
-    """Return (ok, reason). Checks ``resources.gpak`` exists and contains the
-    ability icons SWF entry.
-    """
+    """Return (ok, reason). Checks gpak exists and contains the icons SWF."""
     if not install_path or not os.path.isdir(install_path):
         return False, "Path is not a directory."
     gpak = gpak_path_for(install_path)
@@ -90,105 +81,53 @@ def validate_install_path(install_path: str) -> tuple[bool, str]:
     return True, ""
 
 
-# ── Timeline walk ─────────────────────────────────────────────────────────────
+# ── FFDEC dump traversal ──────────────────────────────────────────────────────
 
-def _decode_frame_label(tag_data: bytes) -> str:
-    end = tag_data.find(b"\x00")
-    raw = tag_data[: end if end >= 0 else len(tag_data)]
-    return raw.decode("utf-8", errors="replace")
+def _scan_ffdec_dump(dump_dir: str) -> dict[str, dict[int, str]]:
+    """Index FFDEC's sprite dump by ``{class_name: {frame_no: png_path}}``.
 
-
-def _walk_timeline_labels(inner_tags) -> Iterable[tuple[str, list[int]]]:
-    """Yield (frame_label, [shape_or_sprite_ids]) for every labeled frame.
-
-    Maintains a depth->char_id placement map across ``PlaceObject2``/
-    ``PlaceObject3`` and ``RemoveObject2``, emitting the current placements
-    at each ``ShowFrame`` that has a label.
+    Only sprites with one of our known class names are kept; the dump
+    contains many helper sprites we don't need.
     """
-    placed: dict[int, int] = {}
-    current_label: Optional[str] = None
-    for tag_type, tag_data in inner_tags:
-        if tag_type == TAG_FRAME_LABEL:
-            current_label = _decode_frame_label(tag_data)
-        elif tag_type == TAG_PLACE_OBJECT2:
-            if len(tag_data) < _PLACE_OBJECT2_MIN_LEN:
+    index: dict[str, dict[int, str]] = {}
+    if not os.path.isdir(dump_dir):
+        return index
+    for entry in os.listdir(dump_dir):
+        match = _DEFINE_SPRITE_DIR_RE.match(entry)
+        if not match:
+            continue
+        class_name = match.group(2)
+        if class_name not in _SPRITE_CLASS_PRIORITY:
+            continue
+        sprite_dir = os.path.join(dump_dir, entry)
+        frames: dict[int, str] = {}
+        for png_name in os.listdir(sprite_dir):
+            frame_match = _FRAME_PNG_RE.match(png_name)
+            if not frame_match:
                 continue
-            flags = tag_data[0]
-            depth = struct.unpack_from("<H", tag_data, _PLACE_OBJECT2_DEPTH_OFFSET)[0]
-            if (flags & _PLACE2_FLAG_HAS_CHARACTER) and len(tag_data) >= _PLACE_OBJECT2_WITH_CHARID_LEN:
-                char_id = struct.unpack_from("<H", tag_data, _PLACE_OBJECT2_CHARID_OFFSET)[0]
-                placed[depth] = char_id
-        elif tag_type == TAG_PLACE_OBJECT3:
-            if len(tag_data) < _PLACE_OBJECT3_MIN_LEN:
-                continue
-            flags1 = tag_data[0]
-            depth = struct.unpack_from("<H", tag_data, _PLACE_OBJECT3_DEPTH_OFFSET)[0]
-            if (flags1 & _PLACE2_FLAG_HAS_CHARACTER) and len(tag_data) >= _PLACE_OBJECT3_WITH_CHARID_LEN:
-                char_id = struct.unpack_from("<H", tag_data, _PLACE_OBJECT3_CHARID_OFFSET)[0]
-                placed[depth] = char_id
-        elif tag_type == TAG_REMOVE_OBJECT2:
-            if len(tag_data) < _REMOVE_OBJECT2_LEN:
-                continue
-            depth = struct.unpack_from("<H", tag_data, 0)[0]
-            placed.pop(depth, None)
-        elif tag_type == TAG_SHOW_FRAME:
-            if current_label is not None:
-                yield current_label, list(placed.values())
-            current_label = None
+            frame_no = int(frame_match.group(1))
+            frames[frame_no] = os.path.join(sprite_dir, png_name)
+        if frames:
+            index[class_name] = frames
+    return index
 
 
-# ── Rendering ────────────────────────────────────────────────────────────────
+def _build_label_indices(swf_bytes: bytes) -> dict[str, dict[str, int]]:
+    """Per-class ``{frame_label: frame_no}`` map parsed from the raw SWF."""
+    swf_data = parse_all_tags(swf_bytes)
+    names = swf_data["names"]
+    sprites = swf_data["sprites"]
+    name_to_id = {name: cid for cid, name in names.items()}
 
-def _render_shapes_to_png(shape_ids: list[int], shapes: dict, out_path: str) -> Optional[tuple[int, int]]:
-    """Render the union of the given shape ids to ``out_path``, cropping to
-    the visible bounding box. Returns (width, height) or None on failure.
-    """
-    bounds = get_combined_bounds(shape_ids, shapes)
-    if not bounds:
-        return None
-    xmin, xmax, ymin, ymax = bounds
-    pix_scale = _RENDER_SCALE / TWIPS_PER_PIXEL
-    width_twips = max(1, xmax - xmin)
-    height_twips = max(1, ymax - ymin)
-    px_w = max(1, int(width_twips * pix_scale) + 2 * _RENDER_PADDING)
-    px_h = max(1, int(height_twips * pix_scale) + 2 * _RENDER_PADDING)
-    px_w = min(px_w, _MAX_CANVAS_DIM)
-    px_h = min(px_h, _MAX_CANVAS_DIM)
-
-    tx = -xmin * pix_scale + _RENDER_PADDING
-    ty = -ymin * pix_scale + _RENDER_PADDING
-
-    surface = skia.Surface(px_w, px_h)
-    with surface as canvas:
-        canvas.clear(skia.ColorTRANSPARENT)
-        for cid in shape_ids:
-            if cid not in shapes:
-                continue
-            tag_type, tag_data = shapes[cid]
-            try:
-                parsed = parse_shape(tag_data, tag_type)
-                render_parsed_shape_to_canvas(canvas, parsed, pix_scale, tx, ty)
-            except Exception:
-                # Best-effort: skip shapes that fail to parse.
-                continue
-
-    img_data = surface.makeImageSnapshot().encodeToData()
-    pil_img = Image.open(BytesIO(bytes(img_data)))
-    bbox = pil_img.getbbox()
-    if bbox:
-        pil_img = pil_img.crop(bbox)
-    pil_img.save(out_path, "PNG")
-    return pil_img.size
-
-
-def _resolve_shape_ids(placed_ids: list[int], sprites: dict, shapes: dict) -> list[int]:
-    """Expand sprite children into their constituent shape ids."""
-    out: list[int] = []
-    for cid in placed_ids:
-        if cid in shapes:
-            out.append(cid)
-        elif cid in sprites:
-            out.extend(collect_shapes_in_sprite(cid, sprites, shapes))
+    out: dict[str, dict[str, int]] = {}
+    for class_name in _SPRITE_CLASS_PRIORITY:
+        sym_id = name_to_id.get(class_name)
+        if sym_id is None:
+            continue
+        inner = sprites.get(sym_id)
+        if inner is None:
+            continue
+        out[class_name] = build_frame_label_index(inner)
     return out
 
 
@@ -199,7 +138,7 @@ def extract_ability_icons(
     icons_dir: str,
     progress_cb: Optional[Callable[[int, int, str], bool]] = None,
 ) -> dict:
-    """Render every labeled frame of AbilityIcon/PassiveIcon to PNGs.
+    """Run FFDEC against ``ability_icons.swf`` and copy frame PNGs out.
 
     Args:
         install_path: Mewgenics install root (folder containing resources.gpak).
@@ -207,161 +146,159 @@ def extract_ability_icons(
         progress_cb: Optional ``(done, total, label) -> bool``. Return False
             to cancel.
 
-    Returns a summary dict with counts and the list of missing labels.
+    Returns a summary dict with counts. Raises ``FileNotFoundError`` if the
+    install path or FFDEC/Java are missing.
     """
     ok, reason = validate_install_path(install_path)
     if not ok:
         raise FileNotFoundError(reason)
 
-    gpak = gpak_path_for(install_path)
+    java_exe = find_java()
+    ffdec_jar = find_ffdec()
+    if not java_exe or not ffdec_jar:
+        raise FileNotFoundError(
+            "Java and FFDEC are required for icon extraction. "
+            f"Java found: {bool(java_exe)}, FFDEC found: {bool(ffdec_jar)}."
+        )
+    valid, why = validate_ffdec(java_exe, ffdec_jar)
+    if not valid:
+        raise FileNotFoundError(f"FFDEC validation failed: {why}")
+
     out_dir = os.path.join(icons_dir, _ABILITIES_SUBDIR)
     os.makedirs(out_dir, exist_ok=True)
     log_path = os.path.join(icons_dir, _LOG_FILENAME)
 
-    reader = GpakReader(gpak)
-    try:
-        abilities_swf_bytes = reader.read(_ABILITY_ICONS_INTERNAL)
-        ui_swf_bytes = (
-            reader.read(_UI_SWF_INTERNAL)
-            if reader.has(_UI_SWF_INTERNAL) else None
-        )
-    finally:
-        reader.close()
+    # Pull the SWF out of the gpak into a temp file so FFDEC can read it.
+    gpak = gpak_path_for(install_path)
+    with GpakReader(gpak) as reader:
+        swf_bytes = reader.read(_ABILITY_ICONS_INTERNAL)
 
-    swf_data = parse_all_tags(abilities_swf_bytes)
-    names = swf_data["names"]
-    sprites = swf_data["sprites"]
-    shapes = swf_data["shapes"]
+    label_indices = _build_label_indices(swf_bytes)
 
-    name_to_id = {name: char_id for char_id, name in names.items()}
-
-    # Pre-count total labeled frames for progress reporting.
-    timeline_inner: list[tuple[str, list[tuple[int, bytes]]]] = []
-    for sym_name in _ABILITY_TIMELINE_SYMBOLS:
-        sym_id = name_to_id.get(sym_name)
-        if sym_id is None:
-            continue
-        inner = sprites.get(sym_id)
-        if inner is None:
-            continue
-        timeline_inner.append((sym_name, inner))
-
-    total = sum(
-        1
-        for _sym, inner in timeline_inner
-        for _label, _ids in _walk_timeline_labels(inner)
-    )
+    # Walk the ability_icon_map (already built by the caller) to know which
+    # frame labels we actually need.
+    icon_map = load_ability_icon_map(icons_dir)
+    needed_labels = _collect_needed_labels(icon_map)
+    total = len(needed_labels)
 
     written = 0
     skipped = 0
-    failures: list[str] = []
+    missing: list[str] = []
     cancelled = False
-    done = 0
 
-    with open(log_path, "w", encoding="utf-8") as log:
-        log.write(f"# Icon extraction log\n# source: {install_path}\n\n")
-        for sym_name, inner in timeline_inner:
-            for label, placed_ids in _walk_timeline_labels(inner):
-                done += 1
-                if progress_cb is not None:
-                    if not progress_cb(done, total, label):
-                        cancelled = True
-                        break
-                safe = _sanitize_filename(label)
-                out_path = os.path.join(out_dir, f"{safe}.png")
-                shape_ids = _resolve_shape_ids(placed_ids, sprites, shapes)
-                if not shape_ids:
-                    log.write(f"[{sym_name}] {label}: no shapes\n")
-                    skipped += 1
-                    failures.append(label)
-                    continue
-                try:
-                    result = _render_shapes_to_png(shape_ids, shapes, out_path)
-                except Exception as exc:
-                    log.write(f"[{sym_name}] {label}: render error {exc!r}\n")
-                    failures.append(label)
-                    continue
-                if result is None:
-                    log.write(f"[{sym_name}] {label}: empty bounds\n")
-                    skipped += 1
-                    failures.append(label)
-                    continue
-                written += 1
-            if cancelled:
-                break
+    with tempfile.TemporaryDirectory(prefix="mbm_ffdec_") as tmp_root:
+        swf_path = os.path.join(tmp_root, "ability_icons.swf")
+        with open(swf_path, "wb") as fh:
+            fh.write(swf_bytes)
+        dump_dir = os.path.join(tmp_root, "dump")
+        os.makedirs(dump_dir, exist_ok=True)
 
-        # Best-effort badges / shells from ui.swf.
-        if ui_swf_bytes is not None:
-            badges_written, shells_written = _extract_ui_badges_and_shells(
-                ui_swf_bytes, icons_dir, log,
+        if progress_cb is not None and not progress_cb(0, total, "ffdec dump"):
+            return _summary(written, skipped, total, True, missing)
+
+        try:
+            subprocess.run(
+                [java_exe, "-jar", ffdec_jar,
+                 "-format", _FFDEC_FORMAT_ARG,
+                 "-export", _FFDEC_EXPORT_TYPE,
+                 dump_dir, swf_path],
+                check=True,
+                capture_output=True,
+                timeout=_FFDEC_TIMEOUT_SECS,
             )
-        else:
-            badges_written = shells_written = 0
-            log.write(f"# {_UI_SWF_INTERNAL} not present; badges/shells skipped\n")
+        except subprocess.CalledProcessError as exc:
+            raise RuntimeError(
+                f"FFDEC exited with code {exc.returncode}: "
+                f"{(exc.stderr or b'').decode('utf-8', 'replace')[:500]}"
+            ) from exc
 
+        frame_index = _scan_ffdec_dump(dump_dir)
+
+        with open(log_path, "w", encoding="utf-8") as log:
+            log.write(f"# Icon extraction log (FFDEC)\n# source: {install_path}\n\n")
+            done = 0
+            for label in needed_labels:
+                done += 1
+                if progress_cb is not None and not progress_cb(done, total, label):
+                    cancelled = True
+                    break
+                src_png = _lookup_label(label, label_indices, frame_index)
+                if not src_png:
+                    log.write(f"missing-frame-label: {label}\n")
+                    missing.append(label)
+                    skipped += 1
+                    continue
+                dst = os.path.join(out_dir, _sanitize_filename(label) + ".png")
+                try:
+                    shutil.copyfile(src_png, dst)
+                    written += 1
+                except OSError as exc:
+                    log.write(f"copy-failed: {label}: {exc!r}\n")
+                    missing.append(label)
+                    skipped += 1
+
+    return _summary(written, skipped, total, cancelled, missing)
+
+
+def _collect_needed_labels(icon_map: dict[str, dict]) -> list[str]:
+    """Collect the unique frame labels referenced by the ability map.
+
+    Falls back to the ability name itself when ``animation`` is missing —
+    matches the lookup convention in ``icon_provider._resolve_frame_label``.
+    """
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for name, entry in sorted(icon_map.items()):
+        candidates = []
+        if isinstance(entry, dict):
+            anim = entry.get("animation")
+            override = entry.get("ability_icon_override")
+            if isinstance(anim, str) and anim and anim.lower() != "none":
+                candidates.append(anim)
+            elif isinstance(override, str) and override:
+                candidates.append(override)
+        if not candidates:
+            candidates.append(name)
+        for label in candidates:
+            if label not in seen:
+                seen.add(label)
+                ordered.append(label)
+    return ordered
+
+
+def _lookup_label(
+    label: str,
+    label_indices: dict[str, dict[str, int]],
+    frame_index: dict[str, dict[int, str]],
+) -> Optional[str]:
+    """Resolve ``label`` to a source PNG path, preferring AbilityIcon."""
+    for class_name in _SPRITE_CLASS_PRIORITY:
+        labels = label_indices.get(class_name)
+        if not labels:
+            continue
+        frame_no = labels.get(label)
+        if frame_no is None:
+            continue
+        frames = frame_index.get(class_name) or {}
+        png = frames.get(frame_no)
+        if png and os.path.isfile(png):
+            return png
+    return None
+
+
+def _summary(written: int, skipped: int, total: int, cancelled: bool,
+             missing: list[str]) -> dict:
     return {
         "written": written,
         "skipped": skipped,
         "total": total,
         "cancelled": cancelled,
-        "failures": failures,
-        "badges_written": badges_written,
-        "shells_written": shells_written,
+        "failures": missing,
+        # Retained for API compatibility with the old extractor — FFDEC path
+        # doesn't produce badges/shells, so these are always zero.
+        "badges_written": 0,
+        "shells_written": 0,
     }
-
-
-# ── ui.swf — badges & shells (best effort) ────────────────────────────────────
-
-_BADGE_SYMBOL_PREFIX = "type_icon"
-_SHELL_SYMBOL_PREFIX = "icon_shell"
-
-
-def _extract_ui_badges_and_shells(ui_swf_bytes: bytes, icons_dir: str, log) -> tuple[int, int]:
-    swf_data = parse_all_tags(ui_swf_bytes)
-    names = swf_data["names"]
-    sprites = swf_data["sprites"]
-    shapes = swf_data["shapes"]
-
-    badges_dir = os.path.join(icons_dir, _BADGES_SUBDIR)
-    shells_dir = os.path.join(icons_dir, _SHELLS_SUBDIR)
-    os.makedirs(badges_dir, exist_ok=True)
-    os.makedirs(shells_dir, exist_ok=True)
-
-    badges_written = 0
-    shells_written = 0
-
-    for char_id, sym_name in names.items():
-        target_dir: Optional[str] = None
-        if sym_name.startswith(_BADGE_SYMBOL_PREFIX):
-            target_dir = badges_dir
-        elif sym_name.startswith(_SHELL_SYMBOL_PREFIX):
-            target_dir = shells_dir
-        if target_dir is None:
-            continue
-
-        if char_id in sprites:
-            shape_ids = collect_shapes_in_sprite(char_id, sprites, shapes)
-        elif char_id in shapes:
-            shape_ids = [char_id]
-        else:
-            continue
-        if not shape_ids:
-            continue
-
-        out_path = os.path.join(target_dir, f"{_sanitize_filename(sym_name)}.png")
-        try:
-            result = _render_shapes_to_png(shape_ids, shapes, out_path)
-        except Exception as exc:
-            log.write(f"[ui.swf] {sym_name}: render error {exc!r}\n")
-            continue
-        if result is None:
-            continue
-        if target_dir is badges_dir:
-            badges_written += 1
-        else:
-            shells_written += 1
-
-    return badges_written, shells_written
 
 
 def _sanitize_filename(name: str) -> str:

@@ -12,14 +12,13 @@ Handles two responsibilities:
 
 from __future__ import annotations
 
-import hashlib
 import logging
 import os
 import threading
 from typing import Optional
 
 from PySide6.QtCore import Qt, QCoreApplication, QEventLoop, QObject, QThread, Signal
-from PySide6.QtGui import QPainter, QPixmap, QPixmapCache
+from PySide6.QtGui import QPixmap, QPixmapCache
 from PySide6.QtWidgets import QFileDialog, QMessageBox, QProgressDialog, QWidget
 
 from . import app_settings
@@ -30,6 +29,11 @@ from .icon_extraction import (
 from .icon_extraction.extract_abilities import (
     extract_ability_icons,
     validate_install_path,
+)
+from .icon_extraction.ffdec_tool import (
+    find_ffdec,
+    find_java,
+    validate as validate_ffdec,
 )
 from .icon_extraction.gon_ability_map import (
     build_ability_icon_map,
@@ -44,9 +48,6 @@ logger = logging.getLogger(__name__)
 # ── Constants ─────────────────────────────────────────────────────────────────
 
 _ABILITIES_SUBDIR = "abilities"
-_BADGES_SUBDIR = "badges"
-_SHELLS_SUBDIR = "shells"
-_COMPOSED_SUBDIR = "composed"
 _PLACEHOLDER_FILENAME = "circle.png"  # Already-shipped neutral fallback symbol.
 _PLACEHOLDER_DIR_REL = os.path.join("breed_priority", "assets", "symbols")
 _CACHE_KEY_PREFIX = "bp_ability_icon::"
@@ -58,16 +59,16 @@ _PROGRESS_DIALOG_MIN_WIDTH = 420
 _CONSOLE_PROGRESS_START_MSG = "[icon-extract] starting…"
 _CONSOLE_PROGRESS_INTERVAL = 100  # print to console every N frames
 
-# Composition layering — badges are rendered small in a corner; shells span
-# the whole canvas. Sized relative to the base icon's bounding box.
-_BADGE_SCALE = 0.45            # badge edge length as fraction of base icon edge
-_COMPOSED_HASH_LEN = 16
-
 # Common Mewgenics install paths to probe automatically before prompting the
 # operator. Ordered by likelihood; first one that validates wins.
 _DEFAULT_INSTALL_PATHS = (
     r"C:\Program Files (x86)\Steam\steamapps\common\Mewgenics",
 )
+
+# External-tool download landing pages we point operators at when FFDEC or
+# Java can't be located on their machine.
+_FFDEC_DOWNLOAD_URL = "https://github.com/jindrapetrik/jpexs-decompiler/releases"
+_JAVA_DOWNLOAD_URL = "https://learn.microsoft.com/en-us/java/openjdk/download"
 
 
 def _tr(text: str) -> str:
@@ -130,7 +131,8 @@ def ensure_assets_ready(parent: Optional[QWidget] = None) -> bool:
     """Verify the per-user icon assets exist; extract them if not.
 
     Returns True if assets are ready (already-present or freshly extracted)
-    or False if the operator cancelled the install-path prompt or extraction.
+    or False if the operator cancelled the install-path prompt, declined to
+    locate FFDEC/Java, or extraction failed.
     """
     icons_dir = app_settings.icons_dir()
     if is_manifest_current(icons_dir):
@@ -139,7 +141,66 @@ def ensure_assets_ready(parent: Optional[QWidget] = None) -> bool:
     install_path = _resolve_install_path(parent)
     if not install_path:
         return False
+    if not _ensure_ffdec_ready(parent):
+        return False
     return _run_extraction(parent, install_path, icons_dir)
+
+
+def _ensure_ffdec_ready(parent: Optional[QWidget]) -> bool:
+    """Locate FFDEC + Java, prompting the operator if either is missing."""
+    java_exe = find_java()
+    ffdec_jar = find_ffdec()
+    if java_exe and ffdec_jar:
+        ok, _ = validate_ffdec(java_exe, ffdec_jar)
+        if ok:
+            return True
+
+    # Tell the operator what's missing and where to get it.
+    QMessageBox.information(
+        parent,
+        _tr("FFDEC + Java required"),
+        _tr(
+            "Icon extraction requires JPEXS Free Flash Decompiler (FFDEC) and a "
+            "Java runtime.\n\n"
+            "Download FFDEC: {ffdec}\n"
+            "Download Java (Microsoft OpenJDK): {java}\n\n"
+            "After installing them, you'll be asked to locate ffdec.jar."
+        ).format(ffdec=_FFDEC_DOWNLOAD_URL, java=_JAVA_DOWNLOAD_URL),
+    )
+    chosen_jar, _ = QFileDialog.getOpenFileName(
+        parent,
+        _tr("Locate ffdec.jar"),
+        "",
+        _tr("FFDEC jar (ffdec.jar)"),
+    )
+    if not chosen_jar:
+        return False
+    app_settings.set_ffdec_jar_path(chosen_jar)
+
+    # Java may already be discoverable now that the operator's installed it;
+    # only prompt for it if discovery still fails.
+    java_exe = find_java()
+    if not java_exe:
+        chosen_java, _ = QFileDialog.getOpenFileName(
+            parent,
+            _tr("Locate java.exe"),
+            "",
+            _tr("Java executable (java.exe)"),
+        )
+        if not chosen_java:
+            return False
+        app_settings.set_java_exe_path(chosen_java)
+        java_exe = chosen_java
+
+    ok, reason = validate_ffdec(java_exe, chosen_jar)
+    if not ok:
+        QMessageBox.warning(
+            parent,
+            _tr("FFDEC validation failed"),
+            _tr("FFDEC could not be validated:") + "\n" + reason,
+        )
+        return False
+    return True
 
 
 def reextract_icons(parent: Optional[QWidget] = None) -> bool:
@@ -166,12 +227,10 @@ def get_ability_icon(ability_name: str) -> QPixmap:
     if QPixmapCache.find(cache_key, cached):
         return cached
 
-    base_path, badge_path, shell_path = _resolve_layer_paths(ability_name)
+    base_path = _resolve_base_icon_path(ability_name)
     pixmap = QPixmap()
     if base_path:
         pixmap.load(base_path)
-    if not pixmap.isNull() and (badge_path or shell_path):
-        pixmap = _compose_layers(pixmap, badge_path, shell_path)
 
     if pixmap.isNull():
         pixmap = _get_placeholder_pixmap()
@@ -183,19 +242,13 @@ def get_ability_icon(ability_name: str) -> QPixmap:
 def get_ability_icon_file_url(ability_name: str) -> Optional[str]:
     """Return a ``file:///...`` URL for use in HTML tooltips.
 
-    When an ability has a badge and/or shell layer, the layers are
-    composited once to ``<icons_dir>/composed/<hash>.png`` and that URL is
-    returned. Returns None when no extracted base icon exists for the
-    ability — callers can decide whether to emit a placeholder or skip the
-    ``<img>`` tag.
+    Returns None when no extracted icon exists for the ability — callers
+    can decide whether to emit a placeholder or skip the ``<img>`` tag.
     """
-    base_path, badge_path, shell_path = _resolve_layer_paths(ability_name)
+    base_path = _resolve_base_icon_path(ability_name)
     if not base_path:
         return None
-    if not (badge_path or shell_path):
-        return _file_url(base_path)
-    composed = _ensure_composed_file(base_path, badge_path, shell_path)
-    return _file_url(composed)
+    return _file_url(base_path)
 
 
 def _mutation_icon_path(slot: str) -> Optional[str]:
@@ -247,123 +300,14 @@ def _file_url(path: str) -> str:
     return "file:///" + path.replace(os.sep, "/")
 
 
-def _resolve_layer_paths(ability_name: str) -> tuple[Optional[str], Optional[str], Optional[str]]:
-    """Return ``(base_png, badge_png, shell_png)`` for an ability.
-
-    Each element is an absolute path to an existing PNG, or None when the
-    layer is unavailable. ``base_png`` is the only one required for the
-    icon to render; the other two are optional overlays.
-    """
+def _resolve_base_icon_path(ability_name: str) -> Optional[str]:
+    """Return the absolute path to the extracted base icon PNG, or None."""
     icons_dir = app_settings.icons_dir()
     frame = _resolve_frame_label(ability_name)
-    base_path = None
-    if frame:
-        candidate = os.path.join(icons_dir, _ABILITIES_SUBDIR, frame + _PNG_EXT)
-        if os.path.exists(candidate):
-            base_path = candidate
-
-    badge_name, shell_name = _resolve_badge_and_shell_names(ability_name)
-    badge_path = _existing_layer_path(icons_dir, _BADGES_SUBDIR, badge_name)
-    shell_path = _existing_layer_path(icons_dir, _SHELLS_SUBDIR, shell_name)
-    return base_path, badge_path, shell_path
-
-
-def _existing_layer_path(icons_dir: str, subdir: str, name: Optional[str]) -> Optional[str]:
-    if not name:
+    if not frame:
         return None
-    path = os.path.join(icons_dir, subdir, name + _PNG_EXT)
-    return path if os.path.exists(path) else None
-
-
-def _resolve_badge_and_shell_names(ability_name: str) -> tuple[Optional[str], Optional[str]]:
-    icon_map = _load_ability_map_if_needed()
-    if not icon_map:
-        return None, None
-    for key in _candidate_lookup_keys(ability_name):
-        entry = icon_map.get(key)
-        if isinstance(entry, dict):
-            badge = entry.get("type_icon")
-            shell = entry.get("icon_shell_frame")
-            return (
-                badge if isinstance(badge, str) and badge else None,
-                shell if isinstance(shell, str) and shell else None,
-            )
-    return None, None
-
-
-def _compose_layers(
-    base: QPixmap,
-    badge_path: Optional[str],
-    shell_path: Optional[str],
-) -> QPixmap:
-    """Layer shell (bottom) → base → badge (top-right) onto a copy of ``base``.
-
-    The composed canvas inherits the base icon's dimensions; layers are
-    scaled to fit. Returns the composed pixmap or the original on failure.
-    """
-    canvas = QPixmap(base.size())
-    canvas.fill(Qt.transparent)
-    painter = QPainter(canvas)
-    try:
-        if shell_path:
-            shell = QPixmap(shell_path)
-            if not shell.isNull():
-                scaled = shell.scaled(
-                    base.size(),
-                    Qt.KeepAspectRatio,
-                    Qt.SmoothTransformation,
-                )
-                offset_x = (base.width() - scaled.width()) // 2
-                offset_y = (base.height() - scaled.height()) // 2
-                painter.drawPixmap(offset_x, offset_y, scaled)
-        painter.drawPixmap(0, 0, base)
-        if badge_path:
-            badge = QPixmap(badge_path)
-            if not badge.isNull():
-                badge_edge = max(1, int(round(base.width() * _BADGE_SCALE)))
-                scaled_badge = badge.scaled(
-                    badge_edge, badge_edge,
-                    Qt.KeepAspectRatio,
-                    Qt.SmoothTransformation,
-                )
-                bx = base.width() - scaled_badge.width()
-                by = base.height() - scaled_badge.height()
-                painter.drawPixmap(bx, by, scaled_badge)
-    finally:
-        painter.end()
-    return canvas
-
-
-def _composed_filename(base_path: str, badge_path: Optional[str], shell_path: Optional[str]) -> str:
-    key = "|".join([
-        base_path,
-        badge_path or "",
-        shell_path or "",
-    ])
-    digest = hashlib.sha1(key.encode("utf-8")).hexdigest()[:_COMPOSED_HASH_LEN]
-    base_stem = os.path.splitext(os.path.basename(base_path))[0]
-    return f"{base_stem}_{digest}{_PNG_EXT}"
-
-
-def _ensure_composed_file(
-    base_path: str,
-    badge_path: Optional[str],
-    shell_path: Optional[str],
-) -> str:
-    """Write a composed PNG to ``<icons_dir>/composed/`` if missing; return path."""
-    icons_dir = app_settings.icons_dir()
-    composed_dir = os.path.join(icons_dir, _COMPOSED_SUBDIR)
-    os.makedirs(composed_dir, exist_ok=True)
-    out_path = os.path.join(composed_dir, _composed_filename(base_path, badge_path, shell_path))
-    if os.path.exists(out_path):
-        return out_path
-    base = QPixmap(base_path)
-    if base.isNull():
-        return base_path
-    composed = _compose_layers(base, badge_path, shell_path)
-    if not composed.save(out_path, "PNG"):
-        return base_path
-    return out_path
+    candidate = os.path.join(icons_dir, _ABILITIES_SUBDIR, frame + _PNG_EXT)
+    return candidate if os.path.exists(candidate) else None
 
 
 def _resolve_frame_label(ability_name: str) -> Optional[str]:

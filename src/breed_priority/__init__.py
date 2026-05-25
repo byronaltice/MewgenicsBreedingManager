@@ -23,11 +23,6 @@ from .icon_provider import get_ability_icon_file_url, get_mutation_icon_file_url
 # Icon size (px) for the Traits tab. Larger than tooltip icons (16) since the
 # panel has more room and the icons are the main visual anchor per row.
 _TRAITS_TAB_ICON_SIZE = 32
-# Parchment-style backplate behind each Traits-tab icon — extracted ability
-# icons are white-plate + black-border + B&W silhouette, designed for a light
-# in-game background. Painted against the dark Qt UI they read as masks, so we
-# emulate the in-game cream background.
-_TRAITS_TAB_ICON_BG = "#e8dfc6"
 
 from PySide6.QtWidgets import (
     QDialog, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSplitter,
@@ -2041,9 +2036,6 @@ class BreedPriorityView(QWidget):
                 icon_lbl = QLabel()
                 icon_lbl.setFixedSize(_TRAITS_TAB_ICON_SIZE, _TRAITS_TAB_ICON_SIZE)
                 icon_lbl.setAlignment(Qt.AlignCenter)
-                icon_lbl.setStyleSheet(
-                    f"background:{_TRAITS_TAB_ICON_BG}; border-radius:3px;"
-                )
                 if icon_url:
                     pm_path = icon_url[len("file:///"):] if icon_url.startswith("file:///") else icon_url
                     pixmap = QPixmap(pm_path)

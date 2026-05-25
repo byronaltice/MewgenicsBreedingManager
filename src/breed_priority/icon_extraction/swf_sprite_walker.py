@@ -118,6 +118,30 @@ def parse_all_tags(swf_source) -> dict:
     }
 
 
+def build_frame_label_index(inner_tags) -> dict[str, int]:
+    """Map ``frame_label`` -> ``frame_number`` (1-based) for a sprite's tag stream.
+
+    FFDEC's ``-export sprite`` dump names each frame's PNG by its 1-based
+    frame number (e.g. ``835.png``). This walker mirrors FFDEC's numbering by
+    counting ``TAG_SHOW_FRAME`` occurrences and pinning the preceding
+    ``TAG_FRAME_LABEL`` text to that frame number.
+    """
+    labels: dict[str, int] = {}
+    pending_label: str | None = None
+    frame_no = 0
+    for tag_type, tag_data in inner_tags:
+        if tag_type == TAG_FRAME_LABEL:
+            end = tag_data.find(b"\x00")
+            raw = tag_data[: end if end >= 0 else len(tag_data)]
+            pending_label = raw.decode("utf-8", errors="replace")
+        elif tag_type == TAG_SHOW_FRAME:
+            frame_no += 1
+            if pending_label is not None:
+                labels[pending_label] = frame_no
+                pending_label = None
+    return labels
+
+
 def collect_shapes_in_sprite(sprite_id: int, sprites: dict, shapes: dict,
                              visited: set | None = None) -> list[int]:
     """Recursively collect all shape char_ids referenced by a sprite."""
