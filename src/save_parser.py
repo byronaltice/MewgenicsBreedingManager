@@ -794,10 +794,14 @@ def summarize_furniture_room(
     for item in items:
         definition = definitions.get(item.item_name) if definitions else None
         effects = definition.effects if definition is not None else {}
+        rarity = int(item.header_fields[0]) if item.header_fields else 0
         for key, value in effects.items():
-            all_effects[key] = all_effects.get(key, 0.0) + float(value)
+            base = float(value)
+            # Rarity/upgrade level adds a flat bonus to each room stat the item provides.
+            adjusted = base + rarity if (key in FURNITURE_ROOM_STAT_KEYS and rarity) else base
+            all_effects[key] = all_effects.get(key, 0.0) + adjusted
             if key in raw_effects:
-                raw_effects[key] += float(value)
+                raw_effects[key] += adjusted
 
     capacity = ROOM_CROWD_CAPACITY.get(room or "", _DEFAULT_ROOM_CROWD_CAPACITY)
     crowd_penalty = max(0, int(cat_count) - capacity)
