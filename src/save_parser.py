@@ -50,9 +50,9 @@ ROOM_KEYS = tuple(ROOM_DISPLAY.keys())
 ROOM_CROWD_CAPACITY: dict[str, int] = {
     "Floor1_Large": 4,
     "Floor2_Large": 4,
-    "Floor1_Small": 3,
-    "Floor2_Small": 3,
-    "Attic":        7,
+    "Floor1_Small": 4,
+    "Floor2_Small": 4,
+    "Attic":        4,
 }
 _DEFAULT_ROOM_CROWD_CAPACITY = 4  # safety net for unknown room keys
 
@@ -797,8 +797,8 @@ def summarize_furniture_room(
         rarity = int(item.header_fields[0]) if item.header_fields else 0
         for key, value in effects.items():
             base = float(value)
-            # Rarity/upgrade level adds a flat bonus to each room stat the item provides.
-            adjusted = base + rarity if (key in FURNITURE_ROOM_STAT_KEYS and rarity) else base
+            # Rarity/upgrade level multiplies each room stat the item provides.
+            adjusted = base * rarity if (key in FURNITURE_ROOM_STAT_KEYS and rarity) else base
             all_effects[key] = all_effects.get(key, 0.0) + adjusted
             if key in raw_effects:
                 raw_effects[key] += adjusted
