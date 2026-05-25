@@ -10,11 +10,16 @@ a = Analysis(
         ('mewgenics/utils/locales/zh_CN.json', '.'),
         ('mewgenics/utils/locales/pl.json', '.'),
         ('../VERSION', '.'),
-        # Placeholder/symbol PNGs shipped with the app. Game-derived icons
-        # (abilities/, badges/, shells/, composed/) are extracted per-user at
-        # runtime into %LOCALAPPDATA% and must NOT be bundled here.
+        # Placeholder/symbol PNGs shipped with the app.
         ('breed_priority/assets/symbols/*.png', 'breed_priority/assets/symbols'),
         ('breed_priority/assets/symbols/mutations/*.png', 'breed_priority/assets/symbols/mutations'),
+        # Pre-extracted ability icons + name→frame map shipped in the repo
+        # so end users see real icons without needing FFDEC/Java at runtime.
+        # Power users can still re-extract from a newer game version via the
+        # "Re-extract icons…" button; those overrides land in %APPDATA% and
+        # take precedence over these bundled defaults.
+        ('breed_priority/assets/icons/abilities/*.png', 'breed_priority/assets/icons/abilities'),
+        ('breed_priority/assets/icons/ability_icon_map.json', 'breed_priority/assets/icons'),
     ],
     hiddenimports=[
         'lz4.frame',

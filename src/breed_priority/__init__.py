@@ -1013,8 +1013,10 @@ class BreedPriorityView(QWidget):
         self._btn_reextract_icons.setStyleSheet(ACTION_BUTTON_SECONDARY_STYLE)
         self._btn_reextract_icons.setFixedHeight(22)
         self._btn_reextract_icons.setToolTip(
-            "Re-run the ability-icon extractor against your Mewgenics install.\n"
-            "Use this if icons are missing or the game has been updated."
+            "Power-user: re-extract ability icons from your local Mewgenics install.\n"
+            "The app ships pre-extracted icons that work out of the box; use this only\n"
+            "to override them with a fresh pull from a newer game version.\n"
+            "Requires a local Mewgenics install plus FFDEC + Java."
         )
         self._btn_reextract_icons.clicked.connect(self._reextract_icons)
         hb.addWidget(self._btn_reextract_icons)

@@ -54,6 +54,14 @@ _CACHE_KEY_PREFIX = "bp_ability_icon::"
 _MUTATION_CACHE_KEY_PREFIX = "bp_mutation_icon::"
 _MUTATION_SUBDIR = "mutations"  # under .../assets/symbols/
 _PNG_EXT = ".png"
+# Repo-shipped icon assets — populated by a one-time bulk extraction and
+# committed alongside the code so end users don't need FFDEC/Java to see
+# ability icons. The %APPDATA% per-user dir (``app_settings.icons_dir()``)
+# still wins when present so power users can override with a fresh extraction
+# from a newer game version.
+_SHIPPED_ICONS_SUBDIR = "icons"
+_SHIPPED_ASSETS_SUBDIR = "assets"
+_ABILITY_ICON_MAP_FILENAME = "ability_icon_map.json"
 _QPIXMAP_CACHE_LIMIT_KB = 8 * 1024  # 8 MB — plenty for a few hundred small PNGs.
 _PROGRESS_DIALOG_MIN_WIDTH = 420
 _CONSOLE_PROGRESS_START_MSG = "[icon-extract] starting…"
@@ -101,6 +109,40 @@ def _placeholder_path() -> Optional[str]:
     return candidate if os.path.exists(candidate) else None
 
 
+def _shipped_icons_dir() -> str:
+    """Return the absolute path to the repo-shipped icons directory.
+
+    Mirrors the structure of ``app_settings.icons_dir()`` (``<root>/abilities``
+    plus ``ability_icon_map.json`` at the root) so the same path-resolution
+    helpers work against either location.
+    """
+    here = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(here, _SHIPPED_ASSETS_SUBDIR, _SHIPPED_ICONS_SUBDIR)
+
+
+def _shipped_abilities_dir() -> str:
+    return os.path.join(_shipped_icons_dir(), _ABILITIES_SUBDIR)
+
+
+def _has_shipped_ability_icons() -> bool:
+    """True when the repo-shipped abilities directory has any PNGs.
+
+    Used to short-circuit ``ensure_assets_ready`` for the typical end-user
+    install — once icons ship in the repo (or PyInstaller bundle), no
+    FFDEC/Java prompt is ever needed.
+    """
+    shipped = _shipped_abilities_dir()
+    if not os.path.isdir(shipped):
+        return False
+    try:
+        for name in os.listdir(shipped):
+            if name.lower().endswith(_PNG_EXT):
+                return True
+    except OSError:
+        return False
+    return False
+
+
 def _get_placeholder_pixmap() -> QPixmap:
     global _placeholder_pixmap
     if _placeholder_pixmap is None or _placeholder_pixmap.isNull():
@@ -113,9 +155,19 @@ def _get_placeholder_pixmap() -> QPixmap:
 
 
 def _load_ability_map_if_needed() -> dict[str, dict]:
+    """Load the ability-name → icon-metadata map.
+
+    Prefers the per-user ``%APPDATA%`` map (so a power-user re-extraction
+    from a newer game version overrides the shipped data), falling back to
+    the repo-shipped map when no user copy exists.
+    """
     global _ability_icon_map
     if _ability_icon_map is None:
-        _ability_icon_map = load_ability_icon_map(app_settings.icons_dir())
+        user_map = load_ability_icon_map(app_settings.icons_dir())
+        if user_map:
+            _ability_icon_map = user_map
+        else:
+            _ability_icon_map = load_ability_icon_map(_shipped_icons_dir())
     return _ability_icon_map
 
 
@@ -128,22 +180,21 @@ def _reset_caches() -> None:
 # ── Public API ────────────────────────────────────────────────────────────────
 
 def ensure_assets_ready(parent: Optional[QWidget] = None) -> bool:
-    """Verify the per-user icon assets exist; extract them if not.
+    """Return True if ability icons are available for display.
 
-    Returns True if assets are ready (already-present or freshly extracted)
-    or False if the operator cancelled the install-path prompt, declined to
-    locate FFDEC/Java, or extraction failed.
+    With pre-extracted icons shipped in the repo (and bundled into the
+    PyInstaller build), the typical end user never needs FFDEC or Java —
+    this is a cheap no-op that returns True immediately. The %APPDATA%
+    per-user extraction path is reserved for power users who explicitly
+    invoke ``reextract_icons`` to override the shipped data with a fresh
+    pull from a newer game version.
     """
-    icons_dir = app_settings.icons_dir()
-    if is_manifest_current(icons_dir):
+    if _has_shipped_ability_icons():
         return True
-
-    install_path = _resolve_install_path(parent)
-    if not install_path:
-        return False
-    if not _ensure_ffdec_ready(parent):
-        return False
-    return _run_extraction(parent, install_path, icons_dir)
+    # No shipped icons (development checkout that hasn't been seeded, or
+    # the assets dir was deleted) — fall back to the per-user manifest so
+    # an earlier extraction still counts as "ready".
+    return is_manifest_current(app_settings.icons_dir())
 
 
 def _ensure_ffdec_ready(parent: Optional[QWidget]) -> bool:
@@ -204,11 +255,25 @@ def _ensure_ffdec_ready(parent: Optional[QWidget]) -> bool:
 
 
 def reextract_icons(parent: Optional[QWidget] = None) -> bool:
-    """Force a fresh extraction. Wipes the existing manifest first."""
+    """Power-user opt-in: re-extract ability icons into ``%APPDATA%``.
+
+    The repo ships pre-extracted icons that work for the typical user with
+    no external tooling. This entry point exists for operators who want to
+    refresh from a newer game version — it requires a local Mewgenics
+    install plus FFDEC + Java, and the freshly-extracted icons (written to
+    ``app_settings.icons_dir()``) take precedence over the shipped copies
+    on subsequent launches.
+    """
     icons_dir = app_settings.icons_dir()
     delete_manifest(icons_dir)
     _reset_caches()
-    return ensure_assets_ready(parent)
+
+    install_path = _resolve_install_path(parent)
+    if not install_path:
+        return False
+    if not _ensure_ffdec_ready(parent):
+        return False
+    return _run_extraction(parent, install_path, icons_dir)
 
 
 def get_ability_icon(ability_name: str) -> QPixmap:
@@ -301,13 +366,21 @@ def _file_url(path: str) -> str:
 
 
 def _resolve_base_icon_path(ability_name: str) -> Optional[str]:
-    """Return the absolute path to the extracted base icon PNG, or None."""
-    icons_dir = app_settings.icons_dir()
+    """Return the absolute path to the base icon PNG, or None.
+
+    Checks the per-user ``%APPDATA%`` directory first so a power-user
+    re-extraction can override the shipped icons, then falls back to the
+    repo-shipped copy that every install gets for free.
+    """
     frame = _resolve_frame_label(ability_name)
     if not frame:
         return None
-    candidate = os.path.join(icons_dir, _ABILITIES_SUBDIR, frame + _PNG_EXT)
-    return candidate if os.path.exists(candidate) else None
+    filename = frame + _PNG_EXT
+    user_candidate = os.path.join(app_settings.icons_dir(), _ABILITIES_SUBDIR, filename)
+    if os.path.exists(user_candidate):
+        return user_candidate
+    shipped_candidate = os.path.join(_shipped_abilities_dir(), filename)
+    return shipped_candidate if os.path.exists(shipped_candidate) else None
 
 
 def _resolve_frame_label(ability_name: str) -> Optional[str]:
