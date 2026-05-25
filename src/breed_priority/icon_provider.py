@@ -368,54 +368,102 @@ def _file_url(path: str) -> str:
 def _resolve_base_icon_path(ability_name: str) -> Optional[str]:
     """Return the absolute path to the base icon PNG, or None.
 
-    Checks the per-user ``%APPDATA%`` directory first so a power-user
-    re-extraction can override the shipped icons, then falls back to the
-    repo-shipped copy that every install gets for free.
+    Tries each candidate frame label in priority order (map ``animation``,
+    map ``ability_icon_override``, lookup-key variants, the bare ability
+    name) and returns the first one whose PNG actually exists. Checks the
+    per-user ``%APPDATA%`` directory first so a power-user re-extraction
+    can override the shipped icons, then falls back to the repo-shipped
+    copy that every install gets for free.
     """
-    frame = _resolve_frame_label(ability_name)
-    if not frame:
-        return None
-    filename = frame + _PNG_EXT
-    user_candidate = os.path.join(app_settings.icons_dir(), _ABILITIES_SUBDIR, filename)
-    if os.path.exists(user_candidate):
-        return user_candidate
-    shipped_candidate = os.path.join(_shipped_abilities_dir(), filename)
-    return shipped_candidate if os.path.exists(shipped_candidate) else None
+    user_dir = os.path.join(app_settings.icons_dir(), _ABILITIES_SUBDIR)
+    shipped_dir = _shipped_abilities_dir()
+    seen: set[str] = set()
+    for frame in _candidate_frame_labels(ability_name):
+        if not frame or frame in seen:
+            continue
+        seen.add(frame)
+        filename = frame + _PNG_EXT
+        user_candidate = os.path.join(user_dir, filename)
+        if os.path.exists(user_candidate):
+            return user_candidate
+        shipped_candidate = os.path.join(shipped_dir, filename)
+        if os.path.exists(shipped_candidate):
+            return shipped_candidate
+    return None
 
 
 def _resolve_frame_label(ability_name: str) -> Optional[str]:
-    """Look up the SWF frame label for an ability name.
+    """Look up the best SWF frame label for an ability name.
 
-    Tries exact, lowercased, and ability-base (no trailing digits) keys to
-    handle e.g. ``BlowKiss2`` falling back to ``BlowKiss``'s animation.
+    Returns the first candidate from :func:`_candidate_frame_labels` — the
+    map-declared ``animation`` when present, else an override target, else
+    the bare ability name. Note this does **not** verify the PNG exists;
+    use :func:`_resolve_base_icon_path` for end-to-end resolution.
+    """
+    for frame in _candidate_frame_labels(ability_name):
+        if frame:
+            return frame
+    return None
+
+
+def _candidate_frame_labels(ability_name: str):
+    """Yield frame-label candidates for an ability in priority order.
+
+    Order is:
+      1. ``animation`` from any matching map entry (preferred — the GON
+         tells us which SWF frame the game itself uses).
+      2. ``ability_icon_override`` target (one-hop redirect to another
+         ability whose own animation/name will resolve a frame).
+      3. Each ``_candidate_lookup_keys`` variant of the input name (the
+         shipped PNG set names files after CamelCase ability keys, so
+         the lookup key itself is often a valid frame label).
+      4. The raw input string as a last-resort frame label.
+
+    Callers walk the sequence and pick the first whose PNG exists, so a
+    missing extracted-animation PNG gracefully falls through to the
+    ability-name PNG instead of returning no icon at all.
     """
     icon_map = _load_ability_map_if_needed()
-    if not icon_map:
-        return None
+    lookup_keys = list(_candidate_lookup_keys(ability_name))
 
-    for key in _candidate_lookup_keys(ability_name):
-        entry = icon_map.get(key)
-        if isinstance(entry, dict):
-            anim = entry.get("animation")
-            if isinstance(anim, str) and anim and anim.lower() != "none":
-                return anim
-            # Many abilities have no explicit ``graphics.animation`` but have
-            # an ``ability_icon`` override pointing to another ability; that
-            # target name is itself a valid frame label in AbilityIcon.
-            override = entry.get("ability_icon_override")
-            if isinstance(override, str) and override:
-                return override
-    # Last-resort: the ability name itself may be the frame label (matches
-    # the convention used by AbilityIcon for abilities whose icon symbol is
-    # simply named after the ability).
-    return ability_name
+    if icon_map:
+        for key in lookup_keys:
+            entry = icon_map.get(key)
+            if isinstance(entry, dict):
+                anim = entry.get("animation")
+                if isinstance(anim, str) and anim and anim.lower() != "none":
+                    yield anim
+        for key in lookup_keys:
+            entry = icon_map.get(key)
+            if isinstance(entry, dict):
+                override = entry.get("ability_icon_override")
+                if isinstance(override, str) and override:
+                    yield override
+
+    for key in lookup_keys:
+        yield key
 
 
 def _candidate_lookup_keys(ability_name: str):
+    """Yield map-lookup key variants for an ability name.
+
+    Handles three sources of mismatch between caller and map:
+      * Trailing tier digit (``BlowKiss2`` → ``BlowKiss``).
+      * Display-name spaces (``Buy Catnip`` → ``BuyCatnip``) — UI code
+        sometimes passes the human label rather than the internal key.
+      * Combined: ``Blow Kiss 2`` → ``BlowKiss``.
+    """
     yield ability_name
-    stripped = ability_name.rstrip("0123456789")
-    if stripped and stripped != ability_name:
-        yield stripped
+    stripped_digits = ability_name.rstrip("0123456789")
+    if stripped_digits and stripped_digits != ability_name:
+        yield stripped_digits
+    if " " in ability_name:
+        no_spaces = ability_name.replace(" ", "")
+        if no_spaces and no_spaces != ability_name:
+            yield no_spaces
+        no_spaces_no_digits = no_spaces.rstrip("0123456789")
+        if no_spaces_no_digits and no_spaces_no_digits not in (no_spaces, ability_name):
+            yield no_spaces_no_digits
 
 
 def _resolve_install_path(parent: Optional[QWidget]) -> Optional[str]:

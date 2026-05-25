@@ -22,7 +22,7 @@ from .icon_provider import get_ability_icon_file_url, get_mutation_icon_file_url
 
 # Icon size (px) for the Traits tab. Larger than tooltip icons (16) since the
 # panel has more room and the icons are the main visual anchor per row.
-_TRAITS_TAB_ICON_SIZE = 32
+_TRAITS_TAB_ICON_SIZE = 45
 
 from PySide6.QtWidgets import (
     QDialog, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSplitter,
@@ -2021,13 +2021,20 @@ class BreedPriorityView(QWidget):
                     html = f"<b style='color:#cccccc;'>{esc_display}</b>"
 
                 # Resolve the icon URL for this trait. Mutations use a per-slot
-                # placeholder; everything else looks up the ability frame icon.
+                # placeholder; defects do the same when no ability icon exists
+                # (birth defects have no entry in ability_icons.swf, so the
+                # mutation slot icon is the most informative fallback).
+                # Everything else looks up the ability frame icon.
                 if section_title == "Mutations":
                     icon_url = get_mutation_icon_file_url(
                         mutation_slot_by_name.get(trait, "")
                     )
                 else:
                     icon_url = get_ability_icon_file_url(trait)
+                    if not icon_url and section_title == "Defects":
+                        icon_url = get_mutation_icon_file_url(
+                            mutation_slot_by_name.get(trait, "")
+                        )
 
                 row = QWidget()
                 row.setStyleSheet(f"background:{CLR_BG_DEEP};")
