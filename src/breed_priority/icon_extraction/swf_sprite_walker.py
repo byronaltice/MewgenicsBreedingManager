@@ -142,6 +142,52 @@ def build_frame_label_index(inner_tags) -> dict[str, int]:
     return labels
 
 
+def build_frame_to_character_index(inner_tags) -> dict[str, int]:
+    """Map ``frame_label -> character_id`` of the per-frame ability shape.
+
+    Walks a sprite's tag stream. For each labeled frame, picks the character
+    placed at the **highest depth** by a ``PlaceObject2``/``PlaceObject3``
+    tag inside that frame's tag block. Empirically this is the ability shape
+    layer in both ``AbilityIcon`` (usually depth 3) and ``PassiveIcon``
+    (usually depth 4); occasional frames place at different depths, but the
+    ability shape is consistently the topmost newly-placed character.
+
+    Frames that don't place any character at all (e.g. the first stage-setup
+    frame which only refreshes persistent layers) are omitted.
+    """
+    labels: dict[str, int] = {}
+    pending_label: str | None = None
+    placed_this_frame: list[tuple[int, int]] = []
+    for tag_type, tag_data in inner_tags:
+        if tag_type == TAG_FRAME_LABEL:
+            end = tag_data.find(b"\x00")
+            raw = tag_data[: end if end >= 0 else len(tag_data)]
+            pending_label = raw.decode("utf-8", errors="replace")
+        elif tag_type == TAG_PLACE_OBJECT2:
+            if len(tag_data) < _PLACE_OBJECT2_WITH_CHARID_MIN_LEN:
+                continue
+            flags = tag_data[0]
+            if flags & _PLACE2_FLAG_HAS_CHARACTER:
+                depth = struct.unpack_from("<H", tag_data, 1)[0]
+                char_id = struct.unpack_from("<H", tag_data, 3)[0]
+                placed_this_frame.append((depth, char_id))
+        elif tag_type == TAG_PLACE_OBJECT3:
+            if len(tag_data) < _PLACE_OBJECT3_WITH_CHARID_MIN_LEN:
+                continue
+            flags1 = tag_data[0]
+            if flags1 & _PLACE2_FLAG_HAS_CHARACTER:
+                depth = struct.unpack_from("<H", tag_data, 2)[0]
+                char_id = struct.unpack_from("<H", tag_data, 4)[0]
+                placed_this_frame.append((depth, char_id))
+        elif tag_type == TAG_SHOW_FRAME:
+            if pending_label is not None and placed_this_frame:
+                _depth, char_id = max(placed_this_frame, key=lambda dc: dc[0])
+                labels[pending_label] = char_id
+            pending_label = None
+            placed_this_frame = []
+    return labels
+
+
 def collect_shapes_in_sprite(sprite_id: int, sprites: dict, shapes: dict,
                              visited: set | None = None) -> list[int]:
     """Recursively collect all shape char_ids referenced by a sprite."""

@@ -1,19 +1,22 @@
 """Extract ability icons from a Mewgenics install using JPEXS FFDEC.
 
-We shell out to ``java -jar ffdec.jar -format sprite:png -export sprite ...``
-to rasterize every frame of every sprite in ``ability_icons.swf``. FFDEC's
-output is far cleaner than our previous in-tree skia renderer (which clipped
-paths in some shapes). After FFDEC finishes, we walk its dump tree, map each
-ability's frame label to a frame number, and copy the matching PNG to
+We shell out to ``java -jar ffdec.jar -format shape:png -export shape ...``
+to rasterize every DefineShape character in ``ability_icons.swf``. Shape
+export produces one PNG per character — clean icons with no stage cruft
+from other timeline layers (the older ``-export sprite`` mode dumped the
+whole sprite stage per frame, which bled persistent layers into every PNG).
+
+After FFDEC finishes we walk each labeled frame in ``AbilityIcon`` and
+``PassiveIcon``, pick the topmost (highest-depth) shape placed in that
+frame, and copy ``<dump>/<char_id>.png`` to
 ``<icons_dir>/abilities/<frame_label>.png``.
 
-The FFDEC dump (thousands of PNGs we don't keep) is deleted after copying.
+The FFDEC dump (1000+ PNGs we don't keep) is deleted after copying.
 """
 
 from __future__ import annotations
 
 import os
-import re
 import shutil
 import subprocess
 import tempfile
@@ -22,7 +25,7 @@ from typing import Callable, Optional
 from .ffdec_tool import find_ffdec, find_java, validate as validate_ffdec
 from .gon_ability_map import load_ability_icon_map
 from .gpak_reader import GpakReader, find_gpak_in
-from .swf_sprite_walker import build_frame_label_index, parse_all_tags
+from .swf_sprite_walker import build_frame_to_character_index, parse_all_tags
 
 
 # ── Internal paths inside resources.gpak ──────────────────────────────────────
@@ -37,22 +40,19 @@ _LOG_FILENAME = "extraction.log"
 
 # ── FFDEC invocation ──────────────────────────────────────────────────────────
 
-# FFDEC's sprite dump emits one PNG per frame, per DefineSprite tag. Directory
-# names follow ``DefineSprite_<cid>_<className>`` (className omitted when the
-# sprite isn't exported by class). PNG filenames are ``<frame_no>.png``.
-_FFDEC_FORMAT_ARG = "sprite:png"
-_FFDEC_EXPORT_TYPE = "sprite"
-_FFDEC_TIMEOUT_SECS = 120
-_DEFINE_SPRITE_DIR_RE = re.compile(r"^DefineSprite_(\d+)(?:_(.+))?$")
-_FRAME_PNG_RE = re.compile(r"^(\d+)\.png$", re.IGNORECASE)
+# Shape export emits ``<char_id>.png`` flat into the output directory.
+_FFDEC_FORMAT_ARG = "shape:png"
+_FFDEC_EXPORT_TYPE = "shape"
+_FFDEC_TIMEOUT_SECS = 180
+_SHAPE_PNG_EXT = ".png"
 
-# Sprite class names FFDEC uses for the two timelines we care about.
+# Symbol class names of the two ability-icon timelines we care about.
 _ABILITY_SPRITE_CLASS = "AbilityIcon"
 _PASSIVE_SPRITE_CLASS = "PassiveIcon"
 
-# Lookup priority — frame labels in AbilityIcon win over PassiveIcon when both
-# define the same label. Empirically the active-ability timeline is the more
-# common case.
+# Lookup priority — frame labels in AbilityIcon win over PassiveIcon when
+# both define the same label. Empirically the active-ability timeline is
+# the more common case.
 _SPRITE_CLASS_PRIORITY = (_ABILITY_SPRITE_CLASS, _PASSIVE_SPRITE_CLASS)
 
 
@@ -81,39 +81,10 @@ def validate_install_path(install_path: str) -> tuple[bool, str]:
     return True, ""
 
 
-# ── FFDEC dump traversal ──────────────────────────────────────────────────────
+# ── Frame-label → character-id index ──────────────────────────────────────────
 
-def _scan_ffdec_dump(dump_dir: str) -> dict[str, dict[int, str]]:
-    """Index FFDEC's sprite dump by ``{class_name: {frame_no: png_path}}``.
-
-    Only sprites with one of our known class names are kept; the dump
-    contains many helper sprites we don't need.
-    """
-    index: dict[str, dict[int, str]] = {}
-    if not os.path.isdir(dump_dir):
-        return index
-    for entry in os.listdir(dump_dir):
-        match = _DEFINE_SPRITE_DIR_RE.match(entry)
-        if not match:
-            continue
-        class_name = match.group(2)
-        if class_name not in _SPRITE_CLASS_PRIORITY:
-            continue
-        sprite_dir = os.path.join(dump_dir, entry)
-        frames: dict[int, str] = {}
-        for png_name in os.listdir(sprite_dir):
-            frame_match = _FRAME_PNG_RE.match(png_name)
-            if not frame_match:
-                continue
-            frame_no = int(frame_match.group(1))
-            frames[frame_no] = os.path.join(sprite_dir, png_name)
-        if frames:
-            index[class_name] = frames
-    return index
-
-
-def _build_label_indices(swf_bytes: bytes) -> dict[str, dict[str, int]]:
-    """Per-class ``{frame_label: frame_no}`` map parsed from the raw SWF."""
+def _build_label_to_char_indices(swf_bytes: bytes) -> dict[str, dict[str, int]]:
+    """Per-class ``{frame_label: char_id}`` map parsed from the raw SWF."""
     swf_data = parse_all_tags(swf_bytes)
     names = swf_data["names"]
     sprites = swf_data["sprites"]
@@ -127,7 +98,7 @@ def _build_label_indices(swf_bytes: bytes) -> dict[str, dict[str, int]]:
         inner = sprites.get(sym_id)
         if inner is None:
             continue
-        out[class_name] = build_frame_label_index(inner)
+        out[class_name] = build_frame_to_character_index(inner)
     return out
 
 
@@ -138,7 +109,7 @@ def extract_ability_icons(
     icons_dir: str,
     progress_cb: Optional[Callable[[int, int, str], bool]] = None,
 ) -> dict:
-    """Run FFDEC against ``ability_icons.swf`` and copy frame PNGs out.
+    """Run FFDEC shape-export against ``ability_icons.swf`` and copy PNGs out.
 
     Args:
         install_path: Mewgenics install root (folder containing resources.gpak).
@@ -173,28 +144,33 @@ def extract_ability_icons(
     with GpakReader(gpak) as reader:
         swf_bytes = reader.read(_ABILITY_ICONS_INTERNAL)
 
-    label_indices = _build_label_indices(swf_bytes)
+    label_to_char = _build_label_to_char_indices(swf_bytes)
 
     # Walk the ability_icon_map (already built by the caller) to know which
-    # frame labels we actually need.
+    # frame labels we actually need; union with every labeled frame in both
+    # ability sprites so passive/disorder icons (whose names don't appear as
+    # ability keys in the GON map) also get extracted for runtime fallback
+    # resolution by bare name.
     icon_map = load_ability_icon_map(icons_dir)
-    needed_labels = _collect_needed_labels(icon_map)
+    needed_labels = _collect_needed_labels(icon_map, label_to_char)
     total = len(needed_labels)
 
     written = 0
-    skipped = 0
-    missing: list[str] = []
+    skipped_no_label = 0
+    missing_char_png = 0
+    failures: list[str] = []
     cancelled = False
 
     with tempfile.TemporaryDirectory(prefix="mbm_ffdec_") as tmp_root:
         swf_path = os.path.join(tmp_root, "ability_icons.swf")
         with open(swf_path, "wb") as fh:
             fh.write(swf_bytes)
-        dump_dir = os.path.join(tmp_root, "dump")
+        dump_dir = os.path.join(tmp_root, "shapes")
         os.makedirs(dump_dir, exist_ok=True)
 
         if progress_cb is not None and not progress_cb(0, total, "ffdec dump"):
-            return _summary(written, skipped, total, True, missing)
+            return _summary(written, skipped_no_label + missing_char_png,
+                            total, True, failures)
 
         try:
             subprocess.run(
@@ -212,35 +188,47 @@ def extract_ability_icons(
                 f"{(exc.stderr or b'').decode('utf-8', 'replace')[:500]}"
             ) from exc
 
-        frame_index = _scan_ffdec_dump(dump_dir)
-
         with open(log_path, "w", encoding="utf-8") as log:
-            log.write(f"# Icon extraction log (FFDEC)\n# source: {install_path}\n\n")
+            log.write(f"# Icon extraction log (FFDEC shape mode)\n"
+                      f"# source: {install_path}\n\n")
             done = 0
             for label in needed_labels:
                 done += 1
                 if progress_cb is not None and not progress_cb(done, total, label):
                     cancelled = True
                     break
-                src_png = _lookup_label(label, label_indices, frame_index)
-                if not src_png:
+                char_id = _lookup_label_char(label, label_to_char)
+                if char_id is None:
                     log.write(f"missing-frame-label: {label}\n")
-                    missing.append(label)
-                    skipped += 1
+                    failures.append(label)
+                    skipped_no_label += 1
                     continue
-                dst = os.path.join(out_dir, _sanitize_filename(label) + ".png")
+                src_png = os.path.join(dump_dir, f"{char_id}{_SHAPE_PNG_EXT}")
+                if not os.path.isfile(src_png):
+                    log.write(
+                        f"missing-char-png: {label} -> cid {char_id} "
+                        f"(shape not dumped — likely a sprite, not a shape)\n"
+                    )
+                    failures.append(label)
+                    missing_char_png += 1
+                    continue
+                dst = os.path.join(out_dir, _sanitize_filename(label) + _SHAPE_PNG_EXT)
                 try:
                     shutil.copyfile(src_png, dst)
                     written += 1
                 except OSError as exc:
                     log.write(f"copy-failed: {label}: {exc!r}\n")
-                    missing.append(label)
-                    skipped += 1
+                    failures.append(label)
+                    missing_char_png += 1
 
-    return _summary(written, skipped, total, cancelled, missing)
+    return _summary(written, skipped_no_label + missing_char_png,
+                    total, cancelled, failures)
 
 
-def _collect_needed_labels(icon_map: dict[str, dict]) -> list[str]:
+def _collect_needed_labels(
+    icon_map: dict[str, dict],
+    label_to_char: dict[str, dict[str, int]] | None = None,
+) -> list[str]:
     """Collect the unique frame labels referenced by the ability map.
 
     Falls back to the ability name itself when ``animation`` is missing —
@@ -259,41 +247,53 @@ def _collect_needed_labels(icon_map: dict[str, dict]) -> list[str]:
                 candidates.append(override)
         if not candidates:
             candidates.append(name)
+        # Always include the bare ability name too so dedicated per-ability
+        # shapes (e.g. ``Kamehameha`` itself, not just the shared
+        # ``hadouken`` animation) get extracted when available.
+        if name not in candidates:
+            candidates.append(name)
         for label in candidates:
             if label not in seen:
                 seen.add(label)
                 ordered.append(label)
+
+    # Union with every labeled frame present in either ability sprite —
+    # ensures passive/disorder icons (not represented as ability keys in
+    # the GON) ship too, so runtime bare-name lookups find them.
+    if label_to_char:
+        for class_name in _SPRITE_CLASS_PRIORITY:
+            sprite_labels = label_to_char.get(class_name) or {}
+            for label in sprite_labels:
+                if label not in seen:
+                    seen.add(label)
+                    ordered.append(label)
+
     return ordered
 
 
-def _lookup_label(
+def _lookup_label_char(
     label: str,
-    label_indices: dict[str, dict[str, int]],
-    frame_index: dict[str, dict[int, str]],
-) -> Optional[str]:
-    """Resolve ``label`` to a source PNG path, preferring AbilityIcon."""
+    label_to_char: dict[str, dict[str, int]],
+) -> Optional[int]:
+    """Resolve ``label`` to a character ID, preferring AbilityIcon."""
     for class_name in _SPRITE_CLASS_PRIORITY:
-        labels = label_indices.get(class_name)
+        labels = label_to_char.get(class_name)
         if not labels:
             continue
-        frame_no = labels.get(label)
-        if frame_no is None:
-            continue
-        frames = frame_index.get(class_name) or {}
-        png = frames.get(frame_no)
-        if png and os.path.isfile(png):
-            return png
+        char_id = labels.get(label)
+        if char_id is not None:
+            return char_id
     return None
 
 
 def _summary(written: int, skipped: int, total: int, cancelled: bool,
-             missing: list[str]) -> dict:
+             failures: list[str]) -> dict:
     return {
         "written": written,
         "skipped": skipped,
         "total": total,
         "cancelled": cancelled,
-        "failures": missing,
+        "failures": failures,
         # Retained for API compatibility with the old extractor — FFDEC path
         # doesn't produce badges/shells, so these are always zero.
         "badges_written": 0,
