@@ -50,3 +50,28 @@ SECTION_HEADER_BORDER_COLOR   = "#2a4a8a"
 DIFF_MARKER_COLOR        = "#e8c050"
 DIFF_MARKER_FONT_SIZE_PX = 13
 DIFF_MARKER_WIDTH        = 14   # fixed px width so rows don't shift when marker appears
+
+# Copy button styling
+COPY_BTN_GLYPH       = "↶"          # glyph rendered in the copy button
+COPY_BTN_SIZE_PX     = 16           # width and height of the copy button
+COPY_BTN_FONT_SIZE   = 12           # font size (px) for the glyph
+COPY_BTN_STYLE = (
+    "QPushButton { background:transparent; color:#6688aa; border:none;"
+    f" font-size:{COPY_BTN_FONT_SIZE}px; padding:0; min-width:{COPY_BTN_SIZE_PX}px;"
+    f" max-width:{COPY_BTN_SIZE_PX}px; min-height:{COPY_BTN_SIZE_PX}px;"
+    f" max-height:{COPY_BTN_SIZE_PX}px; opacity:0.6; }}"
+    "QPushButton:hover { color:#aaccff; opacity:1.0; }"
+)
+
+# Flash animation for copy feedback (destination cells)
+COPY_FLASH_COLOR     = "#e8c050"    # yellow border flash colour
+COPY_FLASH_DURATION  = 300          # milliseconds
+
+# Toast widget styling and timing
+TOAST_AUTO_DISMISS_MS = 4000        # auto-dismiss after 4 seconds
+TOAST_BG_COLOR        = "#1a2a44"
+TOAST_BORDER_COLOR    = "#2244aa"
+TOAST_TEXT_COLOR      = "#aabbcc"
+TOAST_UNDO_COLOR      = "#88aadd"
+TOAST_HEIGHT          = 36          # px
+TOAST_MARGIN          = 12          # px inset from dialog edges
