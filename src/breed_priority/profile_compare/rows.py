@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Callable, TYPE_CHECKING
 
-from PySide6.QtWidgets import QLabel, QLineEdit, QCheckBox, QGridLayout, QWidget
+from PySide6.QtWidgets import QLabel, QLineEdit, QCheckBox, QGridLayout, QWidget, QHBoxLayout
 from PySide6.QtCore import Qt
 
 from .constants import (
@@ -18,6 +18,7 @@ from .constants import (
     INT_PARAM_RANGES,
     LABEL_FONT_SIZE_PX, ROW_BG_EVEN, ROW_BG_ODD,
     SECTION_HEADER_FONT_SIZE_PX, SECTION_HEADER_COLOR, SECTION_HEADER_BORDER_COLOR,
+    DIFF_MARKER_COLOR, DIFF_MARKER_FONT_SIZE_PX, DIFF_MARKER_WIDTH,
 )
 from ..theme import CLR_TEXT_CONTENT_SECONDARY
 from ..delegates import _RatingCombo
@@ -37,6 +38,7 @@ class RowDescriptor:
     editors: dict[int, QWidget]
     # value_getter(staged_blob) -> comparable value; receives the staged dict for one slot
     value_getter: Callable[[dict], object]
+    diff_marker: QLabel | None = None  # asterisk label; None for header rows
     grid_row: int = 0   # grid row index (set by append_data_row via RowTracker)
     parity: int = 0     # 0 = even, 1 = odd (set by RowTracker)
 
@@ -72,6 +74,47 @@ class RowTracker:
 
 
 # ── Widget factories ──────────────────────────────────────────────────────────
+
+def _diff_marker() -> QLabel:
+    """Create a yellow bold asterisk that indicates a differing row value.
+
+    The marker always reserves its space (hidden via setVisible, not removed)
+    so rows stay horizontally stable when markers appear and disappear.
+    """
+    marker = QLabel("*")
+    marker.setFixedWidth(DIFF_MARKER_WIDTH)
+    marker.setStyleSheet(
+        f"color:{DIFF_MARKER_COLOR}; font-size:{DIFF_MARKER_FONT_SIZE_PX}px;"
+        " font-weight:bold; background:transparent; border:none;"
+    )
+    marker.setAlignment(Qt.AlignCenter)
+    marker.setVisible(False)
+    return marker
+
+
+def _label_cell(text: str, indent: bool = False) -> tuple[QWidget, QLabel, QLabel]:
+    """Return a wrapper widget containing a diff-marker + row label side-by-side.
+
+    Returns:
+        (wrapper, diff_marker_label, row_label) — wrapper is placed in the grid;
+        diff_marker_label is used by _refresh_diff_markers; row_label exposes
+        the row text and is used for setEnabled calls.
+    """
+    wrapper = QWidget()
+    wrapper.setStyleSheet("background:transparent;")
+    hb = QHBoxLayout(wrapper)
+    hb.setContentsMargins(0, 0, 0, 0)
+    hb.setSpacing(0)
+
+    marker = _diff_marker()
+    hb.addWidget(marker)
+
+    lbl = _label_widget(text, indent=indent)
+    hb.addWidget(lbl)
+    hb.addStretch()
+
+    return wrapper, marker, lbl
+
 
 def _label_widget(text: str, indent: bool = False) -> QLabel:
     """Create a styled row-label widget."""
@@ -137,8 +180,8 @@ def add_name_row(
 ) -> None:
     """Add the profile Name row."""
     r = tracker.next_row()
-    lbl = _label_widget("Name")
-    grid.addWidget(lbl, r, 0)
+    cell, marker, lbl = _label_cell("Name")
+    grid.addWidget(cell, r, 0)
 
     _col = slot_to_col if slot_to_col is not None else {n: n for n in present_slots}
     editors: dict[int, QWidget] = {}
@@ -158,9 +201,9 @@ def add_name_row(
     def _name_getter(blob: dict) -> object:
         return blob.get("name", "")
 
-    desc = RowDescriptor(label=lbl, editors=editors, value_getter=_name_getter)
+    desc = RowDescriptor(label=lbl, editors=editors, value_getter=_name_getter, diff_marker=marker)
     tracker.append_data_row(desc)
-    _apply_row_stripe([lbl] + list(editors.values()), desc.parity)
+    _apply_row_stripe([cell] + list(editors.values()), desc.parity)
 
 
 def add_weight_rows(
@@ -190,8 +233,8 @@ def add_weight_rows(
         display_label = label_text.lstrip("  └").strip() if indent else label_text
 
         r = tracker.next_row()
-        lbl = _label_widget(display_label, indent=indent)
-        grid.addWidget(lbl, r, 0)
+        cell, marker, lbl = _label_cell(display_label, indent=indent)
+        grid.addWidget(cell, r, 0)
 
         editors: dict[int, QWidget] = {}
         for n in sorted(present_slots):
@@ -211,9 +254,9 @@ def add_weight_rows(
         def _weight_getter(blob: dict, k=weight_key) -> object:
             return blob.get("weights", {}).get(k)
 
-        desc = RowDescriptor(label=lbl, editors=editors, value_getter=_weight_getter)
+        desc = RowDescriptor(label=lbl, editors=editors, value_getter=_weight_getter, diff_marker=marker)
         tracker.append_data_row(desc)
-        _apply_row_stripe([lbl] + list(editors.values()), desc.parity)
+        _apply_row_stripe([cell] + list(editors.values()), desc.parity)
 
 
 def add_complex_weight_rows(
@@ -230,8 +273,8 @@ def add_complex_weight_rows(
 
     for cw in complex_weights:
         r = tracker.next_row()
-        lbl = _label_widget(cw.name or cw.id)
-        grid.addWidget(lbl, r, 0)
+        cell, marker, lbl = _label_cell(cw.name or cw.id)
+        grid.addWidget(cell, r, 0)
 
         editors: dict[int, QWidget] = {}
         for n in sorted(present_slots):
@@ -252,9 +295,9 @@ def add_complex_weight_rows(
         def _cw_getter(blob: dict, cid=cw_id_cap) -> object:
             return cid in set(blob.get("complex_weights_enabled_ids") or [])
 
-        desc = RowDescriptor(label=lbl, editors=editors, value_getter=_cw_getter)
+        desc = RowDescriptor(label=lbl, editors=editors, value_getter=_cw_getter, diff_marker=marker)
         tracker.append_data_row(desc)
-        _apply_row_stripe([lbl] + list(editors.values()), desc.parity)
+        _apply_row_stripe([cell] + list(editors.values()), desc.parity)
 
 
 def add_trait_rows(
@@ -280,8 +323,8 @@ def add_trait_rows(
 
     for trait in trait_names:
         r = tracker.next_row()
-        lbl = _label_widget(_resolve_label(trait))
-        grid.addWidget(lbl, r, 0)
+        cell, marker, lbl = _label_cell(_resolve_label(trait))
+        grid.addWidget(cell, r, 0)
 
         editors: dict[int, QWidget] = {}
         for n in sorted(present_slots):
@@ -302,9 +345,9 @@ def add_trait_rows(
         def _trait_getter(blob: dict, t=trait_cap) -> object:
             return blob.get("ma_ratings", {}).get(t, 0)
 
-        desc = RowDescriptor(label=lbl, editors=editors, value_getter=_trait_getter)
+        desc = RowDescriptor(label=lbl, editors=editors, value_getter=_trait_getter, diff_marker=marker)
         tracker.append_data_row(desc)
-        _apply_row_stripe([lbl] + list(editors.values()), desc.parity)
+        _apply_row_stripe([cell] + list(editors.values()), desc.parity)
 
 
 # ── Rating combo helpers ──────────────────────────────────────────────────────

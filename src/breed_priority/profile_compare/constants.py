@@ -45,3 +45,8 @@ GROUP_TITLES = {
 SECTION_HEADER_FONT_SIZE_PX   = 14
 SECTION_HEADER_COLOR          = "#cce0ff"
 SECTION_HEADER_BORDER_COLOR   = "#2a4a8a"
+
+# Diff marker asterisk styling
+DIFF_MARKER_COLOR        = "#e8c050"
+DIFF_MARKER_FONT_SIZE_PX = 13
+DIFF_MARKER_WIDTH        = 14   # fixed px width so rows don't shift when marker appears

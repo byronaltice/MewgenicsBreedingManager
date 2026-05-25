@@ -41,13 +41,6 @@ _INCLUDE_CHK_STYLE = (
     "QCheckBox { color:#aabbcc; font-size:11px; padding:2px 4px; }"
     "QCheckBox::indicator { width:14px; height:14px; }"
 )
-_DIFF_CHK_STYLE = (
-    "QCheckBox { color:#88aacc; font-size:11px; padding:2px 6px; }"
-    "QCheckBox::indicator { width:13px; height:13px; }"
-)
-
-# Sentinel for empty-slot value comparisons
-_EMPTY = object()
 
 # Fallback dialog size when no parent window geometry is available
 _FALLBACK_DIALOG_W = 1400
@@ -173,11 +166,13 @@ class ProfileCompareDialog(QDialog):
         self._grid.setColumnStretch(_trailing_col, 1)
 
         self._build_grid_content()
+        # Set initial diff marker state now that all rows are registered
+        self._refresh_diff_markers()
         scroll.setWidget(body_widget)
         root.addWidget(scroll)
 
     def _build_toolbar(self) -> QWidget:
-        """Build the top toolbar with include checkboxes, diff toggle, and Apply/Cancel."""
+        """Build the top toolbar with include checkboxes and Apply/Cancel."""
         toolbar = QWidget()
         toolbar.setStyleSheet(
             f"QWidget {{ background:#0a0f1a; border-bottom:1px solid {CLR_SURFACE_SEPARATOR}; }}"
@@ -205,14 +200,6 @@ class ProfileCompareDialog(QDialog):
                 chk.stateChanged.connect(lambda _state, slot=n: self._on_include_toggled(slot))
                 self._include_checks[n] = chk
                 hb.addWidget(chk)
-
-        hb.addSpacing(20)
-
-        self._diff_chk = QCheckBox("Show only differences")
-        self._diff_chk.setChecked(False)
-        self._diff_chk.setStyleSheet(_DIFF_CHK_STYLE)
-        self._diff_chk.stateChanged.connect(self._on_diff_toggled)
-        hb.addWidget(self._diff_chk)
 
         hb.addStretch()
 
@@ -365,10 +352,6 @@ class ProfileCompareDialog(QDialog):
         self._slot_to_col = new_slot_to_col
         self._refresh_diff_visibility()
 
-    def _on_diff_toggled(self, _state: int) -> None:
-        """Recompute row dim state based on the diff-only toggle."""
-        self._refresh_diff_visibility()
-
     def _update_include_label(self, slot: int) -> None:
         """Update include checkbox label if name changed."""
         if slot not in self._include_checks:
@@ -377,36 +360,35 @@ class ProfileCompareDialog(QDialog):
         label_text = name if name else str(slot)
         self._include_checks[slot].setText(label_text)
 
-    # ── Diff visibility ───────────────────────────────────────────────────────
+    # ── Diff markers and slot visibility ─────────────────────────────────────
 
     def _refresh_diff_visibility(self) -> None:
-        """Grey out matching rows when diff mode is on; restore all when off.
+        """Restore editor slot-column visibility after include-checkbox toggles.
 
-        Rows are never hidden — matching rows are dimmed with setEnabled(False)
-        so the user can still see them. Only differing rows are fully enabled.
+        Slot visibility is controlled by the include checkboxes; diff markers
+        are updated separately by _refresh_diff_markers.
         """
-        diff_on = self._diff_chk.isChecked()
+        for desc in self._tracker.data_rows:
+            for n, w in desc.editors.items():
+                w.setVisible(n in self._slot_to_col)
+        self._refresh_diff_markers()
+
+    def _refresh_diff_markers(self) -> None:
+        """Show a yellow asterisk on every row whose value differs across visible slots."""
         included_slots = [
             n for n in self._visible_slots
-            if n in self._include_checks and self._include_checks[n].isChecked()
+            if n not in self._include_checks or self._include_checks[n].isChecked()
         ]
 
         for desc in self._tracker.data_rows:
-            if diff_on and len(included_slots) > 0:
-                values = [
-                    desc.value_getter(self._staged[n])
-                    for n in included_slots
-                ]
-                same = len({_hashable(v) for v in values}) <= 1
-            else:
-                same = False  # diff off → treat all as differing (fully enabled)
-
-            # Always show; grey when same under diff mode
-            desc.label.setEnabled(not same)
-            for n, w in desc.editors.items():
-                w.setEnabled(not same)
-                # Slot column visibility still controlled by include toggle
-                w.setVisible(n in self._slot_to_col)
+            if desc.diff_marker is None:
+                continue
+            if len(included_slots) < 2:
+                desc.diff_marker.setVisible(False)
+                continue
+            values = [desc.value_getter(self._staged[n]) for n in included_slots]
+            differs = len({_hashable(v) for v in values}) > 1
+            desc.diff_marker.setVisible(differs)
 
     # ── Apply / Cancel ────────────────────────────────────────────────────────
 
