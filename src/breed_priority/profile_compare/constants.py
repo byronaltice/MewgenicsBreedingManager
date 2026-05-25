@@ -1,8 +1,8 @@
 """Profile Compare dialog — layout and label constants."""
 
 # Column widths for the grid layout
-COL_LABEL_WIDTH     = 200
-COL_LABEL_MIN_WIDTH = 140   # minimum so labels don't collapse when window is narrow
+COL_LABEL_WIDTH     = 280   # widened to accommodate emoji-formatted trait names
+COL_LABEL_MIN_WIDTH = 180   # minimum so labels don't collapse when window is narrow
 
 # Number of profile slots
 NUM_PROFILES = 5
@@ -41,5 +41,7 @@ GROUP_TITLES = {
     "defects":         "Defects",
 }
 
-# Placeholder text shown for empty profile columns
-EMPTY_SLOT_PLACEHOLDER = "— empty —"
+# Section header styling constants (Fix 2: headers must stand out above row labels)
+SECTION_HEADER_FONT_SIZE_PX   = 14
+SECTION_HEADER_COLOR          = "#cce0ff"
+SECTION_HEADER_BORDER_COLOR   = "#2a4a8a"

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+from typing import Callable
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox, QPushButton,
@@ -53,16 +54,6 @@ _FALLBACK_DIALOG_W = 1400
 _FALLBACK_DIALOG_H = 900
 
 
-def _empty_blob() -> dict:
-    """Return a default empty profile blob with default weights and no ratings."""
-    return {
-        "name": "",
-        "weights": dict(BREED_PRIORITY_WEIGHTS),
-        "ma_ratings": {},
-        "complex_weights_enabled_ids": [],
-    }
-
-
 def _hashable(value) -> object:
     """Convert a value to something hashable for equality comparison."""
     if isinstance(value, dict):
@@ -98,6 +89,7 @@ class ProfileCompareDialog(QDialog):
         good_mutations: list[str],
         defects: list[str],
         complex_weights: list,
+        display_name_fn: Callable[[str], str] | None = None,
     ):
         super().__init__(parent)
         self.setWindowTitle("Compare Profiles")
@@ -126,14 +118,18 @@ class ProfileCompareDialog(QDialog):
         self._good_mutations = good_mutations
         self._defects = defects
         self._complex_weights = complex_weights
+        self._display_name_fn: Callable[[str], str] = display_name_fn or (lambda t: t)
 
-        # Staging state
+        # Only slots with actual saved data are shown; blank slots are hidden entirely.
+        self._visible_slots: list[int] = sorted(
+            n for n in range(1, NUM_PROFILES + 1) if n in profiles
+        )
+
+        # Staging state — seeded only for visible slots
         self._staged: dict[int, dict] = {
-            n: copy.deepcopy(profiles[n]) if n in profiles else _empty_blob()
-            for n in range(1, NUM_PROFILES + 1)
+            n: copy.deepcopy(profiles[n]) for n in self._visible_slots
         }
         self._dirty_slots: set[int] = set()
-        self._was_empty: set[int] = {n for n in range(1, NUM_PROFILES + 1) if n not in profiles}
 
         # Result (set on Apply)
         self.result_profiles: dict[int, dict] | None = None
@@ -173,7 +169,7 @@ class ProfileCompareDialog(QDialog):
         self._grid.setColumnMinimumWidth(0, COL_LABEL_WIDTH)
         # Trailing stretch column absorbs leftover horizontal space so data
         # columns hug left rather than distributing evenly.
-        _trailing_col = NUM_PROFILES + 1
+        _trailing_col = len(self._visible_slots) + 1
         self._grid.setColumnStretch(_trailing_col, 1)
 
         self._build_grid_content()
@@ -193,22 +189,22 @@ class ProfileCompareDialog(QDialog):
         hb.setContentsMargins(16, 0, 16, 0)
         hb.setSpacing(10)
 
-        slot_lbl = QLabel("Slots:")
-        slot_lbl.setStyleSheet(f"color:{CLR_TEXT_LABEL_GROUP}; font-size:10px; font-weight:bold;")
-        hb.addWidget(slot_lbl)
-
+        # Only show the "Slots:" label + checkboxes when there are multiple visible slots
         self._include_checks: dict[int, QCheckBox] = {}
-        for n in range(1, NUM_PROFILES + 1):
-            name = self._staged[n].get("name", "") if n not in self._was_empty else ""
-            label_text = name if name else str(n)
-            if n in self._was_empty:
-                label_text = f"{label_text} (empty)"
-            chk = QCheckBox(label_text)
-            chk.setChecked(True)
-            chk.setStyleSheet(_INCLUDE_CHK_STYLE)
-            chk.stateChanged.connect(lambda _state, slot=n: self._on_include_toggled(slot))
-            self._include_checks[n] = chk
-            hb.addWidget(chk)
+        if len(self._visible_slots) > 1:
+            slot_lbl = QLabel("Slots:")
+            slot_lbl.setStyleSheet(f"color:{CLR_TEXT_LABEL_GROUP}; font-size:10px; font-weight:bold;")
+            hb.addWidget(slot_lbl)
+
+            for n in self._visible_slots:
+                name = self._staged[n].get("name", "")
+                label_text = name if name else str(n)
+                chk = QCheckBox(label_text)
+                chk.setChecked(True)
+                chk.setStyleSheet(_INCLUDE_CHK_STYLE)
+                chk.stateChanged.connect(lambda _state, slot=n: self._on_include_toggled(slot))
+                self._include_checks[n] = chk
+                hb.addWidget(chk)
 
         hb.addSpacing(20)
 
@@ -237,25 +233,40 @@ class ProfileCompareDialog(QDialog):
 
     def _build_grid_content(self) -> None:
         """Populate the scrollable grid with all section groups and their rows."""
+        from ..stat_text_formatter import StatTextFormatter
+
         grid = self._grid
         tracker = self._tracker
 
-        # Only slots with real saved data get editor widgets; empty slots show placeholders
-        present_slots = {n for n in range(1, NUM_PROFILES + 1) if n not in self._was_empty}
+        present_slots = set(self._visible_slots)
 
-        # All slots start visible → initial column mapping is 1:1
-        self._slot_to_col = {n: n for n in range(1, NUM_PROFILES + 1)}
-        num_cols = NUM_PROFILES
+        # Initial column mapping: visible slots packed left starting at column 1
+        self._slot_to_col = {n: i + 1 for i, n in enumerate(self._visible_slots)}
+        num_cols = len(self._visible_slots)
+
+        def _trait_label(trait: str) -> str:
+            """Resolve a raw trait key to an emoji-formatted display label."""
+            try:
+                raw = self._display_name_fn(trait)
+                return StatTextFormatter.emojify(raw) if raw else trait
+            except Exception:
+                return trait
+
+        slot_to_col = self._slot_to_col
 
         # ── Name ──────────────────────────────────────────────────────────────
         add_section_header(grid, tracker, GROUP_TITLES["name"], num_cols)
-        add_name_row(grid, tracker, self._staged, present_slots, self._on_field_changed)
+        add_name_row(
+            grid, tracker, self._staged, present_slots, self._on_field_changed,
+            slot_to_col=slot_to_col,
+        )
 
         # ── Weights ───────────────────────────────────────────────────────────
         add_section_header(grid, tracker, GROUP_TITLES["weights"], num_cols)
         add_weight_rows(
             grid, tracker, WEIGHT_UI_ROWS,
             self._staged, present_slots, self._on_weight_changed,
+            slot_to_col=slot_to_col,
         )
 
         # ── Complex Weights ───────────────────────────────────────────────────
@@ -264,6 +275,7 @@ class ProfileCompareDialog(QDialog):
             add_complex_weight_rows(
                 grid, tracker, self._complex_weights,
                 self._staged, present_slots, self._on_cw_changed,
+                slot_to_col=slot_to_col,
             )
 
         # ── Trait Desirability groups ─────────────────────────────────────────
@@ -281,6 +293,8 @@ class ProfileCompareDialog(QDialog):
             add_trait_rows(
                 grid, tracker, trait_list,
                 self._staged, present_slots, self._on_trait_changed,
+                label_fn=_trait_label,
+                slot_to_col=slot_to_col,
             )
 
     # ── Change handlers ───────────────────────────────────────────────────────
@@ -330,7 +344,7 @@ class ProfileCompareDialog(QDialog):
         """
         # Recompute slot→column mapping based on currently checked slots
         visible_slots = [
-            n for n in range(1, NUM_PROFILES + 1) if self._include_checks[n].isChecked()
+            n for n in self._visible_slots if self._include_checks[n].isChecked()
         ]
         new_slot_to_col: dict[int, int] = {n: i + 1 for i, n in enumerate(visible_slots)}
 
@@ -357,10 +371,10 @@ class ProfileCompareDialog(QDialog):
 
     def _update_include_label(self, slot: int) -> None:
         """Update include checkbox label if name changed."""
+        if slot not in self._include_checks:
+            return
         name = self._staged[slot].get("name", "")
         label_text = name if name else str(slot)
-        if slot in self._was_empty:
-            label_text = f"{label_text} (empty)"
         self._include_checks[slot].setText(label_text)
 
     # ── Diff visibility ───────────────────────────────────────────────────────
@@ -372,12 +386,15 @@ class ProfileCompareDialog(QDialog):
         so the user can still see them. Only differing rows are fully enabled.
         """
         diff_on = self._diff_chk.isChecked()
-        included_slots = [n for n in range(1, NUM_PROFILES + 1) if self._include_checks[n].isChecked()]
+        included_slots = [
+            n for n in self._visible_slots
+            if n in self._include_checks and self._include_checks[n].isChecked()
+        ]
 
         for desc in self._tracker.data_rows:
             if diff_on and len(included_slots) > 0:
                 values = [
-                    desc.value_getter(self._staged[n]) if n not in self._was_empty else _EMPTY
+                    desc.value_getter(self._staged[n])
                     for n in included_slots
                 ]
                 same = len({_hashable(v) for v in values}) <= 1
@@ -394,15 +411,8 @@ class ProfileCompareDialog(QDialog):
     # ── Apply / Cancel ────────────────────────────────────────────────────────
 
     def _on_apply(self) -> None:
-        """Collect staged state, drop untouched empty slots, and accept."""
-        result: dict[int, dict] = {}
-        for n in range(1, NUM_PROFILES + 1):
-            was_empty = n in self._was_empty
-            touched = n in self._dirty_slots
-            if was_empty and not touched:
-                continue
-            result[n] = self._staged[n]
-        self.result_profiles = result
+        """Collect staged state for all visible slots and accept."""
+        self.result_profiles = {n: self._staged[n] for n in self._visible_slots}
         self.accept()
 
     def _on_cancel(self) -> None:

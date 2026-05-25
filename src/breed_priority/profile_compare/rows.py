@@ -15,10 +15,11 @@ from PySide6.QtCore import Qt
 
 from .constants import (
     COL_LABEL_WIDTH, COL_LABEL_MIN_WIDTH,
-    NUM_PROFILES, EMPTY_SLOT_PLACEHOLDER, INT_PARAM_RANGES,
+    INT_PARAM_RANGES,
     LABEL_FONT_SIZE_PX, ROW_BG_EVEN, ROW_BG_ODD,
+    SECTION_HEADER_FONT_SIZE_PX, SECTION_HEADER_COLOR, SECTION_HEADER_BORDER_COLOR,
 )
-from ..theme import CLR_TEXT_LABEL_GROUP, CLR_TEXT_CONTENT_SECONDARY, CLR_SURFACE_SEPARATOR
+from ..theme import CLR_TEXT_CONTENT_SECONDARY
 from ..delegates import _RatingCombo
 from ..widgets import _WeightSpin, _IntParamSpin
 
@@ -85,21 +86,17 @@ def _label_widget(text: str, indent: bool = False) -> QLabel:
 
 
 def _section_header(text: str) -> QLabel:
-    """Create a styled section-header label spanning all columns."""
+    """Create a styled section-header label spanning all columns.
+
+    Headers use a larger, brighter style so they are visually dominant over
+    the 11px row labels beneath them.
+    """
     lbl = QLabel(text)
     lbl.setStyleSheet(
-        f"color:{CLR_TEXT_LABEL_GROUP}; font-size:10px; font-weight:bold;"
-        f" letter-spacing:1px; border-bottom:1px solid {CLR_SURFACE_SEPARATOR};"
-        " padding:4px 0 2px 0;"
+        f"color:{SECTION_HEADER_COLOR}; font-size:{SECTION_HEADER_FONT_SIZE_PX}px; font-weight:bold;"
+        f" letter-spacing:2px; border-bottom:1px solid {SECTION_HEADER_BORDER_COLOR};"
+        " padding:10px 0 4px 0; margin-top:6px;"
     )
-    return lbl
-
-
-def _empty_label() -> QLabel:
-    """Placeholder label for an empty profile slot column."""
-    lbl = QLabel(EMPTY_SLOT_PLACEHOLDER)
-    lbl.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-    lbl.setStyleSheet(f"color:{CLR_SURFACE_SEPARATOR}; font-size:10px; font-style:italic;")
     return lbl
 
 
@@ -136,28 +133,27 @@ def add_name_row(
     staged: dict[int, dict],
     present_slots: set[int],
     on_changed,  # callable(slot, field, value)
+    slot_to_col: dict[int, int] | None = None,
 ) -> None:
     """Add the profile Name row."""
     r = tracker.next_row()
     lbl = _label_widget("Name")
     grid.addWidget(lbl, r, 0)
 
+    _col = slot_to_col if slot_to_col is not None else {n: n for n in present_slots}
     editors: dict[int, QWidget] = {}
-    for n in range(1, NUM_PROFILES + 1):
-        if n not in present_slots:
-            w = _empty_label()
-        else:
-            w = QLineEdit(staged[n].get("name", ""))
-            w.setMaxLength(80)
-            w.setStyleSheet(
-                "QLineEdit { background:#0e1828; color:#aabbcc; border:1px solid #1a2a44;"
-                " border-radius:3px; padding:1px 4px; font-size:10px; }"
-                "QLineEdit:focus { border-color:#2244aa; }"
-            )
-            slot = n
-            w.textChanged.connect(lambda val, s=slot: on_changed(s, "name", val))
+    for n in sorted(present_slots):
+        w = QLineEdit(staged[n].get("name", ""))
+        w.setMaxLength(80)
+        w.setStyleSheet(
+            "QLineEdit { background:#0e1828; color:#aabbcc; border:1px solid #1a2a44;"
+            " border-radius:3px; padding:1px 4px; font-size:10px; }"
+            "QLineEdit:focus { border-color:#2244aa; }"
+        )
+        slot = n
+        w.textChanged.connect(lambda val, s=slot: on_changed(s, "name", val))
         editors[n] = w
-        grid.addWidget(w, r, n, Qt.AlignLeft | Qt.AlignVCenter)
+        grid.addWidget(w, r, _col[n], Qt.AlignLeft | Qt.AlignVCenter)
 
     def _name_getter(blob: dict) -> object:
         return blob.get("name", "")
@@ -174,8 +170,11 @@ def add_weight_rows(
     staged: dict[int, dict],
     present_slots: set[int],
     on_changed,  # callable(slot, key, value)
+    slot_to_col: dict[int, int] | None = None,
 ) -> None:
-    """Add one row per entry in WEIGHT_UI_ROWS, plus trait_flat_scoring checkbox."""
+    """Add one row per entry in WEIGHT_UI_ROWS."""
+    _col = slot_to_col if slot_to_col is not None else {n: n for n in present_slots}
+
     for key, label_spec in weight_ui_rows:
         if key is None:
             # Separator — skip for the compare grid (keep layout compact)
@@ -195,20 +194,17 @@ def add_weight_rows(
         grid.addWidget(lbl, r, 0)
 
         editors: dict[int, QWidget] = {}
-        for n in range(1, NUM_PROFILES + 1):
-            if n not in present_slots:
-                w = _empty_label()
+        for n in sorted(present_slots):
+            current_val = staged[n].get("weights", {}).get(key, 0.0)
+            if key in INT_PARAM_RANGES:
+                mn, mx = INT_PARAM_RANGES[key]
+                w = _IntParamSpin(int(round(current_val)), min_val=mn, max_val=mx)
             else:
-                current_val = staged[n].get("weights", {}).get(key, 0.0)
-                if key in INT_PARAM_RANGES:
-                    mn, mx = INT_PARAM_RANGES[key]
-                    w = _IntParamSpin(int(round(current_val)), min_val=mn, max_val=mx)
-                else:
-                    w = _WeightSpin(float(current_val))
-                slot = n
-                w.valueChanged.connect(lambda val, s=slot, k=key: on_changed(s, k, val))
+                w = _WeightSpin(float(current_val))
+            slot = n
+            w.valueChanged.connect(lambda val, s=slot, k=key: on_changed(s, k, val))
             editors[n] = w
-            grid.addWidget(w, r, n, Qt.AlignLeft | Qt.AlignVCenter)
+            grid.addWidget(w, r, _col[n], Qt.AlignLeft | Qt.AlignVCenter)
 
         weight_key = key
 
@@ -219,34 +215,6 @@ def add_weight_rows(
         tracker.append_data_row(desc)
         _apply_row_stripe([lbl] + list(editors.values()), desc.parity)
 
-    # Flat trait scoring checkbox row
-    r = tracker.next_row()
-    lbl = _label_widget("Flat trait scoring")
-    grid.addWidget(lbl, r, 0)
-
-    editors = {}
-    for n in range(1, NUM_PROFILES + 1):
-        if n not in present_slots:
-            w = _empty_label()
-        else:
-            is_flat = staged[n].get("weights", {}).get("trait_flat_scoring", 0.0) >= 0.5
-            w = QCheckBox()
-            w.setChecked(is_flat)
-            w.setStyleSheet("QCheckBox { color:#aabbcc; font-size:10px; }")
-            slot = n
-            w.stateChanged.connect(
-                lambda state, s=slot: on_changed(s, "trait_flat_scoring", 1.0 if state else 0.0)
-            )
-        editors[n] = w
-        grid.addWidget(w, r, n, Qt.AlignLeft | Qt.AlignVCenter)
-
-    def _flat_getter(blob: dict) -> object:
-        return blob.get("weights", {}).get("trait_flat_scoring", 0.0) >= 0.5
-
-    desc = RowDescriptor(label=lbl, editors=editors, value_getter=_flat_getter)
-    tracker.append_data_row(desc)
-    _apply_row_stripe([lbl] + list(editors.values()), desc.parity)
-
 
 def add_complex_weight_rows(
     grid: QGridLayout,
@@ -255,29 +223,29 @@ def add_complex_weight_rows(
     staged: dict[int, dict],
     present_slots: set[int],
     on_changed,  # callable(slot, cw_id, enabled_bool)
+    slot_to_col: dict[int, int] | None = None,
 ) -> None:
     """Add one checkbox row per entry in the complex_weights catalog."""
+    _col = slot_to_col if slot_to_col is not None else {n: n for n in present_slots}
+
     for cw in complex_weights:
         r = tracker.next_row()
         lbl = _label_widget(cw.name or cw.id)
         grid.addWidget(lbl, r, 0)
 
         editors: dict[int, QWidget] = {}
-        for n in range(1, NUM_PROFILES + 1):
-            if n not in present_slots:
-                w = _empty_label()
-            else:
-                enabled_ids = set(staged[n].get("complex_weights_enabled_ids", []))
-                w = QCheckBox()
-                w.setChecked(cw.id in enabled_ids)
-                w.setStyleSheet("QCheckBox { color:#aabbcc; font-size:10px; }")
-                slot = n
-                cw_id = cw.id
-                w.stateChanged.connect(
-                    lambda state, s=slot, cid=cw_id: on_changed(s, cid, bool(state))
-                )
+        for n in sorted(present_slots):
+            enabled_ids = set(staged[n].get("complex_weights_enabled_ids", []))
+            w = QCheckBox()
+            w.setChecked(cw.id in enabled_ids)
+            w.setStyleSheet("QCheckBox { color:#aabbcc; font-size:10px; }")
+            slot = n
+            cw_id = cw.id
+            w.stateChanged.connect(
+                lambda state, s=slot, cid=cw_id: on_changed(s, cid, bool(state))
+            )
             editors[n] = w
-            grid.addWidget(w, r, n, Qt.AlignLeft | Qt.AlignVCenter)
+            grid.addWidget(w, r, _col[n], Qt.AlignLeft | Qt.AlignVCenter)
 
         cw_id_cap = cw.id
 
@@ -296,29 +264,38 @@ def add_trait_rows(
     staged: dict[int, dict],
     present_slots: set[int],
     on_changed,  # callable(slot, trait_name, rating_value)
+    label_fn: Callable[[str], str] | None = None,
+    slot_to_col: dict[int, int] | None = None,
 ) -> None:
-    """Add one _RatingCombo row per trait name."""
+    """Add one _RatingCombo row per trait name.
+
+    Args:
+        label_fn: Optional callable that converts a raw trait key to a display
+            label string. If omitted, the raw trait key is used directly.
+        slot_to_col: Maps slot numbers to grid column indices. Defaults to
+            identity mapping if omitted.
+    """
+    _resolve_label = label_fn if label_fn is not None else (lambda t: t)
+    _col = slot_to_col if slot_to_col is not None else {n: n for n in present_slots}
+
     for trait in trait_names:
         r = tracker.next_row()
-        lbl = _label_widget(trait)
+        lbl = _label_widget(_resolve_label(trait))
         grid.addWidget(lbl, r, 0)
 
         editors: dict[int, QWidget] = {}
-        for n in range(1, NUM_PROFILES + 1):
-            if n not in present_slots:
-                w = _empty_label()
-            else:
-                rating = staged[n].get("ma_ratings", {}).get(trait)
-                rating_to_index = {2: 0, 1: 1, 0: 2, None: 3, -1: 4}
-                w = _RatingCombo()
-                w.setCurrentIndex(rating_to_index.get(rating, 3))
-                slot = n
-                trait_name = trait
-                w.currentIndexChanged.connect(
-                    lambda idx, s=slot, t=trait_name: _on_rating_changed(staged, s, t, idx, on_changed)
-                )
+        for n in sorted(present_slots):
+            rating = staged[n].get("ma_ratings", {}).get(trait)
+            rating_to_index = {2: 0, 1: 1, 0: 2, None: 3, -1: 4}
+            w = _RatingCombo()
+            w.setCurrentIndex(rating_to_index.get(rating, 3))
+            slot = n
+            trait_name = trait
+            w.currentIndexChanged.connect(
+                lambda idx, s=slot, t=trait_name: _on_rating_changed(staged, s, t, idx, on_changed)
+            )
             editors[n] = w
-            grid.addWidget(w, r, n, Qt.AlignLeft | Qt.AlignVCenter)
+            grid.addWidget(w, r, _col[n], Qt.AlignLeft | Qt.AlignVCenter)
 
         trait_cap = trait
 

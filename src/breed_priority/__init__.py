@@ -876,6 +876,13 @@ class BreedPriorityView(QWidget):
 
     def _open_profile_compare(self):
         """Open the Profile Compare dialog and apply any changes on Accept."""
+        if not self._profiles:
+            QMessageBox.information(
+                self, "No Saved Profiles",
+                "No profiles have been saved yet.\n\nUse the Save button to store current settings to a profile slot.",
+                QMessageBox.Ok,
+            )
+            return
         dlg = ProfileCompareDialog(
             parent=self,
             profiles=self._profiles,
@@ -885,6 +892,7 @@ class BreedPriorityView(QWidget):
             good_mutations=self._all_good_mutations,
             defects=self._all_defects,
             complex_weights=self._complex_weights,
+            display_name_fn=self._display_name,
         )
         if dlg.exec() != QDialog.Accepted or dlg.result_profiles is None:
             return
