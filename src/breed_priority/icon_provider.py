@@ -410,21 +410,24 @@ def _candidate_frame_labels(ability_name: str):
     """Yield frame-label candidates for an ability in priority order.
 
     Order is:
-      1. ``animation`` from any matching map entry (preferred — the GON
-         tells us which SWF frame the game itself uses).
-      2. ``ability_icon_override`` target (one-hop redirect to another
-         ability whose own animation/name will resolve a frame).
-      3. Each ``_candidate_lookup_keys`` variant of the input name (the
-         shipped PNG set names files after CamelCase ability keys, so
-         the lookup key itself is often a valid frame label).
-      4. The raw input string as a last-resort frame label.
+      1. Each ``_candidate_lookup_keys`` variant of the input name (most
+         specific — many abilities ship a dedicated icon symbol named after
+         the ability itself, e.g. ``Kamehameha.png``).
+      2. ``animation`` from any matching map entry (the GON's
+         ``graphics.animation`` field — refers to the in-combat animation
+         and often doubles as a shared generic icon when an ability has no
+         dedicated one, e.g. Kamehameha falls back to ``hadouken``).
+      3. ``ability_icon_override`` target (one-hop redirect to another
+         ability whose name resolves a frame).
 
     Callers walk the sequence and pick the first whose PNG exists, so a
-    missing extracted-animation PNG gracefully falls through to the
-    ability-name PNG instead of returning no icon at all.
+    dedicated per-ability icon wins over the shared animation-name icon.
     """
     icon_map = _load_ability_map_if_needed()
     lookup_keys = list(_candidate_lookup_keys(ability_name))
+
+    for key in lookup_keys:
+        yield key
 
     if icon_map:
         for key in lookup_keys:
@@ -439,9 +442,6 @@ def _candidate_frame_labels(ability_name: str):
                 override = entry.get("ability_icon_override")
                 if isinstance(override, str) and override:
                     yield override
-
-    for key in lookup_keys:
-        yield key
 
 
 def _candidate_lookup_keys(ability_name: str):

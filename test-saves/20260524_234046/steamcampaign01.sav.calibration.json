@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "overrides": {
+    "0xc583e9344c11f862": {
+      "name": "Amber",
+      "gender": "male"
+    }
+  },
+  "gender_token_map": {}
+}
