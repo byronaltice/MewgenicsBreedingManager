@@ -46,3 +46,4 @@ tmp/
 /defect-investigation/
 scripts/restore_profile5.py
 .claude/worktrees/
+.claude/mcp.json
