@@ -1,5 +1,23 @@
 # CLAUDE.md
 
+## Mewgenics Reference MCP
+
+A companion MCP server (`mewgenics` tool namespace) provides semantic search and structured queries over Mewgenics game reference data scraped from the wiki. Use it when you need to look up game mechanics, ability descriptions, class info, mutations, disorders, or any other game knowledge not present in this codebase.
+
+**Available tools:**
+- `search(query, n=5)` — semantic search over wiki content. Returns ranked file paths + excerpts. Use this first.
+- `read_file(path)` — read a specific wiki page (path returned by `search`)
+- `query_db(table, filters={}, limit=20)` — query structured data. Tables: `abilities`, `mutations`, `disorders`
+- `list_db_tables()` — discover available tables and their schemas
+
+**Example queries:**
+- "what does the Fighter class do" → `search("Fighter class overview")`
+- "find Holy Beam ability" → `search("Holy Beam ability")` then `query_db("abilities", {"name": "Holy Beam"})`
+- "list all Cleric active abilities" → `query_db("abilities", {"class": "cleric", "type": "active"})`
+- "what mutations affect CON" → `search("mutations constitution stat")`
+
+Requires `HF_TOKEN` env var for the `search` tool (already in `.zshrc`). Other tools work without it.
+
 ## Focus
 
 - When working with this project, you will be working primarily in the Breed Priority module `src\breed_priority\`.
