@@ -16,7 +16,43 @@ A companion MCP server (`mewgenics` tool namespace) provides semantic search and
 - "list all Cleric active abilities" → `query_db("abilities", {"class": "cleric", "type": "active"})`
 - "what mutations affect CON" → `search("mutations constitution stat")`
 
-Requires `HF_TOKEN` env var for the `search` tool (already in `.zshrc`). Other tools work without it.
+Requires `HF_TOKEN` env var for the `search` tool. Other tools work without it.
+
+### MCP Setup Check — Run This on First Use on Any Machine
+
+Before using any `mewgenics` MCP tools, verify the server is configured correctly for this machine:
+
+**Step 1 — Check the `cwd` path in `.claude/mcp.json`**
+
+Open `.claude/mcp.json` and verify the `cwd` value points to where `MewgenicsReferenceMCP` is cloned on this machine.
+
+- Mac default: `/Users/sh4tx/p/MewgenicsReferenceMCP`
+- Windows default: `C:\Users\Byron\gitprojects\MewgenicsReferenceMCP`
+
+If the path is wrong, update it to the actual clone location. If `MewgenicsReferenceMCP` hasn't been cloned yet, clone it first:
+```
+git clone https://github.com/byronaltice/MewgenicsReferenceMCP
+```
+Then run `uv sync` inside the cloned directory.
+
+**Step 2 — Check `HF_TOKEN`**
+
+The `search` tool requires a HuggingFace token to load the embedding model. Check if it's available:
+
+- **Mac:** defined in `~/onedrive/alias/remote/home/.zshrc` as `HF_TOKEN` — sourced automatically
+- **Windows:** check if `HF_TOKEN` is set as a user environment variable (`$env:HF_TOKEN` in PowerShell). If not, set it: System Properties → Environment Variables → New User Variable → name `HF_TOKEN`, value is your HuggingFace token (find it at https://huggingface.co/settings/tokens or in `~/onedrive/alias/remote/home/.zshrc` on Mac)
+
+**Step 3 — Verify the database exists**
+
+Inside the `MewgenicsReferenceMCP` directory, check that `data/mewgenics.db` and `data/chroma/` exist. If not, re-run the ingestion pipeline:
+```
+uv run scripts/scrape.py
+uv run scripts/embed.py
+```
+
+**Step 4 — Test**
+
+Try `list_db_tables()` — it works without `HF_TOKEN` and confirms the server and database are connected. Then try `search("fighter class")` to confirm the embedding layer works.
 
 ## Focus
 
