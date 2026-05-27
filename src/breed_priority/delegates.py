@@ -657,6 +657,10 @@ class LocationDelegate(QStyledItemDelegate):
         combo.wheelEvent = lambda e: e.ignore()
         for label in _LOCATION_DISPLAY_LABELS:
             combo.addItem(label)
+        # Commit immediately when the user picks an item so the change applies
+        # without requiring a second interaction (e.g. clicking another cat).
+        combo.activated.connect(lambda _idx: self.commitData.emit(combo))
+        combo.activated.connect(lambda _idx: self.closeEditor.emit(combo, QStyledItemDelegate.NoHint))
         # Open the dropdown immediately so the user doesn't need a second click.
         # Deferred to the next event-loop tick so Qt finishes installing the
         # editor before the popup grab activates.
